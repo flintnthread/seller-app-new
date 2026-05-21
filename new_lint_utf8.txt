@@ -1,0 +1,242 @@
+﻿
+> fntseller@1.0.0 lint
+> expo lint
+
+
+C:\SELLER\seller-app\app\(auth)\details.tsx
+    9:3   warning  'Linking' is defined but never used                                                                                                                   @typescript-eslint/no-unused-vars
+   14:3   warning  'BackHandler' is defined but never used                                                                                                               @typescript-eslint/no-unused-vars
+   50:7   warning  'URL' is assigned a value but never used                                                                                                              @typescript-eslint/no-unused-vars
+  108:6   warning  React Hook useEffect has missing dependencies: 'fadeAnim', 'index', 'scaleAnim', and 'slideAnim'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  130:9   warning  'navigation' is assigned a value but never used                                                                                                       @typescript-eslint/no-unused-vars
+  151:6   warning  React Hook useEffect has missing dependencies: 'fadeAnim' and 'slideAnim'. Either include them or remove the dependency array                         react-hooks/exhaustive-deps
+  207:27  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                       react/no-unescaped-entities
+  276:49  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                       react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(auth)\forgotpassword.tsx
+  21:10  warning  'ThemedText' is defined but never used                @typescript-eslint/no-unused-vars
+  23:24  warning  'fontSizes' is defined but never used                 @typescript-eslint/no-unused-vars
+  51:24  warning  'setShowPassword' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(auth)\landing.tsx
+   20:16  warning  'SW' is assigned a value but never used                                                                        @typescript-eslint/no-unused-vars
+   20:28  warning  'SH' is assigned a value but never used                                                                        @typescript-eslint/no-unused-vars
+  178:6   warning  React Hook useEffect has a missing dependency: 'transition'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(auth)\login.tsx
+  18:10  warning  'ThemedText' is defined but never used                 @typescript-eslint/no-unused-vars
+  20:24  warning  'fontSizes' is defined but never used                  @typescript-eslint/no-unused-vars
+  25:9   warning  'insets' is assigned a value but never used            @typescript-eslint/no-unused-vars
+  39:9   warning  'shouldHideFooter' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(auth)\signup.tsx
+   21:3   warning  'Alert' is defined but never used                                                                                                                                                      @typescript-eslint/no-unused-vars
+   27:24  warning  'fontSizes' is defined but never used                                                                                                                                                  @typescript-eslint/no-unused-vars
+   29:21  warning  'Circle' is defined but never used                                                                                                                                                     @typescript-eslint/no-unused-vars
+   33:7   warning  'CREAM' is assigned a value but never used                                                                                                                                             @typescript-eslint/no-unused-vars
+   35:7   warning  'PRIMARY_D' is assigned a value but never used                                                                                                                                         @typescript-eslint/no-unused-vars
+  488:21  warning  'setIsLoading' is assigned a value but never used                                                                                                                                      @typescript-eslint/no-unused-vars
+  492:9   warning  The 'fieldRefs' object makes the dependencies of useCallback Hook (at line 544) change on every render. To fix this, wrap the initialization of 'fieldRefs' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  572:6   warning  React Hook useCallback has a missing dependency: 'fieldRefs.mobile'. Either include it or remove the dependency array                                                                  react-hooks/exhaustive-deps
+  594:6   warning  React Hook useCallback has a missing dependency: 'fieldRefs.otp'. Either include it or remove the dependency array                                                                     react-hooks/exhaustive-deps
+  634:6   warning  React Hook useCallback has an unnecessary dependency: 'agreed'. Either exclude it or remove the dependency array                                                                       react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(auth)\welcome.tsx
+   2:17  warning  'useEffect' is defined but never used            @typescript-eslint/no-unused-vars
+   9:3   warning  'BackHandler' is defined but never used          @typescript-eslint/no-unused-vars
+  12:24  warning  'fontSizes' is defined but never used            @typescript-eslint/no-unused-vars
+  15:9   warning  'navigation' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\Addnewproduct.tsx
+    3:11  warning  'Text' is defined but never used                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   10:5   warning  'Poppins_400Regular' is defined but never used                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+   11:5   warning  'Poppins_500Medium' is defined but never used                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   12:5   warning  'Poppins_600SemiBold' is defined but never used                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   13:5   warning  'Poppins_700Bold' is defined but never used                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+   16:24  warning  'fontSizes' is defined but never used                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  116:8   warning  React Hook useEffect has missing dependencies: 'item.id', 'onRemove', 'opacity', and 'translateX'. Either include them or remove the dependency array. If 'onRemove' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(main)\Ordersscreen.tsx
+  11:24  warning  'fontSizes' is defined but never used  @typescript-eslint/no-unused-vars
+  12:10  warning  'useRouter' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\Profile.tsx
+   12:24  warning  'fontSizes' is defined but never used          @typescript-eslint/no-unused-vars
+  726:7   warning  'MenuIcon' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\_layout.tsx
+  1:10  warning  'Tabs' is defined but never used            @typescript-eslint/no-unused-vars
+  2:8   warning  'React' is defined but never used           @typescript-eslint/no-unused-vars
+  3:10  warning  'HapticTab' is defined but never used       @typescript-eslint/no-unused-vars
+  4:10  warning  'IconSymbol' is defined but never used      @typescript-eslint/no-unused-vars
+  5:10  warning  'Colors' is defined but never used          @typescript-eslint/no-unused-vars
+  6:10  warning  'useColorScheme' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\dashboard.tsx
+     5:5   warning  'Text' is defined but never used                                                                                                  @typescript-eslint/no-unused-vars
+    24:5   warning  'Poppins_400Regular' is defined but never used                                                                                    @typescript-eslint/no-unused-vars
+    25:5   warning  'Poppins_500Medium' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+    26:5   warning  'Poppins_600SemiBold' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+    27:5   warning  'Poppins_700Bold' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
+    30:20  warning  'DesignColors' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+    30:34  warning  'palette' is defined but never used                                                                                               @typescript-eslint/no-unused-vars
+    31:10  warning  'spacing' is defined but never used                                                                                               @typescript-eslint/no-unused-vars
+    32:10  warning  'fontSizes' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+    34:15  warning  'TextProps' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+   197:10  warning  'buildFillPath' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+   204:10  warning  'getLastPoint' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+   481:1   warning  Import in body of module; reorder to top                                                                                          import/first
+  1006:8   warning  React Hook useEffect has missing dependencies: 'overlayAnim' and 'slideAnim'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  1035:66  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                   react/no-unescaped-entities
+  1350:83  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                   react/no-unescaped-entities
+  1387:62  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                   react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(main)\earning.tsx
+  10:3  warning  'Alert' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\earningsScreen.tsx
+  93:6  warning  React Hook useEffect has a missing dependency: 'calculateEarnings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(main)\helpsupport.tsx
+   320:6   warning  React Hook useEffect has missing dependencies: 'checkAnim', 'confettiAnim', 'opacityAnim', and 'scaleAnim'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   375:15  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                 react/no-unescaped-entities
+   375:29  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                 react/no-unescaped-entities
+   592:6   warning  React Hook useEffect has missing dependencies: 'd0', 'd1', and 'd2'. Either include them or remove the dependency array                                         react-hooks/exhaustive-deps
+   622:6   warning  React Hook useEffect has missing dependencies: 'fade' and 'slide'. Either include them or remove the dependency array                                           react-hooks/exhaustive-deps
+   681:6   warning  React Hook useEffect has a missing dependency: 'slideAnim'. Either include it or remove the dependency array                                                    react-hooks/exhaustive-deps
+  1177:86  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                 react/no-unescaped-entities
+  1177:95  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                 react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(main)\payoutrequest.tsx
+  102:16  warning  'SCREEN_WIDTH' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
+  226:6   warning  React Hook useCallback has a missing dependency: 'router'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  524:10  error    'DateTimePicker' is not defined                                                                              react/jsx-no-undef
+
+C:\SELLER\seller-app\app\(main)\productmanagement.tsx
+   3:11  warning  'Text' is defined but never used                 @typescript-eslint/no-unused-vars
+   9:5   warning  'Poppins_400Regular' is defined but never used   @typescript-eslint/no-unused-vars
+  10:5   warning  'Poppins_500Medium' is defined but never used    @typescript-eslint/no-unused-vars
+  11:5   warning  'Poppins_600SemiBold' is defined but never used  @typescript-eslint/no-unused-vars
+  12:5   warning  'Poppins_700Bold' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\reviewsScreen.tsx
+  183:19  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  183:44  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(main)\sellerComponents.tsx
+   18:24  warning  'fontSizes' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+   19:13  warning  'ImagePicker' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   21:3   warning  'PRIMARY' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+  293:6   warning  React Hook React.useEffect has a missing dependency: 'animatedWidth'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(main)\sellerIcons.tsx
+  8:36  warning  'PRIMARY' is defined but never used    @typescript-eslint/no-unused-vars
+  8:45  warning  'PRIMARY_D' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\(main)\selleraddressinfo.tsx
+  218:9  warning  The 'fieldRefs' object makes the dependencies of useCallback Hook (at line 279) change on every render. To fix this, wrap the initialization of 'fieldRefs' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  248:9  warning  The 'validations' object makes the dependencies of useCallback Hook (at line 279) change on every render. To fix this, wrap the initialization of 'validations' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(main)\sellerbusinessinfo.tsx
+   16:3   warning  'Image' is defined but never used                                                                                                         @typescript-eslint/no-unused-vars
+   17:3   warning  'Alert' is defined but never used                                                                                                         @typescript-eslint/no-unused-vars
+   22:24  warning  'fontSizes' is defined but never used                                                                                                     @typescript-eslint/no-unused-vars
+   27:16  warning  'SW' is assigned a value but never used                                                                                                   @typescript-eslint/no-unused-vars
+   67:7   warning  'StepDots' is assigned a value but never used                                                                                             @typescript-eslint/no-unused-vars
+  383:10  warning  'fieldPositions' is assigned a value but never used                                                                                       @typescript-eslint/no-unused-vars
+  463:6   warning  React Hook useCallback has missing dependencies: 'clearFieldError' and 'validateGST'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\SELLER\seller-app\app\(main)\sellerdocuments.tsx
+   22:24  warning  'fontSizes' is defined but never used                            @typescript-eslint/no-unused-vars
+  899:57  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  899:72  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(main)\sellerpersonalinfo.tsx
+   20:24  warning  'fontSizes' is defined but never used                            @typescript-eslint/no-unused-vars
+   25:10  warning  'showMessage' is defined but never used                          @typescript-eslint/no-unused-vars
+   28:3   warning  'CREAM' is defined but never used                                @typescript-eslint/no-unused-vars
+   28:10  warning  'PRIMARY' is defined but never used                              @typescript-eslint/no-unused-vars
+   28:19  warning  'PRIMARY_D' is defined but never used                            @typescript-eslint/no-unused-vars
+   28:30  warning  'PRIMARY_L' is defined but never used                            @typescript-eslint/no-unused-vars
+   28:41  warning  'TEXT' is defined but never used                                 @typescript-eslint/no-unused-vars
+   28:47  warning  'TEXT_SEC' is defined but never used                             @typescript-eslint/no-unused-vars
+   29:3   warning  'INPUT_BG' is defined but never used                             @typescript-eslint/no-unused-vars
+   29:13  warning  'SUCCESS' is defined but never used                              @typescript-eslint/no-unused-vars
+   29:22  warning  'ERROR' is defined but never used                                @typescript-eslint/no-unused-vars
+   29:29  warning  'SPACING' is defined but never used                              @typescript-eslint/no-unused-vars
+   29:38  warning  'BORDER_RADIUS' is defined but never used                        @typescript-eslint/no-unused-vars
+   30:3   warning  'FONT_SIZES' is defined but never used                           @typescript-eslint/no-unused-vars
+   33:3   warning  'InputField' is defined but never used                           @typescript-eslint/no-unused-vars
+   33:15  warning  'PrimaryButton' is defined but never used                        @typescript-eslint/no-unused-vars
+   33:30  warning  'SecondaryButton' is defined but never used                      @typescript-eslint/no-unused-vars
+   34:3   warning  'UploadBox' is defined but never used                            @typescript-eslint/no-unused-vars
+   34:14  warning  'ProgressBar' is defined but never used                          @typescript-eslint/no-unused-vars
+   34:27  warning  'SectionTitle' is defined but never used                         @typescript-eslint/no-unused-vars
+  150:10  warning  'validationErrors' is assigned a value but never used            @typescript-eslint/no-unused-vars
+  150:28  warning  'setValidationErrors' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  152:10  warning  'fieldPositions' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  161:9   warning  'fieldRefs' is assigned a value but never used                   @typescript-eslint/no-unused-vars
+  172:9   warning  'validateEmail' is assigned a value but never used               @typescript-eslint/no-unused-vars
+  181:9   warning  'getEmailError' is assigned a value but never used               @typescript-eslint/no-unused-vars
+  193:9   warning  'validateMobile' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  195:9   warning  'getMobileError' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  354:52  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+C:\SELLER\seller-app\app\(main)\sellerticketrise.tsx
+    13:24  warning  'fontSizes' is defined but never used                            @typescript-eslint/no-unused-vars
+    35:10  warning  'otherDetails' is assigned a value but never used                @typescript-eslint/no-unused-vars
+    35:24  warning  'setOtherDetails' is assigned a value but never used             @typescript-eslint/no-unused-vars
+   149:9   warning  'validateForm' is assigned a value but never used                @typescript-eslint/no-unused-vars
+   246:16  warning  'mockError' is defined but never used                            @typescript-eslint/no-unused-vars
+   267:13  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   380:56  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   380:62  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  1244:5   error    Duplicate key 'fontFamily'                                       no-dupe-keys
+  1287:5   error    Duplicate key 'fontFamily'                                       no-dupe-keys
+
+C:\SELLER\seller-app\app\(main)\settingsModule.tsx
+  12:24  warning  'fontSizes' is defined but never used      @typescript-eslint/no-unused-vars
+  17:3   warning  'MaterialIcons' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\_layout.tsx
+  4:8  warning  Using exported name 'NotificationsProvider' as identifier for default import  import/no-named-as-default
+
+C:\SELLER\seller-app\app\login.tsx
+  26:9  warning  'insets' is assigned a value but never used            @typescript-eslint/no-unused-vars
+  40:9  warning  'shouldHideFooter' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\app\product-details.tsx
+   11:3   warning  'Platform' is defined but never used     @typescript-eslint/no-unused-vars
+   24:11  warning  'id' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  179:22  error    'Text' is not defined                    react/jsx-no-undef
+
+C:\SELLER\seller-app\components\ProfileImageModal.tsx
+  14:16  warning  'height' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\components\common\FilterModal.tsx
+  27:21  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  38:21  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  56:27  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+C:\SELLER\seller-app\components\common\SearchBar.tsx
+   2:45  warning  'Text' is defined but never used          @typescript-eslint/no-unused-vars
+  11:1   warning  Import in body of module; reorder to top  import/first
+  12:1   warning  Import in body of module; reorder to top  import/first
+
+C:\SELLER\seller-app\components\orders\NotificationPanel.tsx
+  12:1  warning  Import in body of module; reorder to top  import/first
+
+C:\SELLER\seller-app\components\orders\OrderActions.tsx
+  10:3   warning  'Platform' is defined but never used                         @typescript-eslint/no-unused-vars
+  85:34  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+C:\SELLER\seller-app\components\orders\OrderCard.tsx
+  47:7  warning  'Avatar' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\SELLER\seller-app\components\orders\OrderDetailModal.tsx
+  429:23  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  457:20  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+Γ£û 164 problems (21 errors, 143 warnings)
+  0 errors and 10 warnings potentially fixable with the `--fix` option.
+

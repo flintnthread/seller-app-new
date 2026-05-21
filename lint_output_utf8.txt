@@ -1,0 +1,84 @@
+﻿
+> fntseller@1.0.0 lint
+> expo lint
+
+
+C:\app\seller-app\app\(tabs)\SellerOrdersScreen.tsx
+  33:5  warning  'hasMore' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\(tabs)\_layout.tsx
+  3:8  warning  Using exported name 'NotificationsProvider' as identifier for default import  import/no-named-as-default
+
+C:\app\seller-app\app\(tabs)\earning.tsx
+  15:10  warning  'LinearGradient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\(tabs)\forgotpassword.tsx
+  49:24  warning  'setShowPassword' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\(tabs)\help support.tsx
+  186:6  warning  React Hook useEffect has missing dependencies: 'd0', 'd1', and 'd2'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  211:6  warning  React Hook useEffect has missing dependencies: 'fade' and 'slide'. Either include them or remove the dependency array    react-hooks/exhaustive-deps
+  270:6  warning  React Hook useEffect has a missing dependency: 'slideAnim'. Either include it or remove the dependency array             react-hooks/exhaustive-deps
+
+C:\app\seller-app\app\(tabs)\login.tsx
+  1:1  warning  Unexpected Unicode BOM (Byte Order Mark)  unicode-bom
+
+C:\app\seller-app\app\(tabs)\payments.tsx
+  25:16  warning  'SCREEN_W' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\(tabs)\payoutrequest.tsx
+    18:10  warning  'LinearGradient' is defined but never used                                                                   @typescript-eslint/no-unused-vars
+   102:16  warning  'SCREEN_WIDTH' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
+   221:6   warning  React Hook useCallback has a missing dependency: 'router'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  1004:3   error    Duplicate key 'downloadModalHeader'                                                                          no-dupe-keys
+  1010:3   error    Duplicate key 'downloadModalTitle'                                                                           no-dupe-keys
+  1015:3   error    Duplicate key 'downloadModalSub'                                                                             no-dupe-keys
+
+C:\app\seller-app\app\(tabs)\productmanagement.tsx
+   24:16  warning  'SCREEN_WIDTH' is assigned a value but never used                                                                               @typescript-eslint/no-unused-vars
+  208:6   warning  React Hook useEffect has missing dependencies: 'openAddModal' and 'router'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  277:9   warning  'totalProducts' is assigned a value but never used                                                                              @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\(tabs)\sellerProfile.tsx
+  133:6   warning  React Hook React.useEffect has missing dependencies: 'opacity' and 'scale'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  189:6   warning  React Hook React.useEffect has a missing dependency: 'warehouseAnim'. Either include it or remove the dependency array          react-hooks/exhaustive-deps
+  234:77  warning  Expected an assignment or function call and instead saw an expression                                                           no-unused-expressions
+  235:77  warning  Expected an assignment or function call and instead saw an expression                                                           no-unused-expressions
+  237:52  warning  Expected an assignment or function call and instead saw an expression                                                           no-unused-expressions
+
+C:\app\seller-app\app\login.tsx
+  23:9  warning  'insets' is assigned a value but never used            @typescript-eslint/no-unused-vars
+  37:9  warning  'shouldHideFooter' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\app\product-details.tsx
+  12:3   warning  'Platform' is defined but never used     @typescript-eslint/no-unused-vars
+  21:11  warning  'id' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\components\common\FilterModal.tsx
+  27:21  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  38:21  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  56:27  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  63:30  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+C:\app\seller-app\components\common\SearchBar.tsx
+   2:45  warning  'Text' is defined but never used          @typescript-eslint/no-unused-vars
+  11:1   warning  Import in body of module; reorder to top  import/first
+  12:1   warning  Import in body of module; reorder to top  import/first
+
+C:\app\seller-app\components\orders\NotificationPanel.tsx
+  12:1  warning  Import in body of module; reorder to top  import/first
+
+C:\app\seller-app\components\orders\OrderActions.tsx
+  10:3   warning  'Platform' is defined but never used                         @typescript-eslint/no-unused-vars
+  85:34  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+C:\app\seller-app\components\orders\OrderCard.tsx
+  47:7  warning  'Avatar' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\app\seller-app\components\orders\OrderDetailModal.tsx
+  429:23  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  457:20  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+Γ£û 40 problems (3 errors, 37 warnings)
+  0 errors and 11 warnings potentially fixable with the `--fix` option.
+

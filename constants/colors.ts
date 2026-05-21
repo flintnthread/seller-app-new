@@ -1,0 +1,51 @@
+export const palette = {
+  primary: '#007AFF', // Professional Blue
+  secondary: '#5856D6',
+  success: '#34C759',
+  danger: '#FF3B30',
+  warning: '#FF9500',
+  info: '#5AC8FA',
+  white: '#FFFFFF',
+  black: '#000000',
+  gray: {
+    50: '#F9FAFB',
+    100: '#F3F4F6',
+    200: '#E5E7EB',
+    300: '#D1D5DB',
+    400: '#9CA3AF',
+    500: '#6B7280',
+    600: '#4B5563',
+    700: '#374151',
+    800: '#1F2937',
+    900: '#111827',
+  },
+};
+
+export const Colors = {
+  light: {
+    background: '#FFFFFF',
+    surface: '#F9FAFB',
+    text: '#111827',
+    textSecondary: '#6B7280',
+    textMuted: '#9CA3AF',
+    primary: palette.primary,
+    border: '#E5E7EB',
+    card: '#FFFFFF',
+    notification: palette.danger,
+    error: palette.danger,
+    success: palette.success,
+  },
+  dark: {
+    background: '#111827',
+    surface: '#1F2937',
+    text: '#F9FAFB',
+    textSecondary: '#9CA3AF',
+    textMuted: '#6B7280',
+    primary: palette.primary,
+    border: '#374151',
+    card: '#1F2937',
+    notification: palette.danger,
+    error: palette.danger,
+    success: palette.success,
+  },
+};
