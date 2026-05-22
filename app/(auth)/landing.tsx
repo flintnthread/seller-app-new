@@ -15,7 +15,7 @@ import {
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useAuthFlow } from "@/hooks/useAuthFlow";
 
 const { width: SW, height: SH } = Dimensions.get("window");
@@ -42,10 +42,8 @@ const CARDS: CardData[] = [
 
 const KickstartLanding: React.FC = () => {
   const router = useRouter();
-  const { from } = useLocalSearchParams<{ from?: string }>();
-  const { isDesktopAuthFlow, detailsRoute, loginRoute } = useAuthFlow();
+  const { isDesktopAuthFlow, detailsRoute } = useAuthFlow();
   const [fontsLoaded] = useFonts({ Outfit_700Bold });
-  const isPreLoginStep = from === "details";
 
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [prevIndex, setPrevIndex] = useState<number>(0);
@@ -187,14 +185,6 @@ const KickstartLanding: React.FC = () => {
     return <Redirect href="/(auth)/details" />;
   }
 
-  const handleStartHere = () => {
-    if (isPreLoginStep) {
-      router.push(loginRoute);
-    } else {
-      router.push(detailsRoute);
-    }
-  };
-
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -268,11 +258,9 @@ const KickstartLanding: React.FC = () => {
         <TouchableOpacity
           style={s.startBtn}
           activeOpacity={0.85}
-          onPress={handleStartHere}
+          onPress={() => router.push(detailsRoute)}
         >
-          <Text style={s.startBtnText}>
-            {isPreLoginStep ? "Continue to Login" : "Start Here"}
-          </Text>
+          <Text style={s.startBtnText}>Start Here</Text>
           <Ionicons name="arrow-forward" size={20} color="#fff" style={s.arrowIcon} />
         </TouchableOpacity>
       </SafeAreaView>

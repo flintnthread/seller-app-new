@@ -350,11 +350,11 @@ const AnimatedSellerCard: React.FC<{
 const SellerLanding: React.FC = () => {
   const router = useRouter();
   const { isDesktop, isTablet, width: winWidth } = useResponsive();
-  const { isMobileAuthFlow, landingRoute, loginRoute, preLoginLandingParams } =
+  const { isMobileAuthFlow, welcomeRoute, loginRoute, preLoginWelcomeParams } =
     useAuthFlow();
   const goToSelling = () => {
     if (isMobileAuthFlow) {
-      router.push({ pathname: landingRoute, params: preLoginLandingParams });
+      router.push({ pathname: welcomeRoute, params: preLoginWelcomeParams });
     } else {
       router.push(loginRoute);
     }

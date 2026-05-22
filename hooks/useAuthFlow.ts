@@ -9,13 +9,13 @@ const ROUTES = {
 
 type AuthRoute = (typeof ROUTES)[keyof typeof ROUTES];
 
-export type LandingParams = {
+export type WelcomeParams = {
   from?: "details";
 };
 
 /**
  * Desktop / laptop (web ≥1024): details → login
- * Mobile & tablet: landing → details → landing (from details) → login
+ * Mobile & tablet: landing → details → welcome (from details) → login
  */
 export function useAuthFlow() {
   const { isDesktop } = useResponsive();
@@ -31,8 +31,9 @@ export function useAuthFlow() {
     initialAuthRoute,
     detailsRoute: ROUTES.details,
     landingRoute: ROUTES.landing,
+    welcomeRoute: ROUTES.welcome,
     loginRoute: ROUTES.login,
-    /** After details on mobile: second landing visit, then login from landing CTA */
-    preLoginLandingParams: { from: "details" } as LandingParams,
+    /** After details on mobile: welcome screen, then login */
+    preLoginWelcomeParams: { from: "details" } as WelcomeParams,
   };
 }
