@@ -1,25 +1,4 @@
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * SellerSignUpScreen.tsx
  * Flat full-screen layout — no card/box container.
@@ -40,22 +19,31 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  ImageBackground,
   Image,
+  ActivityIndicator,
   type LayoutChangeEvent,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText } from "@/components/AppText";
-import { fontFamilies, fontSizes } from "@/constants/fonts";
+import { fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
+import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Path, Circle } from "react-native-svg";
 import { showMessage } from "react-native-flash-message";
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 
+const C = {
+  navy: "#1E3A6E",
+  navyDeep: "#152D5A",
+  orange: "#F97316",
+  orangeLight: "#FB923C",
+};
+
 const CREAM = "#F5EFE6";
-const PRIMARY = "#1D324E";  // Updated blue
-const PRIMARY_D = "#1E40AF";  // Darker navy blue
-const PRIMARY_L = "#376197";  // Lighter shade of primary
+const PRIMARY = "#1D324E";
+const PRIMARY_D = "#1E40AF";
+const PRIMARY_L = "#376197";
 const TEXT = "#000000";  // Black
 const TEXT_SEC = "#666666";  // Light shade of black
 const BORDER = "#E2E8F0";  // Light slate
@@ -263,6 +251,90 @@ const getPasswordRequirements = (password: string) => [
 
 
 
+// ─── Floating bubbles (desktop / laptop) ────────────────────────────────────
+
+const FloatingBubble: React.FC<{
+  size: number;
+  color: string;
+  style: object;
+  duration: number;
+}> = ({ size, color, style, duration }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim, duration]);
+
+  const translateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -28],
+  });
+  const scale = anim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.08, 1],
+  });
+  const opacity = anim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.35, 0.65, 0.35],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: color,
+          opacity,
+          transform: [{ translateY }, { scale }],
+        },
+      ]}
+    />
+  );
+};
+
+const AnimatedFormBlock: React.FC<{
+  index: number;
+  enabled: boolean;
+  children: React.ReactNode;
+}> = ({ index, enabled, children }) => {
+  const fade = useRef(new Animated.Value(enabled ? 0 : 1)).current;
+  const slide = useRef(new Animated.Value(enabled ? 14 : 0)).current;
+
+  useEffect(() => {
+    if (!enabled) return;
+    Animated.parallel([
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 480,
+        delay: 280 + index * 55,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slide, {
+        toValue: 0,
+        duration: 480,
+        delay: 280 + index * 55,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [enabled, fade, slide, index]);
+
+  return (
+    <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
+      {children}
+    </Animated.View>
+  );
+};
+
 // ─── Bootstrap-style SVG Icons ───────────────────────────────────────────────
 
 const IconPerson = () => (
@@ -342,6 +414,7 @@ interface InputFieldProps {
   error?: string | undefined;
   inputRef?: React.RefObject<TextInput | null>;
   onLayout?: (event: LayoutChangeEvent) => void;
+  isDesktop?: boolean;
 }
 
 // ─── InputField ───────────────────────────────────────────────────────────────
@@ -359,23 +432,28 @@ const InputField: React.FC<InputFieldProps> = ({
   error,
   inputRef,
   onLayout,
+  isDesktop = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const getBorderColor = useCallback(() => {
     if (error) return ERROR;
-    if (isFocused) return "#1D324E";
-    return BORDER;
-  }, [error, isFocused]);
+    if (isFocused) return isDesktop ? C.orange : "#1D324E";
+    return isDesktop ? "#e2e8f0" : BORDER;
+  }, [error, isFocused, isDesktop]);
 
   return (
     <View style={styles.fieldWrapper} onLayout={onLayout}>
-      <AppText style={styles.label}>{label}</AppText>
-      <View style={[
-        styles.inputRow,
-        !editable && styles.inputRowDisabled,
-        { borderColor: getBorderColor(), borderWidth: error ? 2 : 1 }
-      ]}>
+      <AppText style={[styles.label, isDesktop && styles.labelDesktop]}>{label}</AppText>
+      <View
+        style={[
+          styles.inputRow,
+          isDesktop && styles.inputRowDesktop,
+          !editable && styles.inputRowDisabled,
+          isFocused && isDesktop && styles.inputRowFocusedDesktop,
+          { borderColor: getBorderColor(), borderWidth: error ? 2 : 1 },
+        ]}
+      >
         {leftIcon && <View style={styles.inputLeft}>{leftIcon}</View>}
         <TextInput
           ref={inputRef}
@@ -410,7 +488,8 @@ const PrimaryButton: React.FC<{
   onPress: () => void;
   disabled?: boolean;
   isLoading?: boolean;
-}> = ({ title, onPress, disabled = false, isLoading = false }) => {
+  isDesktop?: boolean;
+}> = ({ title, onPress, disabled = false, isLoading = false, isDesktop = false }) => {
   const scale = useRef(new Animated.Value(1)).current;
   const spring = (to: number) =>
     Animated.spring(scale, { toValue: to, useNativeDriver: true }).start();
@@ -424,14 +503,30 @@ const PrimaryButton: React.FC<{
         disabled={disabled || isLoading}
         activeOpacity={1}
         style={[
-          styles.primaryBtn,
-          disabled && styles.primaryBtnDisabled,
-          isLoading && styles.primaryBtnLoading
+          !isDesktop && styles.primaryBtn,
+          isDesktop && styles.primaryBtnPressDesktop,
+          disabled && !isDesktop && styles.primaryBtnDisabled,
+          isLoading && !isDesktop && styles.primaryBtnLoading,
         ]}
       >
-        <AppText style={[styles.primaryBtnText, disabled && styles.primaryBtnTextDisabled]}>
-          {title}
-        </AppText>
+        {isDesktop ? (
+          <LinearGradient
+            colors={disabled ? ["#94a3b8", "#cbd5e1"] : [C.orange, C.orangeLight]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.primaryBtnDesktop}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <AppText style={styles.primaryBtnText}>{title}</AppText>
+            )}
+          </LinearGradient>
+        ) : (
+          <AppText style={[styles.primaryBtnText, disabled && styles.primaryBtnTextDisabled]}>
+            {title}
+          </AppText>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -456,7 +551,12 @@ const EyeToggle: React.FC<{ visible: boolean; onToggle: () => void }> = ({
 
 const SellerSignUpScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
   const scrollViewRef = useRef<ScrollView>(null);
+  const cardFade = useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(isDesktop ? 20 : 0)).current;
+  const logoScale = useRef(new Animated.Value(1)).current;
 
   // State
   const [fullName, setFullName] = useState("");
@@ -478,6 +578,40 @@ const SellerSignUpScreen: React.FC = () => {
   const clearFieldError = useCallback((field: string) => {
     setValidationErrors(prev => prev.filter(e => e.field !== field));
   }, []);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    Animated.parallel([
+      Animated.timing(cardFade, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardSlide, {
+        toValue: 0,
+        tension: 48,
+        friction: 9,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const logoPulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoScale, {
+          toValue: 1.06,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoScale, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    logoPulse.start();
+    return () => logoPulse.stop();
+  }, [isDesktop, cardFade, cardSlide, logoScale]);
 
   // OTP Timer countdown effect
   useEffect(() => {
@@ -658,298 +792,520 @@ const SellerSignUpScreen: React.FC = () => {
   const pwdMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
   const pwdMismatch = password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword;
 
-  // ─────────────────────────────────────────────────────────────────────────
+  const wrapField = (index: number, node: React.ReactNode) =>
+    isDesktop ? (
+      <AnimatedFormBlock index={index} enabled={isDesktop}>
+        {node}
+      </AnimatedFormBlock>
+    ) : (
+      node
+    );
 
-  return (
-    <ImageBackground
-      source={require('../../assets/images/background.png')}
-      style={styles.backgroundImage}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoid}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* ── Header Section — sits directly on background ─────────────── */}
-            <View style={styles.header}>
-              <View style={styles.headerContent}>
+  const signupBody = (
+    <>
+      <View style={[styles.header, isDesktop && styles.headerDesktop]}>
+        <View style={styles.headerContent}>
+          {isDesktop ? (
+            <Animated.View style={{ transform: [{ scale: logoScale }] }}>
+              <LinearGradient
+                colors={[C.orange, C.navy]}
+                style={styles.logoRingDesktop}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
                 <Image
-                  source={require('../../assets/images/fav.png')}
-                  style={styles.logoImage}
+                  source={require("../../assets/images/fav.png")}
+                  style={styles.logoImageDesktop}
                   resizeMode="contain"
                 />
-                <AppText style={styles.title}>Create Account</AppText>
-                <AppText style={styles.subtitle}>
-                  Your journey to smarter ecommerce {"\n"} starts here!
-                </AppText>
-              </View>
-            </View>
+              </LinearGradient>
+            </Animated.View>
+          ) : (
+            <Image
+              source={require("../../assets/images/fav.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          )}
+          <AppText style={[styles.title, isDesktop && styles.titleDesktop]}>
+            Create Account
+          </AppText>
+          <AppText style={[styles.subtitle, isDesktop && styles.subtitleDesktop]}>
+            {isDesktop
+              ? "Your journey to smarter ecommerce starts here!"
+              : "Your journey to smarter ecommerce \n starts here!"}
+          </AppText>
+        </View>
+      </View>
 
-            {/* ── Form Section — flat, no card ──────────────────────────────── */}
-            <View style={styles.form}>
+      <View style={[styles.form, isDesktop && styles.formDesktop]}>
+        {wrapField(
+          0,
+          <InputField
+            isDesktop={isDesktop}
+            label="Full Name"
+            value={fullName}
+            onChangeText={(text) => {
+              clearFieldError("fullName");
+              setFullName(text);
+            }}
+            placeholder="Shariar Hossain"
+            leftIcon={<IconPerson />}
+            inputRef={fieldRefs.fullName}
+            error={validationErrors.find((e) => e.field === "fullName")?.message}
+            onLayout={(e) => handleFieldLayout("fullName", e)}
+          />
+        )}
 
-              {/* Full Name */}
-              <InputField
-                label="Full Name"
-                value={fullName}
-                onChangeText={(text) => {
-                  clearFieldError('fullName');
-                  setFullName(text);
-                }}
-                placeholder="Shariar Hossain"
-                leftIcon={<IconPerson />}
-                inputRef={fieldRefs.fullName}
-                error={validationErrors.find(e => e.field === 'fullName')?.message}
-                onLayout={(e) => handleFieldLayout('fullName', e)}
-              />
-
-              {/* Mobile Number */}
-              <InputField
-                label="Mobile Number"
-                value={mobile}
-                onChangeText={(text) => {
-                  clearFieldError('mobile');
-                  setMobile(text.replace(/\D/g, ''));
-                }}
-                placeholder="Enter mobile number"
-                keyboardType="phone-pad"
-                editable={!otpVerified}
-                leftIcon={<IconPhone />}
-                inputRef={fieldRefs.mobile}
-                error={validationErrors.find(e => e.field === 'mobile')?.message || getMobileError(mobile)}
-                onLayout={(e) => handleFieldLayout('mobile', e)}
-                rightElement={
-                  !otpVerified ? (
-                    <TouchableOpacity
-                      style={[styles.inlineBtn, isTimerActive && styles.inlineBtnDisabled]}
-                      onPress={handleSendOtp}
-                      disabled={isTimerActive}
-                    >
-                      <AppText style={[styles.inlineBtnText, isTimerActive && styles.inlineBtnTextDisabled]}>
-                        {otpSent ? "Resend" : "Send OTP"}
-                      </AppText>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.verifiedBadge}>
-                      <IconShieldCheck />
-                      <AppText style={styles.verifiedText}>Verified</AppText>
-                    </View>
-                  )
-                }
-              />
-
-              {/* OTP Confirmation Text */}
-              {otpSent && !otpVerified && (
-                <View style={styles.otpConfirmationContainer}>
-                  <AppText style={styles.otpConfirmationText}>
-                    We have sent an OTP to your mobile number {maskMobileNumber(mobile)}
-                    {isTimerActive && (
-                      <AppText style={styles.timerText}> ({Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, '0')})</AppText>
-                    )}
-                  </AppText>
-                </View>
-              )}
-
-              {/* OTP Field */}
-              {otpSent && !otpVerified && (
-                <InputField
-                  label="OTP Verification"
-                  value={otp}
-                  onChangeText={(text) => {
-                    clearFieldError('otp');
-                    setOtp(text);
-                  }}
-                  placeholder="Enter OTP"
-                  keyboardType="numeric"
-                  leftIcon={<IconKey />}
-                  inputRef={fieldRefs.otp}
-                  error={validationErrors.find(e => e.field === 'otp')?.message}
-                  onLayout={(e) => handleFieldLayout('otp', e)}
-                  rightElement={
-                    <TouchableOpacity
-                      style={[styles.inlineBtn, styles.inlineBtnVerify]}
-                      onPress={handleVerifyOtp}
-                    >
-                      <AppText style={styles.inlineBtnText}>Verify</AppText>
-                    </TouchableOpacity>
-                  }
-                />
-              )}
-
-              {/* Email */}
-              <InputField
-                label="Email Address"
-                value={email}
-                onChangeText={(text) => {
-                  clearFieldError('email');
-                  setEmail(text);
-                }}
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                leftIcon={<IconEnvelope />}
-                inputRef={fieldRefs.email}
-                error={validationErrors.find(e => e.field === 'email')?.message ||
-                  getEmailError(email)}
-                onLayout={(e) => handleFieldLayout('email', e)}
-              />
-
-              {/* Password */}
-              <InputField
-                label="Password"
-                value={password}
-                onChangeText={(text) => {
-                  clearFieldError('password');
-                  setPassword(text);
-                }}
-                placeholder="Create a strong password"
-                secureTextEntry={!showPassword}
-                leftIcon={<IconKey />}
-                inputRef={fieldRefs.password}
-                error={validationErrors.find(e => e.field === 'password')?.message || getPasswordError(password)}
-                onLayout={(e) => handleFieldLayout('password', e)}
-                rightElement={
-                  <EyeToggle visible={showPassword} onToggle={() => setShowPassword(!showPassword)} />
-                }
-              />
-
-              {/* Password Requirements */}
-              {password.length > 0 && (
-                <View style={styles.passwordRequirementsContainer}>
-                  {getPasswordRequirements(password).map((requirement, index) => (
-                    <AppText key={index} style={[
-                      styles.passwordRequirement,
-                      requirement.met ? styles.passwordRequirementMet : styles.passwordRequirementUnmet
-                    ]}>
-                      {requirement.met ? "✓" : "•"} {requirement.text}
-                    </AppText>
-                  ))}
-                </View>
-              )}
-
-              {/* Confirm Password */}
-              <InputField
-                label="Confirm Password"
-                value={confirmPassword}
-                onChangeText={(text) => {
-                  clearFieldError('confirmPassword');
-                  setConfirmPassword(text);
-                }}
-                placeholder="Confirm your password"
-                secureTextEntry={!showConfirmPwd}
-                leftIcon={<IconLock />}
-                inputRef={fieldRefs.confirmPassword}
-                error={validationErrors.find(e => e.field === 'confirmPassword')?.message}
-                onLayout={(e) => handleFieldLayout('confirmPassword', e)}
-                rightElement={
-                  <EyeToggle visible={showConfirmPwd} onToggle={() => setShowConfirmPwd(!showConfirmPwd)} />
-                }
-              />
-
-              {/* Password match hint */}
-              {(pwdMatch || pwdMismatch) && (
-                <AppText
+        {wrapField(
+          1,
+          <InputField
+            isDesktop={isDesktop}
+            label="Mobile Number"
+            value={mobile}
+            onChangeText={(text) => {
+              clearFieldError("mobile");
+              setMobile(text.replace(/\D/g, ""));
+            }}
+            placeholder="Enter mobile number"
+            keyboardType="phone-pad"
+            editable={!otpVerified}
+            leftIcon={<IconPhone />}
+            inputRef={fieldRefs.mobile}
+            error={
+              validationErrors.find((e) => e.field === "mobile")?.message ||
+              getMobileError(mobile)
+            }
+            onLayout={(e) => handleFieldLayout("mobile", e)}
+            rightElement={
+              !otpVerified ? (
+                <TouchableOpacity
                   style={[
-                    styles.matchHint,
-                    pwdMatch ? styles.matchOk : styles.matchErr,
+                    styles.inlineBtn,
+                    isDesktop && styles.inlineBtnDesktop,
+                    isTimerActive && styles.inlineBtnDisabled,
+                  ]}
+                  onPress={handleSendOtp}
+                  disabled={isTimerActive}
+                >
+                  <AppText
+                    style={[
+                      styles.inlineBtnText,
+                      isTimerActive && styles.inlineBtnTextDisabled,
+                    ]}
+                  >
+                    {otpSent ? "Resend" : "Send OTP"}
+                  </AppText>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.verifiedBadge}>
+                  <IconShieldCheck />
+                  <AppText style={styles.verifiedText}>Verified</AppText>
+                </View>
+              )
+            }
+          />
+        )}
+
+        {otpSent && !otpVerified &&
+          wrapField(
+            2,
+            <View style={styles.otpConfirmationContainer}>
+              <AppText style={styles.otpConfirmationText}>
+                We have sent an OTP to your mobile number {maskMobileNumber(mobile)}
+                {isTimerActive && (
+                  <AppText style={styles.timerText}>
+                    {" "}
+                    ({Math.floor(otpTimer / 60)}:
+                    {(otpTimer % 60).toString().padStart(2, "0")})
+                  </AppText>
+                )}
+              </AppText>
+            </View>
+          )}
+
+        {otpSent &&
+          !otpVerified &&
+          wrapField(
+            3,
+            <InputField
+              isDesktop={isDesktop}
+              label="OTP Verification"
+              value={otp}
+              onChangeText={(text) => {
+                clearFieldError("otp");
+                setOtp(text);
+              }}
+              placeholder="Enter OTP"
+              keyboardType="numeric"
+              leftIcon={<IconKey />}
+              inputRef={fieldRefs.otp}
+              error={validationErrors.find((e) => e.field === "otp")?.message}
+              onLayout={(e) => handleFieldLayout("otp", e)}
+              rightElement={
+                <TouchableOpacity
+                  style={[
+                    styles.inlineBtn,
+                    styles.inlineBtnVerify,
+                    isDesktop && styles.inlineBtnDesktop,
+                  ]}
+                  onPress={handleVerifyOtp}
+                >
+                  <AppText style={styles.inlineBtnText}>Verify</AppText>
+                </TouchableOpacity>
+              }
+            />
+          )}
+
+        {wrapField(
+          4,
+          <InputField
+            isDesktop={isDesktop}
+            label="Email Address"
+            value={email}
+            onChangeText={(text) => {
+              clearFieldError("email");
+              setEmail(text);
+            }}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            leftIcon={<IconEnvelope />}
+            inputRef={fieldRefs.email}
+            error={
+              validationErrors.find((e) => e.field === "email")?.message ||
+              getEmailError(email)
+            }
+            onLayout={(e) => handleFieldLayout("email", e)}
+          />
+        )}
+
+        {wrapField(
+          5,
+          <InputField
+            isDesktop={isDesktop}
+            label="Password"
+            value={password}
+            onChangeText={(text) => {
+              clearFieldError("password");
+              setPassword(text);
+            }}
+            placeholder="Create a strong password"
+            secureTextEntry={!showPassword}
+            leftIcon={<IconKey />}
+            inputRef={fieldRefs.password}
+            error={
+              validationErrors.find((e) => e.field === "password")?.message ||
+              getPasswordError(password)
+            }
+            onLayout={(e) => handleFieldLayout("password", e)}
+            rightElement={
+              <EyeToggle
+                visible={showPassword}
+                onToggle={() => setShowPassword(!showPassword)}
+              />
+            }
+          />
+        )}
+
+        {password.length > 0 &&
+          wrapField(
+            6,
+            <View style={styles.passwordRequirementsContainer}>
+              {getPasswordRequirements(password).map((requirement, index) => (
+                <AppText
+                  key={index}
+                  style={[
+                    styles.passwordRequirement,
+                    requirement.met
+                      ? styles.passwordRequirementMet
+                      : styles.passwordRequirementUnmet,
                   ]}
                 >
-                  {pwdMatch ? "✓ Passwords match" : "✗ Passwords do not match"}
+                  {requirement.met ? "✓" : "•"} {requirement.text}
                 </AppText>
-              )}
-
-              {/* Terms & Conditions */}
-              <TouchableOpacity
-                style={styles.checkRow}
-                onPress={() => setAgreed((v) => !v)}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                  {agreed && <AppText style={styles.checkmark}>✓</AppText>}
-                </View>
-                <AppText style={styles.checkLabel}>
-                  I agree to{" "}
-                  <AppText
-                    style={styles.link}
-                    onPress={() =>
-                      showMessage({
-                        message: "Terms & Conditions",
-                        type: "info",
-                        icon: "info",
-                        ...toastConfig,
-                      })}
-                  >
-                    Terms and Conditions
-                  </AppText>
-                  {" & "}
-                  <AppText
-                    style={styles.link}
-                    onPress={() =>
-                      showMessage({
-                        message: "Privacy Policy",
-                        type: "info",
-                        icon: "info",
-                        ...toastConfig,
-                      })}
-                  >
-                    Privacy Policy
-                  </AppText>
-                </AppText>
-              </TouchableOpacity>
-
-              {/* Sign Up Button */}
-              <View style={styles.signUpBtnWrapper}>
-                <PrimaryButton
-                  title="Sign Up"
-                  onPress={handleSignUp}
-                  isLoading={isLoading}
-                />
-              </View>
-
-              {/* Login link */}
-              <View style={styles.loginRow}>
-                <AppText style={styles.loginText}>Already have an account? </AppText>
-                <TouchableOpacity
-                  onPress={() => router.push("/(auth)/login")}
-                >
-                  <AppText style={styles.loginLink}>Log in</AppText>
-                </TouchableOpacity>
-              </View>
-
+              ))}
             </View>
+          )}
 
-            <View style={styles.bottomSpacer} />
-          </ScrollView>
-        </KeyboardAvoidingView>
+        {wrapField(
+          7,
+          <InputField
+            isDesktop={isDesktop}
+            label="Confirm Password"
+            value={confirmPassword}
+            onChangeText={(text) => {
+              clearFieldError("confirmPassword");
+              setConfirmPassword(text);
+            }}
+            placeholder="Confirm your password"
+            secureTextEntry={!showConfirmPwd}
+            leftIcon={<IconLock />}
+            inputRef={fieldRefs.confirmPassword}
+            error={
+              validationErrors.find((e) => e.field === "confirmPassword")?.message
+            }
+            onLayout={(e) => handleFieldLayout("confirmPassword", e)}
+            rightElement={
+              <EyeToggle
+                visible={showConfirmPwd}
+                onToggle={() => setShowConfirmPwd(!showConfirmPwd)}
+              />
+            }
+          />
+        )}
+
+        {(pwdMatch || pwdMismatch) &&
+          wrapField(
+            8,
+            <AppText
+              style={[styles.matchHint, pwdMatch ? styles.matchOk : styles.matchErr]}
+            >
+              {pwdMatch ? "✓ Passwords match" : "✗ Passwords do not match"}
+            </AppText>
+          )}
+
+        {wrapField(
+          9,
+          <TouchableOpacity
+            style={[styles.checkRow, isDesktop && styles.checkRowDesktop]}
+            onPress={() => setAgreed((v) => !v)}
+            activeOpacity={0.85}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                agreed && styles.checkboxChecked,
+                isDesktop && agreed && styles.checkboxCheckedDesktop,
+              ]}
+            >
+              {agreed && <AppText style={styles.checkmark}>✓</AppText>}
+            </View>
+            <AppText style={styles.checkLabel}>
+              I agree to{" "}
+              <AppText
+                style={[styles.link, isDesktop && styles.linkDesktop]}
+                onPress={() =>
+                  showMessage({
+                    message: "Terms & Conditions",
+                    type: "info",
+                    icon: "info",
+                    ...toastConfig,
+                  })
+                }
+              >
+                Terms and Conditions
+              </AppText>
+              {" & "}
+              <AppText
+                style={[styles.link, isDesktop && styles.linkDesktop]}
+                onPress={() =>
+                  showMessage({
+                    message: "Privacy Policy",
+                    type: "info",
+                    icon: "info",
+                    ...toastConfig,
+                  })
+                }
+              >
+                Privacy Policy
+              </AppText>
+            </AppText>
+          </TouchableOpacity>
+        )}
+
+        {wrapField(
+          10,
+          <View style={styles.signUpBtnWrapper}>
+            <PrimaryButton
+              title="Sign Up"
+              onPress={handleSignUp}
+              isLoading={isLoading}
+              isDesktop={isDesktop}
+            />
+          </View>
+        )}
+
+        {wrapField(
+          11,
+          <View style={styles.loginRow}>
+            <AppText style={styles.loginText}>Already have an account? </AppText>
+            <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
+              <AppText style={[styles.loginLink, isDesktop && styles.loginLinkDesktop]}>
+                Log in
+              </AppText>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
-    </ImageBackground>
+
+      {!isDesktop && <View style={styles.bottomSpacer} />}
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
+      {isDesktop ? (
+        <LinearGradient
+          colors={[C.navyDeep, "#1d3258", "#241566"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <Image
+          source={require("../../assets/images/background.png")}
+          style={styles.backgroundImage}
+          resizeMode="cover"
+        />
+      )}
+
+      {isDesktop && (
+        <View style={styles.bubblesLayer} pointerEvents="none">
+          <FloatingBubble
+            size={320}
+            color="rgba(255,255,255,0.06)"
+            duration={5200}
+            style={styles.bubble1}
+          />
+          <FloatingBubble
+            size={220}
+            color="rgba(249,115,22,0.18)"
+            duration={4400}
+            style={styles.bubble2}
+          />
+          <FloatingBubble
+            size={180}
+            color="rgba(255,255,255,0.08)"
+            duration={3800}
+            style={styles.bubble3}
+          />
+          <FloatingBubble
+            size={140}
+            color="rgba(249,115,22,0.14)"
+            duration={4600}
+            style={styles.bubble4}
+          />
+          <FloatingBubble
+            size={100}
+            color="rgba(255,255,255,0.1)"
+            duration={3400}
+            style={styles.bubble5}
+          />
+        </View>
+      )}
+
+      <View style={[styles.safeArea, isDesktop && styles.safeAreaDesktop]}>
+        {isDesktop ? (
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.desktopScroll}
+            contentContainerStyle={[
+              styles.desktopScrollContent,
+              {
+                paddingTop: Math.max(insets.top, 24),
+                paddingBottom: Math.max(insets.bottom, 32),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Animated.View
+              style={[
+                styles.cardDesktop,
+                {
+                  opacity: cardFade,
+                  transform: [{ translateY: cardSlide }],
+                },
+              ]}
+            >
+              {signupBody}
+            </Animated.View>
+          </ScrollView>
+        ) : (
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoid}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {signupBody}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        )}
+      </View>
+    </View>
   );
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  backgroundImage: {
+  container: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
+  },
+  backgroundImage: {
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    width: "100%",
+    height: "100%",
+  },
+  safeArea: { flex: 1 },
+  safeAreaDesktop: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  desktopScroll: {
+    flex: 1,
+    width: "100%",
+  },
+  desktopScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    width: "100%",
+    ...(Platform.OS === "web" ? ({ minHeight: "100%" } as object) : {}),
+  },
+  bubblesLayer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  bubble1: { position: "absolute", top: -80, right: -60 },
+  bubble2: { position: "absolute", top: "18%", left: -50 },
+  bubble3: { position: "absolute", bottom: "12%", right: "8%" },
+  bubble4: { position: "absolute", bottom: "28%", left: "12%" },
+  bubble5: { position: "absolute", top: "42%", right: "22%" },
+  cardDesktop: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    borderRadius: 28,
+    paddingHorizontal: 40,
+    paddingTop: 36,
+    paddingBottom: 32,
+    backgroundColor: "#ffffff",
+    flexShrink: 0,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.65)",
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   keyboardAvoid: {
     flex: 1,
@@ -969,6 +1325,29 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 30,
   },
+  headerDesktop: {
+    marginBottom: 24,
+  },
+  logoRingDesktop: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 3,
+    marginBottom: 16,
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  logoImageDesktop: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "#ffffff",
+  },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -986,21 +1365,35 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontFamily: fontFamilies.bold,
-    color: '#1C1711',
+    color: "#1C1711",
     marginBottom: 6,
+    textAlign: "center",
+  },
+  titleDesktop: {
+    fontSize: 30,
+    color: C.navyDeep,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: '#000000',
+    color: "#000000",
     lineHeight: 22,
     textAlign: "center",
-    alignSelf: "center"
+    alignSelf: "center",
+  },
+  subtitleDesktop: {
+    color: "#64748b",
+    fontSize: 15,
+    maxWidth: 380,
+    lineHeight: 22,
   },
 
   // ── Form — flat, no card, no shadow ─────────────────────────────────────
   form: {
     width: "100%",
-    // No backgroundColor, no borderRadius, no shadow/elevation
+  },
+  formDesktop: {
+    width: "100%",
   },
 
   // ── Input Fields ────────────────────────────────────────────────────────
@@ -1014,6 +1407,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: 0.6,
     textTransform: "uppercase",
+  },
+  labelDesktop: {
+    fontSize: 14,
+    color: "#64748b",
+    textTransform: "none",
+    letterSpacing: 0,
+    fontFamily: fontFamilies.semiBold,
+    marginBottom: 8,
   },
   inputRow: {
     flexDirection: "row",
@@ -1032,6 +1433,21 @@ const styles = StyleSheet.create({
   inputRowFocused: {
     borderColor: "#1D324E",
     borderWidth: 2,
+  },
+  inputRowDesktop: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    borderColor: "#e2e8f0",
+    minHeight: 52,
+  },
+  inputRowFocusedDesktop: {
+    borderColor: C.orange,
+    borderWidth: 2,
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   inputLeft: {
     marginRight: 10,
@@ -1062,6 +1478,9 @@ const styles = StyleSheet.create({
   },
   inlineBtnVerify: {
     backgroundColor: PRIMARY_L,
+  },
+  inlineBtnDesktop: {
+    backgroundColor: C.orange,
   },
   inlineBtnText: {
     color: "#FFF",
@@ -1144,6 +1563,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     gap: 12,
   },
+  checkRowDesktop: {
+    marginBottom: 20,
+  },
   checkbox: {
     width: 22,
     height: 22,
@@ -1159,6 +1581,10 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: PRIMARY_L,
     borderColor: PRIMARY_L,
+  },
+  checkboxCheckedDesktop: {
+    backgroundColor: C.orange,
+    borderColor: C.orange,
   },
   checkmark: {
     color: "#FFF",
@@ -1180,6 +1606,9 @@ const styles = StyleSheet.create({
     color: "#376197",
     fontFamily: fontFamilies.bold,
     textDecorationLine: "underline",
+  },
+  linkDesktop: {
+    color: C.orange,
   },
 
   // ── Sign Up button ───────────────────────────────────────────────────────
@@ -1215,6 +1644,17 @@ const styles = StyleSheet.create({
   primaryBtnTextDisabled: {
     color: "#FFF",
   },
+  primaryBtnPressDesktop: {
+    width: "100%",
+    marginTop: 4,
+  },
+  primaryBtnDesktop: {
+    borderRadius: 14,
+    paddingVertical: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
 
   // ── Login row ────────────────────────────────────────────────────────────
   loginRow: {
@@ -1231,7 +1671,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.bold,
     color: PRIMARY_L,
   },
-
+  loginLinkDesktop: {
+    color: C.orange,
+  },
 
   bottomSpacer: { height: 48 },
 });

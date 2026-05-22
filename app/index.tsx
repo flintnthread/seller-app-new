@@ -1,6 +1,8 @@
-import React from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect } from "expo-router";
+
+import { useAuthFlow } from "@/hooks/useAuthFlow";
 
 export default function Index() {
-  return <Redirect href="/(auth)/details" />;
+  const { initialAuthRoute } = useAuthFlow();
+  return <Redirect href={initialAuthRoute} />;
 }

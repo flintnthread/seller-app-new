@@ -17,6 +17,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuthFlow } from "@/hooks/useAuthFlow";
 import { useResponsive } from "@/hooks/useResponsive";
 import {
   useFonts,
@@ -349,6 +350,15 @@ const AnimatedSellerCard: React.FC<{
 const SellerLanding: React.FC = () => {
   const router = useRouter();
   const { isDesktop, isTablet, width: winWidth } = useResponsive();
+  const { isMobileAuthFlow, landingRoute, loginRoute, preLoginLandingParams } =
+    useAuthFlow();
+  const goToSelling = () => {
+    if (isMobileAuthFlow) {
+      router.push({ pathname: landingRoute, params: preLoginLandingParams });
+    } else {
+      router.push(loginRoute);
+    }
+  };
   const { height: winHeight } = useWindowDimensions();
   const SW = Dimensions.get("window").width;
   const contentWidth = Math.min(winWidth, CONTENT_MAX);
@@ -783,7 +793,7 @@ const SellerLanding: React.FC = () => {
       {isDesktop && (
         <DetailsDesktopHeader
           onNavPress={scrollToSection}
-          onStartSelling={() => router.push("/(auth)/login")}
+          onStartSelling={goToSelling}
         />
       )}
 
@@ -857,7 +867,7 @@ const SellerLanding: React.FC = () => {
               <View style={isDesktop ? ds?.heroCtas : s.heroCtas}>
                 <TouchableOpacity
                   style={isDesktop ? ds?.desktopCtaPrimary : s.ctaPrimary}
-                  onPress={() => router.push("/(auth)/login")}
+                  onPress={() => goToSelling()}
                   activeOpacity={0.88}
                 >
                   <LinearGradient
@@ -1104,7 +1114,7 @@ const SellerLanding: React.FC = () => {
           )}
 
           <TouchableOpacity
-            onPress={() => router.push("/(auth)/login")}
+            onPress={() => goToSelling()}
             activeOpacity={0.88}
             style={[s.stepsCtaWrap, ds?.stepsCtaWrap, tabletDs?.stepsCtaWrap]}
           >
@@ -1223,7 +1233,7 @@ const SellerLanding: React.FC = () => {
                   <Text style={s.feePillText}>  One-time fee: <Text style={{ fontFamily: "Outfit_800ExtraBold", color: C.orange }}>₹199 only</Text></Text>
                 </View>
 
-                <TouchableOpacity onPress={() => router.push("/(auth)/login")} activeOpacity={0.88} style={{ marginTop: 24 }}>
+                <TouchableOpacity onPress={() => goToSelling()} activeOpacity={0.88} style={{ marginTop: 24 }}>
                   <LinearGradient colors={[C.navyDeep, C.navyLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.regBtn}>
                     <Text style={s.regBtnText}>Register Now</Text>
                     <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
@@ -1264,7 +1274,7 @@ const SellerLanding: React.FC = () => {
                 </View>
                 <View style={ds?.finalBannerRight}>
                   <TouchableOpacity
-                    onPress={() => router.push("/(auth)/login")}
+                    onPress={() => goToSelling()}
                     activeOpacity={0.88}
                     style={[s.bannerCtaWrap, ds?.bannerCtaWrap]}
                   >
@@ -1288,7 +1298,7 @@ const SellerLanding: React.FC = () => {
                   </View>
                 ))}
               </View>
-              <TouchableOpacity onPress={() => router.push("/(auth)/login")} activeOpacity={0.88} style={s.bannerCtaWrap}>
+              <TouchableOpacity onPress={() => goToSelling()} activeOpacity={0.88} style={s.bannerCtaWrap}>
                 <LinearGradient colors={[C.orange, C.orangeLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.bannerCta}>
                   <Text style={s.bannerCtaText}>Start Selling Now</Text>
                   <Ionicons name="arrow-forward-circle" size={22} color="#fff" style={{ marginLeft: 8 }} />
@@ -1302,7 +1312,7 @@ const SellerLanding: React.FC = () => {
           <DetailsFooter
             isDesktop
             onNavPress={scrollToSection}
-            onStartSelling={() => router.push("/(auth)/login")}
+            onStartSelling={goToSelling}
           />
         )}
 

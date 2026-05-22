@@ -5,7 +5,7 @@ export default function AuthLayout() {
   return (
     <Stack
       screenOptions={{ headerShown: false }}
-      initialRouteName="details"
+      initialRouteName="landing"
     >
       <Stack.Screen name="details" />
       <Stack.Screen name="landing" />
