@@ -1,0 +1,1139 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useRef, useState } from 'react';
+import {
+  Dimensions,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  G,
+  Line,
+  Marker,
+  Path,
+  Polygon,
+  Rect,
+  Stop,
+  LinearGradient as SvgLinearGradient,
+  Text as SvgText,
+} from 'react-native-svg';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type TrendPoint = { label: string; value: number };
+
+interface Channel {
+  label: string;
+  value: number;
+  pct: number;
+  color: string;
+}
+
+interface PaymentMethod {
+  label: string;
+  value: number;
+  pct: number;
+  color: string;
+}
+
+interface Product {
+  name: string;
+  qty: number;
+  value: number;
+  pct: number;
+  uri: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const C = {
+  bg: '#F5F7FB',
+  white: '#FFFFFF',
+  navyDeep: '#001B5E',
+  navyMid: '#002D8F',
+  navy: '#0B3D91',
+  textDark: '#111827',
+  textMid: '#4B5563',
+  textLight: '#6B7280',
+  border: '#E8ECF4',
+  green: '#10B981',
+  red: '#EF4444',
+  orange: '#F97316',
+};
+
+const RANGE_OPTIONS: string[] = ['This Day', 'Last 7 days', 'Last 30 Days', 'This Month', 'Custom Date Range'];
+
+const CHANNEL_OPTIONS: string[] = [
+  'All Channels', 'UPI', 'Card', 'COD', 'Net Banking',
+];
+
+const { width: SW } = Dimensions.get('window');
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatInr(n: number): string {
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatInr0(n: number): string {
+  return n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+function formatDateShort(date: Date): string {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+}
+
+function formatDateDisplay(date: Date): string {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
+const ALL_TREND_DATA: Record<string, TrendPoint[]> = {
+  'This Day': [
+    { label: '8 AM',  value: 3200 }, { label: '10 AM', value: 5800 },
+    { label: '12 PM', value: 8400 }, { label: '2 PM',  value: 6700 },
+    { label: '4 PM',  value: 9100 }, { label: '6 PM',  value: 7300 },
+    { label: '8 PM',  value: 4500 },
+  ],
+  'Last 7 days': [
+    { label: '20 May', value: 9800 },  { label: '21 May', value: 17800 },
+    { label: '22 May', value: 14200 }, { label: '23 May', value: 24680 },
+    { label: '24 May', value: 17600 }, { label: '25 May', value: 11800 },
+    { label: '26 May', value: 16200 },
+  ],
+  'Last 30 Days': [
+    { label: 'W1', value: 62000 }, { label: 'W2', value: 78000 },
+    { label: 'W3', value: 54000 }, { label: 'W4', value: 91000 },
+  ],
+  'This Month': [
+    { label: 'W1', value: 62000 }, { label: 'W2', value: 78000 },
+    { label: 'W3', value: 54000 }, { label: 'W4', value: 91000 },
+  ],
+  'Custom Date Range': [
+    { label: '20 May', value: 9800 },  { label: '21 May', value: 17800 },
+    { label: '22 May', value: 14200 }, { label: '23 May', value: 24680 },
+    { label: '24 May', value: 17600 }, { label: '25 May', value: 11800 },
+    { label: '26 May', value: 16200 },
+  ],
+};
+
+const ACTIVE_INDICES: Record<string, number> = {
+  'This Day': 4, 'Last 7 Days': 3, 'Last 30 Days': 2, 'This Month': 3, 'Custom Date Range': 3,
+};
+
+const CHART_MAXES: Record<string, number> = {
+  'This Day': 12000, 'Last 7 Days': 30000, 'Last 30 Days': 120000, 'This Month': 100000, 'Custom Date Range': 30000,
+};
+
+const CHANNEL_DATA: Record<string, {
+  channels: Channel[]; total: number; orders: number;
+  aov: number; returns: number; cancels: number; replacements: number;
+}> = {
+  'All Channels': {
+    channels: [
+      { label: 'Mobile App', value: 78450, pct: 62.5, color: '#0B3D91' },
+      { label: 'Website',    value: 28600, pct: 37.5, color: '#ff6a00' },
+    ],
+    total: 125450, orders: 125, aov: 1003.6, returns: 2, cancels: 5, replacements: 3,
+  },
+  'Delivered': {
+    channels: [{ label: 'Delivered', value: 98000, pct: 100, color: '#10B981' }],
+    total: 98000, orders: 98, aov: 1000, returns: 0, cancels: 0, replacements: 1,
+  },
+  'Pending': {
+    channels: [{ label: 'Pending', value: 15000, pct: 100, color: '#F59E0B' }],
+    total: 15000, orders: 15, aov: 1000, returns: 0, cancels: 2, replacements: 0,
+  },
+  'Canceled': {
+    channels: [{ label: 'Canceled', value: 5200, pct: 100, color: '#EF4444' }],
+    total: 5200, orders: 5, aov: 1040, returns: 0, cancels: 5, replacements: 0,
+  },
+  'Returns': {
+    channels: [{ label: 'Returns', value: 3800, pct: 100, color: '#8B5CF6' }],
+    total: 3800, orders: 4, aov: 950, returns: 4, cancels: 0, replacements: 0,
+  },
+  'Replacements': {
+    channels: [{ label: 'Replacements', value: 2100, pct: 100, color: '#06B6D4' }],
+    total: 2100, orders: 3, aov: 700, returns: 0, cancels: 0, replacements: 3,
+  },
+  'UPI': {
+    channels: [{ label: 'UPI', value: 78450, pct: 100, color: '#0B3D91' }],
+    total: 78450, orders: 84, aov: 933.93, returns: 1, cancels: 2, replacements: 1,
+  },
+  'Card': {
+    channels: [{ label: 'Card', value: 28600, pct: 100, color: '#10B981' }],
+    total: 28600, orders: 28, aov: 1021.43, returns: 1, cancels: 1, replacements: 1,
+  },
+  'COD': {
+    channels: [{ label: 'COD', value: 11250, pct: 100, color: '#8B5CF6' }],
+    total: 11250, orders: 10, aov: 1125, returns: 0, cancels: 1, replacements: 1,
+  },
+  'Net Banking': {
+    channels: [{ label: 'Net Banking', value: 7150, pct: 100, color: '#F59E0B' }],
+    total: 7150, orders: 7, aov: 1021.43, returns: 0, cancels: 1, replacements: 0,
+  },
+};
+
+const CHANNEL_PAYMENT_METHODS: Record<string, PaymentMethod[]> = {
+  'All Channels': [
+    { label: 'UPI', value: 78450, pct: 0, color: '#0B3D91' },
+    { label: 'Card', value: 28600, pct: 0, color: '#10B981' },
+    { label: 'COD', value: 11250, pct: 0, color: '#8B5CF6' },
+    { label: 'Net Banking', value: 7150, pct: 0, color: '#F59E0B' },
+  ],
+  'UPI': [{ label: 'UPI', value: 78450, pct: 0, color: '#0B3D91' }],
+  'Card': [{ label: 'Card', value: 28600, pct: 0, color: '#10B981' }],
+  'COD': [{ label: 'COD', value: 11250, pct: 0, color: '#8B5CF6' }],
+  'Net Banking': [{ label: 'Net Banking', value: 7150, pct: 0, color: '#F59E0B' }],
+};
+
+const getPaymentMethodsForChannel = (channel: string): PaymentMethod[] => {
+  const methods = CHANNEL_PAYMENT_METHODS[channel as keyof typeof CHANNEL_PAYMENT_METHODS] ?? CHANNEL_PAYMENT_METHODS['All Channels'];
+  const total = methods.reduce((sum, item) => sum + item.value, 0);
+
+  const computed = methods.map((item) => ({
+    ...item,
+    pct: total > 0 ? Number(((item.value / total) * 100).toFixed(1)) : 0,
+  })) as PaymentMethod[];
+
+  if (computed.length > 0 && total > 0) {
+    const sumPct = computed.reduce((sum, item) => sum + item.pct, 0);
+    const delta = Number((100 - sumPct).toFixed(1));
+    if (delta !== 0) {
+      const lastIndex = computed.length - 1;
+      const lastItem = computed[lastIndex];
+      if (lastItem) {
+        computed[lastIndex] = { ...lastItem, pct: Number((lastItem.pct + delta).toFixed(1)) };
+      }
+    }
+  }
+  return computed;
+};
+
+const ALL_PRODUCTS: Product[] = [
+  { name: 'Cotton Kurti', qty: 45, value: 35910, pct: 28.6, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
+  { name: 'Floral Maxi Dress', qty: 32, value: 26880, pct: 21.4, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
+  { name: 'Handbag', qty: 28, value: 20972, pct: 16.7, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
+];
+
+const CHANNEL_PRODUCTS: Record<string, Product[]> = {
+  'All Channels': ALL_PRODUCTS,
+  'Delivered': ALL_PRODUCTS,
+  'Pending': ALL_PRODUCTS,
+  'Canceled': ALL_PRODUCTS,
+  'Returns': ALL_PRODUCTS,
+  'Replacements': ALL_PRODUCTS,
+  'UPI': [
+    { name: 'Cotton Kurti', qty: 30, value: 23940, pct: 30.5, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
+    { name: 'Floral Maxi Dress', qty: 22, value: 18480, pct: 23.6, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
+    { name: 'Handbag', qty: 15, value: 11235, pct: 14.3, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
+  ],
+  'Card': [
+    { name: 'Handbag', qty: 13, value: 9737, pct: 34.0, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
+    { name: 'Floral Maxi Dress', qty: 10, value: 8400, pct: 29.4, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
+    { name: 'Cotton Kurti', qty: 8, value: 6384, pct: 22.3, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
+  ],
+  'COD': ALL_PRODUCTS,
+  'Net Banking': ALL_PRODUCTS,
+};
+
+// ─── Smooth Path ──────────────────────────────────────────────────────────────
+
+function buildSmoothPath(xs: number[], ys: number[]): string {
+  return xs.map((x, i) => {
+    const y = ys[i] ?? 0;
+    if (i === 0) return `M ${x} ${y}`;
+    const prevX = xs[i - 1] ?? 0;
+    const prevY = ys[i - 1] ?? 0;
+    return `Q ${(prevX + x) / 2} ${prevY}, ${x} ${y}`;
+  }).join(' ');
+}
+
+// ─── Calendar Picker ──────────────────────────────────────────────────────────
+
+interface CalendarPickerProps {
+  visible: boolean; startDate: Date; endDate: Date;
+  onConfirm: (start: Date, end: Date) => void;
+  onClose: () => void; mode?: 'range' | 'single';
+}
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, endDate, onConfirm, onClose, mode = 'range' }) => {
+  const [viewYear, setViewYear] = useState(startDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(startDate.getMonth());
+  const [selStart, setSelStart] = useState<Date>(startDate);
+  const [selEnd, setSelEnd] = useState<Date>(endDate);
+  const [picking, setPicking] = useState<'start' | 'end'>('start');
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const isInRange = (d: Date) => mode !== 'single' && d > selStart && d < selEnd;
+
+  const handleDayPress = (day: number) => {
+    const pressed = new Date(viewYear, viewMonth, day);
+    if (mode === 'single') { setSelStart(pressed); setSelEnd(pressed); return; }
+    if (picking === 'start') { setSelStart(pressed); setSelEnd(pressed); setPicking('end'); }
+    else { pressed < selStart ? (setSelStart(pressed), setPicking('end')) : (setSelEnd(pressed), setPicking('start')); }
+  };
+
+  const prevMonth = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
+  const nextMonth = () => viewMonth === 11 ? (setViewMonth(0), setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
+
+  const totalDays = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: totalDays }, (_, i) => i + 1)];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const CELL_SIZE = Math.floor((SW - 48) / 7);
+
+  const gridRef = useRef<View | null>(null);
+  const [gridPos, setGridPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const measureGrid = () => {
+    gridRef.current?.measureInWindow((x, y, w, h) => setGridPos({ x, y, w, h }));
+  };
+
+  const handleTouchAt = (pageX: number, pageY: number) => {
+    const relX = pageX - gridPos.x;
+    const relY = pageY - gridPos.y;
+    if (relX < 0 || relY < 0) return;
+    const col = Math.floor(relX / CELL_SIZE);
+    const row = Math.floor(relY / CELL_SIZE);
+    const idx = row * 7 + col;
+    const day = cells[idx];
+    if (!day) return;
+    const touchedDate = new Date(viewYear, viewMonth, day);
+    if (mode === 'single') { setSelStart(touchedDate); setSelEnd(touchedDate); return; }
+    if (picking === 'start') { setSelStart(touchedDate); setSelEnd(touchedDate); setPicking('end'); }
+    else { setSelEnd(touchedDate); }
+  };
+
+  const onResponderGrant = (evt: any) => { measureGrid(); handleTouchAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY); };
+  const onResponderMove = (evt: any) => { handleTouchAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY); };
+  const onResponderRelease = () => { setPicking('start'); };
+
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={cal.backdrop} />
+      </TouchableWithoutFeedback>
+      <View style={cal.sheet}>
+        <View style={cal.sheetHeader}>
+          <Text style={cal.sheetTitle}>Select Date{mode === 'range' ? ' Range' : ''}</Text>
+          <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={C.textDark} /></TouchableOpacity>
+        </View>
+        {mode === 'range' && (
+          <View style={cal.rangeDisplay}>
+            <TouchableOpacity style={[cal.rangeBox, picking === 'start' && cal.rangeBoxActive]} onPress={() => setPicking('start')}>
+              <Text style={cal.rangeLabel}>From</Text>
+              <Text style={[cal.rangeValue, picking === 'start' && cal.rangeValueActive]}>{formatDateDisplay(selStart)}</Text>
+            </TouchableOpacity>
+            <View style={cal.rangeDivider}><Ionicons name="arrow-forward" size={16} color={C.textLight} /></View>
+            <TouchableOpacity style={[cal.rangeBox, picking === 'end' && cal.rangeBoxActive]} onPress={() => setPicking('end')}>
+              <Text style={cal.rangeLabel}>To</Text>
+              <Text style={[cal.rangeValue, picking === 'end' && cal.rangeValueActive]}>{formatDateDisplay(selEnd)}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <View style={cal.monthNav}>
+          <TouchableOpacity style={cal.navBtn} onPress={prevMonth}><Ionicons name="chevron-back" size={20} color={C.navy} /></TouchableOpacity>
+          <Text style={cal.monthTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+          <TouchableOpacity style={cal.navBtn} onPress={nextMonth}><Ionicons name="chevron-forward" size={20} color={C.navy} /></TouchableOpacity>
+        </View>
+        <View style={cal.dayNamesRow}>{DAY_NAMES.map(d => <Text key={d} style={cal.dayName}>{d}</Text>)}</View>
+        <View ref={gridRef} onLayout={measureGrid} style={cal.grid}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={onResponderGrant}
+          onResponderMove={onResponderMove}
+          onResponderRelease={onResponderRelease}
+        >
+          {cells.map((day, idx) => {
+            if (!day) return <View key={`e-${idx}`} style={cal.cell} />;
+            const thisDate = new Date(viewYear, viewMonth, day);
+            const isStart = isSameDay(thisDate, selStart);
+            const isEnd = mode === 'range' && isSameDay(thisDate, selEnd);
+            const inRange = isInRange(thisDate);
+            return (
+              <TouchableOpacity key={idx} activeOpacity={0.7}
+                style={[cal.cell, inRange && cal.cellInRange, (isStart || isEnd) && cal.cellSelected,
+                  isStart && mode === 'range' && cal.cellStart, isEnd && mode === 'range' && cal.cellEnd]}
+                onPress={() => handleDayPress(day)}>
+                <Text style={[cal.cellText, inRange && cal.cellTextInRange, (isStart || isEnd) && cal.cellTextSelected]}>{day}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <TouchableOpacity style={cal.confirmBtn} onPress={() => { onConfirm(selStart, selEnd); onClose(); }} activeOpacity={0.85}>
+          <Text style={cal.confirmText}>{mode === 'range' ? 'Apply Date Range' : 'Apply Date'}</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
+// ─── Sales Trend Chart ────────────────────────────────────────────────────────
+
+const SalesTrendChart: React.FC<{ range: string }> = ({ range }) => {
+  const W = SW - 32 - 46 - 12;
+  const H = 170;
+  const P = 10;
+
+  const fallbackTrendData = ALL_TREND_DATA['Last 7 days']!;
+  const trendData = ALL_TREND_DATA[range] ?? fallbackTrendData;
+  const chartMax = CHART_MAXES[range] ?? 30000;
+  const activeIndex = ACTIVE_INDICES[range] ?? 3;
+
+  const xs = trendData.map((_, i) => (i / (trendData.length - 1)) * (W - P * 2) + P);
+  const ys = trendData.map(({ value }) => H - (Math.max(0, Math.min(chartMax, value)) / chartMax) * (H - P * 2) - P);
+
+  const path = buildSmoothPath(xs, ys);
+  const areaPath = `${path} L ${xs[xs.length - 1] ?? W} ${H - P} L ${xs[0] ?? 0} ${H - P} Z`;
+  const ax = xs[activeIndex] ?? 0;
+  const ay = ys[activeIndex] ?? 0;
+  const activePoint = trendData[activeIndex];
+  const lastIndex = xs.length - 1;
+
+  const yLabels = chartMax >= 100000
+    ? ['₹120K', '₹80K', '₹40K', '₹0']
+    : chartMax >= 30000
+    ? ['₹30K', '₹20K', '₹10K', '₹0']
+    : ['₹12K', '₹8K', '₹4K', '₹0'];
+
+  return (
+    <View style={s.trendRow}>
+      <View style={s.yAxis}>
+        {yLabels.map(t => <Text key={t} style={s.yAxisLabel}>{t}</Text>)}
+      </View>
+      <View style={s.flex1}>
+        <View style={s.trendChartWrap}>
+          <Svg width={W} height={H}>
+            <Defs>
+              <ClipPath id="chartClip">
+                <Rect x={0} y={0} width={W} height={H} />
+              </ClipPath>
+              <SvgLinearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor={C.navy} stopOpacity={0.18} />
+                <Stop offset="100%" stopColor={C.navy} stopOpacity={0} />
+              </SvgLinearGradient>
+            </Defs>
+            <G clipPath="url(#chartClip)">
+              {[1, 2].map(i => (
+                <Path key={i} d={`M 0 ${(H - P * 2) * (i / 3) + P} L ${W} ${(H - P * 2) * (i / 3) + P}`}
+                  stroke="#E9EEF7" strokeWidth={1} strokeDasharray="4 4" />
+              ))}
+              <Path d={areaPath} fill="url(#areaFill)" />
+              <Path d={path} stroke={C.navy} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              {xs.map((x, i) => {
+                if (i === lastIndex || i === activeIndex) return null;
+                return <Circle key={i} cx={x} cy={ys[i]} r={5} fill={C.white} stroke={C.navy} strokeWidth={2} />;
+              })}
+              {activeIndex !== lastIndex && (
+                <>
+                  <Circle cx={ax} cy={ay} r={5} fill={C.navy} />
+                  <Circle cx={ax} cy={ay} r={2.5} fill={C.white} />
+                </>
+              )}
+            </G>
+          </Svg>
+          {activePoint && activeIndex !== lastIndex && (
+            <View style={[s.tooltip, { left: ax - 40, top: Math.max(8, ay - 54) }]}>
+              <Text style={s.tooltipDate}>{activePoint.label}</Text>
+              <Text style={s.tooltipAmount}>₹{formatInr0(activePoint.value)}</Text>
+            </View>
+          )}
+        </View>
+        <View style={s.xAxis}>
+          {trendData.map(p => <Text key={p.label} style={s.xAxisLabel}>{p.label}</Text>)}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// ─── Payment Method Donut ─────────────────────────────────────────────────────
+// Clicking a colored segment shows/hides its arrow label.
+
+const PaymentDonut: React.FC<{ methods: PaymentMethod[]; total: number }> = ({ methods, total }) => {
+  // -1 means no segment selected; index means that segment is active
+  const [activeSegment, setActiveSegment] = useState<number>(-1);
+
+  // Donut geometry — larger size
+  const size = 220;
+  const strokeWidth = 26;
+  const r = (size - strokeWidth) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+
+  // Pre-compute cumulative percentages for each segment
+  let cumulativePct = 0;
+  const segments = methods.map((seg, idx) => {
+    const startPct = cumulativePct;
+    cumulativePct += seg.pct;
+    const midPct = startPct + seg.pct / 2;
+    return { ...seg, idx, startPct, midPct };
+  });
+
+  // Given a percentage along the circle (0–100), return x/y at a given radius
+  // Angle 0% = top (−90deg rotated), goes clockwise
+  const getPoint = (pct: number, rad: number) => {
+    const angle = (pct / 100) * 2 * Math.PI - Math.PI / 2;
+    return {
+      x: cx + rad * Math.cos(angle),
+      y: cy + rad * Math.sin(angle),
+    };
+  };
+
+  // Arrow label positions: from arc outer edge → outward label
+  const outerR = r + strokeWidth / 2;      // outer edge of stroke
+  const labelR = outerR + 38;              // where the label tip sits
+  const labelTextR = outerR + 52;          // where text starts
+
+  // viewBox is enlarged to fit labels outside the donut
+  const padding = 90;
+  const vbSize = size + padding * 2;
+  const vbOff = -padding;
+
+  const handleSegmentPress = (idx: number) => {
+    setActiveSegment(prev => (prev === idx ? -1 : idx));
+  };
+
+  return (
+    <View style={[s.donutBox]}>
+      <Svg
+        width={size + padding * 2}
+        height={size + padding * 2}
+        viewBox={`${vbOff} ${vbOff} ${vbSize} ${vbSize}`}
+      >
+        <Defs>
+          {/* Arrow marker — one per color so it matches the segment */}
+          {segments.map(seg => (
+            <Marker
+              key={`marker-${seg.label}`}
+              id={`arrow-${seg.label}`}
+              markerWidth="6"
+              markerHeight="6"
+              refX="3"
+              refY="3"
+              orient="auto"
+            >
+              <Polygon
+                points="0,0 6,3 0,6"
+                fill={seg.color}
+              />
+            </Marker>
+          ))}
+        </Defs>
+
+        {/* Background ring */}
+        <Circle
+          cx={cx} cy={cy} r={r}
+          stroke="#EEF2FF"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+
+        {/* Colored arc segments — tappable */}
+        {segments.map((seg) => {
+          const dash = (seg.pct / 100) * circumference;
+          const dashOffset = -(seg.startPct / 100) * circumference;
+          const isActive = activeSegment === seg.idx;
+          return (
+            <Circle
+              key={seg.label}
+              cx={cx} cy={cy} r={r}
+              stroke={seg.color}
+              strokeWidth={isActive ? strokeWidth + 6 : strokeWidth}
+              fill="none"
+              strokeDasharray={`${Math.max(0, dash - 2)} ${circumference - dash + 2}`}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="butt"
+              transform={`rotate(-90 ${cx} ${cy})`}
+              onPress={() => handleSegmentPress(seg.idx)}
+            />
+          );
+        })}
+
+        {/* Arrow + label — only for the active segment */}
+        {segments.map((seg) => {
+          if (activeSegment !== seg.idx) return null;
+
+          const arcEdge = getPoint(seg.midPct, outerR);
+          const labelTip = getPoint(seg.midPct, labelR);
+          const labelTxt = getPoint(seg.midPct, labelTextR);
+
+          // Determine text anchor based on which side of the circle
+          const angle = (seg.midPct / 100) * 360 - 90;
+          const isRight = angle > -90 && angle < 90;
+          const textAnchor = labelTxt.x > cx ? 'start' : 'end';
+          const textOffsetX = labelTxt.x > cx ? 4 : -4;
+
+          return (
+            <G key={`arrow-label-${seg.label}`}>
+              <Line
+                x1={arcEdge.x}
+                y1={arcEdge.y}
+                x2={labelTip.x}
+                y2={labelTip.y}
+                stroke={seg.color}
+                strokeWidth={1.8}
+                markerEnd={`url(#arrow-${seg.label})`}
+              />
+              <SvgText
+  x={labelTxt.x + textOffsetX}
+  y={labelTxt.y + 4}
+  fontSize={13}
+  fontWeight="800"
+  fill={seg.color}
+  textAnchor={textAnchor}
+>
+  {seg.label}
+</SvgText>
+            </G>
+          );
+        })}
+      </Svg>
+
+      {/* Center text — absolutely positioned over the SVG */}
+      <View pointerEvents="none" style={s.donutCenter}>
+        <Text style={s.donutCenterLabel}>Total Sales</Text>
+        <Text style={s.donutCenterValue}>₹{formatInr(total)}</Text>
+      </View>
+    </View>
+  );
+};
+
+// ─── Range Dropdown ───────────────────────────────────────────────────────────
+
+interface RangeDropdownProps {
+  selected: string;
+  onSelect: (opt: string) => void;
+  onCustomRange?: () => void;
+}
+
+const RangeDropdown: React.FC<RangeDropdownProps> = ({ selected, onSelect, onCustomRange }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<View>(null);
+  const [pos, setPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const measureBtn = () => btnRef.current?.measureInWindow((x, y, w, h) => { setPos({ x, y, w, h }); setOpen(true); });
+
+  const handleSelect = (opt: string) => {
+    onSelect(opt);
+    setOpen(false);
+    if (opt === 'Custom Date Range' && onCustomRange) {
+      onCustomRange();
+    }
+  };
+
+  return (
+    <>
+      <TouchableOpacity ref={btnRef} activeOpacity={0.7} style={s.dropdownBtn} onPress={measureBtn}>
+        <Text style={s.dropdownText}>{selected}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.textDark} />
+      </TouchableOpacity>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableWithoutFeedback onPress={() => setOpen(false)}><View style={StyleSheet.absoluteFillObject} /></TouchableWithoutFeedback>
+        <View style={[s.dropdownMenu, { top: pos.y + pos.h + 6, left: pos.x, minWidth: Math.max(pos.w, 160) }]}>
+          {RANGE_OPTIONS.map((opt, i) => {
+            const isSelected = opt === selected;
+            return (
+              <TouchableOpacity key={opt} activeOpacity={0.85}
+                style={[s.dropdownItem, isSelected && s.dropdownItemActive, i < RANGE_OPTIONS.length - 1 && s.dropdownItemBorder]}
+                onPress={() => handleSelect(opt)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {opt === 'Custom Date Range' && (
+                    <Ionicons name="calendar-outline" size={14} color={isSelected ? C.white : C.textLight} />
+                  )}
+                  <Text style={[s.dropdownItemText, isSelected && s.dropdownItemTextActive]}>{opt}</Text>
+                </View>
+                {isSelected && <Ionicons name="checkmark" size={16} color={C.white} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
+    </>
+  );
+};
+
+// ─── Channel Dropdown ─────────────────────────────────────────────────────────
+
+const CHANNEL_DOT_COLORS: Record<string, string> = {
+  'UPI': '#0B3D91', 'Card': '#10B981', 'COD': '#8B5CF6', 'Net Banking': '#F59E0B',
+};
+
+const ChannelDropdown: React.FC<{ selected: string; onSelect: (opt: string) => void }> = ({ selected, onSelect }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<View>(null);
+  const [pos, setPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const measureBtn = () => btnRef.current?.measureInWindow((x, y, w, h) => { setPos({ x, y, w, h }); setOpen(true); });
+
+  return (
+    <>
+      <TouchableOpacity ref={btnRef} activeOpacity={0.7} style={s.filterItem} onPress={measureBtn}>
+        <View style={s.filterRight}><Text style={s.filterText}>{selected}</Text></View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={C.textLight} />
+      </TouchableOpacity>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableWithoutFeedback onPress={() => setOpen(false)}><View style={StyleSheet.absoluteFillObject} /></TouchableWithoutFeedback>
+        <View style={[s.dropdownMenu, { top: pos.y + pos.h + 6, left: pos.x, minWidth: Math.max(pos.w, 180) }]}>
+          {CHANNEL_OPTIONS.map((opt, i) => {
+            const isSelected = opt === selected;
+            const dotColor = CHANNEL_DOT_COLORS[opt];
+            return (
+              <TouchableOpacity key={opt} activeOpacity={0.85}
+                style={[s.dropdownItem, isSelected && s.dropdownItemActive, i < CHANNEL_OPTIONS.length - 1 && s.dropdownItemBorder]}
+                onPress={() => { onSelect(opt); setOpen(false); }}>
+                <View style={s.channelOptRow}>
+                  {dotColor
+                    ? <View style={[s.channelOptDot, { backgroundColor: dotColor }]} />
+                    : <Ionicons name="layers-outline" size={14} color={isSelected ? C.white : C.textLight} />
+                  }
+                  <Text style={[s.dropdownItemText, isSelected && s.dropdownItemTextActive]}>{opt}</Text>
+                </View>
+                {isSelected && <Ionicons name="checkmark" size={16} color={C.white} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
+    </>
+  );
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+const TotalSalesScreen: React.FC = () => {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [selectedRange, setSelectedRange] = useState('Last 7 days');
+  const [selectedChannel, setSelectedChannel] = useState('All Channels');
+  const [filterStart, setFilterStart] = useState(new Date(2026, 4, 20));
+  const [filterEnd, setFilterEnd] = useState(new Date(2026, 4, 26));
+  const [showFilterCal, setShowFilterCal] = useState(false);
+  const [showHeaderCal, setShowHeaderCal] = useState(false);
+  // ── NEW: calendar opened from "Custom Date Range" in Sales Trend dropdown ──
+  const [showTrendCal, setShowTrendCal] = useState(false);
+
+  const channelData = CHANNEL_DATA[selectedChannel] ?? CHANNEL_DATA['All Channels']!;
+  const products = CHANNEL_PRODUCTS[selectedChannel] ?? CHANNEL_PRODUCTS['All Channels']!;
+  const paymentMethods = getPaymentMethodsForChannel(selectedChannel);
+  const paymentTotal = paymentMethods.reduce((sum, item) => sum + item.value, 0);
+  const dateRangeLabel = `${formatDateShort(filterStart)} – ${formatDateShort(filterEnd)} ${filterEnd.getFullYear()}`;
+
+  return (
+    <SafeAreaView style={s.container} edges={['left', 'right', 'bottom']}>
+      {/* Filter bar calendar */}
+      <CalendarPicker visible={showFilterCal} startDate={filterStart} endDate={filterEnd}
+        onConfirm={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
+        onClose={() => setShowFilterCal(false)} mode="range" />
+
+      {/* Header calendar icon */}
+      <CalendarPicker visible={showHeaderCal} startDate={filterStart} endDate={filterEnd}
+        onConfirm={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
+        onClose={() => setShowHeaderCal(false)} mode="range" />
+
+      {/* ── NEW: Sales Trend "Custom Date Range" calendar ── */}
+      <CalendarPicker visible={showTrendCal} startDate={filterStart} endDate={filterEnd}
+        onConfirm={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
+        onClose={() => setShowTrendCal(false)} mode="range" />
+
+      {/* ── Header ── */}
+      <View style={s.headerShell}>
+        <LinearGradient colors={[C.navyDeep, C.navyMid, C.navy]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[s.header, { paddingTop: Math.max(insets.top - 10, 0) }]}>
+          <View style={s.headerTop}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={s.headerIconBtn}>
+              <Ionicons name="arrow-back" size={22} color={C.white} />
+            </TouchableOpacity>
+            <Text style={s.headerTitle}>Total Sales</Text>
+            <TouchableOpacity activeOpacity={0.7} style={s.headerIconBtn} onPress={() => setShowHeaderCal(true)}>
+              <Ionicons name="calendar-outline" size={22} color={C.white} />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+
+        {/* ── Filters ── */}
+        <View style={s.filterCard}>
+          <TouchableOpacity activeOpacity={0.7} style={s.filterItem} onPress={() => setShowFilterCal(true)}>
+            <View style={s.filterLeft}>
+              <Ionicons name="calendar-outline" size={18} color={C.textLight} />
+              <Text style={s.filterText}>{dateRangeLabel}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={18} color={C.textLight} />
+          </TouchableOpacity>
+          <ChannelDropdown selected={selectedChannel} onSelect={setSelectedChannel} />
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+
+        {/* ── Sales Overview ── */}
+        <View style={s.card}>
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>Sales Overview</Text>
+            <TouchableOpacity activeOpacity={0.7} style={s.linkBtn}>
+              <Text style={s.linkText}>View Analytics</Text>
+              <Ionicons name="chevron-forward" size={14} color={C.navyDeep} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Row 1 */}
+          <View style={s.overviewRow}>
+            <View style={[s.overviewBox, { backgroundColor: '#EEF4FF' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#DDE8FF' }]}>
+                <Ionicons name="wallet-outline" size={22} color={C.navy} />
+              </View>
+              <Text style={s.overviewLabel}>Total Sales</Text>
+              <Text style={s.overviewValue}>₹{formatInr(channelData.total)}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-up" size={12} color={C.green} />
+                <Text style={[s.deltaText, { color: C.green }]}>12.5%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+            <View style={[s.overviewBox, { backgroundColor: '#EFFBF5' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#DDF8E9' }]}>
+                <Ionicons name="bag-handle-outline" size={22} color={C.green} />
+              </View>
+              <Text style={s.overviewLabel}>Total Orders</Text>
+              <Text style={s.overviewValue}>{channelData.orders}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-up" size={12} color={C.green} />
+                <Text style={[s.deltaText, { color: C.green }]}>8.3%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Row 2 */}
+          <View style={s.overviewRow}>
+            <View style={[s.overviewBox, { backgroundColor: '#F6F0FF' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#EEE0FF' }]}>
+                <Ionicons name="cart-outline" size={22} color="#7C3AED" />
+              </View>
+              <Text style={s.overviewLabel}>Average Order Value</Text>
+              <Text style={s.overviewValue}>₹{formatInr(channelData.aov)}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-up" size={12} color={C.green} />
+                <Text style={[s.deltaText, { color: C.green }]}>7.2%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+            <View style={[s.overviewBox, { backgroundColor: '#FFF7ED' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#FFE7CC' }]}>
+                <Ionicons name="refresh-outline" size={22} color="#F59E0B" />
+              </View>
+              <Text style={s.overviewLabel}>Returns</Text>
+              <Text style={s.overviewValue}>{channelData.returns}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-down" size={12} color={C.red} />
+                <Text style={[s.deltaText, { color: C.red }]}>33.3%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Row 3 */}
+          <View style={s.overviewRow}>
+            <View style={[s.overviewBox, { backgroundColor: '#FFF1F2' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#FFE0E3' }]}>
+                <Ionicons name="close-circle-outline" size={22} color="#E11D48" />
+              </View>
+              <Text style={s.overviewLabel}>Cancels</Text>
+              <Text style={s.overviewValue}>{channelData.cancels}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-down" size={12} color={C.green} />
+                <Text style={[s.deltaText, { color: C.green }]}>16.7%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+            <View style={[s.overviewBox, { backgroundColor: '#F0FDF4' }]}>
+              <View style={[s.overviewIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="swap-horizontal-outline" size={22} color="#16A34A" />
+              </View>
+              <Text style={s.overviewLabel}>Replacements</Text>
+              <Text style={s.overviewValue}>{channelData.replacements}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name="caret-up" size={12} color={C.green} />
+                <Text style={[s.deltaText, { color: C.green }]}>20.0%</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Sales Trend ── */}
+        <View style={s.card}>
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>Sales Trend</Text>
+            {/* ── UPDATED: pass onCustomRange to open the CalendarPicker ── */}
+            <RangeDropdown
+              selected={selectedRange}
+              onSelect={setSelectedRange}
+              onCustomRange={() => setShowTrendCal(true)}
+            />
+          </View>
+          <SalesTrendChart range={selectedRange} />
+        </View>
+
+        {/* ── Sales by Payment Method ── */}
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Sales by Payment Method</Text>
+          <Text style={s.tapHint}>Tap a segment to see its label</Text>
+          <View style={s.paymentCardCenter}>
+            {/* ── UPDATED: larger donut with tap-to-show arrow labels ── */}
+            <PaymentDonut methods={paymentMethods} total={paymentTotal} />
+          </View>
+          <View style={s.channelList}>
+            {paymentMethods.map((pm, idx) => (
+              <View key={pm.label} style={[s.channelItem, idx !== paymentMethods.length - 1 && s.channelItemBorder]}>
+                <View style={s.channelLeft}>
+                  <View style={[s.dot, { backgroundColor: pm.color }]} />
+                  <Text style={s.channelLabel}>{pm.label}</Text>
+                </View>
+                <View style={s.channelMiddle}>
+                  <Text style={s.channelValue}>₹{formatInr(pm.value)}</Text>
+                </View>
+                <View style={s.channelRight}>
+                  <Text style={s.channelPct}>{pm.pct.toFixed(1)}%</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Top Selling Products ── */}
+        <View style={s.card}>
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>Top Selling Products</Text>
+            <TouchableOpacity activeOpacity={0.7}><Text style={s.linkText}>View All</Text></TouchableOpacity>
+          </View>
+          {products.map((p, idx) => (
+            <View key={p.name} style={[s.productRow, idx !== 0 && s.productBorder]}>
+              <Image source={{ uri: p.uri }} style={s.productImage} />
+              <View style={s.productMid}>
+                <Text style={s.productName}>{p.name}</Text>
+                <Text style={s.productQty}>Qty: {p.qty}</Text>
+              </View>
+              <View style={s.productRight}>
+                <Text style={s.productPrice}>₹{formatInr(p.value)}</Text>
+                <View style={s.pctPill}><Text style={s.pctText}>{p.pct.toFixed(1)}%</Text></View>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* ── This Week Summary ── */}
+        <View style={s.summaryCard}>
+          <View style={s.summaryLeft}>
+            <View style={s.summaryIcon}>
+              <MaterialCommunityIcons name="file-document-outline" size={22} color={C.navy} />
+            </View>
+            <View style={s.flex1}>
+              <Text style={s.summaryTitle}>This Week Summary</Text>
+              <Text style={s.summaryText}>
+                You&apos;ve made ₹{formatInr(channelData.total)} sales
+                {selectedChannel !== 'All Channels' ? ` via ${selectedChannel}` : ''} this week.
+                That&apos;s 12.5% more than the previous 7 days.
+              </Text>
+            </View>
+          </View>
+          <View style={s.summaryRight}>
+            <View style={s.summaryPctRow}>
+              <Ionicons name="trending-up" size={18} color={C.green} />
+              <Text style={s.summaryPct}>12.5%</Text>
+            </View>
+            <Text style={s.summaryVs}>vs last 7 days</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+export default TotalSalesScreen;
+
+// ─── Calendar Styles ──────────────────────────────────────────────────────────
+
+const CELL_SIZE = Math.floor((SW - 48) / 7);
+
+const cal = StyleSheet.create({
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingBottom: 36, paddingTop: 20,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: C.textDark },
+  rangeDisplay: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F7FB', borderRadius: 16, padding: 12, marginBottom: 16, gap: 8 },
+  rangeBox: { flex: 1, borderRadius: 12, padding: 10, backgroundColor: C.white, borderWidth: 1.5, borderColor: C.border },
+  rangeBoxActive: { borderColor: C.navy, backgroundColor: '#EEF4FF' },
+  rangeDivider: { paddingHorizontal: 4 },
+  rangeLabel: { fontSize: 11, color: C.textLight, fontWeight: '600', marginBottom: 2 },
+  rangeValue: { fontSize: 13, fontWeight: '700', color: C.textDark },
+  rangeValueActive: { color: C.navy },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  navBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF4FF' },
+  monthTitle: { fontSize: 16, fontWeight: '800', color: C.textDark },
+  dayNamesRow: { flexDirection: 'row', marginBottom: 6 },
+  dayName: { width: CELL_SIZE, textAlign: 'center', fontSize: 12, fontWeight: '700', color: C.textLight },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center' },
+  cellInRange: { backgroundColor: '#EEF4FF' },
+  cellSelected: { backgroundColor: C.navy, borderRadius: CELL_SIZE / 2 },
+  cellStart: { borderTopLeftRadius: CELL_SIZE / 2, borderBottomLeftRadius: CELL_SIZE / 2 },
+  cellEnd: { borderTopRightRadius: CELL_SIZE / 2, borderBottomRightRadius: CELL_SIZE / 2 },
+  cellText: { fontSize: 14, fontWeight: '600', color: C.textDark },
+  cellTextInRange: { color: C.navy, fontWeight: '700' },
+  cellTextSelected: { color: C.white, fontWeight: '800' },
+  confirmBtn: { marginTop: 20, backgroundColor: C.navy, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
+  confirmText: { color: C.white, fontSize: 16, fontWeight: '800' },
+});
+
+// ─── Main Styles ──────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  flex1: { flex: 1 },
+  headerShell: { backgroundColor: C.bg },
+  header: { paddingHorizontal: 16, paddingBottom: 40, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  headerTop: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+  headerIconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: C.white, fontSize: 20, fontWeight: '800' },
+  filterCard: {
+    backgroundColor: C.white, borderRadius: 16, marginHorizontal: 16, marginTop: -33,
+    padding: 12, flexDirection: 'row', gap: 10,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+  },
+  filterItem: {
+    flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 14,
+    paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white,
+  },
+  filterLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
+  filterRight: { flex: 1, paddingRight: 8 },
+  filterText: { flexShrink: 1, fontSize: 13, lineHeight: 16, color: C.textDark, fontWeight: '600' },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+  card: {
+    backgroundColor: C.white, borderRadius: 20, padding: 16, marginBottom: 16,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+  },
+  trendSection: { paddingVertical: 8, marginBottom: 8 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: C.textDark },
+  tapHint: { fontSize: 11, color: C.textLight, fontWeight: '600', marginTop: 4 },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linkText: { color: C.navyDeep, fontWeight: '800', fontSize: 13 },
+  overviewRow: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  overviewBox: { flex: 1, borderRadius: 18, padding: 14 },
+  overviewIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  overviewLabel: { marginTop: 12, fontSize: 12, fontWeight: '700', color: C.textMid },
+  overviewValue: { marginTop: 6, fontSize: 12, fontWeight: '800', color: C.textDark },
+  deltaRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  deltaText: { fontSize: 12, fontWeight: '800' },
+  deltaVs: { fontSize: 12, color: C.textLight, fontWeight: '600' },
+  dropdownBtn: {
+    borderWidth: 1, borderColor: C.border, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6,
+    minWidth: 180,
+  },
+  dropdownText: { fontSize: 13, fontWeight: '700', color: C.textDark },
+  dropdownMenu: {
+    position: 'absolute', backgroundColor: C.white, borderRadius: 14, overflow: 'hidden',
+    shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+    elevation: 10, borderWidth: 1, borderColor: C.border,
+  },
+  dropdownSectionHeader: {
+    backgroundColor: '#F5F7FB', paddingHorizontal: 16, paddingVertical: 7,
+    borderBottomWidth: 1, borderBottomColor: '#E8ECF4',
+  },
+  dropdownSectionLabel: { fontSize: 10, fontWeight: '800', color: C.textLight, letterSpacing: 0.8 },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 },
+  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  dropdownItemActive: { backgroundColor: C.orange },
+  dropdownItemText: { fontSize: 14, fontWeight: '600', color: C.textDark },
+  dropdownItemTextActive: { color: C.white, fontWeight: '800' },
+  channelOptRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  channelOptDot: { width: 10, height: 10, borderRadius: 5 },
+  trendRow: { flexDirection: 'row', marginTop: 14 },
+  yAxis: { width: 46, paddingTop: 4, justifyContent: 'space-between', paddingBottom: 22 },
+  yAxisLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8' },
+  trendChartWrap: { position: 'relative' },
+  tooltip: { position: 'absolute', backgroundColor: C.navyDeep, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 },
+  tooltipDate: { color: C.white, fontSize: 11, fontWeight: '600' },
+  tooltipAmount: { marginTop: 2, color: C.white, fontSize: 14, fontWeight: '800' },
+  xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingRight: 2 },
+  xAxisLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '700' },
+  channelRow: { flexDirection: 'row', gap: 14, marginTop: 12, alignItems: 'center' },
+  paymentCardCenter: { alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 8 },
+  // ── UPDATED: enlarged donut box to fit labels + arrows ──
+donutBox: {
+  width: 520,
+  height: 350,
+  paddingTop: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'visible',
+  alignSelf: 'center',
+  backgroundColor: 'transparent',
+},  
+donutSvg: {},
+  donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  donutCenterLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '700' },
+  donutCenterValue: { marginTop: 4, fontSize: 14, fontWeight: '900', color: C.textDark },
+  channelList: { marginTop: 16 },
+  channelItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, justifyContent: 'space-between' },
+  channelItemBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(15, 23, 42, 0.08)' },
+  channelLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  channelMiddle: { width: 120, alignItems: 'flex-start' },
+  channelRight: { width: 64, alignItems: 'flex-end' },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  channelLabel: { fontSize: 13, fontWeight: '700', color: C.textDark },
+  channelValue: { fontSize: 13, fontWeight: '800', color: C.navyDeep },
+  channelPct: { fontSize: 12, fontWeight: '600', color: C.textLight },
+  productRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  productBorder: { borderTopWidth: 1, borderTopColor: '#EFF2F7' },
+  productImage: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#F3F4F6' },
+  productMid: { flex: 1, paddingLeft: 12 },
+  productName: { fontSize: 14, fontWeight: '800', color: C.textDark },
+  productQty: { marginTop: 4, fontSize: 12, fontWeight: '600', color: '#94A3B8' },
+  productRight: { alignItems: 'flex-end' },
+  productPrice: { fontSize: 14, fontWeight: '900', color: C.textDark },
+  pctPill: { marginTop: 8, backgroundColor: '#E7F0FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  pctText: { color: C.navyDeep, fontWeight: '900', fontSize: 12 },
+  summaryCard: {
+    backgroundColor: '#EEF4FF', borderRadius: 20, padding: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
+  },
+  summaryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 10 },
+  summaryIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E5EEFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  summaryTitle: { fontSize: 14, fontWeight: '900', color: C.textDark },
+  summaryText: { marginTop: 6, fontSize: 12, lineHeight: 16, color: C.textMid, fontWeight: '600' },
+  summaryRight: { alignItems: 'flex-end' },
+  summaryPctRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  summaryPct: { fontSize: 22, fontWeight: '900', color: C.green },
+  summaryVs: { marginTop: 3, fontSize: 11, fontWeight: '700', color: '#94A3B8' },
+});
