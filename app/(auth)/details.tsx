@@ -218,9 +218,9 @@ const SellerLanding: React.FC = () => {
 
               {/* CTA buttons */}
               <View style={s.heroCtas}>
-                <TouchableOpacity style={s.ctaPrimary} onPress={() => router.push("/(auth)/welcome")} activeOpacity={0.88}>
+                <TouchableOpacity style={s.ctaPrimary} onPress={() => router.push("/(auth)/login")} activeOpacity={0.88}>
                   <LinearGradient colors={[C.orange, C.orangeLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.ctaPrimaryGrad}>
-                    <Text style={s.ctaPrimaryText}>Start Selling — Free</Text>
+                    <Text style={s.ctaPrimaryText}>Start Selling</Text>
                     <Ionicons name="arrow-forward" size={18} color="#fff" style={{ marginLeft: 8 }} />
                   </LinearGradient>
                 </TouchableOpacity>
@@ -339,7 +339,7 @@ const SellerLanding: React.FC = () => {
             })}
           </View>
 
-          <TouchableOpacity onPress={() => router.push("/(auth)/welcome")} activeOpacity={0.88} style={s.stepsCtaWrap}>
+          <TouchableOpacity onPress={() => router.push("/(auth)/login")} activeOpacity={0.88} style={s.stepsCtaWrap}>
             <LinearGradient colors={[C.orange, C.orangeLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.stepsCta}>
               <Text style={s.stepsCtaText}>Begin Your Journey Today</Text>
               <Ionicons name="arrow-forward-circle" size={22} color="#fff" style={{ marginLeft: 8 }} />
@@ -408,7 +408,7 @@ const SellerLanding: React.FC = () => {
                 <Text style={s.feePillText}>  One-time fee: <Text style={{ fontFamily: "Outfit_800ExtraBold", color: C.orange }}>₹199 only</Text></Text>
               </View>
 
-              <TouchableOpacity onPress={() => router.push("/(auth)/welcome")} activeOpacity={0.88} style={{ marginTop: 24 }}>
+              <TouchableOpacity onPress={() => router.push("/(auth)/login")} activeOpacity={0.88} style={{ marginTop: 24 }}>
                 <LinearGradient colors={[C.navyDeep, C.navyLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.regBtn}>
                   <Text style={s.regBtnText}>Register Now</Text>
                   <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
@@ -435,7 +435,7 @@ const SellerLanding: React.FC = () => {
             ))}
           </View>
 
-          <TouchableOpacity onPress={() => router.push("/(auth)/welcome")} activeOpacity={0.88} style={s.bannerCtaWrap}>
+          <TouchableOpacity onPress={() => router.push("/(auth)/login")} activeOpacity={0.88} style={s.bannerCtaWrap}>
             <LinearGradient colors={[C.orange, C.orangeLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.bannerCta}>
               <Text style={s.bannerCtaText}>Start Selling Now</Text>
               <Ionicons name="arrow-forward-circle" size={22} color="#fff" style={{ marginLeft: 8 }} />
