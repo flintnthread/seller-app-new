@@ -6,6 +6,7 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
+    Image,
     SafeAreaView,
     StatusBar,
     Platform,
@@ -266,19 +267,37 @@ export function CategoryRequestScreen() {
     }
 
     return (
-        <SafeAreaView style={pg.mobileRoot}>
-            <StatusBar barStyle="light-content" backgroundColor="#1E2B6B" />
-            <View style={pg.mobileHeader}>
-                <TouchableOpacity onPress={() => router.back()} style={pg.backBtn}>
-                    <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-                <Text style={pg.mobileHeaderTitle}>Category Request</Text>
-                <View style={pg.backBtn} />
-            </View>
+        <View style={pg.mobileRoot}>
+            <StatusBar barStyle="light-content" backgroundColor="#151D4F" />
+            <SafeAreaView style={{ backgroundColor: "#151D4F", marginTop: 32 }}>
+                <View style={pg.mobileHeader}>
+                    <TouchableOpacity onPress={() => router.back()} style={pg.headerLogoBtn} activeOpacity={0.8}>
+                        <View style={pg.headerLogoCircle}>
+                            <Image
+                                source={require("../../assets/images/fav.png")}
+                                style={{ width: 22, height: 22 }}
+                                resizeMode="contain"
+                            />
+                        </View>
+                    </TouchableOpacity>
+                    <View style={pg.headerTitleBlock}>
+                        <Text style={pg.mobileHeaderTitle} numberOfLines={1}>Categories</Text>
+                        <Text style={pg.mobileHeaderSub} numberOfLines={1}>Browse product categories</Text>
+                    </View>
+                    <View style={pg.headerActions}>
+                        <TouchableOpacity style={pg.headerIconBtn} onPress={() => router.push("/(main)/notifications")}>
+                            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={pg.headerIconBtn} onPress={() => router.push("/(main)/settingsModule")}>
+                            <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </SafeAreaView>
             <ScrollView contentContainerStyle={pg.mobileScroll} showsVerticalScrollIndicator={false}>
                 {pageBody}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -287,16 +306,45 @@ const pg = StyleSheet.create({
     mobileHeader: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1E2B6B",
-        paddingHorizontal: 8,
-        paddingVertical: 12,
+        backgroundColor: "#151D4F",
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        height: 60,
+    },
+    headerLogoBtn: {},
+    headerLogoCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: "#FFFFFF",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    headerTitleBlock: {
+        flex: 1,
+        marginHorizontal: 12,
     },
     mobileHeaderTitle: {
-        flex: 1,
-        textAlign: "center",
         fontFamily: "Outfit_700Bold",
-        fontSize: 17,
+        fontSize: 16,
         color: "#FFFFFF",
+    },
+    mobileHeaderSub: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 12,
+        color: "rgba(255,255,255,0.7)",
+    },
+    headerActions: {
+        flexDirection: "row",
+        gap: 4,
+    },
+    headerIconBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.12)",
+        alignItems: "center",
+        justifyContent: "center",
     },
     backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
     mobileScroll: { paddingBottom: 32 },

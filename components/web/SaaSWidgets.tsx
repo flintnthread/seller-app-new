@@ -35,9 +35,14 @@ const C = {
 };
 
 // ─── 1. SMART WELCOME HEADER ───
-export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Gopi" }) => {
+const REFERRAL_CODE = "F&T-THEL-0023611";
+const REFERRAL_GOAL = 6;
+const REFERRAL_CURRENT = 0;
+
+export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya" }) => {
   const router = useRouter();
   const [greeting, setGreeting] = useState("Good Morning");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -55,43 +60,176 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Gopi" 
   ];
 
   const handlePress = (act: typeof actions[0]) => {
-    if (act.path) {
-      router.push(act.path as any);
+    if ((act as any).path) {
+      router.push((act as any).path as any);
     } else {
       alert(`Action: ${act.label} initialized successfully!`);
     }
   };
 
+  const handleCopy = () => {
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      navigator?.clipboard?.writeText(REFERRAL_CODE);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "Join F&T Marketplace!",
+      text: `Use my referral code ${REFERRAL_CODE} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
+      url: "https://fandt.app/register",
+    };
+    if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share(shareData);
+      } catch (_) { /* user cancelled */ }
+    } else {
+      // Fallback: copy the share text to clipboard
+      const fallbackText = `${shareData.text}\n${shareData.url}`;
+      if (Platform.OS === "web") {
+        // @ts-ignore
+        navigator?.clipboard?.writeText(fallbackText);
+      }
+      alert("Share text copied to clipboard!");
+    }
+  };
+
+  const progressPct = Math.min((REFERRAL_CURRENT / REFERRAL_GOAL) * 100, 100);
+
   return (
     <View style={welcomeStyles.container}>
-      <View style={welcomeStyles.heroText}>
-        <AppText style={welcomeStyles.title}>{greeting}, {name} 👋</AppText>
-        <AppText style={welcomeStyles.subtitle}>
-          Your store sales increased by <AppText style={welcomeStyles.highlight}>18%</AppText> this week. You received <AppText style={welcomeStyles.highlight}>12 new orders</AppText> today.
-        </AppText>
-        <AppText style={welcomeStyles.motivation}>
-          ✨ Keep it up! High customer traffic detected in Clothing categories.
-        </AppText>
+      {/* ── LEFT: Greeting + Quick Actions ── */}
+      <View style={welcomeStyles.leftCol}>
+        <View style={welcomeStyles.heroText}>
+          <AppText style={welcomeStyles.title}>{greeting}, {name} 👋</AppText>
+          <AppText style={welcomeStyles.subtitle}>
+            Your store sales increased by <AppText style={welcomeStyles.highlight}>18%</AppText> this week. You received <AppText style={welcomeStyles.highlight}>12 new orders</AppText> today.
+          </AppText>
+          <AppText style={welcomeStyles.motivation}>
+            ✨ Keep it up! High customer traffic detected in Clothing categories.
+          </AppText>
+        </View>
+
+        <View style={welcomeStyles.actionsRow}>
+          {actions.map((act, i) => (
+            <Pressable
+              key={i}
+              onPress={() => handlePress(act)}
+              // @ts-ignore
+              style={({ hovered }) => [
+                welcomeStyles.actionCard,
+                { borderColor: act.color + "20" },
+                hovered && { transform: [{ translateY: -2 }], boxShadow: "0 6px 12px -2px rgba(21, 29, 79, 0.08)", borderColor: act.color + "50" }
+              ]}
+            >
+              <View style={[welcomeStyles.iconBox, { backgroundColor: act.bg }]}>
+                <MaterialCommunityIcons name={act.icon as any} size={20} color={act.color} />
+              </View>
+              <AppText style={welcomeStyles.actionLabel}>{act.label}</AppText>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── Today's Live Overview Strip ── */}
+        <View style={welcomeStyles.statsStrip}>
+          <View style={welcomeStyles.statItem}>
+            <View style={[welcomeStyles.statDot, { backgroundColor: C.green }]} />
+            <AppText style={welcomeStyles.statText}>
+              Today's Sales: <AppText style={welcomeStyles.statValue}>₹12,450</AppText>
+            </AppText>
+            <AppText style={[welcomeStyles.statBadge, { color: C.green, backgroundColor: C.greenPale }]}>+8%</AppText>
+          </View>
+          <View style={welcomeStyles.statDivider} />
+          <View style={welcomeStyles.statItem}>
+            <View style={[welcomeStyles.statDot, { backgroundColor: C.purple }]} />
+            <AppText style={welcomeStyles.statText}>
+              Pending Orders: <AppText style={welcomeStyles.statValue}>3</AppText>
+            </AppText>
+            <AppText style={[welcomeStyles.statBadge, { color: C.purple, backgroundColor: C.purplePale }]}>Action</AppText>
+          </View>
+          <View style={welcomeStyles.statDivider} />
+          <View style={welcomeStyles.statItem}>
+            <View style={[welcomeStyles.statDot, { backgroundColor: C.blue }]} />
+            <AppText style={welcomeStyles.statText}>
+              Live Visitors: <AppText style={welcomeStyles.statValue}>1,245</AppText>
+            </AppText>
+            <AppText style={[welcomeStyles.statBadge, { color: C.blue, backgroundColor: C.bluePale }]}>+15%</AppText>
+          </View>
+        </View>
       </View>
 
-      <View style={welcomeStyles.actionsRow}>
-        {actions.map((act, i) => (
-          <Pressable
-            key={i}
-            onPress={() => handlePress(act)}
-            // @ts-ignore
-            style={({ hovered }) => [
-              welcomeStyles.actionCard,
-              { borderColor: act.color + "20" },
-              hovered && { transform: [{ translateY: -2 }], boxShadow: "0 6px 12px -2px rgba(21, 29, 79, 0.08)", borderColor: act.color + "50" }
-            ]}
-          >
-            <View style={[welcomeStyles.iconBox, { backgroundColor: act.bg }]}>
-              <MaterialCommunityIcons name={act.icon as any} size={20} color={act.color} />
-            </View>
-            <AppText style={welcomeStyles.actionLabel}>{act.label}</AppText>
-          </Pressable>
-        ))}
+      {/* ── DIVIDER ── */}
+      <View style={welcomeStyles.divider} />
+
+      {/* ── RIGHT: Referral Reward Program ── */}
+      <View style={welcomeStyles.referralCol}>
+        {/* Header */}
+        <View style={welcomeStyles.refHeader}>
+          <View style={welcomeStyles.refIconBox}>
+            <MaterialCommunityIcons name="gift-outline" size={16} color={C.orange} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText style={welcomeStyles.refTitle}>Referral Rewards</AppText>
+            <AppText style={welcomeStyles.refSubtitle}>Invite sellers • Earn +5% commission</AppText>
+          </View>
+          <View style={welcomeStyles.refBadge}>
+            <AppText style={welcomeStyles.refBadgeText}>🎁 ACTIVE</AppText>
+          </View>
+        </View>
+
+        {/* Progress tracker */}
+        <View style={welcomeStyles.refProgressWrap}>
+          <View style={welcomeStyles.refProgressRow}>
+            <AppText style={welcomeStyles.refProgressLabel}>
+              {REFERRAL_CURRENT} / {REFERRAL_GOAL} sellers invited
+            </AppText>
+            <AppText style={welcomeStyles.refProgressPct}>{Math.round(progressPct)}%</AppText>
+          </View>
+          <View style={welcomeStyles.refBarBg}>
+            <View style={[welcomeStyles.refBarFill, { width: `${progressPct || 4}%` as any }]} />
+          </View>
+          <AppText style={welcomeStyles.refGoalNote}>
+            🏆 Invite {REFERRAL_GOAL - REFERRAL_CURRENT} more sellers to unlock ₹2,500 bonus!
+          </AppText>
+        </View>
+
+        {/* Code row */}
+        <View style={welcomeStyles.refCodeWrap}>
+          <View style={{ flex: 1 }}>
+            <AppText style={welcomeStyles.refCodeLabel}>YOUR REFERRAL CODE</AppText>
+            <AppText style={welcomeStyles.refCode}>{REFERRAL_CODE}</AppText>
+          </View>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <TouchableOpacity
+              style={[
+                welcomeStyles.refCopyBtn,
+                copied && { backgroundColor: C.greenPale, borderColor: C.green }
+              ]}
+              onPress={handleCopy}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name={copied ? "check" : "content-copy"}
+                size={13}
+                color={copied ? C.green : C.textMid}
+              />
+              <AppText style={[welcomeStyles.refCopyText, copied && { color: C.green }]}>
+                {copied ? "Copied!" : "Copy"}
+              </AppText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={welcomeStyles.refShareBtn}
+              onPress={handleShare}
+              activeOpacity={0.8}
+            >
+              <Feather name="share-2" size={13} color={C.white} />
+              <AppText style={welcomeStyles.refShareText}>Share</AppText>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -103,8 +241,13 @@ const welcomeStyles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 24,
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
     marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 0,
     ...Platform.select({
       web: {
         background: "linear-gradient(135deg, #FFFFFF 60%, #F0EEFF 100%)",
@@ -112,8 +255,14 @@ const welcomeStyles = StyleSheet.create({
       },
     }),
   },
+  // ── Left column ──
+  leftCol: {
+    flex: 1,
+    paddingRight: 20,
+    justifyContent: "space-between",
+  },
   heroText: {
-    marginBottom: 20,
+    marginBottom: 10,
   },
   title: {
     fontSize: 24,
@@ -125,7 +274,7 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_400Regular",
     color: C.textMid,
-    marginTop: 5,
+    marginTop: 3,
     lineHeight: 20,
   },
   highlight: {
@@ -136,9 +285,9 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Poppins_500Medium",
     color: C.teal,
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    marginTop: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: C.tealPale,
     borderRadius: 6,
     alignSelf: "flex-start",
@@ -146,8 +295,8 @@ const welcomeStyles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 2,
   },
   actionCard: {
     flexDirection: "row",
@@ -155,8 +304,8 @@ const welcomeStyles = StyleSheet.create({
     backgroundColor: C.white,
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     minWidth: 148,
     ...Platform.select({
       web: {
@@ -178,6 +327,201 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Poppins_600SemiBold",
     color: C.textDark,
+  },
+  statsStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 12,
+  },
+  statItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statText: {
+    fontSize: 11,
+    fontFamily: "Poppins_500Medium",
+    color: C.textMid,
+  },
+  statValue: {
+    fontFamily: "Poppins_700Bold",
+    color: C.textDark,
+  },
+  statBadge: {
+    fontSize: 9,
+    fontFamily: "Poppins_700Bold",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  statDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: C.border,
+  },
+  // ── Divider ──
+  divider: {
+    width: 1,
+    backgroundColor: C.border,
+    marginVertical: -18,
+    alignSelf: "stretch",
+  },
+  // ── Right column — Referral ──
+  referralCol: {
+    width: 280,
+    paddingLeft: 16,
+    justifyContent: "space-between",
+    ...Platform.select({
+      web: {
+        background: "linear-gradient(160deg, #FFFBEB 0%, #FFF7ED 100%)",
+        borderRadius: 10,
+        padding: 10,
+        marginLeft: 0,
+      },
+    }),
+  },
+  refHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  refIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: C.orangePale,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  refTitle: {
+    fontSize: 13,
+    fontFamily: "Poppins_700Bold",
+    color: C.textDark,
+  },
+  refSubtitle: {
+    fontSize: 10,
+    fontFamily: "Poppins_400Regular",
+    color: C.textLight,
+    marginTop: 1,
+  },
+  refBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  refBadgeText: {
+    fontSize: 9,
+    fontFamily: "Poppins_700Bold",
+    color: C.orange,
+  },
+  refProgressWrap: {
+    marginBottom: 6,
+  },
+  refProgressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  refProgressLabel: {
+    fontSize: 11,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textMid,
+  },
+  refProgressPct: {
+    fontSize: 11,
+    fontFamily: "Poppins_700Bold",
+    color: C.orange,
+  },
+  refBarBg: {
+    height: 6,
+    backgroundColor: "#FDE68A",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  refBarFill: {
+    height: "100%",
+    backgroundColor: C.orange,
+    borderRadius: 3,
+  },
+  refGoalNote: {
+    fontSize: 10,
+    fontFamily: "Poppins_500Medium",
+    color: C.textMid,
+    lineHeight: 14,
+  },
+  refCodeWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.white,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  refCodeLabel: {
+    fontSize: 8,
+    fontFamily: "Poppins_700Bold",
+    color: C.textLight,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  refCode: {
+    fontSize: 12,
+    fontFamily: "Poppins_700Bold",
+    color: C.textDark,
+    letterSpacing: 0.5,
+  },
+  refCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  refCopyText: {
+    fontSize: 11,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textMid,
+  },
+  refShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.orange,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  refShareText: {
+    fontSize: 11,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.white,
   },
 });
 
@@ -224,7 +568,7 @@ const panelStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     padding: 18,
-    marginBottom: 16,
+    marginBottom: 0,
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0,0,0,0.05), 0 1px 2px -1px rgba(0,0,0,0.03)",
@@ -369,7 +713,7 @@ export const SalesHeatmap: React.FC = () => {
   ];
 
   return (
-    <View style={panelStyles.card}>
+    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <View style={panelStyles.header}>
         <AppText style={panelStyles.title}>Hourly Sales Heatmap</AppText>
         <AppText style={panelStyles.liveText}>Past 30 Days Activity</AppText>
@@ -527,28 +871,56 @@ export const LiveOrderTrackingPanel: React.FC = () => {
   ];
 
   return (
-    <View style={panelStyles.card}>
-      <View style={panelStyles.header}>
-        <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
-        <AppText style={panelStyles.liveText}>ORD#123455</AppText>
+    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+      <View>
+        <View style={panelStyles.header}>
+          <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
+          <AppText style={panelStyles.liveText}>ORD#123455</AppText>
+        </View>
+
+        <View style={trackingStyles.timeline}>
+          {steps.map((st, i) => {
+            const isDone = st.done || st.current;
+            return (
+              <View key={i} style={trackingStyles.stepCol}>
+                <View style={[trackingStyles.circle, isDone && { backgroundColor: C.green, borderColor: C.green }]}>
+                  {st.done ? (
+                    <Ionicons name="checkmark" size={10} color={C.white} />
+                  ) : st.current ? (
+                    <View style={trackingStyles.pulseRing} />
+                  ) : null}
+                </View>
+                <AppText style={[trackingStyles.label, st.current && { color: C.purple, fontFamily: "Poppins_700Bold" }]}>{st.label}</AppText>
+              </View>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={trackingStyles.timeline}>
-        {steps.map((st, i) => {
-          const isDone = st.done || st.current;
-          return (
-            <View key={i} style={trackingStyles.stepCol}>
-              <View style={[trackingStyles.circle, isDone && { backgroundColor: C.green, borderColor: C.green }]}>
-                {st.done ? (
-                  <Ionicons name="checkmark" size={10} color={C.white} />
-                ) : st.current ? (
-                  <View style={trackingStyles.pulseRing} />
-                ) : null}
-              </View>
-              <AppText style={[trackingStyles.label, st.current && { color: C.purple, fontFamily: "Poppins_700Bold" }]}>{st.label}</AppText>
-            </View>
-          );
-        })}
+      {/* ── Delivery Partner & Tracking Details Row ── */}
+      <View style={trackingStyles.detailsBox}>
+        <View style={trackingStyles.detailItem}>
+          <MaterialCommunityIcons name="truck-delivery-outline" size={16} color={C.teal} />
+          <View style={{ marginLeft: 6 }}>
+            <AppText style={trackingStyles.detailTitle}>Delhivery Express</AppText>
+            <AppText style={trackingStyles.detailValue}>ID: DLV-98745210</AppText>
+          </View>
+        </View>
+        <View style={trackingStyles.verticalDivider} />
+        <View style={trackingStyles.detailItem}>
+          <MaterialCommunityIcons name="calendar-clock-outline" size={16} color={C.orange} />
+          <View style={{ marginLeft: 6 }}>
+            <AppText style={trackingStyles.detailTitle}>Expected Delivery</AppText>
+            <AppText style={trackingStyles.detailValue}>Tomorrow, 12:00 PM</AppText>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Status Meta Info ── */}
+      <View style={trackingStyles.meta}>
+        <AppText style={trackingStyles.metaText}>
+          📍 <AppText style={trackingStyles.bold}>Live Status</AppText>: Package departed Mumbai Transit Hub. Next update at Pune.
+        </AppText>
       </View>
     </View>
   );
@@ -591,6 +963,50 @@ const trackingStyles = StyleSheet.create({
     fontFamily: "Poppins_500Medium",
     color: C.textLight,
     textAlign: "center",
+  },
+  detailsBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    justifyContent: "space-between",
+  },
+  detailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  detailTitle: {
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textDark,
+  },
+  detailValue: {
+    fontSize: 9,
+    fontFamily: "Poppins_500Medium",
+    color: C.textLight,
+    marginTop: 1,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: C.border,
+    marginHorizontal: 8,
+  },
+  meta: {
+    marginTop: 8,
+  },
+  metaText: {
+    fontSize: 10,
+    fontFamily: "Poppins_400Regular",
+    color: C.textMid,
+  },
+  bold: {
+    fontFamily: "Poppins_700Bold",
   },
 });
 
@@ -860,7 +1276,7 @@ export const MarketingCenter: React.FC = () => {
   ];
 
   return (
-    <View style={panelStyles.card}>
+    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Seller Growth Marketing Hub</AppText>
       <View style={mktStyles.grid}>
         {tools.map((t, i) => (
@@ -913,32 +1329,53 @@ const mktStyles = StyleSheet.create({
 // ─── 13. FINANCIAL CENTER ───
 export const FinancialCenter: React.FC = () => {
   return (
-    <View style={panelStyles.card}>
-      <View style={panelStyles.header}>
-        <AppText style={panelStyles.title}>Financial Reconciliation Center</AppText>
-        <MaterialCommunityIcons name="finance" size={18} color={C.green} />
+    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+      <View>
+        <View style={panelStyles.header}>
+          <AppText style={panelStyles.title}>Financial Reconciliation Center</AppText>
+          <MaterialCommunityIcons name="finance" size={18} color={C.green} />
+        </View>
+
+        <View style={finStyles.statsGrid}>
+          <View style={finStyles.finItem}>
+            <AppText style={finStyles.label}>GST Calculation (18%)</AppText>
+            <AppText style={finStyles.val}>₹2,241</AppText>
+          </View>
+          <View style={finStyles.finItem}>
+            <AppText style={finStyles.label}>Pending Transfer Balance</AppText>
+            <AppText style={finStyles.val}>₹24,500</AppText>
+          </View>
+        </View>
+
+        <View style={finStyles.exportRow}>
+          <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading PDF Invoice...")}>
+            <Feather name="download" size={12} color={C.textMid} />
+            <AppText style={finStyles.btnText}>Export Invoice PDF</AppText>
+          </TouchableOpacity>
+          <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading Excel Report...")}>
+            <Feather name="file-text" size={12} color={C.textMid} />
+            <AppText style={finStyles.btnText}>Export GST Excel</AppText>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={finStyles.statsGrid}>
-        <View style={finStyles.finItem}>
-          <AppText style={finStyles.label}>GST Calculation (18%)</AppText>
-          <AppText style={finStyles.val}>₹2,241</AppText>
+      {/* ── Scheduled Auto-Payout info strip ── */}
+      <View style={finStyles.payoutBox}>
+        <MaterialCommunityIcons name="bank-transfer-in" size={16} color={C.green} />
+        <View style={{ marginLeft: 6, flex: 1 }}>
+          <AppText style={finStyles.payoutTitle}>Next Automatic Payout</AppText>
+          <AppText style={finStyles.payoutValue}>Scheduled for Monday, May 25th at 10:00 AM</AppText>
         </View>
-        <View style={finStyles.finItem}>
-          <AppText style={finStyles.label}>Pending Transfer Balance</AppText>
-          <AppText style={finStyles.val}>₹24,500</AppText>
+        <View style={finStyles.payoutBadge}>
+          <AppText style={finStyles.payoutBadgeText}>ACTIVE</AppText>
         </View>
       </View>
 
-      <View style={finStyles.exportRow}>
-        <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading PDF Invoice...")}>
-          <Feather name="download" size={12} color={C.textMid} />
-          <AppText style={finStyles.btnText}>Export Invoice PDF</AppText>
-        </TouchableOpacity>
-        <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading Excel Report...")}>
-          <Feather name="file-text" size={12} color={C.textMid} />
-          <AppText style={finStyles.btnText}>Export GST Excel</AppText>
-        </TouchableOpacity>
+      {/* ── Financial Bank details footer ── */}
+      <View style={finStyles.meta}>
+        <AppText style={finStyles.metaText}>
+          🏦 <AppText style={finStyles.bold}>Settlement Bank</AppText>: HDFC Bank Account ending in •••• 4321.
+        </AppText>
       </View>
     </View>
   );
@@ -986,6 +1423,51 @@ const finStyles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
     color: C.textMid,
+  },
+  payoutBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  payoutTitle: {
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textDark,
+  },
+  payoutValue: {
+    fontSize: 9,
+    fontFamily: "Poppins_500Medium",
+    color: C.textLight,
+    marginTop: 1,
+  },
+  payoutBadge: {
+    backgroundColor: C.greenPale,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: C.green + "40",
+  },
+  payoutBadgeText: {
+    fontSize: 8,
+    fontFamily: "Poppins_700Bold",
+    color: C.green,
+  },
+  meta: {
+    marginTop: 8,
+  },
+  metaText: {
+    fontSize: 10,
+    fontFamily: "Poppins_400Regular",
+    color: C.textMid,
+  },
+  bold: {
+    fontFamily: "Poppins_700Bold",
   },
 });
 

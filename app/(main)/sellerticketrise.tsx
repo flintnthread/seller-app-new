@@ -4,6 +4,7 @@ import {
   Modal,
   Platform,
   SafeAreaView,
+  StatusBar,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -591,20 +592,39 @@ const RaiseTicketScreen = () => {
     );
   }
 
-  // ─── ORIGINAL MOBILE LAYOUT (untouched) ───────────────────────────────────
+  // ─── MOBILE LAYOUT ──────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="chevron-back" size={34} color="#fff" />
-        </TouchableOpacity>
-
-        <AppText style={styles.headerTitle}>Raise a Ticket</AppText>
-
-        <AppText style={styles.headerSubtitle} numberOfLines={1} adjustsFontSizeToFit={true}>
-          We&apos;re here to help you. Please fill in the details.
-        </AppText>
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#151D4F" />
+      <SafeAreaView style={{ backgroundColor: "#151D4F", marginTop: 32 }}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerLogoBtn}
+            onPress={() => { /* back */ }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.headerLogoCircle}>
+              <Image
+                source={require("../../assets/images/fav.png")}
+                style={{ width: 22, height: 22 }}
+                resizeMode="contain"
+              />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.headerTitleBlock}>
+            <AppText style={styles.headerTitle} numberOfLines={1}>Request</AppText>
+            <AppText style={styles.headerSubtitle} numberOfLines={1}>Submit a support ticket</AppText>
+          </View>
+          <View style={styles.headerRightBtns}>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -936,7 +956,7 @@ const RaiseTicketScreen = () => {
       </ScrollView>
 
       {sharedModals}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1491,52 +1511,72 @@ const desktopStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F8FC",
   },
 
+  // Dashboard-style header
   header: {
-    height: 190,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    backgroundColor: "#001A72",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#151D4F",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    height: 60,
   },
-
-  backButton: {
-    width: 40,
-    marginTop: 56,
+  headerLogoBtn: {},
+  headerLogoCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
+  headerTitleBlock: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
   headerTitle: {
-    fontSize: 28,
     fontFamily: fontFamilies.bold,
-    color: "#FFFFFF",
-    alignSelf: "center",
-    marginTop: -36,
-  },
-
-  headerSubtitle: {
     fontSize: 16,
     color: "#FFFFFF",
-    textAlign: "center",
-    marginTop: 10,
-    fontWeight: "500",
+  },
+  headerSubtitle: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+  },
+  headerRightBtns: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButton: {
+    width: 40,
   },
 
   scrollContent: {
-    padding: 22,
-    paddingBottom: 40,
+    padding: 14,
+    paddingBottom: 48,
   },
 
   fieldContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
     position: 'relative',
   },
 
   label: {
-    fontSize: 17,
-    fontFamily: fontFamilies.bold,
-    color: "#0F172A",
-    marginBottom: 12,
+    fontSize: 13,
+    fontFamily: fontFamilies.medium,
+    color: "#6B7280",
+    marginBottom: 6,
   },
 
   required: {
@@ -1544,52 +1584,62 @@ const styles = StyleSheet.create({
   },
 
   inputBox: {
-    height: 72,
+    height: 52,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 18,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
   },
 
+  inputBoxError: {
+    borderColor: "#FF4D4F",
+    backgroundColor: "#FFF5F5",
+  },
+
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFE5CC",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFF0E6",
     justifyContent: "center",
     alignItems: "center",
   },
 
   placeholderText: {
-    fontSize: 18,
-    color: "#111827",
-    marginLeft: 14,
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginLeft: 10,
   },
 
   textInput: {
     flex: 1,
-    marginLeft: 14,
-    fontSize: 18,
+    marginLeft: 10,
+    fontSize: 14,
     color: "#111827",
   },
 
   helperText: {
-    marginTop: 10,
-    color: "#6B7280",
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 5,
+    color: "#9CA3AF",
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   descriptionBox: {
-    minHeight: 210,
+    minHeight: 120,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: "#FFFFFF",
-    padding: 14,
+    padding: 12,
+  },
+
+  descriptionBoxError: {
+    borderColor: "#FF4D4F",
+    backgroundColor: "#FFF5F5",
   },
 
   descriptionTop: {
@@ -1599,105 +1649,108 @@ const styles = StyleSheet.create({
 
   descriptionInput: {
     flex: 1,
-    marginLeft: 14,
-    fontSize: 18,
+    marginLeft: 10,
+    fontSize: 14,
     color: "#111827",
-    minHeight: 130,
+    minHeight: 80,
     textAlignVertical: "top",
   },
 
   counter: {
     alignSelf: "flex-end",
-    color: "#6B7280",
-    fontSize: 15,
-    marginTop: 10,
+    color: "#9CA3AF",
+    fontSize: 12,
+    marginTop: 6,
   },
 
   uploadBox: {
-    height: 120,
+    height: 80,
     borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: "#D1D5DB",
-    borderRadius: 18,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
+    gap: 10,
   },
 
   uploadTitle: {
-    fontSize: 22,
-    fontFamily: fontFamilies.bold,
+    fontSize: 14,
+    fontFamily: fontFamilies.semiBold,
     color: "#ff6a00",
   },
 
   uploadSubText: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginTop: 4,
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginTop: 2,
   },
 
   infoCard: {
-    backgroundColor: "#F5F8FF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 28,
+    backgroundColor: "#F0F4FF",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#C7D7FF",
   },
 
   infoHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 10,
+    gap: 8,
   },
 
   infoTitle: {
-    fontSize: 22,
-    fontFamily: fontFamilies.bold,
-    color: "#001A72",
-    marginLeft: 10,
+    fontSize: 14,
+    fontFamily: fontFamilies.medium,
+    color: "#1E2B6B",
   },
 
   infoRow: {
     flexDirection: "row",
-    marginBottom: 12,
-    alignItems: "center",
+    marginBottom: 8,
+    alignItems: "flex-start",
+    gap: 8,
   },
 
   infoText: {
-    fontSize: 17,
-    color: "#111827",
-    marginLeft: 12,
+    fontSize: 13,
+    color: "#374151",
     flex: 1,
-    lineHeight: 24,
+    lineHeight: 18,
   },
 
   submitButton: {
-    height: 72,
-    borderRadius: 18,
+    height: 52,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     flexDirection: "row",
-    backgroundColor: "#001A72",
+    gap: 8,
+    backgroundColor: "#151D4F",
   },
 
   submitText: {
     color: "#FFFFFF",
-    fontSize: 20,
-    fontFamily: fontFamilies.bold,
-    marginLeft: 12,
+    fontSize: 15,
+    fontFamily: fontFamilies.semiBold,
   },
 
   bottomTextContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 16,
+    gap: 6,
   },
 
   bottomText: {
-    fontSize: 16,
-    color: "#8A94A6",
-    marginLeft: 8,
+    fontSize: 13,
+    color: "#9CA3AF",
   },
 
   // Image Preview Styles
@@ -1841,20 +1894,21 @@ const styles = StyleSheet.create({
 
   // Custom Dropdown Styles
   customDropdownTrigger: {
-    height: 72,
+    height: 52,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 18,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
-    marginBottom: 20,
+    marginBottom: 0,
+    justifyContent: "space-between",
   },
 
   customDropdownTriggerActive: {
-    borderColor: "#001A72",
-    borderWidth: 2,
+    borderColor: "#1E2B6B",
+    borderWidth: 1.5,
   },
 
   customDropdownContent: {
@@ -1864,46 +1918,43 @@ const styles = StyleSheet.create({
   },
 
   customDropdownIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFE5CC",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFF0E6",
     justifyContent: "center",
     alignItems: "center",
   },
 
   customDropdownText: {
-    fontSize: 18,
+    fontSize: 14,
     color: "#111827",
-    marginLeft: 14,
+    marginLeft: 10,
     flex: 1,
   },
 
   customDropdownPlaceholder: {
-    fontSize: 18,
-    color: "#8A94A6",
-    marginLeft: 14,
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginLeft: 10,
     flex: 1,
   },
 
   customDropdownCard: {
     position: "absolute",
-    top: "100%",
+    top: "100%" as any,
     left: 0,
     right: 0,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    marginTop: -4,
+    borderRadius: 14,
+    marginTop: 4,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 16,
+    shadowRadius: 10,
     elevation: 8,
     zIndex: 1000,
-    paddingVertical: 12,
+    paddingVertical: 6,
   },
 
   dropdownWrapper: {
