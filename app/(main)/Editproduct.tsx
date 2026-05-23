@@ -11,8 +11,23 @@ import {
     Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const { width: SW } = Dimensions.get("window");
+const CONTENT_MAX = 1120;
+
+const getStepScrollContent = (isDesktop: boolean) =>
+    isDesktop
+        ? {
+              paddingHorizontal: 32,
+              paddingTop: 24,
+              paddingBottom: 80,
+              width: "100%" as const,
+              maxWidth: CONTENT_MAX,
+              alignSelf: "center" as const,
+              ...(Platform.OS === "web" ? ({ alignSelf: "center", marginHorizontal: "auto" } as object) : {}),
+          }
+        : { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 };
 
 // ─── Design Tokens ───────────────────────────────────────────
 const C = {
@@ -253,7 +268,10 @@ const validateDetails = (data: any): string[] => {
 // ─────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────
-const Card = ({ children, style }: any) => <View style={[at.card, style]}>{children}</View>;
+const Card = ({ children, style }: any) => {
+    const { isDesktop } = useResponsive();
+    return <View style={[at.card, isDesktop && ds.card, style]}>{children}</View>;
+};
 
 const SecHead = ({ icon, title, accent = C.accent1 }: { icon: string; title: string; accent?: string }) => (
     <View style={[at.secHead, { borderLeftColor: accent }]}>
@@ -335,6 +353,329 @@ const pm = StyleSheet.create({
     itemTxtOn: { fontFamily: "Outfit_600SemiBold", color: C.navy },
     chk: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
 });
+
+const InlinePicker = ({
+    visible,
+    title,
+    options,
+    selected,
+    onSelect,
+    onClose,
+}: {
+    visible: boolean;
+    title: string;
+    options: string[];
+    selected: string;
+    onSelect: (v: string) => void;
+    onClose: () => void;
+}) => {
+    if (!visible) return null;
+    return (
+        <View style={fp.inlinePickerWrap} pointerEvents="box-none">
+            <TouchableOpacity style={fp.inlinePickerBackdrop} activeOpacity={1} onPress={onClose} />
+            <View style={fp.inlinePickerSheet}>
+                <View style={fp.inlinePickerHdr}>
+                    <Text style={fp.inlinePickerTitle}>{title}</Text>
+                    <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color={C.textMid} />
+                    </TouchableOpacity>
+                </View>
+                <ScrollView style={fp.inlinePickerList} bounces={false} keyboardShouldPersistTaps="handled">
+                    {options.map((opt) => (
+                        <TouchableOpacity
+                            key={opt}
+                            style={[fp.inlinePickerItem, selected === opt && fp.inlinePickerItemOn]}
+                            onPress={() => {
+                                onSelect(opt);
+                                onClose();
+                            }}
+                        >
+                            <Text style={[fp.inlinePickerItemTxt, selected === opt && fp.inlinePickerItemTxtOn]}>
+                                {opt}
+                            </Text>
+                            {selected === opt && (
+                                <View style={pm.chk}>
+                                    <Ionicons name="checkmark" size={13} color={C.white} />
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+        </View>
+    );
+};
+
+const FormPopupModal = ({
+    visible,
+    onClose,
+    title,
+    children,
+    overlay,
+    wide = false,
+    accentHeader = false,
+    headerIcon = "ruler-square",
+}: {
+    visible: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+    overlay?: React.ReactNode;
+    wide?: boolean;
+    accentHeader?: boolean;
+    headerIcon?: string;
+}) => {
+    const { isDesktop } = useResponsive();
+
+    return (
+        <Modal
+            visible={visible}
+            transparent
+            animationType={isDesktop ? "fade" : "slide"}
+            onRequestClose={onClose}
+        >
+            <View style={[fp.overlay, isDesktop && fp.overlayCenter]}>
+                <TouchableOpacity style={fp.backdrop} activeOpacity={1} onPress={onClose} />
+                <View
+                    style={[
+                        fp.sheet,
+                        isDesktop && fp.popup,
+                        isDesktop && wide && fp.popupWide,
+                        fp.sheetOverflow,
+                    ]}
+                >
+                    {!isDesktop && !accentHeader && <View style={fp.drag} />}
+                    <View style={[fp.headerRow, accentHeader && fp.headerRowAccent]}>
+                        {accentHeader && (
+                            <MaterialCommunityIcons name={headerIcon as any} size={22} color={C.white} />
+                        )}
+                        <Text
+                            style={[fp.title, isDesktop && fp.titleDesktop, accentHeader && fp.titleAccent]}
+                            numberOfLines={2}
+                        >
+                            {title}
+                        </Text>
+                        <TouchableOpacity
+                            style={[fp.closeBtn, accentHeader && fp.closeBtnAccent]}
+                            onPress={onClose}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Ionicons name="close" size={20} color={accentHeader ? C.white : C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                        style={fp.bodyScroll}
+                        contentContainerStyle={fp.bodyContent}
+                        showsVerticalScrollIndicator={isDesktop}
+                        keyboardShouldPersistTaps="handled"
+                        bounces={false}
+                    >
+                        {children}
+                    </ScrollView>
+                    {overlay}
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+const fp = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.35)" },
+    overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
+    backdrop: { ...StyleSheet.absoluteFillObject },
+    sheet: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        maxHeight: "88%",
+        backgroundColor: C.white,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingBottom: Platform.OS === "ios" ? 28 : 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.14,
+        shadowRadius: 24,
+        elevation: 24,
+    },
+    popup: {
+        position: "relative",
+        bottom: undefined,
+        left: undefined,
+        right: undefined,
+        width: "100%",
+        maxWidth: 480,
+        maxHeight: "85%",
+        borderRadius: 20,
+        paddingBottom: 24,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.22,
+        shadowRadius: 32,
+        elevation: 28,
+        zIndex: 2,
+    },
+    popupWide: { maxWidth: 720 },
+    sheetOverflow: { overflow: "hidden" },
+    inlinePickerWrap: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 20,
+        justifyContent: "flex-end",
+    },
+    inlinePickerBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(10,20,60,0.35)",
+    },
+    inlinePickerSheet: {
+        maxHeight: "55%",
+        backgroundColor: C.white,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        elevation: 16,
+    },
+    inlinePickerHdr: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+    },
+    inlinePickerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textDark, flex: 1 },
+    inlinePickerList: { maxHeight: 280 },
+    inlinePickerItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+    },
+    inlinePickerItemOn: { backgroundColor: C.navyGhost },
+    inlinePickerItemTxt: { fontFamily: "Outfit_500Medium", fontSize: 14, color: C.textMid },
+    inlinePickerItemTxtOn: { fontFamily: "Outfit_600SemiBold", color: C.navy },
+    headerRowAccent: {
+        backgroundColor: C.accent4,
+        borderBottomWidth: 0,
+        paddingTop: 16,
+        paddingBottom: 16,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+    },
+    titleAccent: { color: C.white, flex: 1 },
+    closeBtnAccent: { backgroundColor: "rgba(255,255,255,0.2)" },
+    drag: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: C.border,
+        alignSelf: "center",
+        marginTop: 12,
+        marginBottom: 8,
+    },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        gap: 12,
+    },
+    title: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark, flex: 1 },
+    titleDesktop: { fontSize: 18 },
+    closeBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: C.bg,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    bodyScroll: { flexGrow: 0 },
+    bodyContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+    footerRow: {
+        flexDirection: "row",
+        gap: 10,
+        marginTop: 20,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+    },
+    footerRowDesktop: { justifyContent: "flex-end" },
+    footerBtnSecondary: {
+        flex: 1,
+        maxWidth: 160,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 13,
+        borderRadius: 12,
+        borderWidth: 1.2,
+        borderColor: C.border,
+        backgroundColor: C.white,
+    },
+    footerBtnPrimary: {
+        flex: 1,
+        maxWidth: 180,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 13,
+        borderRadius: 12,
+        backgroundColor: C.navy,
+    },
+    footerBtnAccent: { backgroundColor: C.accent4 },
+    footerBtnPrimaryFull: { maxWidth: undefined },
+    footerBtnTxtSecondary: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
+    footerBtnTxtPrimary: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
+});
+
+const DEFAULT_SIZE_CHART_OPTIONS = [
+    "No Size Chart",
+    "Standard Apparel",
+    "Small Chart",
+    "Large Chart",
+];
+const CHART_CATEGORY_ALL = "All Categories";
+const CHART_SUB_ALL = "All Subcategories";
+const ALL_CHART_SUBCATEGORIES = Array.from(new Set(Object.values(SUBCATEGORIES).flat()));
+const MEASUREMENT_UNIT_OPTIONS = ["Centimetres (cm)", "Inches (in)"] as const;
+const DEFAULT_CHART_UNIT = MEASUREMENT_UNIT_OPTIONS[0];
+
+type SizeChartRow = {
+    id: string;
+    size: string;
+    chest: string;
+    waist: string;
+    hip: string;
+    length: string;
+    sleeve: string;
+};
+
+let sizeRowId = 0;
+const newRowId = () => `sz-${++sizeRowId}-${Date.now()}`;
+
+const emptySizeRow = (size = ""): SizeChartRow => ({
+    id: newRowId(),
+    size,
+    chest: "",
+    waist: "",
+    hip: "",
+    length: "",
+    sleeve: "",
+});
+
+const SIZE_TABLE_COLS = [
+    { key: "size" as const, label: "Size", width: 72, placeholder: "S" },
+    { key: "chest" as const, label: "Chest/Bust", width: 88, placeholder: "34-36" },
+    { key: "waist" as const, label: "Waist", width: 80, placeholder: "28-30" },
+    { key: "hip" as const, label: "Hip", width: 80, placeholder: "36-38" },
+    { key: "length" as const, label: "Length", width: 72, placeholder: "28" },
+    { key: "sleeve" as const, label: "Sleeve", width: 80, placeholder: "32-34" },
+];
 
 // ─── Rich Text Editor ─────────────────────────────────────────
 type Format = { bold: boolean; italic: boolean; underline: boolean; heading: "none" | "h1" | "h2" | "h3" };
@@ -491,14 +832,70 @@ const cp = StyleSheet.create({
     removeTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.white },
     checkBadge: { position: "absolute", top: 10, right: 10, backgroundColor: C.white, borderRadius: 12 },
     modalOverlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.3)" },
-    modalSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 40, paddingHorizontal: 20, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
+    modalOverlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
+    modalBackdrop: { ...StyleSheet.absoluteFillObject },
+    modalSheet: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: C.white,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingBottom: 40,
+        paddingHorizontal: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 20,
+        elevation: 24,
+    },
+    modalPopup: {
+        position: "relative",
+        bottom: undefined,
+        left: undefined,
+        right: undefined,
+        width: "100%",
+        maxWidth: 440,
+        borderRadius: 20,
+        paddingTop: 20,
+        paddingBottom: 24,
+        paddingHorizontal: 24,
+        elevation: 28,
+        zIndex: 2,
+    },
     modalDrag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 18 },
+    modalHeaderRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 16,
+    },
     modalTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark, marginBottom: 16 },
+    modalTitleDesktop: { fontSize: 18, marginBottom: 0, flex: 1 },
+    modalCloseBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: C.bg,
+        alignItems: "center",
+        justifyContent: "center",
+    },
     modalOption: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+    modalOptionDesktop: {
+        borderBottomWidth: 0,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        marginBottom: 10,
+        backgroundColor: C.inputBg,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
     modalIconWrap: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
     modalOptTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textDark },
     modalOptSub: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, marginTop: 2 },
     modalCancel: { marginTop: 18, alignItems: "center", paddingVertical: 14, borderWidth: 1.2, borderColor: C.border, borderRadius: 14 },
+    modalCancelDesktop: { marginTop: 8 },
     modalCancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
 });
 
@@ -599,7 +996,7 @@ const ipg = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info (Edit)
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
@@ -608,7 +1005,11 @@ const StepBasicInfo = ({ data, onChange, errors }: any) => {
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             {/* Product ID badge */}
             <View style={eb.idBadge}>
                 <MaterialCommunityIcons name="barcode" size={14} color={C.navyLight} />
@@ -795,7 +1196,7 @@ type Variant = {
     stock: string; mrp: string; sellingPrice: string; discount: string; images: string[];
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
 
@@ -831,7 +1232,11 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
     };
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             {/* Summary strip */}
             <View style={eb.variantSummary}>
                 <MaterialCommunityIcons name="tune-variant" size={15} color={C.navyLight} />
@@ -930,7 +1335,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — Images (Edit)  ← UPDATED
 // ─────────────────────────────────────────────────────────────
-const StepImages = ({ data, onChange, errors }: any) => {
+const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
 
     const [existingImages, setExistingImages] = useState<string[]>(EXISTING_IMAGES);
@@ -938,6 +1343,7 @@ const StepImages = ({ data, onChange, errors }: any) => {
     const [newImages, setNewImages] = useState<string[]>([]);
     const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
     const [srcModal, setSrcModal] = useState(false);
+    const [manageImagesOpen, setManageImagesOpen] = useState(false);
 
     const MAX_TOTAL = 8;
     const allImages = [...existingImages, ...newImages];
@@ -1004,37 +1410,98 @@ const StepImages = ({ data, onChange, errors }: any) => {
         setPrimaryIndex(newPrimary);
     };
 
-    const renderImageCard = (uri: string, globalIdx: number, isNew: boolean) => {
+    const isNewImageAt = (globalIdx: number) => globalIdx >= existingImages.length;
+
+    const renderCompactThumb = (uri: string, globalIdx: number, showMoreOverlay = false) => {
         const isPrimary = primaryIndex === globalIdx;
+        const isNew = isNewImageAt(globalIdx);
+        const extra = totalCount - 3;
+
         return (
-            <View
-                key={uri + globalIdx}
-                style={[si.imageCard, isPrimary && si.imageCardPrimary, isNew && si.imageCardNew]}
-            >
-                <Image source={{ uri }} style={si.image} resizeMode="cover" />
+            <View key={`preview-${uri}-${globalIdx}`} style={si.previewCardWrap}>
+                <View
+                    style={[
+                        si.previewCard,
+                        isPrimary && si.previewCardPrimary,
+                        isNew && si.previewCardNew,
+                    ]}
+                >
+                    <Image source={{ uri }} style={si.previewImage} resizeMode="cover" />
+                    {isPrimary && (
+                        <View style={si.primaryRibbon}>
+                            <MaterialCommunityIcons name="star" size={10} color={C.white} />
+                            <Text style={si.primaryRibbonTxt}>Primary</Text>
+                        </View>
+                    )}
+                    {isNew && !isPrimary && (
+                        <View style={si.newImageBadge}>
+                            <Text style={si.newImageBadgeTxt}>New</Text>
+                        </View>
+                    )}
+                    {!showMoreOverlay && (
+                        <TouchableOpacity
+                            style={si.deleteBtn}
+                            onPress={() => setDeleteConfirmIdx(globalIdx)}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                            <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
+                        </TouchableOpacity>
+                    )}
+                    {showMoreOverlay && extra > 0 && (
+                        <TouchableOpacity
+                            style={si.moreOverlay}
+                            onPress={() => setManageImagesOpen(true)}
+                            activeOpacity={0.9}
+                        >
+                            <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.white} />
+                            <Text style={si.moreOverlayTxt}>+{extra} more</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+        );
+    };
 
-                {/* Primary ribbon */}
-                {isPrimary && (
-                    <View style={si.primaryRibbon}>
-                        <MaterialCommunityIcons name="star" size={10} color={C.white} />
-                        <Text style={si.primaryRibbonTxt}>Primary</Text>
-                    </View>
-                )}
+    const renderImageCard = (uri: string, globalIdx: number, compact = false) => {
+        const isPrimary = primaryIndex === globalIdx;
+        const isNew = isNewImageAt(globalIdx);
+        const cardStyle = compact
+            ? [
+                si.modalImageCard,
+                isDesktop && si.modalImageCardDesktop,
+                isPrimary && si.imageCardPrimary,
+                isNew && si.imageCardNew,
+            ]
+            : [si.imageCard, isPrimary && si.imageCardPrimary, isNew && si.imageCardNew];
 
-                {/* New badge */}
-                {isNew && !isPrimary && (
-                    <View style={si.newImageBadge}>
-                        <Text style={si.newImageBadgeTxt}>New</Text>
-                    </View>
-                )}
-
-                {/* Delete button */}
-                <TouchableOpacity style={si.deleteBtn} onPress={() => setDeleteConfirmIdx(globalIdx)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
-                </TouchableOpacity>
-
-                {/* Set primary radio row */}
-                <TouchableOpacity style={si.radioRow} onPress={() => setPrimaryIndex(globalIdx)} activeOpacity={0.75}>
+        return (
+            <View key={`img-${uri}-${globalIdx}`} style={cardStyle}>
+                <View style={si.imageFrame}>
+                    <Image source={{ uri }} style={si.image} resizeMode="cover" />
+                    {isPrimary && (
+                        <View style={si.primaryRibbon}>
+                            <MaterialCommunityIcons name="star" size={10} color={C.white} />
+                            <Text style={si.primaryRibbonTxt}>Primary</Text>
+                        </View>
+                    )}
+                    {isNew && !isPrimary && (
+                        <View style={si.newImageBadge}>
+                            <Text style={si.newImageBadgeTxt}>New</Text>
+                        </View>
+                    )}
+                    <TouchableOpacity
+                        style={si.deleteBtn}
+                        onPress={() => setDeleteConfirmIdx(globalIdx)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                        <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
+                    </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                    style={si.radioRow}
+                    onPress={() => setPrimaryIndex(globalIdx)}
+                    activeOpacity={0.75}
+                >
                     <View style={[si.radio, isPrimary && si.radioOn]}>
                         {isPrimary && <View style={si.radioDot} />}
                     </View>
@@ -1046,10 +1513,19 @@ const StepImages = ({ data, onChange, errors }: any) => {
         );
     };
 
+    const openAddImages = () => {
+        if (!canAdd) {
+            Alert.alert("Limit reached", `Maximum ${MAX_TOTAL} images allowed. Remove one to add more.`);
+            return;
+        }
+        setSrcModal(true);
+    };
+
     return (
         <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
         >
             {/* Tip banner */}
             <View style={eb.tipCard}>
@@ -1063,35 +1539,97 @@ const StepImages = ({ data, onChange, errors }: any) => {
                 <SecHead icon="image-multiple-outline" title="Product Images" accent={C.accent2} />
                 <Divider />
 
-                {/* ── Current Images Section ── */}
+                <View style={si.sectionRow}>
+                    <View style={si.sectionLabelWrap}>
+                        <MaterialCommunityIcons name="cloud-check-outline" size={13} color={C.accent2} />
+                        <Text style={si.sectionLabel}>Current Images</Text>
+                        {totalCount > 0 && (
+                            <Text style={si.sectionCountInline}>· {totalCount} saved</Text>
+                        )}
+                    </View>
+                    <TouchableOpacity
+                        style={si.moreImagesBtn}
+                        onPress={() => setManageImagesOpen(true)}
+                        activeOpacity={0.85}
+                    >
+                        <MaterialCommunityIcons name="image-plus" size={15} color={C.white} />
+                        <Text style={si.moreImagesBtnTxt}>More Images</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {totalCount > 0 ? (
+                    <>
+                        <View style={si.previewRow}>
+                            {allImages.slice(0, 3).map((uri, i) =>
+                                renderCompactThumb(uri, i, i === 2 && totalCount > 3)
+                            )}
+                        </View>
+                        <Text style={si.hintTxt}>
+                            Tap <Text style={{ fontFamily: "Outfit_600SemiBold" }}>More Images</Text> to add, remove, or set the primary image
+                        </Text>
+                    </>
+                ) : (
+                    <TouchableOpacity
+                        style={[
+                            si.addBox,
+                            hasErr && { borderColor: C.red, backgroundColor: "#FFF8F8" },
+                        ]}
+                        onPress={() => setManageImagesOpen(true)}
+                        activeOpacity={0.75}
+                    >
+                        <View style={si.addIconWrap}>
+                            <MaterialCommunityIcons
+                                name="camera-plus-outline"
+                                size={28}
+                                color={hasErr ? C.red : C.navyLight}
+                            />
+                        </View>
+                        <Text style={[si.addTitle, hasErr && { color: C.red }]}>
+                            {hasErr ? "At least one image is required" : "Add product images"}
+                        </Text>
+                        <Text style={si.addSub}>JPG · PNG · WebP · up to {MAX_TOTAL} images</Text>
+                    </TouchableOpacity>
+                )}
+
+                <Text style={[si.sectionCount, { marginTop: 10, textAlign: "right" }]}>
+                    {totalCount}/{MAX_TOTAL} images
+                </Text>
+            </Card>
+
+            <FormPopupModal
+                visible={manageImagesOpen}
+                onClose={() => setManageImagesOpen(false)}
+                title="Manage Product Images"
+                wide
+                accentHeader
+                headerIcon="image-multiple-outline"
+            >
+                <Hint text="Set one image as primary. New uploads are marked until you update the product." />
+                <View style={[si.sectionRow, { marginTop: 4 }]}>
+                    <Text style={si.sectionLabel}>
+                        {totalCount} image{totalCount !== 1 ? "s" : ""} · {MAX_TOTAL - totalCount} slot{MAX_TOTAL - totalCount !== 1 ? "s" : ""} left
+                    </Text>
+                    {canAdd && (
+                        <TouchableOpacity style={si.moreImagesBtn} onPress={openAddImages} activeOpacity={0.85}>
+                            <Ionicons name="add" size={16} color={C.white} />
+                            <Text style={si.moreImagesBtnTxt}>Add Images</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
                 {existingImages.length > 0 && (
                     <>
-                        <View style={si.sectionRow}>
-                            <View style={si.sectionLabelWrap}>
-                                <MaterialCommunityIcons name="cloud-check-outline" size={13} color={C.accent2} />
-                                <Text style={si.sectionLabel}>Current Images</Text>
-                            </View>
-                            <Text style={si.sectionCount}>{existingImages.length} saved</Text>
-                        </View>
-                        <View style={si.imageGrid}>
-                            {existingImages.map((uri, i) => renderImageCard(uri, i, false))}
+                        <Text style={[si.modalGroupLbl, { marginTop: 12 }]}>Saved on server</Text>
+                        <View style={[si.modalGrid, isDesktop && si.modalGridDesktop]}>
+                            {existingImages.map((uri, i) => renderImageCard(uri, i, true))}
                         </View>
                     </>
                 )}
 
-                {/* ── New Images Section ── */}
                 {newImages.length > 0 && (
                     <>
-                        <View style={[si.sectionRow, { marginTop: 18 }]}>
-                            <View style={si.sectionLabelWrap}>
-                                <MaterialCommunityIcons name="upload-outline" size={13} color={C.accent5} />
-                                <Text style={[si.sectionLabel, { color: C.accent5 }]}>New Images</Text>
-                            </View>
-                            <View style={si.pendingBadge}>
-                                <Text style={si.pendingBadgeTxt}>Pending Upload</Text>
-                            </View>
-                        </View>
-                        <View style={si.imageGrid}>
+                        <Text style={[si.modalGroupLbl, { marginTop: 14 }]}>Pending upload</Text>
+                        <View style={[si.modalGrid, isDesktop && si.modalGridDesktop]}>
                             {newImages.map((uri, i) =>
                                 renderImageCard(uri, existingImages.length + i, true)
                             )}
@@ -1099,97 +1637,77 @@ const StepImages = ({ data, onChange, errors }: any) => {
                     </>
                 )}
 
-                {/* ── Empty state ── */}
                 {totalCount === 0 && (
                     <View style={si.emptyBox}>
                         <MaterialCommunityIcons name="image-off-outline" size={40} color={C.textLight} />
                         <Text style={si.emptyTitle}>No images yet</Text>
-                        <Text style={si.emptyDesc}>Add at least one product image to proceed.</Text>
+                        <Text style={si.emptyDesc}>Add at least one product image.</Text>
                     </View>
                 )}
 
-                {/* ── Add New Images ── */}
-                <View style={[si.sectionRow, { marginTop: 18, marginBottom: 6 }]}>
-                    <View style={si.sectionLabelWrap}>
-                        <MaterialCommunityIcons name="image-plus" size={13} color={C.textMid} />
-                        <Text style={si.sectionLabel}>Add New Images</Text>
-                    </View>
-                    <Text style={[si.sectionCount, totalCount >= MAX_TOTAL && { color: C.red }]}>
-                        {totalCount}/{MAX_TOTAL}
-                    </Text>
-                </View>
-
-                {canAdd ? (
-                    <TouchableOpacity
-                        style={[
-                            si.addBox,
-                            hasErr && totalCount === 0 && { borderColor: C.red, backgroundColor: "#FFF8F8" },
-                        ]}
-                        onPress={() => setSrcModal(true)}
-                        activeOpacity={0.75}
-                    >
-                        <View style={si.addIconWrap}>
-                            <MaterialCommunityIcons
-                                name="camera-plus-outline"
-                                size={28}
-                                color={hasErr && totalCount === 0 ? C.red : C.navyLight}
-                            />
-                        </View>
-                        <Text style={[si.addTitle, hasErr && totalCount === 0 && { color: C.red }]}>
-                            {hasErr && totalCount === 0
-                                ? "At least one image is required"
-                                : "Tap to add more images"}
-                        </Text>
-                        <Text style={si.addSub}>
-                            JPG · PNG · WebP · Max 5 MB · {MAX_TOTAL - totalCount} slot{MAX_TOTAL - totalCount !== 1 ? "s" : ""} remaining
-                        </Text>
-                    </TouchableOpacity>
-                ) : (
-                    <View style={si.maxBox}>
+                {!canAdd && totalCount > 0 && (
+                    <View style={[si.maxBox, { marginTop: 12 }]}>
                         <MaterialCommunityIcons name="check-circle-outline" size={18} color={C.accent5} />
-                        <Text style={si.maxTxt}>Maximum {MAX_TOTAL} images reached. Remove one to add more.</Text>
+                        <Text style={si.maxTxt}>Maximum {MAX_TOTAL} images reached.</Text>
                     </View>
                 )}
 
-                {/* Counter hint */}
-                {totalCount > 0 && (
-                    <Text style={si.hintTxt}>
-                        Tap "Set as Primary" to change the main product image · tap 🗑 to remove
-                    </Text>
-                )}
-            </Card>
+                <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
+                    <TouchableOpacity
+                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]}
+                        onPress={() => setManageImagesOpen(false)}
+                    >
+                        <Text style={fp.footerBtnTxtPrimary}>Done</Text>
+                    </TouchableOpacity>
+                </View>
+            </FormPopupModal>
 
-            {/* ── Image source picker modal ── */}
-            <Modal visible={srcModal} transparent animationType="slide" onRequestClose={() => setSrcModal(false)}>
-                <TouchableOpacity style={cp.modalOverlay} activeOpacity={1} onPress={() => setSrcModal(false)} />
-                <View style={cp.modalSheet}>
-                    <View style={cp.modalDrag} />
-                    <Text style={cp.modalTitle}>Add Images</Text>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => pickNewImages("camera")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
-                            <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={cp.modalOptTitle}>Take a Photo</Text>
-                            <Text style={cp.modalOptSub}>Use your camera right now</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => pickNewImages("gallery")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
-                            <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={cp.modalOptTitle}>Choose from Gallery</Text>
-                            <Text style={cp.modalOptSub}>
-                                Pick up to {MAX_TOTAL - totalCount} photo{MAX_TOTAL - totalCount !== 1 ? "s" : ""}
-                            </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalCancel} onPress={() => setSrcModal(false)}>
-                        <Text style={cp.modalCancelTxt}>Cancel</Text>
-                    </TouchableOpacity>
+            <Modal
+                visible={srcModal}
+                transparent
+                animationType={isDesktop ? "fade" : "slide"}
+                onRequestClose={() => setSrcModal(false)}
+            >
+                <View style={[cp.modalOverlay, isDesktop && cp.modalOverlayCenter]}>
+                    <TouchableOpacity style={cp.modalBackdrop} activeOpacity={1} onPress={() => setSrcModal(false)} />
+                    <View style={[cp.modalSheet, isDesktop && cp.modalPopup]}>
+                        {!isDesktop && <View style={cp.modalDrag} />}
+                        {isDesktop ? (
+                            <View style={cp.modalHeaderRow}>
+                                <Text style={[cp.modalTitle, cp.modalTitleDesktop]}>Add Images</Text>
+                                <TouchableOpacity style={cp.modalCloseBtn} onPress={() => setSrcModal(false)}>
+                                    <Ionicons name="close" size={20} color={C.textMid} />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <Text style={cp.modalTitle}>Add Images</Text>
+                        )}
+                        <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickNewImages("camera")}>
+                            <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
+                                <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={cp.modalOptTitle}>Take a Photo</Text>
+                                <Text style={cp.modalOptSub}>Use your camera right now</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickNewImages("gallery")}>
+                            <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
+                                <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={cp.modalOptTitle}>Choose from Gallery</Text>
+                                <Text style={cp.modalOptSub}>
+                                    Pick up to {MAX_TOTAL - totalCount} photo{MAX_TOTAL - totalCount !== 1 ? "s" : ""}
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[cp.modalCancel, isDesktop && cp.modalCancelDesktop]} onPress={() => setSrcModal(false)}>
+                            <Text style={cp.modalCancelTxt}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
 
@@ -1220,39 +1738,119 @@ const StepImages = ({ data, onChange, errors }: any) => {
 };
 
 // ─── StepImages Styles ────────────────────────────────────────
-const CARD_W = (SW - 28 - 14 - 10) / 2; // 2-column grid
-
 const si = StyleSheet.create({
     sectionRow: {
-        flexDirection: "row", alignItems: "center",
-        justifyContent: "space-between", marginBottom: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12,
+        gap: 10,
     },
-    sectionLabelWrap: { flexDirection: "row", alignItems: "center", gap: 5 },
+    sectionLabelWrap: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, flexWrap: "wrap" },
     sectionLabel: {
-        fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.textMid,
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 12.5,
+        color: C.textMid,
+    },
+    sectionCountInline: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 11.5,
+        color: C.textLight,
     },
     sectionCount: {
-        fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textLight,
+        fontFamily: "Outfit_500Medium",
+        fontSize: 11.5,
+        color: C.textLight,
     },
-    pendingBadge: {
-        backgroundColor: "#EDFAF4", borderRadius: 6,
-        paddingHorizontal: 8, paddingVertical: 3,
-        borderWidth: 1, borderColor: "#A3E9C8",
+    moreImagesBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: C.accent4,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
-    pendingBadgeTxt: {
-        fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.accent5,
+    moreImagesBtnTxt: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 12,
+        color: C.white,
     },
-    imageGrid: {
-        flexDirection: "row", flexWrap: "wrap", gap: 10,
+    previewRow: {
+        flexDirection: "row",
+        width: "100%",
+        gap: 12,
+        alignItems: "stretch",
     },
-    imageCard: {
-        // width: CARD_W,
-        borderRadius: 14,
+    previewCardWrap: {
+        flex: 1,
+        minWidth: 0,
+    },
+    previewCard: {
+        width: "100%",
+        aspectRatio: 1,
+        borderRadius: 12,
         overflow: "hidden",
         borderWidth: 1.5,
         borderColor: C.border,
         backgroundColor: C.inputBg,
-        width: 160,
+        position: "relative",
+    },
+    previewCardPrimary: {
+        borderColor: C.navy,
+        borderWidth: 2,
+    },
+    previewCardNew: {
+        borderColor: C.accent5,
+    },
+    previewImage: {
+        width: "100%",
+        height: "100%",
+    },
+    moreOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(10,20,60,0.55)",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+    },
+    moreOverlayTxt: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 13,
+        color: C.white,
+    },
+    modalGroupLbl: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 12,
+        color: C.textMid,
+        marginBottom: 8,
+    },
+    modalGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 10,
+    },
+    modalGridDesktop: {
+        gap: 12,
+    },
+    modalImageCard: {
+        width: "47%",
+        borderRadius: 12,
+        overflow: "hidden",
+        borderWidth: 1.5,
+        borderColor: C.border,
+        backgroundColor: C.inputBg,
+    },
+    modalImageCardDesktop: {
+        width: "31%",
+    },
+    imageCard: {
+        width: "47%",
+        borderRadius: 12,
+        overflow: "hidden",
+        borderWidth: 1.5,
+        borderColor: C.border,
+        backgroundColor: C.inputBg,
     },
     imageCardPrimary: {
         borderColor: C.navy,
@@ -1262,9 +1860,14 @@ const si = StyleSheet.create({
         borderColor: C.accent5,
         borderWidth: 1.5,
     },
+    imageFrame: {
+        width: "100%",
+        aspectRatio: 1,
+        position: "relative",
+    },
     image: {
         width: "100%",
-        height: CARD_W,
+        height: "100%",
     },
     primaryRibbon: {
         position: "absolute", top: 0, left: 0, right: 0,
@@ -1383,10 +1986,24 @@ const si = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details (Edit)
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors }: any) => {
+const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
     const [delPick, setDelPick] = useState(false);
+    const [createSizeOpen, setCreateSizeOpen] = useState(false);
+    const [customPolicyOpen, setCustomPolicyOpen] = useState(false);
+    const [sizeChartOptions, setSizeChartOptions] = useState<string[]>(DEFAULT_SIZE_CHART_OPTIONS);
+    const [newChartName, setNewChartName] = useState("");
+    const [chartCategory, setChartCategory] = useState(CHART_CATEGORY_ALL);
+    const [chartSubcategory, setChartSubcategory] = useState(CHART_SUB_ALL);
+    const [chartImageUri, setChartImageUri] = useState<string | null>(null);
+    const [chartRows, setChartRows] = useState<SizeChartRow[]>([]);
+    const [chartUnit, setChartUnit] = useState<string>(DEFAULT_CHART_UNIT);
+    const [chartNotes, setChartNotes] = useState("");
+    const [chartCatPick, setChartCatPick] = useState(false);
+    const [chartSubPick, setChartSubPick] = useState(false);
+    const [chartUnitPick, setChartUnitPick] = useState(false);
+    const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
     const [features, setFeatures] = useState<string[]>(["100% Premium Combed Cotton", "Bio-Washed for Extra Softness", "Embroidered Logo", "Regular Fit", "Machine Washable"]);
     const [specs, setSpecs] = useState<{ name: string; value: string }[]>([
         { name: "Fabric", value: "100% Cotton" },
@@ -1397,17 +2014,86 @@ const StepDetails = ({ data, onChange, errors }: any) => {
     ]);
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
+    const chartCategoryOptions = [CHART_CATEGORY_ALL, ...CATEGORIES];
+    const chartSubOptions =
+        chartCategory === CHART_CATEGORY_ALL
+            ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
+            : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
+
+    const openCreateSizeChart = () => {
+        setNewChartName("");
+        setChartCategory(CHART_CATEGORY_ALL);
+        setChartSubcategory(CHART_SUB_ALL);
+        setChartImageUri(null);
+        setChartUnit(DEFAULT_CHART_UNIT);
+        setChartNotes("");
+        setChartRows([emptySizeRow()]);
+        setChartCatPick(false);
+        setChartSubPick(false);
+        setChartUnitPick(false);
+        setCreateSizeOpen(true);
+    };
+
+    const openCustomPolicy = () => {
+        setCustomPolicyDraft(data.returnPolicyText || "");
+        setCustomPolicyOpen(true);
+    };
+
+    const saveSizeChart = () => {
+        const name = newChartName.trim();
+        if (!name) {
+            Alert.alert("Chart name required", "Please enter a name for your size chart.");
+            return;
+        }
+        const validRows = chartRows.filter((r) => r.size.trim());
+        if (validRows.length === 0) {
+            Alert.alert("Sizes required", "Add at least one size row to the chart.");
+            return;
+        }
+        setSizeChartOptions((prev) => (prev.includes(name) ? prev : [...prev, name]));
+        onChange("sizeChart", name);
+        setCreateSizeOpen(false);
+    };
+
+    const saveCustomPolicy = () => {
+        const text = customPolicyDraft.trim();
+        if (!text) {
+            Alert.alert("Policy required", "Please write your custom return policy.");
+            return;
+        }
+        onChange("returnPolicy", "Custom Policy");
+        onChange("returnPolicyText", text);
+        setCustomPolicyOpen(false);
+    };
+
+    const addChartSizeRow = () => setChartRows((prev) => [...prev, emptySizeRow()]);
+    const removeChartRow = (id: string) => setChartRows((prev) => prev.filter((r) => r.id !== id));
+    const updateChartRow = (id: string, field: keyof SizeChartRow, value: string) => {
+        setChartRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    };
+
+    const twoCol = isDesktop ? at.row2 : dt.responsiveCol;
+    const fieldFlex = isDesktop ? { flex: 1 } : dt.responsiveField;
+
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             <Card>
                 <SecHead icon="ruler-square" title="Size Chart" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Select Size Chart" />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={[twoCol, isDesktop && { alignItems: "flex-end" }]}>
+                    <View style={fieldFlex}>
                         <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} />
                     </View>
-                    <TouchableOpacity style={dt.outBtn}>
+                    <TouchableOpacity
+                        style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
+                        onPress={openCreateSizeChart}
+                        activeOpacity={0.85}
+                    >
                         <Ionicons name="add" size={15} color={C.navy} />
                         <Text style={dt.outBtnTxt}>Create New</Text>
                     </TouchableOpacity>
@@ -1417,14 +2103,18 @@ const StepDetails = ({ data, onChange, errors }: any) => {
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="refresh" title="Return Policy" accent={C.accent3} />
                 <Divider />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={twoCol}>
+                    <View style={fieldFlex}>
                         <Lbl text="Policy Template" required />
                         <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
-                        <TouchableOpacity style={dt.outBtn}>
+                        <TouchableOpacity
+                            style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
+                            onPress={openCustomPolicy}
+                            activeOpacity={0.85}
+                        >
                             <Feather name="edit-2" size={13} color={C.navy} />
                             <Text style={dt.outBtnTxt}>Write Custom</Text>
                         </TouchableOpacity>
@@ -1523,9 +2213,186 @@ const StepDetails = ({ data, onChange, errors }: any) => {
                 </TouchableOpacity>
             </Card>
 
-            <PM visible={sizePick} title="Size Chart" options={["No Size Chart", "Small Chart", "Large Chart"]} selected={data.sizeChart} onSelect={(v: string) => onChange("sizeChart", v)} onClose={() => setSizePick(false)} />
+            <PM visible={sizePick} title="Size Chart" options={sizeChartOptions} selected={data.sizeChart} onSelect={(v: string) => onChange("sizeChart", v)} onClose={() => setSizePick(false)} />
             <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => onChange("returnPolicy", v)} onClose={() => setRetPick(false)} />
             <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => onChange("deliveryOption", v)} onClose={() => setDelPick(false)} />
+
+            <FormPopupModal
+                visible={createSizeOpen}
+                onClose={() => {
+                    setChartCatPick(false);
+                    setChartSubPick(false);
+                    setChartUnitPick(false);
+                    setCreateSizeOpen(false);
+                }}
+                title="Create Size Chart"
+                wide
+                accentHeader
+                headerIcon="ruler"
+                overlay={
+                    <>
+                        <InlinePicker
+                            visible={chartCatPick}
+                            title="Select Category"
+                            options={chartCategoryOptions}
+                            selected={chartCategory}
+                            onSelect={(v) => {
+                                setChartCategory(v);
+                                setChartSubcategory(CHART_SUB_ALL);
+                            }}
+                            onClose={() => setChartCatPick(false)}
+                        />
+                        <InlinePicker
+                            visible={chartSubPick}
+                            title="Select Subcategory"
+                            options={chartSubOptions}
+                            selected={chartSubcategory}
+                            onSelect={setChartSubcategory}
+                            onClose={() => setChartSubPick(false)}
+                        />
+                        <InlinePicker
+                            visible={chartUnitPick}
+                            title="Measurement Unit"
+                            options={[...MEASUREMENT_UNIT_OPTIONS]}
+                            selected={chartUnit}
+                            onSelect={setChartUnit}
+                            onClose={() => setChartUnitPick(false)}
+                        />
+                    </>
+                }
+            >
+                <Lbl text="Chart Name" required />
+                <Field placeholder="e.g. Men's Clothing Size Chart" value={newChartName} onChangeText={setNewChartName} />
+                <View style={[twoCol, { marginTop: 0 }]}>
+                    <View style={fieldFlex}>
+                        <Lbl text="Category (Optional)" />
+                        <Drop
+                            placeholder={CHART_CATEGORY_ALL}
+                            value={chartCategory}
+                            onPress={() => {
+                                setChartSubPick(false);
+                                setChartUnitPick(false);
+                                setChartCatPick(true);
+                            }}
+                        />
+                    </View>
+                    <View style={fieldFlex}>
+                        <Lbl text="Subcategory (Optional)" />
+                        <Drop
+                            placeholder={CHART_SUB_ALL}
+                            value={chartSubcategory}
+                            onPress={() => {
+                                setChartCatPick(false);
+                                setChartUnitPick(false);
+                                setChartSubPick(true);
+                            }}
+                        />
+                    </View>
+                </View>
+                <Lbl text="Size Chart Image (Optional)" />
+                <Hint text="Upload an image of your size chart (JPG, PNG, GIF, WebP)" />
+                <CustImagePicker uri={chartImageUri} onPick={setChartImageUri} onRemove={() => setChartImageUri(null)} />
+                <View style={dt.sizeDataHead}>
+                    <View style={{ flex: 1 }}>
+                        <Lbl text="Size Chart Data" required />
+                        <Hint text="Size Information — enter measurements for each size." />
+                    </View>
+                    <TouchableOpacity style={dt.addSizeOrangeBtn} onPress={addChartSizeRow} activeOpacity={0.85}>
+                        <Ionicons name="add" size={16} color={C.white} />
+                        <Text style={dt.addSizeOrangeBtnTxt}>Add Size</Text>
+                    </TouchableOpacity>
+                </View>
+                {chartRows.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
+                        <View style={dt.sizeTableWrap}>
+                            <View style={dt.sizeTableHeader}>
+                                {SIZE_TABLE_COLS.map((col) => (
+                                    <View key={col.key} style={[dt.sizeTableTh, { width: col.width, minWidth: col.width }]}>
+                                        <Text style={dt.sizeTableThTxt} numberOfLines={2}>{col.label}</Text>
+                                    </View>
+                                ))}
+                                <View style={dt.sizeTableThAction}>
+                                    <Text style={dt.sizeTableThTxt}>Action</Text>
+                                </View>
+                            </View>
+                            {chartRows.map((row, idx) => (
+                                <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
+                                    {SIZE_TABLE_COLS.map((col) => (
+                                        <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
+                                            <TextInput
+                                                style={dt.sizeTableInput}
+                                                placeholder={col.placeholder}
+                                                placeholderTextColor={C.textPlaceholder}
+                                                value={row[col.key]}
+                                                onChangeText={(v) => updateChartRow(row.id, col.key, v)}
+                                            />
+                                        </View>
+                                    ))}
+                                    <View style={dt.sizeTableTdAction}>
+                                        <TouchableOpacity style={dt.sizeTableDelBtn} onPress={() => removeChartRow(row.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                            <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </ScrollView>
+                ) : (
+                    <View style={dt.sizeEmptyHint}>
+                        <Text style={dt.sizeEmptyHintTxt}>Use Add Size to add rows and enter measurements for each size.</Text>
+                    </View>
+                )}
+                <Lbl text="Measurement Unit" />
+                <Drop
+                    placeholder="Select unit"
+                    value={chartUnit}
+                    onPress={() => {
+                        setChartCatPick(false);
+                        setChartSubPick(false);
+                        setChartUnitPick(true);
+                    }}
+                />
+                <Lbl text="Additional Notes" />
+                <Field
+                    placeholder="e.g. All measurements are approximate. Please refer to the size chart for best fit."
+                    value={chartNotes}
+                    onChangeText={setChartNotes}
+                    multiline
+                    lines={3}
+                    maxLength={500}
+                />
+                <CC cur={chartNotes.length} max={500} />
+                <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
+                    <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCreateSizeOpen(false)}>
+                        <Text style={fp.footerBtnTxtSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveSizeChart}>
+                        <Text style={fp.footerBtnTxtPrimary}>Save Chart</Text>
+                    </TouchableOpacity>
+                </View>
+            </FormPopupModal>
+
+            <FormPopupModal visible={customPolicyOpen} onClose={() => setCustomPolicyOpen(false)} title="Write Custom Return Policy">
+                <Hint text="Describe your return rules clearly. This will appear to buyers on the product page." />
+                <Lbl text="Custom Policy Details" required />
+                <Field
+                    placeholder="e.g. Returns accepted within 7 days in original packaging…"
+                    value={customPolicyDraft}
+                    onChangeText={setCustomPolicyDraft}
+                    multiline
+                    lines={8}
+                    maxLength={1000}
+                />
+                <CC cur={customPolicyDraft.length} max={1000} />
+                <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
+                    <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCustomPolicyOpen(false)}>
+                        <Text style={fp.footerBtnTxtSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[fp.footerBtnPrimary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveCustomPolicy}>
+                        <Text style={fp.footerBtnTxtPrimary}>Save Policy</Text>
+                    </TouchableOpacity>
+                </View>
+            </FormPopupModal>
         </ScrollView>
     );
 };
@@ -1538,12 +2405,22 @@ const ICON_R = ICON_D / 2;
 const LINE_H = 3;
 const N_STEPS = STEPS.length;
 
-const StepProgressBar = ({ step, maxUnlocked, onTabPress }: { step: number; maxUnlocked: number; onTabPress: (i: number) => void }) => {
+const StepProgressBar = ({
+    step,
+    maxUnlocked,
+    onTabPress,
+    isDesktop = false,
+}: {
+    step: number;
+    maxUnlocked: number;
+    onTabPress: (i: number) => void;
+    isDesktop?: boolean;
+}) => {
     const [barW, setBarW] = useState(SW);
     const colW = barW / N_STEPS;
 
     return (
-        <View style={spp.wrapper} onLayout={e => setBarW(e.nativeEvent.layout.width)}>
+        <View style={[spp.wrapper, isDesktop && ds.hStepBar]} onLayout={e => setBarW(e.nativeEvent.layout.width)}>
             {STEPS.map((_, i) => {
                 if (i === 0) return null;
                 const cx_prev = colW * (i - 1) + colW / 2;
@@ -1567,7 +2444,12 @@ const StepProgressBar = ({ step, maxUnlocked, onTabPress }: { step: number; maxU
                         <View style={[spp.circle, { backgroundColor: iconBg }, isActive && { shadowColor: s.color, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 7 }]}>
                             <MaterialCommunityIcons name={s.icon as any} size={18} color={C.white} />
                         </View>
-                        <Text style={[spp.lbl, isActive && { color: s.color, fontFamily: "Outfit_700Bold" }, isDone && { color: s.color, fontFamily: "Outfit_600SemiBold" }]}>
+                        <Text style={[
+                            spp.lbl,
+                            isDesktop && spp.lblDesktop,
+                            isActive && { color: s.color, fontFamily: "Outfit_700Bold" },
+                            isDone && { color: s.color, fontFamily: "Outfit_600SemiBold" },
+                        ]}>
                             {s.label}
                         </Text>
                     </TouchableOpacity>
@@ -1583,6 +2465,7 @@ const spp = StyleSheet.create({
     col: { flex: 1, alignItems: "center", gap: 6, zIndex: 1 },
     circle: { width: ICON_D, height: ICON_D, borderRadius: 11, alignItems: "center", justifyContent: "center" },
     lbl: { fontFamily: "Outfit_500Medium", fontSize: 10, color: C.textLight, textAlign: "center" },
+    lblDesktop: { fontSize: 12 },
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -1625,6 +2508,7 @@ const dm = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const EditProduct: React.FC = () => {
     const router = useRouter();
+    const { isDesktop } = useResponsive();
     const [step, setStep] = useState(0);
     const [maxUnlocked, setMaxUnlocked] = useState(3);
     const [basicErrors, setBasicErrors] = useState<string[]>([]);
@@ -1695,11 +2579,108 @@ const EditProduct: React.FC = () => {
         setTimeout(() => router.back(), 900);
     };
 
+    const leftAction =
+        step === 0 ? (
+            <TouchableOpacity style={isDesktop ? ds.cancelBtn : sc.cancelBtn} onPress={handleBackPress}>
+                <Text style={isDesktop ? ds.cancelTxt : sc.cancelTxt}>Cancel</Text>
+            </TouchableOpacity>
+        ) : (
+            <TouchableOpacity style={isDesktop ? ds.prevBtn : sc.prevBtn} onPress={() => setStep((s) => s - 1)}>
+                <Ionicons name="chevron-back" size={16} color={C.navy} />
+                <Text style={isDesktop ? ds.prevTxt : sc.prevTxt}>Back</Text>
+            </TouchableOpacity>
+        );
+
+    const rightAction =
+        step === 3 ? (
+            <TouchableOpacity
+                style={[isDesktop ? ds.saveBtn : sc.saveBtn, !isDirty && sc.saveBtnDim]}
+                onPress={handleUpdate}
+                activeOpacity={isDirty ? 0.85 : 0.5}
+            >
+                <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+                <Text style={isDesktop ? ds.saveTxt : sc.saveTxt}>{isDirty ? "Update Product" : "No Changes"}</Text>
+            </TouchableOpacity>
+        ) : (
+            <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
+                <Text style={isDesktop ? ds.nextTxt : sc.nextTxt}>Continue</Text>
+                <Ionicons name="chevron-forward" size={16} color={C.white} />
+            </TouchableOpacity>
+        );
+
+    const actionBar = (
+        <View style={isDesktop ? ds.bar : sc.bar}>
+            <View style={isDesktop ? ds.barLeft : sc.barLeft}>{leftAction}</View>
+            <View style={isDesktop ? ds.barRight : sc.barRight}>{rightAction}</View>
+        </View>
+    );
+
+    const stepContent = (
+        <>
+            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} isDesktop={isDesktop} />}
+            {step === 1 && (
+                <StepVariants
+                    variants={variants}
+                    setVariants={(fn: any) => { setVariants(fn); markDirty(); }}
+                    rmVariant={rmVariant}
+                    errors={variantErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 2 && (
+                <StepImages
+                    data={imagesData}
+                    onChange={(k: string, v: any) => { setImagesData((p) => ({ ...p, [k]: v })); markDirty(); }}
+                    errors={imageErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} isDesktop={isDesktop} />}
+        </>
+    );
+
+    if (isDesktop) {
+        return (
+            <View style={ds.page}>
+                <StatusBar barStyle="dark-content" backgroundColor={C.white} />
+                <View style={ds.topBar}>
+                    <TouchableOpacity onPress={handleBackPress} style={ds.topBtn}>
+                        <Ionicons name="arrow-back" size={22} color={C.navy} />
+                    </TouchableOpacity>
+                    <View style={ds.topCenter}>
+                        <Text style={ds.topTitle}>Edit Product</Text>
+                        <Text style={ds.topSub}>
+                            {STEPS[step]?.label} · Step {step + 1} of {STEPS.length}
+                        </Text>
+                    </View>
+                    <TouchableOpacity onPress={handleBackPress} style={ds.topBtn}>
+                        {isDirty ? <View style={sc.dirtyDot} /> : <Ionicons name="close" size={22} color={C.textMid} />}
+                    </TouchableOpacity>
+                </View>
+                {isDirty && (
+                    <View style={sc.unsavedBanner}>
+                        <MaterialCommunityIcons name="pencil-circle-outline" size={14} color={C.amber} />
+                        <Text style={sc.unsavedTxt}>Unsaved changes · remember to update the product</Text>
+                    </View>
+                )}
+                <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} isDesktop />
+                <View style={ds.mainColumn}>
+                    <View style={ds.mainScroll}>{stepContent}</View>
+                    <View style={ds.barWrap}>{actionBar}</View>
+                </View>
+                <DiscardModal
+                    visible={discardModal}
+                    onDiscard={() => { setDiscardModal(false); router.back(); }}
+                    onKeep={() => setDiscardModal(false)}
+                />
+                <ToastContainer toasts={toasts} onRemove={removeToast} />
+            </View>
+        );
+    }
+
     return (
         <SafeAreaView style={sc.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
-
-            {/* Header */}
             <View style={sc.header}>
                 <TouchableOpacity onPress={handleBackPress} style={sc.hBtn}>
                     <Ionicons name="chevron-back" size={22} color={C.white} />
@@ -1709,72 +2690,23 @@ const EditProduct: React.FC = () => {
                     <Text style={sc.hSub}>Step {step + 1} of {STEPS.length}</Text>
                 </View>
                 <TouchableOpacity onPress={handleBackPress} style={sc.hBtn}>
-                    {isDirty ? (
-                        <View style={sc.dirtyDot} />
-                    ) : (
-                        <Ionicons name="close" size={22} color={C.white} />
-                    )}
+                    {isDirty ? <View style={sc.dirtyDot} /> : <Ionicons name="close" size={22} color={C.white} />}
                 </TouchableOpacity>
             </View>
-
-            {/* Unsaved changes banner */}
             {isDirty && (
                 <View style={sc.unsavedBanner}>
                     <MaterialCommunityIcons name="pencil-circle-outline" size={14} color={C.amber} />
                     <Text style={sc.unsavedTxt}>Unsaved changes · remember to update the product</Text>
                 </View>
             )}
-
-            {/* Step progress bar */}
             <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} />
-
-            {/* Content */}
-            <View style={{ flex: 1, backgroundColor: C.bg }}>
-                {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} />}
-                {step === 1 && <StepVariants variants={variants} setVariants={(fn: any) => { setVariants(fn); markDirty(); }} rmVariant={rmVariant} errors={variantErrors} />}
-                {step === 2 && (
-                    <StepImages
-                        data={imagesData}
-                        onChange={(k: string, v: any) => { setImagesData(p => ({ ...p, [k]: v })); markDirty(); }}
-                        errors={imageErrors}
-                    />
-                )}
-                {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} />}
-            </View>
-
-            {/* Bottom bar */}
-            <View style={sc.bar}>
-                {step === 0 ? (
-                    <TouchableOpacity style={sc.cancelBtn} onPress={handleBackPress}>
-                        <Text style={sc.cancelTxt}>Cancel</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity style={sc.prevBtn} onPress={() => setStep(s => s - 1)}>
-                        <Ionicons name="chevron-back" size={16} color={C.navy} />
-                        <Text style={sc.prevTxt}>Back</Text>
-                    </TouchableOpacity>
-                )}
-                {step === 3 ? (
-                    <TouchableOpacity style={[sc.saveBtn, !isDirty && sc.saveBtnDim]} onPress={handleUpdate} activeOpacity={isDirty ? 0.85 : 0.5}>
-                        <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                        <Text style={sc.saveTxt}>{isDirty ? "Update Product" : "No Changes"}</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity style={sc.nextBtn} onPress={handleContinue}>
-                        <Text style={sc.nextTxt}>Continue</Text>
-                        <Ionicons name="chevron-forward" size={16} color={C.white} />
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            {/* Discard Modal */}
+            <View style={{ flex: 1, backgroundColor: C.bg }}>{stepContent}</View>
+            {actionBar}
             <DiscardModal
                 visible={discardModal}
                 onDiscard={() => { setDiscardModal(false); router.back(); }}
                 onKeep={() => setDiscardModal(false)}
             />
-
-            {/* Toast overlay */}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
         </SafeAreaView>
     );
@@ -1859,14 +2791,257 @@ const vt = StyleSheet.create({
 
 // ─── Details Styles ───────────────────────────────────────────
 const dt = StyleSheet.create({
-    outBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1.2, borderColor: C.navy, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+    responsiveCol: { flexDirection: "column", gap: 10 },
+    responsiveField: { width: "100%", minWidth: 0 },
+    outBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+        borderWidth: 1.2,
+        borderColor: C.navy,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        minHeight: 44,
+        backgroundColor: C.white,
+    },
+    outBtnFull: { width: "100%", alignSelf: "stretch" },
     outBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.navy },
+    sizeDataHead: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+        marginTop: 4,
+    },
+    addSizeOrangeBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: C.accent4,
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginTop: 12,
+    },
+    addSizeOrangeBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.white },
+    sizeTableScroll: { marginTop: 8, marginBottom: 4 },
+    sizeTableWrap: {
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 10,
+        overflow: "hidden",
+        backgroundColor: C.white,
+    },
+    sizeTableHeader: {
+        flexDirection: "row",
+        backgroundColor: C.navyGhost,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+    },
+    sizeTableTh: {
+        paddingVertical: 10,
+        paddingHorizontal: 6,
+        justifyContent: "center",
+        borderRightWidth: 1,
+        borderRightColor: C.border,
+    },
+    sizeTableThAction: {
+        width: 56,
+        minWidth: 56,
+        paddingVertical: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    sizeTableThTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 10,
+        color: C.textMid,
+        textAlign: "center",
+    },
+    sizeTableRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        backgroundColor: C.white,
+    },
+    sizeTableRowAlt: { backgroundColor: "#FAFBFE" },
+    sizeTableTd: {
+        padding: 5,
+        borderRightWidth: 1,
+        borderRightColor: C.border,
+        justifyContent: "center",
+    },
+    sizeTableTdAction: {
+        width: 56,
+        minWidth: 56,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 6,
+    },
+    sizeTableInput: {
+        backgroundColor: C.inputBg,
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 7,
+        fontFamily: "Outfit_400Regular",
+        fontSize: 12,
+        color: C.textDark,
+        minHeight: 34,
+    },
+    sizeTableDelBtn: {
+        padding: 6,
+        borderRadius: 8,
+        backgroundColor: C.redPale,
+    },
+    sizeEmptyHint: {
+        marginTop: 8,
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: C.navyGhost,
+        borderWidth: 1,
+        borderColor: C.navyBorder,
+    },
+    sizeEmptyHintTxt: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 12,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 18,
+    },
     togRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
     togLbl: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
     addBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 10, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
     addBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.navy },
     specRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
     specDel: { width: 36, height: 36, backgroundColor: C.redPale, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+});
+
+// ─── Desktop / laptop styles (web ≥1024px) ────────────────────
+const ds = StyleSheet.create({
+    page: {
+        flex: 1,
+        backgroundColor: C.bg,
+        ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as object) : {}),
+    },
+    topBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: C.white,
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        shadowColor: "#0F1A4A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    topBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: C.navyGhost,
+    },
+    topCenter: { flex: 1, alignItems: "center", paddingHorizontal: 12 },
+    topTitle: { fontFamily: "Outfit_700Bold", fontSize: 20, color: C.textDark, letterSpacing: 0.2 },
+    topSub: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textLight, marginTop: 2 },
+    hStepBar: {
+        paddingTop: 12,
+        paddingBottom: 14,
+        maxWidth: CONTENT_MAX + 64,
+        width: "100%",
+        alignSelf: "center",
+    },
+    mainColumn: { flex: 1, minWidth: 0, width: "100%", backgroundColor: C.bg },
+    mainScroll: { flex: 1 },
+    stepScroll: { flex: 1 },
+    barWrap: {
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        width: "100%",
+    },
+    bar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+        maxWidth: CONTENT_MAX,
+        alignSelf: "center",
+    },
+    barLeft: { alignItems: "flex-start" },
+    barRight: { alignItems: "flex-end" },
+    cancelBtn: {
+        minWidth: 140,
+        paddingHorizontal: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.2,
+        borderColor: C.border,
+        borderRadius: 12,
+        paddingVertical: 14,
+        backgroundColor: C.white,
+    },
+    cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
+    prevBtn: {
+        minWidth: 140,
+        paddingHorizontal: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        borderWidth: 1.2,
+        borderColor: C.navyBorder,
+        borderRadius: 12,
+        paddingVertical: 14,
+        backgroundColor: C.white,
+    },
+    prevTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
+    nextBtn: {
+        minWidth: 180,
+        paddingHorizontal: 32,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.navy,
+        borderRadius: 12,
+        paddingVertical: 14,
+        elevation: 6,
+    },
+    nextTxt: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
+    saveBtn: {
+        minWidth: 200,
+        paddingHorizontal: 32,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.navy,
+        borderRadius: 12,
+        paddingVertical: 14,
+        elevation: 6,
+    },
+    saveTxt: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
+    card: {
+        borderRadius: 20,
+        paddingHorizontal: 24,
+        paddingTop: 20,
+        paddingBottom: 22,
+        marginBottom: 20,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+    },
 });
 
 // ─── Edit-specific Styles ─────────────────────────────────────
@@ -1896,14 +3071,31 @@ const sc = StyleSheet.create({
     dirtyDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.amber, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)" },
     unsavedBanner: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: C.amberPale, paddingHorizontal: 16, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "#FCD34D" },
     unsavedTxt: { fontFamily: "Outfit_500Medium", fontSize: 12, color: "#92400E" },
-    bar: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10 },
-    cancelBtn: { flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 13 },
+    bar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    barLeft: { flex: 1 },
+    barRight: { flex: 1, alignItems: "flex-end" },
+    cancelBtn: { flex: 1, maxWidth: 160, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 13 },
     cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
-    prevBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 13 },
+    prevBtn: { flex: 1, maxWidth: 160, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 13 },
     prevTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
-    nextBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    nextBtn: { flex: 2, maxWidth: 220, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
     nextTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
-    saveBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    saveBtn: { flex: 2, maxWidth: 240, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
     saveBtnDim: { backgroundColor: C.navyLight, opacity: 0.6 },
     saveTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
 });

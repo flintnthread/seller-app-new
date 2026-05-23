@@ -15,8 +15,29 @@ import {
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const { width: SW } = Dimensions.get("window");
+const CONTENT_MAX = 1120;
+
+/** Set false before production to start with empty forms */
+const PREFILL_WITH_DUMMY = true;
+
+const DUMMY_PRIMARY_IMAGE_URI =
+    "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80";
+
+const getStepScrollContent = (isDesktop: boolean) =>
+    isDesktop
+        ? {
+              paddingHorizontal: 32,
+              paddingTop: 24,
+              paddingBottom: 80,
+              width: "100%" as const,
+              maxWidth: CONTENT_MAX,
+              alignSelf: "center" as const,
+              ...(Platform.OS === "web" ? ({ alignSelf: "center", marginHorizontal: "auto" } as object) : {}),
+          }
+        : { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 };
 
 // ─── Design Tokens ───────────────────────────────────────────
 const C = {
@@ -86,8 +107,9 @@ type ToastItem = { id: number; message: string; type: "error" | "success" };
 let toastIdCounter = 0;
 
 const ToastContainer = ({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: number) => void }) => {
+    const { isDesktop } = useResponsive();
     return (
-        <View style={ts.container} pointerEvents="none">
+        <View style={[ts.container, isDesktop && ts.containerDesktop]} pointerEvents="none">
             {toasts.map((t) => (
                 <ToastBubble key={t.id} item={t} onRemove={onRemove} />
             ))}
@@ -134,6 +156,12 @@ const ts = StyleSheet.create({
     container: {
         position: "absolute", top: 90, right: 0, left: 0,
         zIndex: 9999, alignItems: "flex-end", paddingRight: 14, gap: 8,
+    },
+    containerDesktop: {
+        top: 24,
+        paddingRight: 32,
+        maxWidth: 420,
+        alignSelf: "flex-end",
     },
     bubble: {
         flexDirection: "row", alignItems: "center", gap: 10,
@@ -227,9 +255,10 @@ const validateDetails = (data: any): string[] => {
 // ─────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────
-const Card = ({ children, style }: any) => (
-    <View style={[at.card, style]}>{children}</View>
-);
+const Card = ({ children, style }: any) => {
+    const { isDesktop } = useResponsive();
+    return <View style={[at.card, isDesktop && ds.card, style]}>{children}</View>;
+};
 
 const SecHead = ({ icon, title, accent = C.accent1 }: { icon: string; title: string; accent?: string }) => (
     <View style={[at.secHead, { borderLeftColor: accent }]}>
@@ -244,8 +273,9 @@ const Lbl = ({ text, required }: { text: string; required?: boolean }) => (
 
 const Field = ({ placeholder, value, onChangeText, keyboardType = "default", multiline = false, lines = 1, maxLength, prefix, hasError }: any) => {
     const [focused, setFocused] = useState(false);
+    const { isDesktop } = useResponsive();
     return (
-        <View style={[at.fieldWrap, focused && at.fieldFocused, multiline && { height: lines * 22 + 26, alignItems: "flex-start" }, hasError && at.fieldError]}>
+        <View style={[at.fieldWrap, isDesktop && ds.fieldWrap, focused && at.fieldFocused, focused && isDesktop && ds.fieldFocused, multiline && { height: lines * (isDesktop ? 24 : 22) + (isDesktop ? 30 : 26), alignItems: "flex-start" }, hasError && at.fieldError]}>
             {prefix && <AppText style={at.fieldPfx}>{prefix}</AppText>}
             <TextInput
                 style={[at.fieldInput, multiline && { textAlignVertical: "top", paddingTop: 10 }]}
@@ -311,6 +341,59 @@ const pm = StyleSheet.create({
     itemTxtOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
     chk: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
 });
+
+/** Inline picker for use inside FormPopupModal (avoids nested Modal issues on web) */
+const InlinePicker = ({
+    visible,
+    title,
+    options,
+    selected,
+    onSelect,
+    onClose,
+}: {
+    visible: boolean;
+    title: string;
+    options: string[];
+    selected: string;
+    onSelect: (v: string) => void;
+    onClose: () => void;
+}) => {
+    if (!visible) return null;
+    return (
+        <View style={fp.inlinePickerWrap} pointerEvents="box-none">
+            <TouchableOpacity style={fp.inlinePickerBackdrop} activeOpacity={1} onPress={onClose} />
+            <View style={fp.inlinePickerSheet}>
+                <View style={fp.inlinePickerHdr}>
+                    <AppText style={fp.inlinePickerTitle}>{title}</AppText>
+                    <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color={C.textMid} />
+                    </TouchableOpacity>
+                </View>
+                <ScrollView style={fp.inlinePickerList} bounces={false} keyboardShouldPersistTaps="handled">
+                    {options.map((opt) => (
+                        <TouchableOpacity
+                            key={opt}
+                            style={[fp.inlinePickerItem, selected === opt && fp.inlinePickerItemOn]}
+                            onPress={() => {
+                                onSelect(opt);
+                                onClose();
+                            }}
+                        >
+                            <AppText style={[fp.inlinePickerItemTxt, selected === opt && fp.inlinePickerItemTxtOn]}>
+                                {opt}
+                            </AppText>
+                            {selected === opt && (
+                                <View style={pm.chk}>
+                                    <Ionicons name="checkmark" size={13} color={C.white} />
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+        </View>
+    );
+};
 
 // ─── Rich Text Editor ─────────────────────────────────────────
 type Format = { bold: boolean; italic: boolean; underline: boolean; heading: "none" | "h1" | "h2" | "h3" };
@@ -440,36 +523,13 @@ const CustImagePicker = ({ uri, onPick, onRemove, hasError }: {
                     <AppText style={cp.uploadSub}>JPG · PNG · WebP · Max 5 MB</AppText>
                 </TouchableOpacity>
             )}
-            <Modal visible={sourceModal} transparent animationType="slide" onRequestClose={() => setSourceModal(false)}>
-                <TouchableOpacity style={cp.modalOverlay} activeOpacity={1} onPress={() => setSourceModal(false)} />
-                <View style={cp.modalSheet}>
-                    <View style={cp.modalDrag} />
-                    <AppText style={cp.modalTitle}>Choose Image Source</AppText>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => requestAndPick("camera")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
-                            <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <AppText style={cp.modalOptTitle}>Take a Photo</AppText>
-                            <AppText style={cp.modalOptSub}>Use your camera right now</AppText>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => requestAndPick("gallery")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
-                            <MaterialCommunityIcons name="image-outline" size={22} color={C.accent5} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <AppText style={cp.modalOptTitle}>Choose from Gallery</AppText>
-                            <AppText style={cp.modalOptSub}>Pick from your photo library</AppText>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalCancel} onPress={() => setSourceModal(false)}>
-                        <AppText style={cp.modalCancelTxt}>Cancel</AppText>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
+            <ImageSourcePickerModal
+                visible={sourceModal}
+                onClose={() => setSourceModal(false)}
+                title="Choose Image Source"
+                onCamera={() => requestAndPick("camera")}
+                onGallery={() => requestAndPick("gallery")}
+            />
         </>
     );
 };
@@ -488,21 +548,446 @@ const cp = StyleSheet.create({
     removeTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.white },
     checkBadge: { position: "absolute", top: 10, right: 10, backgroundColor: C.white, borderRadius: 12 },
     modalOverlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.3)" },
-    modalSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 40, paddingHorizontal: 20, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
+    modalOverlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
+    modalBackdrop: { ...StyleSheet.absoluteFillObject },
+    modalSheet: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: C.white,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingBottom: 40,
+        paddingHorizontal: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 20,
+        elevation: 24,
+    },
+    modalPopup: {
+        position: "relative",
+        bottom: undefined,
+        left: undefined,
+        right: undefined,
+        width: "100%",
+        maxWidth: 440,
+        borderRadius: 20,
+        paddingTop: 20,
+        paddingBottom: 24,
+        paddingHorizontal: 24,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.2,
+        shadowRadius: 32,
+        elevation: 28,
+        zIndex: 2,
+    },
     modalDrag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 18 },
+    modalHeaderRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 16,
+    },
     modalTitle: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark, marginBottom: 16 },
+    modalTitleDesktop: { fontSize: 18, marginBottom: 0, flex: 1 },
+    modalCloseBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: C.bg,
+        alignItems: "center",
+        justifyContent: "center",
+    },
     modalOption: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+    modalOptionDesktop: {
+        borderBottomWidth: 0,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        marginBottom: 10,
+        backgroundColor: C.inputBg,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
     modalIconWrap: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
     modalOptTitle: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textDark },
     modalOptSub: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textLight, marginTop: 2 },
     modalCancel: { marginTop: 18, alignItems: "center", paddingVertical: 14, borderWidth: 1.2, borderColor: C.border, borderRadius: 14 },
+    modalCancelDesktop: { marginTop: 8 },
     modalCancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
 });
+
+const ImageSourcePickerModal = ({
+    visible,
+    onClose,
+    title,
+    onCamera,
+    onGallery,
+    galleryHint = "Pick from your photo library",
+}: {
+    visible: boolean;
+    onClose: () => void;
+    title: string;
+    onCamera: () => void;
+    onGallery: () => void;
+    galleryHint?: string;
+}) => {
+    const { isDesktop } = useResponsive();
+
+    return (
+        <Modal
+            visible={visible}
+            transparent
+            animationType={isDesktop ? "fade" : "slide"}
+            onRequestClose={onClose}
+        >
+            <View style={[cp.modalOverlay, isDesktop && cp.modalOverlayCenter]}>
+                <TouchableOpacity style={cp.modalBackdrop} activeOpacity={1} onPress={onClose} />
+                <View style={[cp.modalSheet, isDesktop && cp.modalPopup]}>
+                    {!isDesktop && <View style={cp.modalDrag} />}
+                    {isDesktop ? (
+                        <View style={cp.modalHeaderRow}>
+                            <AppText style={[cp.modalTitle, cp.modalTitleDesktop]}>{title}</AppText>
+                            <TouchableOpacity style={cp.modalCloseBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Ionicons name="close" size={20} color={C.textMid} />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <AppText style={cp.modalTitle}>{title}</AppText>
+                    )}
+                    <TouchableOpacity
+                        style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]}
+                        onPress={onCamera}
+                        activeOpacity={0.85}
+                    >
+                        <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
+                            <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <AppText style={cp.modalOptTitle}>Take a Photo</AppText>
+                            <AppText style={cp.modalOptSub}>Use your camera right now</AppText>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]}
+                        onPress={onGallery}
+                        activeOpacity={0.85}
+                    >
+                        <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
+                            <MaterialCommunityIcons name="image-outline" size={22} color={C.accent5} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <AppText style={cp.modalOptTitle}>Choose from Gallery</AppText>
+                            <AppText style={cp.modalOptSub}>{galleryHint}</AppText>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[cp.modalCancel, isDesktop && cp.modalCancelDesktop]}
+                        onPress={onClose}
+                        activeOpacity={0.85}
+                    >
+                        <AppText style={cp.modalCancelTxt}>Cancel</AppText>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+// ─── Responsive form popup (centered desktop · bottom sheet mobile) ───
+const FormPopupModal = ({
+    visible,
+    onClose,
+    title,
+    children,
+    overlay,
+    wide = false,
+    accentHeader = false,
+    headerIcon = "ruler-square",
+}: {
+    visible: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+    overlay?: React.ReactNode;
+    wide?: boolean;
+    accentHeader?: boolean;
+    headerIcon?: string;
+}) => {
+    const { isDesktop } = useResponsive();
+
+    return (
+        <Modal
+            visible={visible}
+            transparent
+            animationType={isDesktop ? "fade" : "slide"}
+            onRequestClose={onClose}
+        >
+            <View style={[fp.overlay, isDesktop && fp.overlayCenter]}>
+                <TouchableOpacity style={fp.backdrop} activeOpacity={1} onPress={onClose} />
+                <View
+                    style={[
+                        fp.sheet,
+                        isDesktop && fp.popup,
+                        isDesktop && wide && fp.popupWide,
+                        fp.sheetOverflow,
+                    ]}
+                >
+                    {!isDesktop && !accentHeader && <View style={fp.drag} />}
+                    <View style={[fp.headerRow, accentHeader && fp.headerRowAccent]}>
+                        {accentHeader && (
+                            <MaterialCommunityIcons
+                                name={headerIcon as any}
+                                size={22}
+                                color={C.white}
+                            />
+                        )}
+                        <AppText
+                            style={[
+                                fp.title,
+                                isDesktop && fp.titleDesktop,
+                                accentHeader && fp.titleAccent,
+                            ]}
+                            numberOfLines={2}
+                        >
+                            {title}
+                        </AppText>
+                        <TouchableOpacity
+                            style={[fp.closeBtn, accentHeader && fp.closeBtnAccent]}
+                            onPress={onClose}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Ionicons name="close" size={20} color={accentHeader ? C.white : C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                        style={fp.bodyScroll}
+                        contentContainerStyle={fp.bodyContent}
+                        showsVerticalScrollIndicator={isDesktop}
+                        keyboardShouldPersistTaps="handled"
+                        bounces={false}
+                    >
+                        {children}
+                    </ScrollView>
+                    {overlay}
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+const fp = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.35)" },
+    overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
+    backdrop: { ...StyleSheet.absoluteFillObject },
+    sheet: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        maxHeight: "88%",
+        backgroundColor: C.white,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingBottom: Platform.OS === "ios" ? 28 : 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.14,
+        shadowRadius: 24,
+        elevation: 24,
+    },
+    popup: {
+        position: "relative",
+        bottom: undefined,
+        left: undefined,
+        right: undefined,
+        width: "100%",
+        maxWidth: 480,
+        maxHeight: "85%",
+        borderRadius: 20,
+        paddingBottom: 24,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.22,
+        shadowRadius: 32,
+        elevation: 28,
+        zIndex: 2,
+    },
+    popupWide: { maxWidth: 720 },
+    sheetOverflow: { overflow: "hidden" },
+    inlinePickerWrap: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 20,
+        justifyContent: "flex-end",
+    },
+    inlinePickerBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(10,20,60,0.35)",
+    },
+    inlinePickerSheet: {
+        maxHeight: "55%",
+        backgroundColor: C.white,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        elevation: 16,
+    },
+    inlinePickerHdr: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+    },
+    inlinePickerTitle: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.textDark, flex: 1 },
+    inlinePickerList: { maxHeight: 280 },
+    inlinePickerItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+    },
+    inlinePickerItemOn: { backgroundColor: C.navyGhost },
+    inlinePickerItemTxt: { fontFamily: fontFamilies.medium, fontSize: 14, color: C.textMid },
+    inlinePickerItemTxtOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
+    headerRowAccent: {
+        backgroundColor: C.accent4,
+        borderBottomWidth: 0,
+        paddingTop: 16,
+        paddingBottom: 16,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+    },
+    titleAccent: { color: C.white, flex: 1 },
+    closeBtnAccent: {
+        backgroundColor: "rgba(255,255,255,0.2)",
+    },
+    drag: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: C.border,
+        alignSelf: "center",
+        marginTop: 12,
+        marginBottom: 8,
+    },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        gap: 12,
+    },
+    title: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark, flex: 1 },
+    titleDesktop: { fontSize: 18 },
+    closeBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: C.bg,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    bodyScroll: { flexGrow: 0 },
+    bodyContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+    footerRow: {
+        flexDirection: "row",
+        gap: 10,
+        marginTop: 20,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+    },
+    footerRowDesktop: { justifyContent: "flex-end" },
+    footerBtnSecondary: {
+        flex: 1,
+        maxWidth: 160,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 13,
+        borderRadius: 12,
+        borderWidth: 1.2,
+        borderColor: C.border,
+        backgroundColor: C.white,
+    },
+    footerBtnPrimary: {
+        flex: 1,
+        maxWidth: 180,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 13,
+        borderRadius: 12,
+        backgroundColor: C.navy,
+    },
+    footerBtnAccent: { backgroundColor: C.accent4 },
+    footerBtnPrimaryFull: { maxWidth: undefined },
+    footerBtnTxtSecondary: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
+    footerBtnTxtPrimary: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
+});
+
+const DEFAULT_SIZE_CHART_OPTIONS = [
+    "No Size Chart",
+    "Standard Apparel",
+    "Small Chart",
+    "Large Chart",
+];
+
+const CHART_CATEGORY_ALL = "All Categories";
+const CHART_SUB_ALL = "All Subcategories";
+const ALL_CHART_SUBCATEGORIES = Array.from(new Set(Object.values(SUBCATEGORIES).flat()));
+const MEASUREMENT_UNIT_OPTIONS = ["Centimetres (cm)", "Inches (in)"] as const;
+const DEFAULT_CHART_UNIT = MEASUREMENT_UNIT_OPTIONS[0];
+
+type SizeChartRow = {
+    id: string;
+    size: string;
+    chest: string;
+    waist: string;
+    hip: string;
+    length: string;
+    sleeve: string;
+};
+
+let sizeRowId = 0;
+const newRowId = () => `sz-${++sizeRowId}-${Date.now()}`;
+
+const emptySizeRow = (size = ""): SizeChartRow => ({
+    id: newRowId(),
+    size,
+    chest: "",
+    waist: "",
+    hip: "",
+    length: "",
+    sleeve: "",
+});
+
+const SIZE_TABLE_COLS = [
+    { key: "size" as const, label: "Size", width: 72, placeholder: "S" },
+    { key: "chest" as const, label: "Chest/Bust", width: 88, placeholder: "34-36" },
+    { key: "waist" as const, label: "Waist", width: 80, placeholder: "28-30" },
+    { key: "hip" as const, label: "Hip", width: 80, placeholder: "36-38" },
+    { key: "length" as const, label: "Length", width: 72, placeholder: "28" },
+    { key: "sleeve" as const, label: "Sleeve", width: 80, placeholder: "32-34" },
+];
 
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
@@ -511,7 +996,11 @@ const StepBasicInfo = ({ data, onChange, errors }: any) => {
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             {/* CARD 1: Product Identity */}
             <Card>
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
@@ -858,36 +1347,14 @@ const ImagePickerGrid = ({
             {images.length > 0 && (
                 <AppText style={ipg.hint}>First image is used as primary · tap × to remove</AppText>
             )}
-            <Modal visible={srcModal} transparent animationType="slide" onRequestClose={() => setSrcModal(false)}>
-                <TouchableOpacity style={cp.modalOverlay} activeOpacity={1} onPress={() => setSrcModal(false)} />
-                <View style={cp.modalSheet}>
-                    <View style={cp.modalDrag} />
-                    <AppText style={cp.modalTitle}>Add Image</AppText>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => pickImages("camera")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
-                            <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <AppText style={cp.modalOptTitle}>Take a Photo</AppText>
-                            <AppText style={cp.modalOptSub}>Use your camera right now</AppText>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalOption} onPress={() => pickImages("gallery")}>
-                        <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
-                            <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <AppText style={cp.modalOptTitle}>Choose from Gallery</AppText>
-                            <AppText style={cp.modalOptSub}>Pick up to {maxCount - images.length} photo{maxCount - images.length !== 1 ? "s" : ""}</AppText>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={cp.modalCancel} onPress={() => setSrcModal(false)}>
-                        <AppText style={cp.modalCancelTxt}>Cancel</AppText>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
+            <ImageSourcePickerModal
+                visible={srcModal}
+                onClose={() => setSrcModal(false)}
+                title="Add Image"
+                onCamera={() => pickImages("camera")}
+                onGallery={() => pickImages("gallery")}
+                galleryHint={`Pick up to ${maxCount - images.length} photo${maxCount - images.length !== 1 ? "s" : ""}`}
+            />
         </>
     );
 };
@@ -914,7 +1381,7 @@ type Variant = {
 };
 
 // ─── FIX: rmVariant is now correctly received as a prop ───────
-const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
 
@@ -961,7 +1428,11 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
     };
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             {variants.map((v: Variant, idx: number) => (
                 <Card key={v.id} style={{ marginBottom: 12 }}>
                     <View style={vt.hdr}>
@@ -1067,7 +1538,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors }: any) => {
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — Images
 // ─────────────────────────────────────────────────────────────
-const StepImages = ({ data, onChange, errors }: any) => {
+const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
 
     const pickPrimaryImage = async () => {
@@ -1086,7 +1557,14 @@ const StepImages = ({ data, onChange, errors }: any) => {
         }
     };
 
-    const [additionalImages, setAdditionalImages] = useState<string[]>([]);
+    const [additionalImages, setAdditionalImages] = useState<string[]>(
+        PREFILL_WITH_DUMMY
+            ? [
+                  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=400&q=80",
+                  "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400&q=80",
+              ]
+            : []
+    );
 
     const addAdditionalImages = (uris: string[]) => {
         setAdditionalImages(prev => [...prev, ...uris].slice(0, 4));
@@ -1096,7 +1574,11 @@ const StepImages = ({ data, onChange, errors }: any) => {
     };
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             <Card>
                 <SecHead icon="image-multiple-outline" title="Product Images" accent={C.accent2} />
                 <Divider />
@@ -1177,26 +1659,132 @@ const ig = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors }: any) => {
+const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
     const [delPick, setDelPick] = useState(false);
-    const [features, setFeatures] = useState<string[]>([""]);
-    const [specs, setSpecs] = useState<{ name: string; value: string }[]>([{ name: "", value: "" }]);
+    const [createSizeOpen, setCreateSizeOpen] = useState(false);
+    const [customPolicyOpen, setCustomPolicyOpen] = useState(false);
+    const [sizeChartOptions, setSizeChartOptions] = useState<string[]>(DEFAULT_SIZE_CHART_OPTIONS);
+    const [newChartName, setNewChartName] = useState("");
+    const [chartCategory, setChartCategory] = useState(CHART_CATEGORY_ALL);
+    const [chartSubcategory, setChartSubcategory] = useState(CHART_SUB_ALL);
+    const [chartImageUri, setChartImageUri] = useState<string | null>(null);
+    const [chartRows, setChartRows] = useState<SizeChartRow[]>([]);
+    const [chartUnit, setChartUnit] = useState<string>(DEFAULT_CHART_UNIT);
+    const [chartNotes, setChartNotes] = useState("");
+    const [chartCatPick, setChartCatPick] = useState(false);
+    const [chartSubPick, setChartSubPick] = useState(false);
+    const [chartUnitPick, setChartUnitPick] = useState(false);
+    const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
+    const [features, setFeatures] = useState<string[]>(
+        PREFILL_WITH_DUMMY
+            ? ["Breathable cotton fabric", "Pre-shrunk & colour-fast", "Reinforced shoulder stitching"]
+            : [""]
+    );
+    const [specs, setSpecs] = useState<{ name: string; value: string }[]>(
+        PREFILL_WITH_DUMMY
+            ? [
+                  { name: "Fabric", value: "100% Cotton" },
+                  { name: "Fit", value: "Regular" },
+                  { name: "Neck", value: "Round neck" },
+              ]
+            : [{ name: "", value: "" }]
+    );
 
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
+    const chartCategoryOptions = [CHART_CATEGORY_ALL, ...CATEGORIES];
+    const chartSubOptions =
+        chartCategory === CHART_CATEGORY_ALL
+            ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
+            : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
+
+    const openCreateSizeChart = () => {
+        setNewChartName("");
+        setChartCategory(CHART_CATEGORY_ALL);
+        setChartSubcategory(CHART_SUB_ALL);
+        setChartImageUri(null);
+        setChartUnit(DEFAULT_CHART_UNIT);
+        setChartNotes("");
+        setChartRows([emptySizeRow()]);
+        setChartCatPick(false);
+        setChartSubPick(false);
+        setChartUnitPick(false);
+        setCreateSizeOpen(true);
+    };
+
+    const openCustomPolicy = () => {
+        setCustomPolicyDraft(data.returnPolicyText || "");
+        setCustomPolicyOpen(true);
+    };
+
+    const saveSizeChart = () => {
+        const name = newChartName.trim();
+        if (!name) {
+            Alert.alert("Chart name required", "Please enter a name for your size chart.");
+            return;
+        }
+        const validRows = chartRows.filter((r) => r.size.trim());
+        if (validRows.length === 0) {
+            Alert.alert("Sizes required", "Add at least one size row to the chart.");
+            return;
+        }
+        setSizeChartOptions((prev) => {
+            if (prev.includes(name)) return prev;
+            return [...prev, name];
+        });
+        onChange("sizeChart", name);
+        setCreateSizeOpen(false);
+    };
+
+    const saveCustomPolicy = () => {
+        const text = customPolicyDraft.trim();
+        if (!text) {
+            Alert.alert("Policy required", "Please write your custom return policy.");
+            return;
+        }
+        onChange("returnPolicy", "Custom Policy");
+        onChange("returnPolicyText", text);
+        setCustomPolicyOpen(false);
+    };
+
+    const addChartSizeRow = () => {
+        setChartRows((prev) => [...prev, emptySizeRow()]);
+    };
+
+    const removeChartRow = (id: string) => {
+        setChartRows((prev) => prev.filter((r) => r.id !== id));
+    };
+
+    const updateChartRow = (id: string, field: keyof SizeChartRow, value: string) => {
+        setChartRows((prev) =>
+            prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+        );
+    };
+
+    const twoCol = isDesktop ? at.row2 : dt.responsiveCol;
+    const fieldFlex = isDesktop ? { flex: 1 } : dt.responsiveField;
+
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 }}>
+        <ScrollView
+            showsVerticalScrollIndicator={isDesktop}
+            style={isDesktop ? ds.stepScroll : undefined}
+            contentContainerStyle={getStepScrollContent(isDesktop)}
+        >
             <Card>
                 <SecHead icon="ruler-square" title="Size Chart" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Select Size Chart" />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={[twoCol, isDesktop && { alignItems: "flex-end" }]}>
+                    <View style={fieldFlex}>
                         <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} />
                     </View>
-                    <TouchableOpacity style={dt.outBtn}>
+                    <TouchableOpacity
+                        style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
+                        onPress={openCreateSizeChart}
+                        activeOpacity={0.85}
+                    >
                         <Ionicons name="add" size={15} color={C.navy} />
                         <AppText style={dt.outBtnTxt}>Create New</AppText>
                     </TouchableOpacity>
@@ -1206,14 +1794,18 @@ const StepDetails = ({ data, onChange, errors }: any) => {
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="refresh" title="Return Policy" accent={C.accent3} />
                 <Divider />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={twoCol}>
+                    <View style={fieldFlex}>
                         <Lbl text="Policy Template" required />
                         <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
-                        <TouchableOpacity style={dt.outBtn}>
+                        <TouchableOpacity
+                            style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
+                            onPress={openCustomPolicy}
+                            activeOpacity={0.85}
+                        >
                             <Feather name="edit-2" size={13} color={C.navy} />
                             <AppText style={dt.outBtnTxt}>Write Custom</AppText>
                         </TouchableOpacity>
@@ -1304,7 +1896,7 @@ const StepDetails = ({ data, onChange, errors }: any) => {
                                 const arr = [...specs];
 
                                 if (arr[i]) {
-                                    arr[i].name = v;
+                                    arr[i].value = v;
                                 }
 
                                 setSpecs(arr);
@@ -1321,9 +1913,237 @@ const StepDetails = ({ data, onChange, errors }: any) => {
                 </TouchableOpacity>
             </Card>
 
-            <PM visible={sizePick} title="Size Chart" options={["No Size Chart", "Small Chart", "Large Chart"]} selected={data.sizeChart} onSelect={(v: string) => onChange("sizeChart", v)} onClose={() => setSizePick(false)} />
+            <PM
+                visible={sizePick}
+                title="Size Chart"
+                options={sizeChartOptions}
+                selected={data.sizeChart}
+                onSelect={(v: string) => onChange("sizeChart", v)}
+                onClose={() => setSizePick(false)}
+            />
             <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => onChange("returnPolicy", v)} onClose={() => setRetPick(false)} />
             <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => onChange("deliveryOption", v)} onClose={() => setDelPick(false)} />
+
+            <FormPopupModal
+                visible={createSizeOpen}
+                onClose={() => {
+                    setChartCatPick(false);
+                    setChartSubPick(false);
+                    setChartUnitPick(false);
+                    setCreateSizeOpen(false);
+                }}
+                title="Create Size Chart"
+                wide
+                accentHeader
+                headerIcon="ruler"
+                overlay={
+                    <>
+                        <InlinePicker
+                            visible={chartCatPick}
+                            title="Select Category"
+                            options={chartCategoryOptions}
+                            selected={chartCategory}
+                            onSelect={(v) => {
+                                setChartCategory(v);
+                                setChartSubcategory(CHART_SUB_ALL);
+                            }}
+                            onClose={() => setChartCatPick(false)}
+                        />
+                        <InlinePicker
+                            visible={chartSubPick}
+                            title="Select Subcategory"
+                            options={chartSubOptions}
+                            selected={chartSubcategory}
+                            onSelect={setChartSubcategory}
+                            onClose={() => setChartSubPick(false)}
+                        />
+                        <InlinePicker
+                            visible={chartUnitPick}
+                            title="Measurement Unit"
+                            options={[...MEASUREMENT_UNIT_OPTIONS]}
+                            selected={chartUnit}
+                            onSelect={setChartUnit}
+                            onClose={() => setChartUnitPick(false)}
+                        />
+                    </>
+                }
+            >
+                <Lbl text="Chart Name" required />
+                <Field
+                    placeholder="e.g. Men's Clothing Size Chart"
+                    value={newChartName}
+                    onChangeText={setNewChartName}
+                />
+                <View style={[twoCol, { marginTop: 0 }]}>
+                    <View style={fieldFlex}>
+                        <Lbl text="Category (Optional)" />
+                        <Drop
+                            placeholder={CHART_CATEGORY_ALL}
+                            value={chartCategory}
+                            onPress={() => {
+                                setChartSubPick(false);
+                                setChartUnitPick(false);
+                                setChartCatPick(true);
+                            }}
+                        />
+                    </View>
+                    <View style={fieldFlex}>
+                        <Lbl text="Subcategory (Optional)" />
+                        <Drop
+                            placeholder={CHART_SUB_ALL}
+                            value={chartSubcategory}
+                            onPress={() => {
+                                setChartCatPick(false);
+                                setChartUnitPick(false);
+                                setChartSubPick(true);
+                            }}
+                        />
+                    </View>
+                </View>
+
+                <Lbl text="Size Chart Image (Optional)" />
+                <Hint text="Upload an image of your size chart (JPG, PNG, GIF, WebP)" />
+                <CustImagePicker
+                    uri={chartImageUri}
+                    onPick={setChartImageUri}
+                    onRemove={() => setChartImageUri(null)}
+                />
+
+                <View style={dt.sizeDataHead}>
+                    <View style={{ flex: 1 }}>
+                        <Lbl text="Size Chart Data" required />
+                        <Hint text="Size Information — enter measurements for each size." />
+                    </View>
+                    <TouchableOpacity style={dt.addSizeOrangeBtn} onPress={addChartSizeRow} activeOpacity={0.85}>
+                        <Ionicons name="add" size={16} color={C.white} />
+                        <AppText style={dt.addSizeOrangeBtnTxt}>Add Size</AppText>
+                    </TouchableOpacity>
+                </View>
+
+                {chartRows.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
+                        <View style={dt.sizeTableWrap}>
+                            <View style={dt.sizeTableHeader}>
+                                {SIZE_TABLE_COLS.map((col) => (
+                                    <View key={col.key} style={[dt.sizeTableTh, { width: col.width, minWidth: col.width }]}>
+                                        <AppText style={dt.sizeTableThTxt} numberOfLines={2}>
+                                            {col.label}
+                                        </AppText>
+                                    </View>
+                                ))}
+                                <View style={dt.sizeTableThAction}>
+                                    <AppText style={dt.sizeTableThTxt}>Action</AppText>
+                                </View>
+                            </View>
+                            {chartRows.map((row, idx) => (
+                                <View
+                                    key={row.id}
+                                    style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}
+                                >
+                                    {SIZE_TABLE_COLS.map((col) => (
+                                        <View
+                                            key={col.key}
+                                            style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}
+                                        >
+                                            <TextInput
+                                                style={dt.sizeTableInput}
+                                                placeholder={col.placeholder}
+                                                placeholderTextColor={C.textPlaceholder}
+                                                value={row[col.key]}
+                                                onChangeText={(v) => updateChartRow(row.id, col.key, v)}
+                                            />
+                                        </View>
+                                    ))}
+                                    <View style={dt.sizeTableTdAction}>
+                                        <TouchableOpacity
+                                            style={dt.sizeTableDelBtn}
+                                            onPress={() => removeChartRow(row.id)}
+                                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                        >
+                                            <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </ScrollView>
+                ) : (
+                    <View style={dt.sizeEmptyHint}>
+                        <AppText style={dt.sizeEmptyHintTxt}>
+                            Use Add Size to add rows and enter measurements for each size.
+                        </AppText>
+                    </View>
+                )}
+
+                <Lbl text="Measurement Unit" />
+                <Drop
+                    placeholder="Select unit"
+                    value={chartUnit}
+                    onPress={() => {
+                        setChartCatPick(false);
+                        setChartSubPick(false);
+                        setChartUnitPick(true);
+                    }}
+                />
+
+                <Lbl text="Additional Notes" />
+                <Field
+                    placeholder="e.g. All measurements are approximate. Please refer to the size chart for best fit."
+                    value={chartNotes}
+                    onChangeText={setChartNotes}
+                    multiline
+                    lines={3}
+                    maxLength={500}
+                />
+                <CC cur={chartNotes.length} max={500} />
+
+                <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
+                    <TouchableOpacity
+                        style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]}
+                        onPress={() => setCreateSizeOpen(false)}
+                    >
+                        <AppText style={fp.footerBtnTxtSecondary}>Cancel</AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]}
+                        onPress={saveSizeChart}
+                    >
+                        <AppText style={fp.footerBtnTxtPrimary}>Save Chart</AppText>
+                    </TouchableOpacity>
+                </View>
+            </FormPopupModal>
+
+            <FormPopupModal
+                visible={customPolicyOpen}
+                onClose={() => setCustomPolicyOpen(false)}
+                title="Write Custom Return Policy"
+            >
+                <Hint text="Describe your return rules clearly. This will appear to buyers on the product page." />
+                <Lbl text="Custom Policy Details" required />
+                <Field
+                    placeholder="e.g. Returns accepted within 7 days in original packaging. Customised items are non-returnable…"
+                    value={customPolicyDraft}
+                    onChangeText={setCustomPolicyDraft}
+                    multiline
+                    lines={8}
+                    maxLength={1000}
+                />
+                <CC cur={customPolicyDraft.length} max={1000} />
+                <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
+                    <TouchableOpacity
+                        style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]}
+                        onPress={() => setCustomPolicyOpen(false)}
+                    >
+                        <AppText style={fp.footerBtnTxtSecondary}>Cancel</AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[fp.footerBtnPrimary, !isDesktop && fp.footerBtnPrimaryFull]}
+                        onPress={saveCustomPolicy}
+                    >
+                        <AppText style={fp.footerBtnTxtPrimary}>Save Policy</AppText>
+                    </TouchableOpacity>
+                </View>
+            </FormPopupModal>
         </ScrollView>
     );
 };
@@ -1336,12 +2156,25 @@ const ICON_R = ICON_D / 2;
 const LINE_H = 3;
 const N_STEPS = STEPS.length;
 
-const StepProgressBar = ({ step, maxUnlocked, onTabPress }: { step: number; maxUnlocked: number; onTabPress: (i: number) => void }) => {
+const StepProgressBar = ({
+    step,
+    maxUnlocked,
+    onTabPress,
+    isDesktop = false,
+}: {
+    step: number;
+    maxUnlocked: number;
+    onTabPress: (i: number) => void;
+    isDesktop?: boolean;
+}) => {
     const [barW, setBarW] = useState(SW);
     const colW = barW / N_STEPS;
 
     return (
-        <View style={sp.wrapper} onLayout={e => setBarW(e.nativeEvent.layout.width)}>
+        <View
+            style={[sp.wrapper, isDesktop && ds.hStepBar]}
+            onLayout={e => setBarW(e.nativeEvent.layout.width)}
+        >
             {STEPS.map((_, i) => {
                 if (i === 0) return null;
                 const cx_prev = colW * (i - 1) + colW / 2;
@@ -1377,6 +2210,7 @@ const StepProgressBar = ({ step, maxUnlocked, onTabPress }: { step: number; maxU
                         </View>
                         <AppText style={[
                             sp.lbl,
+                            isDesktop && sp.lblDesktop,
                             isActive && { color: s.color, fontFamily: fontFamilies.bold },
                             isDone && { color: s.color, fontFamily: fontFamilies.semiBold },
                         ]}>
@@ -1395,32 +2229,116 @@ const sp = StyleSheet.create({
     col: { flex: 1, alignItems: "center", gap: 6, zIndex: 1 },
     circle: { width: ICON_D, height: ICON_D, borderRadius: 11, alignItems: "center", justifyContent: "center" },
     lbl: { fontFamily: fontFamilies.medium, fontSize: 10, color: C.textLight, textAlign: "center" },
+    lblDesktop: { fontSize: 12 },
 });
 
 // ─────────────────────────────────────────────────────────────
 // MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
-const initBasicData = () => ({
-    name: "", category: "", subcategory: "", materialType: "", hsnCode: "",
-    shortDesc: "", fullDesc: "", length: "", width: "", height: "",
-    weight: "", weightSlab: "", fragile: "No", customized: false,
-    custTitle: "", custInstructions: "", custLeadDays: "", custCharge: "",
-    custAllowPhoto: false, custImageLabel: "", custPickedImage: null as string | null,
-    custAllowText: false, custTextLabel: "",
-});
+const initBasicData = () => {
+    if (!PREFILL_WITH_DUMMY) {
+        return {
+            name: "", category: "", subcategory: "", materialType: "", hsnCode: "",
+            shortDesc: "", fullDesc: "", length: "", width: "", height: "",
+            weight: "", weightSlab: "", fragile: "No", customized: false,
+            custTitle: "", custInstructions: "", custLeadDays: "", custCharge: "",
+            custAllowPhoto: false, custImageLabel: "", custPickedImage: null as string | null,
+            custAllowText: false, custTextLabel: "",
+        };
+    }
+    return {
+        name: "Premium Cotton Crew Neck T-Shirt",
+        category: "Clothing",
+        subcategory: "T-Shirts",
+        materialType: "Cotton",
+        hsnCode: "61091000",
+        shortDesc:
+            "Soft, breathable cotton tee with a relaxed fit — ideal for everyday wear and easy styling.",
+        fullDesc:
+            "Crafted from 100% combed cotton with reinforced stitching at stress points. Pre-shrunk fabric, colour-fast dye, and comfortable round neck. Suitable for casual outings, work-from-home, and light outdoor activities. Machine wash cold, tumble dry low.",
+        length: "30",
+        width: "25",
+        height: "5",
+        weight: "0.35",
+        weightSlab: "0–1 kg",
+        fragile: "No",
+        customized: true,
+        custTitle: "Personalized print",
+        custInstructions:
+            "Share the exact text or design reference. We begin production after you approve the preview.",
+        custLeadDays: "3",
+        custCharge: "149",
+        custAllowPhoto: true,
+        custImageLabel: "Upload reference image",
+        custPickedImage: null as string | null,
+        custAllowText: true,
+        custTextLabel: "Name or message",
+    };
+};
 
-const initVariants = (): Variant[] => [
-    { id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [] },
-];
+const initVariants = (): Variant[] => {
+    if (!PREFILL_WITH_DUMMY) {
+        return [
+            { id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [] },
+        ];
+    }
+    return [
+        {
+            id: "1",
+            color: "Blue",
+            size: "M",
+            sku: "FNT-TEE-BLU-M-001",
+            stock: "120",
+            mrp: "1299",
+            sellingPrice: "899",
+            discount: "31",
+            images: [],
+        },
+        {
+            id: "2",
+            color: "Black",
+            size: "L",
+            sku: "FNT-TEE-BLK-L-002",
+            stock: "85",
+            mrp: "1299",
+            sellingPrice: "949",
+            discount: "27",
+            images: [],
+        },
+    ];
+};
 
-const initDetailsData = () => ({
-    sizeChart: "", returnPolicy: "", returnPolicyText: "",
-    deliveryOption: "", minDays: "3", maxDays: "7", deliveryInfo: "",
-    codEnabled: true, onlinePayEnabled: true, warranty: "", careInstructions: "",
+const initDetailsData = () => {
+    if (!PREFILL_WITH_DUMMY) {
+        return {
+            sizeChart: "", returnPolicy: "", returnPolicyText: "",
+            deliveryOption: "", minDays: "3", maxDays: "7", deliveryInfo: "",
+            codEnabled: true, onlinePayEnabled: true, warranty: "", careInstructions: "",
+        };
+    }
+    return {
+        sizeChart: "Standard Apparel",
+        returnPolicy: "7 Days Return",
+        returnPolicyText:
+            "Items may be returned within 7 days if unused, with tags attached. Customised products are non-returnable once production starts.",
+        deliveryOption: "Standard Delivery",
+        minDays: "3",
+        maxDays: "7",
+        deliveryInfo: "Ships within 3–7 business days. Free shipping on orders above ₹999.",
+        codEnabled: true,
+        onlinePayEnabled: true,
+        warranty: "6-month manufacturing defect warranty",
+        careInstructions: "Machine wash cold with similar colours. Do not bleach. Iron on low heat.",
+    };
+};
+
+const initImagesData = () => ({
+    primaryImage: PREFILL_WITH_DUMMY ? DUMMY_PRIMARY_IMAGE_URI : null,
 });
 
 const AddNewProduct: React.FC = () => {
     const router = useRouter();
+    const { isDesktop } = useResponsive();
     const [step, setStep] = useState(0);
     const [maxUnlocked, setMaxUnlocked] = useState(0);
     const [basicErrors, setBasicErrors] = useState<string[]>([]);
@@ -1429,17 +2347,23 @@ const AddNewProduct: React.FC = () => {
     const [detailErrors, setDetailErrors] = useState<string[]>([]);
     const [basicData, setBasicData] = useState(initBasicData);
     const [variants, setVariants] = useState<Variant[]>(initVariants);
-    const [imagesData, setImagesData] = useState<{ primaryImage: string | null }>({ primaryImage: null });
+    const [imagesData, setImagesData] = useState(initImagesData);
     const [detailsData, setDetailsData] = useState(initDetailsData);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
     useFocusEffect(
         useCallback(() => {
-            setStep(0); setMaxUnlocked(0);
-            setBasicErrors([]); setVariantErrors([]); setImageErrors([]); setDetailErrors([]);
-            setBasicData(initBasicData()); setVariants(initVariants());
-            setImagesData({ primaryImage: null }); setDetailsData(initDetailsData());
+            setStep(0);
+            setMaxUnlocked(PREFILL_WITH_DUMMY ? STEPS.length - 1 : 0);
+            setBasicErrors([]);
+            setVariantErrors([]);
+            setImageErrors([]);
+            setDetailErrors([]);
+            setBasicData(initBasicData());
+            setVariants(initVariants());
+            setImagesData(initImagesData());
+            setDetailsData(initDetailsData());
         }, [])
     );
 
@@ -1454,9 +2378,12 @@ const AddNewProduct: React.FC = () => {
     const rmVariant = (id: string) => setVariants(p => p.filter(v => v.id !== id));
 
     const resetAndGoBack = () => {
-        setStep(0); setMaxUnlocked(0);
-        setBasicData(initBasicData()); setVariants(initVariants());
-        setImagesData({ primaryImage: null }); setDetailsData(initDetailsData());
+        setStep(0);
+        setMaxUnlocked(PREFILL_WITH_DUMMY ? STEPS.length - 1 : 0);
+        setBasicData(initBasicData());
+        setVariants(initVariants());
+        setImagesData(initImagesData());
+        setDetailsData(initDetailsData());
         router.push("/productmanagement");
     };
 
@@ -1495,11 +2422,118 @@ const AddNewProduct: React.FC = () => {
         setTimeout(resetAndGoBack, 900);
     };
 
+    const leftAction =
+        step === 0 ? (
+            <TouchableOpacity
+                style={isDesktop ? ds.cancelBtn : sc.cancelBtn}
+                onPress={resetAndGoBack}
+            >
+                <AppText style={isDesktop ? ds.cancelTxt : sc.cancelTxt}>Cancel</AppText>
+            </TouchableOpacity>
+        ) : (
+            <TouchableOpacity
+                style={isDesktop ? ds.prevBtn : sc.prevBtn}
+                onPress={() => setStep((s) => s - 1)}
+            >
+                <Ionicons name="chevron-back" size={16} color={C.navy} />
+                <AppText style={isDesktop ? ds.prevTxt : sc.prevTxt}>Back</AppText>
+            </TouchableOpacity>
+        );
+
+    const rightAction =
+        step === 3 ? (
+            <TouchableOpacity style={isDesktop ? ds.saveBtn : sc.saveBtn} onPress={handleSave}>
+                <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+                <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>Save Product</AppText>
+            </TouchableOpacity>
+        ) : (
+            <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
+                <AppText style={isDesktop ? ds.nextTxt : sc.nextTxt}>Continue</AppText>
+                <Ionicons name="chevron-forward" size={16} color={C.white} />
+            </TouchableOpacity>
+        );
+
+    const actionBar = (
+        <View style={isDesktop ? ds.bar : sc.bar}>
+            <View style={isDesktop ? ds.barLeft : sc.barLeft}>{leftAction}</View>
+            <View style={isDesktop ? ds.barRight : sc.barRight}>{rightAction}</View>
+        </View>
+    );
+
+    const stepContent = (
+        <>
+            {step === 0 && (
+                <StepBasicInfo
+                    data={basicData}
+                    onChange={upBasic}
+                    errors={basicErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 1 && (
+                <StepVariants
+                    variants={variants}
+                    setVariants={setVariants}
+                    rmVariant={rmVariant}
+                    errors={variantErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 2 && (
+                <StepImages
+                    data={imagesData}
+                    onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))}
+                    errors={imageErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 3 && (
+                <StepDetails
+                    data={detailsData}
+                    onChange={upDetails}
+                    errors={detailErrors}
+                    isDesktop={isDesktop}
+                />
+            )}
+        </>
+    );
+
+    if (isDesktop) {
+        return (
+            <View style={ds.page}>
+                <StatusBar barStyle="dark-content" backgroundColor={C.white} />
+                <View style={ds.topBar}>
+                    <TouchableOpacity onPress={resetAndGoBack} style={ds.topBtn}>
+                        <Ionicons name="arrow-back" size={22} color={C.navy} />
+                    </TouchableOpacity>
+                    <View style={ds.topCenter}>
+                        <AppText style={ds.topTitle}>Add New Product</AppText>
+                        <AppText style={ds.topSub}>
+                            {STEPS[step]?.label} · Step {step + 1} of {STEPS.length}
+                        </AppText>
+                    </View>
+                    <TouchableOpacity onPress={resetAndGoBack} style={ds.topBtn}>
+                        <Ionicons name="close" size={22} color={C.textMid} />
+                    </TouchableOpacity>
+                </View>
+                <StepProgressBar
+                    step={step}
+                    maxUnlocked={maxUnlocked}
+                    onTabPress={handleTabPress}
+                    isDesktop
+                />
+                <View style={ds.mainColumn}>
+                    <View style={ds.mainScroll}>{stepContent}</View>
+                    <View style={ds.barWrap}>{actionBar}</View>
+                </View>
+                <ToastContainer toasts={toasts} onRemove={removeToast} />
+            </View>
+        );
+    }
+
     return (
         <SafeAreaView style={sc.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
-
-            {/* Header */}
             <View style={sc.header}>
                 <TouchableOpacity onPress={resetAndGoBack} style={sc.hBtn}>
                     <Ionicons name="chevron-back" size={22} color={C.white} />
@@ -1512,57 +2546,9 @@ const AddNewProduct: React.FC = () => {
                     <Ionicons name="close" size={22} color={C.white} />
                 </TouchableOpacity>
             </View>
-
-            {/* Step progress bar */}
             <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} />
-
-            {/* Content */}
-            <View style={{ flex: 1, backgroundColor: C.bg }}>
-                {step === 0 && (
-                    <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} />
-                )}
-                {step === 1 && (
-                    // ─── FIX: rmVariant now passed as prop ───────────────
-                    <StepVariants variants={variants} setVariants={setVariants} rmVariant={rmVariant} errors={variantErrors} />
-                )}
-                {step === 2 && (
-                    <StepImages
-                        data={imagesData}
-                        onChange={(k: string, v: any) => setImagesData(p => ({ ...p, [k]: v }))}
-                        errors={imageErrors}
-                    />
-                )}
-                {step === 3 && (
-                    <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} />
-                )}
-            </View>
-
-            {/* Bottom bar */}
-            <View style={sc.bar}>
-                {step === 0 ? (
-                    <TouchableOpacity style={sc.cancelBtn} onPress={resetAndGoBack}>
-                        <AppText style={sc.cancelTxt}>Cancel</AppText>
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity style={sc.prevBtn} onPress={() => setStep(s => s - 1)}>
-                        <Ionicons name="chevron-back" size={16} color={C.navy} />
-                        <AppText style={sc.prevTxt}>Back</AppText>
-                    </TouchableOpacity>
-                )}
-                {step === 3 ? (
-                    <TouchableOpacity style={sc.saveBtn} onPress={handleSave}>
-                        <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                        <AppText style={sc.saveTxt}>Save Product</AppText>
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity style={sc.nextBtn} onPress={handleContinue}>
-                        <AppText style={sc.nextTxt}>Continue</AppText>
-                        <Ionicons name="chevron-forward" size={16} color={C.white} />
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            {/* Toast overlay — rendered last so it sits on top */}
+            <View style={{ flex: 1, backgroundColor: C.bg }}>{stepContent}</View>
+            {actionBar}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
         </SafeAreaView>
     );
@@ -1647,14 +2633,286 @@ const vt = StyleSheet.create({
 
 // ─── Details Styles ───────────────────────────────────────────
 const dt = StyleSheet.create({
-    outBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1.2, borderColor: C.navy, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+    responsiveCol: { flexDirection: "column", gap: 10 },
+    responsiveField: { width: "100%", minWidth: 0 },
+    outBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+        borderWidth: 1.2,
+        borderColor: C.navy,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        minHeight: 44,
+        backgroundColor: C.white,
+    },
+    outBtnFull: { width: "100%", alignSelf: "stretch" },
     outBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.navy },
+    sizeDataHead: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+        marginTop: 4,
+    },
+    addSizeOrangeBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: C.accent4,
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginTop: 12,
+    },
+    addSizeOrangeBtnTxt: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 13,
+        color: C.white,
+    },
+    sizeTableScroll: { marginTop: 8, marginBottom: 4 },
+    sizeTableWrap: {
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 10,
+        overflow: "hidden",
+        backgroundColor: C.white,
+    },
+    sizeTableHeader: {
+        flexDirection: "row",
+        backgroundColor: C.navyGhost,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+    },
+    sizeTableTh: {
+        paddingVertical: 10,
+        paddingHorizontal: 6,
+        justifyContent: "center",
+        borderRightWidth: 1,
+        borderRightColor: C.border,
+    },
+    sizeTableThAction: {
+        width: 56,
+        minWidth: 56,
+        paddingVertical: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    sizeTableThTxt: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 10,
+        color: C.textMid,
+        textAlign: "center",
+    },
+    sizeTableRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        backgroundColor: C.white,
+    },
+    sizeTableRowAlt: { backgroundColor: "#FAFBFE" },
+    sizeTableTd: {
+        padding: 5,
+        borderRightWidth: 1,
+        borderRightColor: C.border,
+        justifyContent: "center",
+    },
+    sizeTableTdAction: {
+        width: 56,
+        minWidth: 56,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 6,
+    },
+    sizeTableInput: {
+        backgroundColor: C.inputBg,
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 7,
+        fontFamily: fontFamilies.regular,
+        fontSize: 12,
+        color: C.textDark,
+        minHeight: 34,
+    },
+    sizeTableDelBtn: {
+        padding: 6,
+        borderRadius: 8,
+        backgroundColor: C.redPale,
+    },
+    sizeEmptyHint: {
+        marginTop: 8,
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: C.navyGhost,
+        borderWidth: 1,
+        borderColor: C.navyBorder,
+    },
+    sizeEmptyHintTxt: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 12,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 18,
+    },
     togRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
     togLbl: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textMid },
     addBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 10, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
     addBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12.5, color: C.navy },
     specRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
     specDel: { width: 36, height: 36, backgroundColor: C.redPale, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+});
+
+// ─── Desktop / laptop styles (web ≥1024px) ────────────────────
+const ds = StyleSheet.create({
+    page: {
+        flex: 1,
+        backgroundColor: C.bg,
+        ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as object) : {}),
+    },
+    topBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: C.white,
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        shadowColor: "#0F1A4A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    topBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: C.navyGhost,
+    },
+    topCenter: { flex: 1, alignItems: "center", paddingHorizontal: 12 },
+    topTitle: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 20,
+        color: C.textDark,
+        letterSpacing: 0.2,
+    },
+    topSub: {
+        fontFamily: fontFamilies.medium,
+        fontSize: 13,
+        color: C.textLight,
+        marginTop: 2,
+    },
+    hStepBar: {
+        paddingTop: 12,
+        paddingBottom: 14,
+        maxWidth: CONTENT_MAX + 64,
+        width: "100%",
+        alignSelf: "center",
+    },
+    mainColumn: {
+        flex: 1,
+        minWidth: 0,
+        width: "100%",
+        backgroundColor: C.bg,
+    },
+    mainScroll: { flex: 1 },
+    stepScroll: { flex: 1 },
+    barWrap: {
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        width: "100%",
+    },
+    bar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+        maxWidth: CONTENT_MAX,
+        alignSelf: "center",
+    },
+    barLeft: { alignItems: "flex-start" },
+    barRight: { alignItems: "flex-end" },
+    cancelBtn: {
+        minWidth: 140,
+        paddingHorizontal: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.2,
+        borderColor: C.border,
+        borderRadius: 12,
+        paddingVertical: 14,
+        backgroundColor: C.white,
+    },
+    cancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
+    prevBtn: {
+        minWidth: 140,
+        paddingHorizontal: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        borderWidth: 1.2,
+        borderColor: C.navyBorder,
+        borderRadius: 12,
+        paddingVertical: 14,
+        backgroundColor: C.white,
+    },
+    prevTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
+    nextBtn: {
+        minWidth: 180,
+        paddingHorizontal: 32,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.navy,
+        borderRadius: 12,
+        paddingVertical: 14,
+        shadowColor: C.navyDeep,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    nextTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
+    saveBtn: {
+        minWidth: 200,
+        paddingHorizontal: 32,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.accent5,
+        borderRadius: 12,
+        paddingVertical: 14,
+        shadowColor: C.accent5,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    saveTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
+    card: {
+        borderRadius: 20,
+        paddingHorizontal: 24,
+        paddingTop: 20,
+        paddingBottom: 22,
+        marginBottom: 20,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+    },
+    fieldWrap: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14 },
+    fieldFocused: { borderWidth: 2 },
 });
 
 // ─── Screen Styles ────────────────────────────────────────────
@@ -1665,14 +2923,70 @@ const sc = StyleSheet.create({
     hCenter: { flex: 1, alignItems: "center" },
     hTitle: { fontFamily: fontFamilies.bold, fontSize: 17, color: C.white },
     hSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 1 },
-    bar: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10 },
-    cancelBtn: { flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 13 },
+    bar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: C.border,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    barLeft: { alignItems: "flex-start" },
+    barRight: { alignItems: "flex-end" },
+    cancelBtn: {
+        minWidth: 120,
+        paddingHorizontal: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.2,
+        borderColor: C.border,
+        borderRadius: 12,
+        paddingVertical: 13,
+    },
     cancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
-    prevBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 13 },
+    prevBtn: {
+        minWidth: 110,
+        paddingHorizontal: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+        borderWidth: 1.2,
+        borderColor: C.navyBorder,
+        borderRadius: 12,
+        paddingVertical: 13,
+    },
     prevTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
-    nextBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    nextBtn: {
+        minWidth: 150,
+        paddingHorizontal: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        backgroundColor: C.navy,
+        borderRadius: 12,
+        paddingVertical: 13,
+    },
     nextTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
-    saveBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    saveBtn: {
+        minWidth: 160,
+        paddingHorizontal: 20,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.navy,
+        borderRadius: 12,
+        paddingVertical: 13,
+    },
     saveTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
 });
 
