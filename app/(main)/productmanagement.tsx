@@ -48,45 +48,87 @@ const TABS: { label: TabType; icon: string; color: string; bg: string }[] = [
 type Product = {
     id: string; name: string; sku: string; price: number; image: string;
     status: string; stock: number; updated: string; category: string;
-    subcategory: string; color: string; size: string;
+    subcategory: string; subSubcategory?: string; color: string; size: string;
     description?: string; material?: string; weight?: string;
     dimensions?: string; returnPolicy?: string; warranty?: string;
 };
 
 const INITIAL_PRODUCTS: Product[] = [
-    { id:"1",  name:"Running Sports Shoes", sku:"SHOES001", price:1999, image:"https://picsum.photos/seed/shoes1/100/100",      status:"Active",       stock:50,  updated:"20 May 2024", category:"Footwear",    subcategory:"Sneakers", color:"Red",   size:"42",       description:"High-performance running shoes with advanced cushioning and breathable mesh upper.", material:"Mesh & Rubber", weight:"0.5 kg", dimensions:"30 × 15 × 12 cm", returnPolicy:"30 Days Return", warranty:"6 Months" },
-    { id:"2",  name:"Smart Watch Series 5", sku:"WATCH005", price:2999, image:"https://picsum.photos/seed/watch1/100/100",      status:"Active",       stock:30,  updated:"19 May 2024", category:"Electronics", subcategory:"Wearables",color:"Black", size:"Free Size",description:"Feature-rich smartwatch with health tracking, GPS, and 7-day battery life.", material:"Stainless Steel & Silicone", weight:"0.12 kg", dimensions:"4.5 × 3.8 × 1.0 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"3",  name:"Travel Backpack",       sku:"BAG002",   price:1299, image:"https://picsum.photos/seed/backpack1/100/100",  status:"Inactive",     stock:0,   updated:"18 May 2024", category:"Bags",        subcategory:"Backpacks",color:"Blue",  size:"Free Size",description:"Spacious 40L travel backpack with laptop compartment and anti-theft design.", material:"Nylon", weight:"1.2 kg", dimensions:"55 × 35 × 20 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"4",  name:"Wireless Headphones",   sku:"HEAD004",  price:1799, image:"https://picsum.photos/seed/headphones1/100/100",status:"Out of Stock", stock:0,   updated:"17 May 2024", category:"Electronics", subcategory:"Audio",    color:"White", size:"Free Size",description:"Premium wireless headphones with active noise cancellation and 30hr battery.", material:"Plastic & Memory Foam", weight:"0.28 kg", dimensions:"20 × 18 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"5",  name:"Cotton T-Shirt",        sku:"SHIRT003", price:499,  image:"https://picsum.photos/seed/tshirt1/100/100",    status:"Active",       stock:120, updated:"20 May 2024", category:"Clothing",    subcategory:"T-Shirts", color:"White", size:"M",        description:"100% premium cotton t-shirt with relaxed fit and breathable fabric.", material:"Cotton", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"6",  name:"Denim Jeans",           sku:"JEAN001",  price:1199, image:"https://picsum.photos/seed/jeans1/100/100",     status:"Active",       stock:85,  updated:"19 May 2024", category:"Clothing",    subcategory:"Jeans",    color:"Blue",  size:"32",       description:"Classic slim-fit denim jeans with stretch for all-day comfort.", material:"Denim (98% Cotton, 2% Elastane)", weight:"0.6 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"7",  name:"Leather Wallet",        sku:"WALL007",  price:799,  image:"https://picsum.photos/seed/wallet1/100/100",    status:"Active",       stock:8,   updated:"15 May 2024", category:"Accessories", subcategory:"Wallets",  color:"Brown", size:"Free Size",description:"Genuine leather bi-fold wallet with RFID blocking and multiple card slots.", material:"Genuine Leather", weight:"0.08 kg", dimensions:"11 × 9 × 1 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"8",  name:"Sunglasses UV400",      sku:"SUN008",   price:999,  image:"https://picsum.photos/seed/glasses1/100/100",   status:"Active",       stock:6,   updated:"14 May 2024", category:"Accessories", subcategory:"Eyewear",  color:"Black", size:"Free Size",description:"Polarized UV400 sunglasses with lightweight titanium frame.", material:"Titanium & Polycarbonate", weight:"0.03 kg", dimensions:"14 × 5 × 4 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"9",  name:"Yoga Mat Pro",          sku:"MAT009",   price:1499, image:"https://picsum.photos/seed/mat1/100/100",       status:"Inactive",     stock:0,   updated:"13 May 2024", category:"Sports",      subcategory:"Yoga",     color:"Purple",size:"Free Size",description:"6mm thick non-slip yoga mat with alignment lines and carrying strap.", material:"TPE (Eco-friendly)", weight:"1.0 kg", dimensions:"183 × 61 × 0.6 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"10", name:"Bluetooth Speaker",     sku:"SPK010",   price:2499, image:"https://picsum.photos/seed/speaker1/100/100",   status:"Active",       stock:25,  updated:"12 May 2024", category:"Electronics", subcategory:"Audio",    color:"Gray",  size:"Free Size",description:"360° surround sound Bluetooth speaker with IPX7 waterproof rating.", material:"Polycarbonate & Silicone", weight:"0.55 kg", dimensions:"9 × 9 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"11", name:"Formal Oxford Shoes",   sku:"OXFD011",  price:3499, image:"https://picsum.photos/seed/shoes2/100/100",     status:"Active",       stock:20,  updated:"11 May 2024", category:"Footwear",    subcategory:"Formal",   color:"Black", size:"43",       description:"Handcrafted genuine leather Oxford shoes for formal occasions.", material:"Full-Grain Leather", weight:"0.9 kg", dimensions:"32 × 12 × 11 cm", returnPolicy:"14 Days Return", warranty:"6 Months" },
-    { id:"12", name:"Polo Shirt",            sku:"POLO012",  price:699,  image:"https://picsum.photos/seed/polo1/100/100",      status:"Out of Stock", stock:0,   updated:"10 May 2024", category:"Clothing",    subcategory:"Shirts",   color:"Red",   size:"L",        description:"Classic polo shirt in piqué cotton with ribbed collar and cuffs.", material:"100% Piqué Cotton", weight:"0.22 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"13", name:"Running Cap",           sku:"CAP013",   price:349,  image:"https://picsum.photos/seed/cap1/100/100",       status:"Active",       stock:60,  updated:"09 May 2024", category:"Accessories", subcategory:"Headwear", color:"Blue",  size:"Free Size",description:"Lightweight moisture-wicking running cap with UV protection.", material:"Polyester", weight:"0.08 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"14", name:"Gym Gloves",            sku:"GLOVE014", price:449,  image:"https://picsum.photos/seed/gloves1/100/100",    status:"Active",       stock:40,  updated:"08 May 2024", category:"Sports",      subcategory:"Gym",      color:"Black", size:"M",        description:"Full-finger gym gloves with wrist support and anti-slip grip.", material:"Leather & Neoprene", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"15", name:"Protein Shaker Bottle", sku:"SHAKE015", price:299,  image:"https://picsum.photos/seed/bottle1/100/100",   status:"Active",       stock:90,  updated:"07 May 2024", category:"Sports",      subcategory:"Gym",      color:"Gray",  size:"Free Size",description:"700ml BPA-free protein shaker with mixing ball and leak-proof lid.", material:"BPA-Free Plastic", weight:"0.18 kg", dimensions:"24 × 8 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"16", name:"Ankle Socks Pack",      sku:"SOCK016",  price:199,  image:"https://picsum.photos/seed/socks1/100/100",    status:"Active",       stock:200, updated:"06 May 2024", category:"Clothing",    subcategory:"Innerwear",color:"White", size:"Free Size",description:"Pack of 6 breathable cotton ankle socks with cushioned sole.", material:"80% Cotton, 20% Lycra", weight:"0.12 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"17", name:"Resistance Bands Set",  sku:"BAND017",  price:599,  image:"https://picsum.photos/seed/bands1/100/100",    status:"Active",       stock:55,  updated:"05 May 2024", category:"Sports",      subcategory:"Gym",      color:"Red",   size:"Free Size",description:"Set of 5 latex resistance bands in varying resistance levels.", material:"Natural Latex", weight:"0.3 kg", dimensions:"60 × 5 cm each", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"18", name:"Jump Rope Pro",         sku:"JUMP018",  price:399,  image:"https://picsum.photos/seed/jumprope1/100/100", status:"Inactive",     stock:0,   updated:"04 May 2024", category:"Sports",      subcategory:"Gym",      color:"Black", size:"Free Size",description:"Speed jump rope with steel wire cable and ergonomic foam handles.", material:"Steel & Foam", weight:"0.22 kg", dimensions:"Adjustable up to 3m", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"19", name:"Foam Roller",           sku:"FOAM019",  price:799,  image:"https://picsum.photos/seed/foam1/100/100",     status:"Active",       stock:35,  updated:"03 May 2024", category:"Sports",      subcategory:"Yoga",     color:"Purple",size:"Free Size",description:"High-density EPP foam roller for muscle recovery and myofascial release.", material:"EPP Foam", weight:"0.5 kg", dimensions:"45 × 15 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"20", name:"Sports Water Bottle",   sku:"WBOT020",  price:549,  image:"https://picsum.photos/seed/waterbottle1/100/100",status:"Active",      stock:75,  updated:"02 May 2024", category:"Sports",      subcategory:"Gym",      color:"Blue",  size:"Free Size",description:"1L insulated stainless steel water bottle keeps drinks cold 24hrs.", material:"Stainless Steel", weight:"0.35 kg", dimensions:"26 × 7 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"21", name:"Training Shorts",       sku:"SHORT021", price:649,  image:"https://picsum.photos/seed/shorts1/100/100",   status:"Active",       stock:45,  updated:"01 May 2024", category:"Clothing",    subcategory:"Shorts",   color:"Black", size:"L",        description:"Quick-dry training shorts with built-in compression liner.", material:"Polyester & Spandex", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"22", name:"Sports Bra",            sku:"BRA022",   price:799,  image:"https://picsum.photos/seed/sportsbra1/100/100",status:"Out of Stock", stock:0,   updated:"30 Apr 2024", category:"Clothing",    subcategory:"Innerwear",color:"Pink",  size:"M",        description:"High-impact sports bra with removable cups and cross-back design.", material:"Nylon & Spandex", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"1",  name:"Running Sports Shoes", sku:"SHOES001", price:1999, image:"https://picsum.photos/seed/shoes1/100/100",      status:"Active",       stock:50,  updated:"20 May 2024", category:"Footwear",    subcategory:"Sneakers",  subSubcategory:"Running",      color:"Red",   size:"42",       description:"High-performance running shoes with advanced cushioning and breathable mesh upper.", material:"Mesh & Rubber", weight:"0.5 kg", dimensions:"30 × 15 × 12 cm", returnPolicy:"30 Days Return", warranty:"6 Months" },
+    { id:"2",  name:"Smart Watch Series 5", sku:"WATCH005", price:2999, image:"https://picsum.photos/seed/watch1/100/100",      status:"Active",       stock:30,  updated:"19 May 2024", category:"Electronics", subcategory:"Wearables", subSubcategory:"Smartwatches", color:"Black", size:"Free Size",description:"Feature-rich smartwatch with health tracking, GPS, and 7-day battery life.", material:"Stainless Steel & Silicone", weight:"0.12 kg", dimensions:"4.5 × 3.8 × 1.0 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
+    { id:"3",  name:"Travel Backpack",       sku:"BAG002",   price:1299, image:"https://picsum.photos/seed/backpack1/100/100",  status:"Inactive",     stock:0,   updated:"18 May 2024", category:"Bags",        subcategory:"Backpacks", subSubcategory:"Travel",       color:"Blue",  size:"Free Size",description:"Spacious 40L travel backpack with laptop compartment and anti-theft design.", material:"Nylon", weight:"1.2 kg", dimensions:"55 × 35 × 20 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"4",  name:"Wireless Headphones",   sku:"HEAD004",  price:1799, image:"https://picsum.photos/seed/headphones1/100/100",status:"Out of Stock", stock:0,   updated:"17 May 2024", category:"Electronics", subcategory:"Audio",     subSubcategory:"Headphones",   color:"White", size:"Free Size",description:"Premium wireless headphones with active noise cancellation and 30hr battery.", material:"Plastic & Memory Foam", weight:"0.28 kg", dimensions:"20 × 18 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
+    { id:"5",  name:"Cotton T-Shirt",        sku:"SHIRT003", price:499,  image:"https://picsum.photos/seed/tshirt1/100/100",    status:"Active",       stock:120, updated:"20 May 2024", category:"Clothing",    subcategory:"T-Shirts",  subSubcategory:"Casual",       color:"White", size:"M",        description:"100% premium cotton t-shirt with relaxed fit and breathable fabric.", material:"Cotton", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"6",  name:"Denim Jeans",           sku:"JEAN001",  price:1199, image:"https://picsum.photos/seed/jeans1/100/100",     status:"Active",       stock:85,  updated:"19 May 2024", category:"Clothing",    subcategory:"Jeans",     subSubcategory:"Slim Fit",     color:"Blue",  size:"32",       description:"Classic slim-fit denim jeans with stretch for all-day comfort.", material:"Denim (98% Cotton, 2% Elastane)", weight:"0.6 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"7",  name:"Leather Wallet",        sku:"WALL007",  price:799,  image:"https://picsum.photos/seed/wallet1/100/100",    status:"Active",       stock:8,   updated:"15 May 2024", category:"Accessories", subcategory:"Wallets",   subSubcategory:"Bi-fold",      color:"Brown", size:"Free Size",description:"Genuine leather bi-fold wallet with RFID blocking and multiple card slots.", material:"Genuine Leather", weight:"0.08 kg", dimensions:"11 × 9 × 1 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
+    { id:"8",  name:"Sunglasses UV400",      sku:"SUN008",   price:999,  image:"https://picsum.photos/seed/glasses1/100/100",   status:"Active",       stock:6,   updated:"14 May 2024", category:"Accessories", subcategory:"Eyewear",   subSubcategory:"Polarized",    color:"Black", size:"Free Size",description:"Polarized UV400 sunglasses with lightweight titanium frame.", material:"Titanium & Polycarbonate", weight:"0.03 kg", dimensions:"14 × 5 × 4 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
+    { id:"9",  name:"Yoga Mat Pro",          sku:"MAT009",   price:1499, image:"https://picsum.photos/seed/mat1/100/100",       status:"Inactive",     stock:0,   updated:"13 May 2024", category:"Sports",      subcategory:"Yoga",      subSubcategory:"Mats",         color:"Purple",size:"Free Size",description:"6mm thick non-slip yoga mat with alignment lines and carrying strap.", material:"TPE (Eco-friendly)", weight:"1.0 kg", dimensions:"183 × 61 × 0.6 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"10", name:"Bluetooth Speaker",     sku:"SPK010",   price:2499, image:"https://picsum.photos/seed/speaker1/100/100",   status:"Active",       stock:25,  updated:"12 May 2024", category:"Electronics", subcategory:"Audio",     subSubcategory:"Speakers",     color:"Gray",  size:"Free Size",description:"360° surround sound Bluetooth speaker with IPX7 waterproof rating.", material:"Polycarbonate & Silicone", weight:"0.55 kg", dimensions:"9 × 9 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
+    { id:"11", name:"Formal Oxford Shoes",   sku:"OXFD011",  price:3499, image:"https://picsum.photos/seed/shoes2/100/100",     status:"Active",       stock:20,  updated:"11 May 2024", category:"Footwear",    subcategory:"Formal",    subSubcategory:"Oxford",       color:"Black", size:"43",       description:"Handcrafted genuine leather Oxford shoes for formal occasions.", material:"Full-Grain Leather", weight:"0.9 kg", dimensions:"32 × 12 × 11 cm", returnPolicy:"14 Days Return", warranty:"6 Months" },
+    { id:"12", name:"Polo Shirt",            sku:"POLO012",  price:699,  image:"https://picsum.photos/seed/polo1/100/100",      status:"Out of Stock", stock:0,   updated:"10 May 2024", category:"Clothing",    subcategory:"Shirts",    subSubcategory:"Polo",         color:"Red",   size:"L",        description:"Classic polo shirt in piqué cotton with ribbed collar and cuffs.", material:"100% Piqué Cotton", weight:"0.22 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"13", name:"Running Cap",           sku:"CAP013",   price:349,  image:"https://picsum.photos/seed/cap1/100/100",       status:"Active",       stock:60,  updated:"09 May 2024", category:"Accessories", subcategory:"Headwear",  subSubcategory:"Caps",         color:"Blue",  size:"Free Size",description:"Lightweight moisture-wicking running cap with UV protection.", material:"Polyester", weight:"0.08 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"14", name:"Gym Gloves",            sku:"GLOVE014", price:449,  image:"https://picsum.photos/seed/gloves1/100/100",    status:"Active",       stock:40,  updated:"08 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Gloves",       color:"Black", size:"M",        description:"Full-finger gym gloves with wrist support and anti-slip grip.", material:"Leather & Neoprene", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"15", name:"Protein Shaker Bottle", sku:"SHAKE015", price:299,  image:"https://picsum.photos/seed/bottle1/100/100",   status:"Active",       stock:90,  updated:"07 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Accessories",  color:"Gray",  size:"Free Size",description:"700ml BPA-free protein shaker with mixing ball and leak-proof lid.", material:"BPA-Free Plastic", weight:"0.18 kg", dimensions:"24 × 8 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"16", name:"Ankle Socks Pack",      sku:"SOCK016",  price:199,  image:"https://picsum.photos/seed/socks1/100/100",    status:"Active",       stock:200, updated:"06 May 2024", category:"Clothing",    subcategory:"Innerwear", subSubcategory:"Socks",        color:"White", size:"Free Size",description:"Pack of 6 breathable cotton ankle socks with cushioned sole.", material:"80% Cotton, 20% Lycra", weight:"0.12 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"17", name:"Resistance Bands Set",  sku:"BAND017",  price:599,  image:"https://picsum.photos/seed/bands1/100/100",    status:"Active",       stock:55,  updated:"05 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Equipment",    color:"Red",   size:"Free Size",description:"Set of 5 latex resistance bands in varying resistance levels.", material:"Natural Latex", weight:"0.3 kg", dimensions:"60 × 5 cm each", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"18", name:"Jump Rope Pro",         sku:"JUMP018",  price:399,  image:"https://picsum.photos/seed/jumprope1/100/100", status:"Inactive",     stock:0,   updated:"04 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Cardio",       color:"Black", size:"Free Size",description:"Speed jump rope with steel wire cable and ergonomic foam handles.", material:"Steel & Foam", weight:"0.22 kg", dimensions:"Adjustable up to 3m", returnPolicy:"7 Days Return", warranty:"6 Months" },
+    { id:"19", name:"Foam Roller",           sku:"FOAM019",  price:799,  image:"https://picsum.photos/seed/foam1/100/100",     status:"Active",       stock:35,  updated:"03 May 2024", category:"Sports",      subcategory:"Yoga",      subSubcategory:"Accessories",  color:"Purple",size:"Free Size",description:"High-density EPP foam roller for muscle recovery and myofascial release.", material:"EPP Foam", weight:"0.5 kg", dimensions:"45 × 15 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
+    { id:"20", name:"Sports Water Bottle",   sku:"WBOT020",  price:549,  image:"https://picsum.photos/seed/waterbottle1/100/100",status:"Active",      stock:75,  updated:"02 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Hydration",    color:"Blue",  size:"Free Size",description:"1L insulated stainless steel water bottle keeps drinks cold 24hrs.", material:"Stainless Steel", weight:"0.35 kg", dimensions:"26 × 7 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
+    { id:"21", name:"Training Shorts",       sku:"SHORT021", price:649,  image:"https://picsum.photos/seed/shorts1/100/100",   status:"Active",       stock:45,  updated:"01 May 2024", category:"Clothing",    subcategory:"Shorts",    subSubcategory:"Training",     color:"Black", size:"L",        description:"Quick-dry training shorts with built-in compression liner.", material:"Polyester & Spandex", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
+    { id:"22", name:"Sports Bra",            sku:"BRA022",   price:799,  image:"https://picsum.photos/seed/sportsbra1/100/100",status:"Out of Stock", stock:0,   updated:"30 Apr 2024", category:"Clothing",    subcategory:"Innerwear", subSubcategory:"Sports",       color:"Pink",  size:"M",        description:"High-impact sports bra with removable cups and cross-back design.", material:"Nylon & Spandex", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
 ];
 
 const CATEGORIES    = ["All","Footwear","Electronics","Bags","Clothing","Accessories","Sports"];
-const SUBCATEGORIES: Record<string,string[]> = {
-    Footwear:    ["All","Sneakers","Formal","Sports","Boots"],
-    Electronics: ["All","Audio","Wearables","Cameras","Tablets"],
-    Bags:        ["All","Backpacks","Handbags","Wallets","Travel Bags"],
-    Clothing:    ["All","T-Shirts","Shirts","Jeans","Dresses","Jackets","Shorts","Innerwear"],
-    Accessories: ["All","Wallets","Eyewear","Watches","Jewelry","Headwear"],
-    Sports:      ["All","Cricket","Football","Yoga","Gym"],
+
+// ── 3-level category tree ──────────────────────────────────────
+const CATEGORY_TREE: Record<string, Record<string, string[]>> = {
+    Footwear:    {
+        Sneakers: ["Running","Casual","Basketball","Training"],
+        Formal:   ["Oxford","Derby","Loafers","Monk Strap"],
+        Sandals:  ["Flip Flops","Slides","Sport Sandals"],
+        Boots:    ["Ankle Boots","Chelsea Boots","Hiking Boots"],
+    },
+    Electronics: {
+        Audio:    ["Headphones","Earbuds","Speakers","Soundbars"],
+        Wearables:["Smartwatches","Fitness Bands","Smart Glasses"],
+        Cameras:  ["DSLR","Mirrorless","Action Cams","Accessories"],
+        Tablets:  ["Android","iPad","Windows","Accessories"],
+    },
+    Bags:        {
+        Backpacks:    ["Travel","Laptop","School","Hiking"],
+        Handbags:     ["Tote","Clutch","Shoulder","Crossbody"],
+        "Laptop Bags":["Sleeves","Briefcases","Backpacks"],
+        "Travel Bags":["Trolley","Duffel","Carry-On"],
+        Wallets:      ["Bi-fold","Tri-fold","Card Holders"],
+    },
+    Clothing:    {
+        "T-Shirts": ["Casual","Graphic","Polo","Sleeveless"],
+        Shirts:     ["Formal","Casual","Polo","Denim"],
+        Jeans:      ["Slim Fit","Straight","Skinny","Bootcut"],
+        Shorts:     ["Training","Casual","Denim","Swim"],
+        Innerwear:  ["Socks","Sports","Thermal","Briefs"],
+        Jackets:    ["Bomber","Denim","Leather","Windbreaker"],
+    },
+    Accessories: {
+        Wallets:   ["Bi-fold","Tri-fold","Card Holders","Travel"],
+        Eyewear:   ["Polarized","Photochromic","Blue Light","Sports"],
+        Watches:   ["Analog","Digital","Smartwatch","Luxury"],
+        Headwear:  ["Caps","Hats","Beanies","Visors"],
+        Jewelry:   ["Rings","Necklaces","Bracelets","Earrings"],
+    },
+    Sports:      {
+        Gym:   ["Gloves","Equipment","Accessories","Hydration","Cardio"],
+        Yoga:  ["Mats","Accessories","Clothing","Blocks"],
+        Cricket:["Bats","Balls","Pads","Helmets","Gloves"],
+        Football:["Boots","Balls","Shin Guards","Gloves"],
+    },
 };
+
+// Flat subcategory list per category (for mobile)
+const SUBCATEGORIES: Record<string,string[]> = Object.fromEntries(
+    Object.entries(CATEGORY_TREE).map(([cat, subs]) => [cat, ["All", ...Object.keys(subs)]])
+);
+
 const COLOR_OPTIONS  = ["All","Red","Blue","Green","Black","White","Yellow","Pink","Purple","Orange","Gray","Brown"];
 const SIZE_OPTIONS   = ["All","XS","S","M","L","XL","XXL","Free Size","28","30","32","34","36","38","40","42","43"];
 const SORT_OPTIONS: { value: SortType; icon: string; desc: string }[] = [
@@ -106,16 +148,16 @@ const DOT_COLORS: Record<string,string> = {
 };
 
 const PINCODE_DATA = [
-    { pincode:"110001", area:"Baroda House",        city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"110001", area:"Bengali Market",       city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"110001", area:"Connaught Place",      city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"400001", area:"Fort",                 city:"Mumbai",     state:"Maharashtra", country:"India" },
-    { pincode:"400001", area:"Churchgate",           city:"Mumbai",     state:"Maharashtra", country:"India" },
-    { pincode:"500001", area:"Abids",                city:"Hyderabad",  state:"Telangana",   country:"India" },
-    { pincode:"500001", area:"Koti",                 city:"Hyderabad",  state:"Telangana",   country:"India" },
-    { pincode:"560001", area:"MG Road",              city:"Bengaluru",  state:"Karnataka",   country:"India" },
-    { pincode:"600001", area:"George Town",          city:"Chennai",    state:"Tamil Nadu",  country:"India" },
-    { pincode:"700001", area:"BBD Bagh",             city:"Kolkata",    state:"West Bengal", country:"India" },
+    { pincode:"110001", area:"Baroda House",   city:"New Delhi",  state:"Delhi",       country:"India" },
+    { pincode:"110001", area:"Bengali Market", city:"New Delhi",  state:"Delhi",       country:"India" },
+    { pincode:"110001", area:"Connaught Place",city:"New Delhi",  state:"Delhi",       country:"India" },
+    { pincode:"400001", area:"Fort",           city:"Mumbai",     state:"Maharashtra", country:"India" },
+    { pincode:"400001", area:"Churchgate",     city:"Mumbai",     state:"Maharashtra", country:"India" },
+    { pincode:"500001", area:"Abids",          city:"Hyderabad",  state:"Telangana",   country:"India" },
+    { pincode:"500001", area:"Koti",           city:"Hyderabad",  state:"Telangana",   country:"India" },
+    { pincode:"560001", area:"MG Road",        city:"Bengaluru",  state:"Karnataka",   country:"India" },
+    { pincode:"600001", area:"George Town",    city:"Chennai",    state:"Tamil Nadu",  country:"India" },
+    { pincode:"700001", area:"BBD Bagh",       city:"Kolkata",    state:"West Bengal", country:"India" },
 ];
 
 const COUNTRIES = ["India"];
@@ -246,7 +288,6 @@ interface DeliveryLocationsModalProps {
 const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product, onClose }) => {
     if (!product) return null;
     const [deliverAll, setDeliverAll]             = useState(true);
-    const [addressQuery, setAddressQuery]         = useState("");
     const [pincodeQuery, setPincodeQuery]         = useState("");
     const [selectedCountry, setSelectedCountry]   = useState("India");
     const [selectedState, setSelectedState]       = useState("All States");
@@ -292,180 +333,219 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
     };
     const handleApply = () => {
         const count = selectedPincodes.length;
-        Alert.alert("✅ Delivery Locations Updated", `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`, [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+        Alert.alert("✅ Delivery Locations Updated",
+            `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`,
+            [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
     };
+
+    const isWebPlatform = Platform.OS === "web";
+
+    const ModalContent = () => (
+        <View style={isWebPlatform ? dlp.popupCard : dlp.fullCard}>
+            <View style={dlp.header}>
+                <TouchableOpacity style={dlp.backBtn} onPress={onClose}>
+                    <Ionicons name="arrow-back" size={20} color={C.white} />
+                </TouchableOpacity>
+                <View style={dlp.headerCenter}>
+                    <MaterialCommunityIcons name="map-marker-radius-outline" size={16} color={C.orange} />
+                    <View style={{ flex: 1 }}>
+                        <Text style={dlp.headerTitle}>Delivery Locations</Text>
+                        <Text style={dlp.headerSub} numberOfLines={1}>{product.name}</Text>
+                    </View>
+                </View>
+                <View style={dlp.headerRight}>
+                    <Text style={dlp.deliverAllLabel}>All India</Text>
+                    <Switch value={deliverAll} onValueChange={setDeliverAll} trackColor={{ false: "rgba(255,255,255,0.3)", true: C.orange }} thumbColor={C.white} ios_backgroundColor="rgba(255,255,255,0.3)" />
+                </View>
+            </View>
+
+            <ScrollView style={dlp.body} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                <View style={dlp.infoBanner}>
+                    <MaterialCommunityIcons name="information-outline" size={14} color={C.orange} />
+                    <View style={{ flex: 1 }}><Text style={dlp.infoText}><Text style={dlp.infoBold}>ON: </Text>Ships anywhere.<Text style={dlp.infoBold}> OFF: </Text>Only selected pincodes.</Text></View>
+                    <TouchableOpacity style={dlp.indiaWideBtn} onPress={() => setDeliverAll(true)}><Text style={dlp.indiaWideBtnTxt}>Set All</Text></TouchableOpacity>
+                </View>
+
+                <View style={dlp.dropdownsRow}>
+                    <View style={dlp.dropdownWrap}>
+                        <Text style={dlp.dropdownLabel}>Country</Text>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('country', COUNTRIES)}>
+                            <Text style={dlp.dropdownText}>{selectedCountry}</Text>
+                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={dlp.dropdownWrap}>
+                        <Text style={dlp.dropdownLabel}>State</Text>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('state', stateOptions)}>
+                            <Text style={dlp.dropdownText}>{selectedState}</Text>
+                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={dlp.dropdownWrap}>
+                        <Text style={dlp.dropdownLabel}>City</Text>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('city', cityOptions)}>
+                            <Text style={dlp.dropdownText}>{selectedCity}</Text>
+                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <View style={dlp.searchRow}>
+                    <View style={dlp.searchIconBox}><Feather name="search" size={13} color={C.white} /></View>
+                    <TextInput style={dlp.searchInput} placeholder="Search by pincode or area..." placeholderTextColor={C.textLight} value={pincodeQuery} onChangeText={setPincodeQuery} />
+                </View>
+
+                <View style={dlp.tableCard}>
+                    <View style={dlp.tableHeader}>
+                        <TouchableOpacity style={dlp.checkboxWrap} onPress={toggleSelectAll}>
+                            <View style={[dlp.checkbox, selectAll && dlp.checkboxChecked]}>{selectAll && <Ionicons name="checkmark" size={9} color={C.white} />}</View>
+                        </TouchableOpacity>
+                        <Text style={[dlp.tableHeaderTxt, { flex: 1 }]}>Pincode</Text>
+                        <Text style={[dlp.tableHeaderTxt, { flex: 2 }]}>Area</Text>
+                        <Text style={[dlp.tableHeaderTxt, { flex: 1.5 }]}>City</Text>
+                        <Text style={[dlp.tableHeaderTxt, { flex: 1.2 }]}>State</Text>
+                    </View>
+                    {filteredData.length === 0 ? (
+                        <View style={dlp.emptyTable}>
+                            <MaterialCommunityIcons name="map-search-outline" size={32} color={C.textLight} />
+                            <Text style={dlp.emptyTableTitle}>No locations found</Text>
+                        </View>
+                    ) : (
+                        filteredData.map((d, i) => {
+                            const key = `${d.pincode}-${d.area}`; const isChecked = selectedPincodes.includes(key);
+                            return (
+                                <TouchableOpacity key={key} style={[dlp.tableRow, isChecked && dlp.tableRowChecked, i % 2 === 1 && dlp.tableRowAlt]} onPress={() => togglePincode(key)} activeOpacity={0.7}>
+                                    <View style={dlp.checkboxWrap}><View style={[dlp.checkbox, isChecked && dlp.checkboxChecked]}>{isChecked && <Ionicons name="checkmark" size={9} color={C.white} />}</View></View>
+                                    <Text style={[dlp.tableCellTxt, { flex: 1 }]}>{d.pincode}</Text>
+                                    <Text style={[dlp.tableCellTxt, { flex: 2 }]} numberOfLines={1}>{d.area}</Text>
+                                    <Text style={[dlp.tableCellHighlight, { flex: 1.5 }]}>{d.city}</Text>
+                                    <Text style={[dlp.tableCellHighlight, { flex: 1.2 }]}>{d.state}</Text>
+                                </TouchableOpacity>
+                            );
+                        })
+                    )}
+                    {selectedPincodes.length > 0 && (
+                        <View style={dlp.selectionBanner}>
+                            <MaterialCommunityIcons name="check-circle" size={14} color={C.orange} />
+                            <Text style={dlp.selectionBannerTxt}>{selectedPincodes.length} location{selectedPincodes.length > 1 ? "s" : ""} selected</Text>
+                            <TouchableOpacity onPress={() => { setSelectedPincodes([]); setSelectAll(false); }}><Text style={dlp.selectionClearTxt}>Clear</Text></TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+            </ScrollView>
+
+            <View style={dlp.footer}>
+                <TouchableOpacity style={dlp.cancelBtn} onPress={onClose}><Text style={dlp.cancelBtnTxt}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity style={dlp.applyBtn} onPress={handleApply}><Text style={dlp.applyBtnTxt}>Apply Selection</Text></TouchableOpacity>
+            </View>
+
+            <Modal visible={selectorVisible} transparent animationType="fade">
+                <View style={gs.overlay}>
+                    <View style={gs.content}>
+                        <View style={gs.headerRow}>
+                            <Text style={gs.headerTitle}>Select {selectorType === 'country' ? 'Country' : selectorType === 'state' ? 'State' : 'City'}</Text>
+                            <TouchableOpacity onPress={() => setSelectorVisible(false)}><Ionicons name="close" size={22} color={C.textDark} /></TouchableOpacity>
+                        </View>
+                        <ScrollView style={{ maxHeight: SH * 0.45 }}>
+                            {selectorOptions.map((opt, idx) => {
+                                const isActive = (selectorType === 'country' && opt === selectedCountry) || (selectorType === 'state' && opt === selectedState) || (selectorType === 'city' && opt === selectedCity);
+                                return (
+                                    <TouchableOpacity key={idx} style={[gs.item, isActive && gs.itemActive]} onPress={() => handleSelectorSelect(opt)}>
+                                        <Text style={[gs.itemText, isActive && gs.itemTextActive]}>{opt}</Text>
+                                        {isActive && <Ionicons name="checkmark-circle" size={18} color={C.navy} />}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+        </View>
+    );
+
+    if (isWebPlatform) {
+        return (
+            <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+                <View style={dlp.webOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
+                    <ModalContent />
+                </View>
+            </Modal>
+        );
+    }
 
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-            <SafeAreaView style={dl.fullScreen}>
+            <SafeAreaView style={dlp.mobileFullScreen}>
                 <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
-                <View style={dl.header}>
-                    <TouchableOpacity style={dl.backBtn} onPress={onClose}>
-                        <Ionicons name="arrow-back" size={22} color={C.white} />
-                    </TouchableOpacity>
-                    <View style={dl.headerCenter}>
-                        <MaterialCommunityIcons name="map-marker-radius-outline" size={18} color={C.orange} />
-                        <View><Text style={dl.headerTitle}>Delivery Locations</Text><Text style={dl.headerSub} numberOfLines={1}>{product.name}</Text></View>
-                    </View>
-                    <View style={dl.headerRight}>
-                        <Text style={dl.deliverAllLabel}>All India</Text>
-                        <Switch value={deliverAll} onValueChange={setDeliverAll} trackColor={{ false: "rgba(255,255,255,0.3)", true: C.orange }} thumbColor={C.white} ios_backgroundColor="rgba(255,255,255,0.3)" />
-                    </View>
-                </View>
-                <ScrollView style={{ flex: 1, backgroundColor: C.bg }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-                    <View style={dl.infoBanner}>
-                        <MaterialCommunityIcons name="information-outline" size={16} color={C.orange} />
-                        <View style={{ flex: 1 }}><Text style={dl.infoText}><Text style={dl.infoBold}>ON: </Text>Ships anywhere.<Text style={dl.infoBold}> OFF: </Text>Only selected pincodes.</Text></View>
-                        <TouchableOpacity style={dl.indiaWideBtn} onPress={() => setDeliverAll(true)}><Text style={dl.indiaWideBtnTxt}>Set All</Text></TouchableOpacity>
-                    </View>
-                    <View style={dl.sectionCard}>
-                        <View style={dl.sectionHeader}><Text style={dl.sectionTitle}>Country</Text></View>
-                        <TouchableOpacity style={dl.dropdownInput} onPress={() => openSelector('country', COUNTRIES)}>
-                            <Text style={dl.dropdownText}>{selectedCountry}</Text><Ionicons name="chevron-down" size={18} color={C.textMid} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={dl.sectionCard}>
-                        <View style={dl.sectionHeader}><Text style={dl.sectionTitle}>State</Text></View>
-                        <TouchableOpacity style={dl.dropdownInput} onPress={() => openSelector('state', stateOptions)}>
-                            <Text style={dl.dropdownText}>{selectedState}</Text><Ionicons name="chevron-down" size={18} color={C.textMid} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={dl.sectionCard}>
-                        <View style={dl.sectionHeader}><Text style={dl.sectionTitle}>City</Text></View>
-                        <TouchableOpacity style={dl.dropdownInput} onPress={() => openSelector('city', cityOptions)}>
-                            <Text style={dl.dropdownText}>{selectedCity}</Text><Ionicons name="chevron-down" size={18} color={C.textMid} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={dl.sectionCard}>
-                        <View style={dl.sectionHeader}><Text style={dl.sectionTitle}>Search Pincode / Area</Text></View>
-                        <View style={dl.searchPincodeRow}>
-                            <View style={dl.searchIconBox}><Feather name="search" size={15} color={C.white} /></View>
-                            <TextInput style={dl.searchPincodeInput} placeholder="Search by pincode or area..." placeholderTextColor={C.textLight} value={pincodeQuery} onChangeText={setPincodeQuery} />
-                        </View>
-                    </View>
-                    <View style={dl.tableCard}>
-                        <View style={dl.tableHeader}>
-                            <TouchableOpacity style={dl.checkboxWrap} onPress={toggleSelectAll}>
-                                <View style={[dl.checkbox, selectAll && dl.checkboxChecked]}>{selectAll && <Ionicons name="checkmark" size={10} color={C.white} />}</View>
-                            </TouchableOpacity>
-                            <Text style={[dl.tableHeaderTxt, { flex: 1 }]}>Pincode</Text>
-                            <Text style={[dl.tableHeaderTxt, { flex: 2 }]}>Area</Text>
-                            <Text style={[dl.tableHeaderTxt, { flex: 1.5 }]}>City</Text>
-                            <Text style={[dl.tableHeaderTxt, { flex: 1.2 }]}>State</Text>
-                        </View>
-                        {filteredData.length === 0 ? (
-                            <View style={dl.emptyTable}><MaterialCommunityIcons name="map-search-outline" size={40} color={C.textLight} /><Text style={dl.emptyTableTitle}>No locations found</Text></View>
-                        ) : (
-                            filteredData.map((d, i) => {
-                                const key = `${d.pincode}-${d.area}`; const isChecked = selectedPincodes.includes(key);
-                                return (
-                                    <TouchableOpacity key={key} style={[dl.tableRow, isChecked && dl.tableRowChecked, i % 2 === 1 && dl.tableRowAlt]} onPress={() => togglePincode(key)} activeOpacity={0.7}>
-                                        <View style={dl.checkboxWrap}><View style={[dl.checkbox, isChecked && dl.checkboxChecked]}>{isChecked && <Ionicons name="checkmark" size={10} color={C.white} />}</View></View>
-                                        <Text style={[dl.tableCellTxt, { flex: 1 }]}>{d.pincode}</Text>
-                                        <Text style={[dl.tableCellTxt, { flex: 2 }]} numberOfLines={1}>{d.area}</Text>
-                                        <Text style={[dl.tableCellHighlight, { flex: 1.5 }]}>{d.city}</Text>
-                                        <Text style={[dl.tableCellHighlight, { flex: 1.2 }]}>{d.state}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })
-                        )}
-                        {selectedPincodes.length > 0 && (
-                            <View style={dl.selectionBanner}>
-                                <MaterialCommunityIcons name="check-circle" size={16} color={C.orange} />
-                                <Text style={dl.selectionBannerTxt}>{selectedPincodes.length} location{selectedPincodes.length > 1 ? "s" : ""} selected</Text>
-                                <TouchableOpacity onPress={() => { setSelectedPincodes([]); setSelectAll(false); }}><Text style={dl.selectionClearTxt}>Clear</Text></TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
-                </ScrollView>
-                <Modal visible={selectorVisible} transparent animationType="fade">
-                    <View style={gs.overlay}>
-                        <View style={gs.content}>
-                            <View style={gs.headerRow}>
-                                <Text style={gs.headerTitle}>Select {selectorType === 'country' ? 'Country' : selectorType === 'state' ? 'State' : 'City'}</Text>
-                                <TouchableOpacity onPress={() => setSelectorVisible(false)}><Ionicons name="close" size={24} color={C.textDark} /></TouchableOpacity>
-                            </View>
-                            <ScrollView style={{ maxHeight: SH * 0.5 }}>
-                                {selectorOptions.map((opt, idx) => {
-                                    const isActive = (selectorType === 'country' && opt === selectedCountry) || (selectorType === 'state' && opt === selectedState) || (selectorType === 'city' && opt === selectedCity);
-                                    return (
-                                        <TouchableOpacity key={idx} style={[gs.item, isActive && gs.itemActive]} onPress={() => handleSelectorSelect(opt)}>
-                                            <Text style={[gs.itemText, isActive && gs.itemTextActive]}>{opt}</Text>
-                                            {isActive && <Ionicons name="checkmark-circle" size={20} color={C.navy} />}
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        </View>
-                    </View>
-                </Modal>
-                <View style={dl.footer}>
-                    <TouchableOpacity style={dl.cancelBtn} onPress={onClose}><Text style={dl.cancelBtnTxt}>Cancel</Text></TouchableOpacity>
-                    <TouchableOpacity style={dl.applyBtn} onPress={handleApply}><Text style={dl.applyBtnTxt}>Apply Selection</Text></TouchableOpacity>
-                </View>
+                <ModalContent />
             </SafeAreaView>
         </Modal>
     );
 };
 
-const dl = StyleSheet.create({
-    fullScreen: { flex: 1, backgroundColor: C.navyDeep },
-    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, gap: 10, backgroundColor: C.navyDeep, paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 12 : 12 },
-    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+const dlp = StyleSheet.create({
+    webOverlay: { flex: 1, backgroundColor: "rgba(10,14,40,0.6)", justifyContent: "center", alignItems: "center" },
+    popupCard: { width: 680, maxHeight: "85%" as any, backgroundColor: C.white, borderRadius: 20, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.25, shadowRadius: 40, elevation: 30, flexDirection: "column" },
+    mobileFullScreen: { flex: 1, backgroundColor: C.navyDeep },
+    fullCard: { flex: 1, flexDirection: "column" },
+    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, gap: 10, backgroundColor: C.navyDeep },
+    backBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
     headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-    headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
-    headerSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: "rgba(255,255,255,0.6)", maxWidth: SW * 0.45 },
+    headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
+    headerSub: { fontFamily: "Outfit_400Regular", fontSize: 10, color: "rgba(255,255,255,0.6)" },
     headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
     deliverAllLabel: { fontFamily: "Outfit_500Medium", fontSize: 10, color: "rgba(255,255,255,0.8)" },
-    infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, margin: 14, backgroundColor: C.orangePale, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.orange + "30" },
-    infoText: { fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textMid, lineHeight: 18, flex: 1 },
+    body: { flex: 1, backgroundColor: C.bg },
+    infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, margin: 12, backgroundColor: C.orangePale, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.orange + "30" },
+    infoText: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textMid, lineHeight: 17 },
     infoBold: { fontFamily: "Outfit_700Bold", color: C.textDark },
-    indiaWideBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.orange, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start" },
-    indiaWideBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.white },
-    sectionCard: { backgroundColor: C.white, borderRadius: 14, marginHorizontal: 14, marginBottom: 10, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-    sectionTitle: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textDark },
-    dropdownInput: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: C.border },
-    dropdownText: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textDark },
-    searchPincodeRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: C.border },
-    searchIconBox: { backgroundColor: C.orange, padding: 10 },
-    searchPincodeInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textDark, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.white },
-    tableCard: { backgroundColor: C.white, borderRadius: 14, marginHorizontal: 14, marginBottom: 10, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    tableHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 10, backgroundColor: C.navyDeep },
-    tableHeaderTxt: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.white },
-    checkboxWrap: { width: 36, alignItems: "center" },
-    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.white, alignItems: "center", justifyContent: "center" },
+    indiaWideBtn: { backgroundColor: C.orange, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5, alignSelf: "flex-start" },
+    indiaWideBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.white },
+    dropdownsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, marginBottom: 10 },
+    dropdownWrap: { flex: 1 },
+    dropdownLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.textLight, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 },
+    dropdownInput: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.white, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: C.border },
+    dropdownText: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textDark, flex: 1 },
+    searchRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginBottom: 10, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: C.border },
+    searchIconBox: { backgroundColor: C.orange, padding: 9 },
+    searchInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textDark, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: C.white },
+    tableCard: { backgroundColor: C.white, borderRadius: 12, marginHorizontal: 12, marginBottom: 10, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    tableHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: 9, backgroundColor: C.navyDeep },
+    tableHeaderTxt: { fontFamily: "Outfit_700Bold", fontSize: 10, color: C.white },
+    checkboxWrap: { width: 32, alignItems: "center" },
+    checkbox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.white, alignItems: "center", justifyContent: "center" },
     checkboxChecked: { backgroundColor: C.orange, borderColor: C.orange },
-    tableRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
+    tableRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
     tableRowAlt: { backgroundColor: "#FAFAFA" },
     tableRowChecked: { backgroundColor: C.orangePale },
-    tableCellTxt: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textDark, paddingHorizontal: 4 },
-    tableCellHighlight: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.orange, paddingHorizontal: 4 },
-    emptyTable: { alignItems: "center", paddingVertical: 36, gap: 10 },
-    emptyTableTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.textMid },
-    selectionBanner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.orangePale, borderTopWidth: 1, borderTopColor: C.orange + "30" },
-    selectionBannerTxt: { flex: 1, fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.orange },
-    selectionClearTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.red },
-    footer: { flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.white },
-    cancelBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.border },
-    cancelBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
-    applyBtn: { flex: 2, alignItems: "center", justifyContent: "center", paddingVertical: 13, borderRadius: 12, backgroundColor: C.orange },
-    applyBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
+    tableCellTxt: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textDark, paddingHorizontal: 4 },
+    tableCellHighlight: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.orange, paddingHorizontal: 4 },
+    emptyTable: { alignItems: "center", paddingVertical: 28, gap: 8 },
+    emptyTableTitle: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textMid },
+    selectionBanner: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.orangePale, borderTopWidth: 1, borderTopColor: C.orange + "30" },
+    selectionBannerTxt: { flex: 1, fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.orange },
+    selectionClearTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.red },
+    footer: { flexDirection: "row", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.white },
+    cancelBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: C.border },
+    cancelBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
+    applyBtn: { flex: 2, alignItems: "center", justifyContent: "center", paddingVertical: 11, borderRadius: 10, backgroundColor: C.orange },
+    applyBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.white },
 });
 
 const gs = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-    content: { backgroundColor: C.white, width: "100%", borderRadius: 16, maxHeight: SH * 0.6, overflow: "hidden" },
-    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-    headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark },
-    item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bg },
+    content: { backgroundColor: C.white, width: "100%", borderRadius: 14, maxHeight: SH * 0.55, overflow: "hidden" },
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textDark },
+    item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.bg },
     itemActive: { backgroundColor: C.bluePale },
     itemText: { fontFamily: "Outfit_500Medium", fontSize: 14, color: C.textDark },
     itemTextActive: { fontFamily: "Outfit_700Bold", color: C.navy },
 });
 
 // ─────────────────────────────────────────────────────────────
-// PRODUCT ACTION SHEET
+// PRODUCT ACTION SHEET  — mobile only
 // ─────────────────────────────────────────────────────────────
 interface ActionSheetProps {
     product: Product | undefined; onClose: () => void;
@@ -544,7 +624,110 @@ const as = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────
-// WEB DESKTOP SCREEN — completely redesigned, web-only
+// WEB PRODUCT ACTION POPUP
+// ─────────────────────────────────────────────────────────────
+const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, onDelete, onUpdateLocation }) => {
+    if (!product) return null;
+    const router = useRouter();
+
+    const handleAction = (label: string) => {
+        if (label === "Delete Product") {
+            onClose();
+            setTimeout(() => {
+                Alert.alert("Delete Product", `Are you sure you want to delete "${product.name}"?`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => onDelete(product.id) }], { cancelable: true });
+            }, 300);
+        } else if (label === "View Product")    { onClose(); router.push("/(main)/Productdetail"); }
+        else if (label === "Edit Product")      { onClose(); router.push("/(main)/Editproduct"); }
+        else if (label === "Update Location")   { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
+        else                                    { onClose(); }
+    };
+
+    const getStatusBadge = (status: string) => {
+        if (status === "Active")       return { bg: "#DCFCE7", color: "#16A34A" };
+        if (status === "Inactive")     return { bg: "#FEF9C3", color: "#B45309" };
+        if (status === "Out of Stock") return { bg: "#FEE2E2", color: "#DC2626" };
+        return { bg: C.orangePale, color: C.orange };
+    };
+    const sb = getStatusBadge(product.status);
+
+    return (
+        <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+            <View style={wp.overlay}>
+                <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
+                <View style={wp.popup}>
+                    <View style={wp.popupHeader}>
+                        <Image source={{ uri: product.image }} style={wp.popupImg} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={wp.popupName} numberOfLines={2}>{product.name}</Text>
+                            <Text style={wp.popupSku}>SKU: {product.sku}</Text>
+                            <View style={wp.popupMeta}>
+                                <Text style={wp.popupPrice}>₹{product.price.toLocaleString()}</Text>
+                                <View style={[wp.popupStatusBadge, { backgroundColor: sb.bg }]}>
+                                    <Text style={[wp.popupStatusTxt, { color: sb.color }]}>{product.status}</Text>
+                                </View>
+                            </View>
+                        </View>
+                        <TouchableOpacity style={wp.popupCloseBtn} onPress={onClose} activeOpacity={0.75}>
+                            <Ionicons name="close" size={16} color={C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={wp.divider} />
+                    <View style={wp.stockRow}>
+                        <MaterialCommunityIcons name="package-variant" size={13} color={C.textLight} />
+                        <Text style={wp.stockTxt}>Stock: </Text>
+                        <Text style={[wp.stockVal, product.stock === 0 && { color: C.red }, product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD && { color: C.orange }]}>
+                            {product.stock} units{product.stock === 0 ? " · Out of stock" : product.stock <= LOW_STOCK_THRESHOLD && product.stock > 0 ? " · Low ⚠" : ""}
+                        </Text>
+                    </View>
+                    <View style={wp.divider} />
+                    <View style={wp.actionsContainer}>
+                        {PRODUCT_ACTIONS.map((action, i) => (
+                            <TouchableOpacity key={i} style={[wp.actionItem, action.label === "Delete Product" && wp.actionItemDanger, i < PRODUCT_ACTIONS.length - 1 && wp.actionItemBorder]} onPress={() => handleAction(action.label)} activeOpacity={0.75}>
+                                <View style={[wp.actionIconBox, { backgroundColor: action.bg }]}>
+                                    <MaterialCommunityIcons name={action.icon as any} size={17} color={action.color} />
+                                </View>
+                                <Text style={[wp.actionLabel, { color: action.label === "Delete Product" ? C.red : C.textDark }]}>{action.label}</Text>
+                                <Ionicons name="chevron-forward" size={14} color={action.label === "Delete Product" ? C.redLight : C.textLight} />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <TouchableOpacity style={wp.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+                        <Text style={wp.cancelTxt}>Cancel</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+const wp = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(10,14,40,0.55)", justifyContent: "center", alignItems: "center" },
+    popup: { backgroundColor: C.white, borderRadius: 18, width: 320, shadowColor: "#000", shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.22, shadowRadius: 36, elevation: 30, overflow: "hidden" },
+    popupHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 16, paddingBottom: 12 },
+    popupImg: { width: 54, height: 54, borderRadius: 12, backgroundColor: C.bg },
+    popupName: { fontFamily: "Outfit_700Bold", fontSize: 13.5, color: C.textDark, marginBottom: 3, lineHeight: 19 },
+    popupSku: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 6 },
+    popupMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+    popupPrice: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navyDeep },
+    popupStatusBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+    popupStatusTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
+    popupCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    divider: { height: 1, backgroundColor: "#F1F2F6", marginHorizontal: 16 },
+    stockRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 4 },
+    stockTxt: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
+    stockVal: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textDark },
+    actionsContainer: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 4 },
+    actionItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11, paddingHorizontal: 6, borderRadius: 10 },
+    actionItemDanger: { marginTop: 2 },
+    actionItemBorder: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+    actionIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    actionLabel: { flex: 1, fontFamily: "Outfit_600SemiBold", fontSize: 13.5 },
+    cancelBtn: { marginHorizontal: 16, marginTop: 4, marginBottom: 14, borderWidth: 1.5, borderColor: C.border, borderRadius: 10, paddingVertical: 11, alignItems: "center", backgroundColor: C.bg },
+    cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
+});
+
+// ─────────────────────────────────────────────────────────────
+// WEB DESKTOP SCREEN
 // ─────────────────────────────────────────────────────────────
 const WebProductsScreen: React.FC = () => {
     const router = useRouter();
@@ -552,23 +735,28 @@ const WebProductsScreen: React.FC = () => {
     const [viewType, setViewType]               = useState<ViewType>("list");
     const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
     const [sortBy, setSortBy]                   = useState<SortType>("Latest");
-    const [showFilter, setShowFilter]           = useState(false);
     const [searchQuery, setSearchQuery]         = useState("");
     const [visibleCount, setVisibleCount]       = useState(20);
     const [productActionId, setProductActionId] = useState<string | null>(null);
     const [locationProductId, setLocationProductId] = useState<string | null>(null);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-    const [filterCategory, setFilterCategory]       = useState("All");
-    const [filterSubcategory, setFilterSubcategory] = useState("All");
-    const [filterColor, setFilterColor]             = useState("All");
-    const [filterSize, setFilterSize]               = useState("All");
-    const [filterLowPrice, setFilterLowPrice]       = useState<number>(PRICE_MIN);
-    const [filterHighPrice, setFilterHighPrice]     = useState<number>(PRICE_MAX);
+    const [filterCategory, setFilterCategory]             = useState("All");
+    const [filterSubcategory, setFilterSubcategory]       = useState("All");
+    const [filterSubSubcategory, setFilterSubSubcategory] = useState("All");
+    const [filterColor, setFilterColor]                   = useState("All");
+    // ── WEB CHANGE 1: Size filter state added ──
+    const [filterSize, setFilterSize]                     = useState("All");
+    const [filterLowPrice, setFilterLowPrice]             = useState<number>(PRICE_MIN);
+    const [filterHighPrice, setFilterHighPrice]           = useState<number>(PRICE_MAX);
+
+    // ── WEB CHANGE 2: applied state now includes size ──
     const [applied, setApplied] = useState({
-        category: "All", subcategory: "All", color: "All", size: "All",
-        lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
+        category: "All", subcategory: "All", subSubcategory: "All",
+        color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
     });
+
+    const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+    const [expandedSubcat, setExpandedSubcat]     = useState<string | null>(null);
 
     const activeActionProduct = products.find(p => p.id === productActionId);
     const locationProduct     = products.find(p => p.id === locationProductId);
@@ -582,6 +770,7 @@ const WebProductsScreen: React.FC = () => {
     const outOfStockCount = products.filter(p => p.status === "Out of Stock").length;
     const lowStockCount   = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
 
+    // ── WEB CHANGE 3: processedProducts now filters by size ──
     const processedProducts = useMemo(() => {
         let list = [...products];
         if (selectedTab === "Low Stock") list = list.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD);
@@ -590,10 +779,12 @@ const WebProductsScreen: React.FC = () => {
             const q = searchQuery.toLowerCase();
             list = list.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
         }
-        if (applied.category !== "All")    list = list.filter(p => p.category    === applied.category);
-        if (applied.subcategory !== "All") list = list.filter(p => p.subcategory === applied.subcategory);
-        if (applied.color !== "All")       list = list.filter(p => p.color       === applied.color);
-        if (applied.size !== "All")        list = list.filter(p => p.size        === applied.size);
+        if (applied.category !== "All")        list = list.filter(p => p.category        === applied.category);
+        if (applied.subcategory !== "All")     list = list.filter(p => p.subcategory     === applied.subcategory);
+        if (applied.subSubcategory !== "All")  list = list.filter(p => p.subSubcategory  === applied.subSubcategory);
+        if (applied.color !== "All")           list = list.filter(p => p.color           === applied.color);
+        // ── Size filter applied ──
+        if (applied.size !== "All")            list = list.filter(p => p.size            === applied.size);
         list = list.filter(p => p.price >= applied.lowPrice && p.price <= applied.highPrice);
         switch (sortBy) {
             case "Price: Low-High": list.sort((a, b) => a.price - b.price); break;
@@ -615,130 +806,107 @@ const WebProductsScreen: React.FC = () => {
         return { bg: "#FEF3C7", color: "#D97706", dot: "#F97316" };
     };
 
+    // ── WEB CHANGE 4: applyFilters now includes size ──
     const applyFilters = () => {
-        setApplied({ category: filterCategory, subcategory: filterSubcategory, color: filterColor, size: filterSize, lowPrice: filterLowPrice, highPrice: filterHighPrice });
+        setApplied({
+            category: filterCategory, subcategory: filterSubcategory,
+            subSubcategory: filterSubSubcategory,
+            color: filterColor, size: filterSize,
+            lowPrice: filterLowPrice, highPrice: filterHighPrice,
+        });
         setVisibleCount(20);
-        setShowFilter(false);
     };
 
+    // ── WEB CHANGE 5: clearFilters now resets size ──
     const clearFilters = () => {
-        setFilterCategory("All"); setFilterSubcategory("All"); setFilterColor("All"); setFilterSize("All");
+        setFilterCategory("All"); setFilterSubcategory("All"); setFilterSubSubcategory("All");
+        setFilterColor("All"); setFilterSize("All");
         setFilterLowPrice(PRICE_MIN); setFilterHighPrice(PRICE_MAX);
-        setApplied({ category: "All", subcategory: "All", color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX });
+        setExpandedCategory(null); setExpandedSubcat(null);
+        setApplied({
+            category: "All", subcategory: "All", subSubcategory: "All",
+            color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
+        });
         setVisibleCount(20);
     };
 
-    const activeFilterCount = [applied.category !== "All", applied.subcategory !== "All", applied.color !== "All", applied.size !== "All", applied.lowPrice > PRICE_MIN, applied.highPrice < PRICE_MAX].filter(Boolean).length;
-    const subcatOptions = filterCategory !== "All" ? (SUBCATEGORIES[filterCategory] ?? ["All"]) : ["All"];
+    // ── WEB CHANGE 6: activeFilterCount now includes size ──
+    const activeFilterCount = [
+        applied.category !== "All", applied.subcategory !== "All", applied.subSubcategory !== "All",
+        applied.color !== "All", applied.size !== "All",
+        applied.lowPrice > PRICE_MIN, applied.highPrice < PRICE_MAX,
+    ].filter(Boolean).length;
 
-    // Web inline price range slider
-    const [webLowPrice, setWebLowPrice] = useState(filterLowPrice);
-    const [webHighPrice, setWebHighPrice] = useState(filterHighPrice);
-
-    const webNavItems = [
-        { icon: "home-outline", label: "Dashboard", route: "/(main)/dashboard" },
-        { icon: "shopping-outline", label: "Products", route: "/(main)/productmanagement", active: true },
-        { icon: "clipboard-list-outline", label: "Orders", route: "/(main)/Ordersscreen", badge: 12 },
-        { icon: "message-outline", label: "Messages", route: "/messages" },
-        { icon: "account-outline", label: "Profile", route: "/(main)/Profile" },
-        { icon: "chart-bar", label: "Analytics", route: "/analytics" },
-        { icon: "cog-outline", label: "Settings", route: "/settings" },
-    ];
+    const catTree      = filterCategory !== "All" ? (CATEGORY_TREE[filterCategory] ?? {}) : {};
+    const subcatKeys   = Object.keys(catTree);
+    const subSubOptions = filterSubcategory !== "All" ? (catTree[filterSubcategory] ?? []) : [];
 
     return (
         <View style={wst.root}>
-            {/* ── SIDEBAR ── */}
-            <View style={[wst.sidebar, sidebarCollapsed && wst.sidebarCollapsed]}>
-                {/* Logo */}
-                <View style={wst.sidebarLogo}>
-                    <View style={wst.logoIcon}>
-                        <MaterialCommunityIcons name="shopping" size={20} color={C.white} />
-                    </View>
-                    {!sidebarCollapsed && <Text style={wst.logoText}>StoreHub</Text>}
-                </View>
-
-                {/* Nav */}
-                <ScrollView style={wst.sidebarNav} showsVerticalScrollIndicator={false}>
-                    {webNavItems.map((item, i) => (
-                        <TouchableOpacity
-                            key={i}
-                            style={[wst.navItem, item.active && wst.navItemActive]}
-                            onPress={() => { if (!item.active) router.push(item.route as any); }}
-                            activeOpacity={0.75}
-                        >
-                            <View style={{ position: "relative" }}>
-                                <MaterialCommunityIcons name={item.icon as any} size={20} color={item.active ? C.white : "rgba(255,255,255,0.55)"} />
-                                {item.badge && (
-                                    <View style={wst.navBadge}><Text style={wst.navBadgeText}>{item.badge}</Text></View>
-                                )}
-                            </View>
-                            {!sidebarCollapsed && <Text style={[wst.navLabel, item.active && wst.navLabelActive]}>{item.label}</Text>}
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Collapse toggle */}
-                <TouchableOpacity style={wst.collapseBtn} onPress={() => setSidebarCollapsed(!sidebarCollapsed)}>
-                    <Ionicons name={sidebarCollapsed ? "chevron-forward" : "chevron-back"} size={18} color="rgba(255,255,255,0.6)" />
-                    {!sidebarCollapsed && <Text style={wst.collapseTxt}>Collapse</Text>}
-                </TouchableOpacity>
-            </View>
-
-            {/* ── MAIN CONTENT ── */}
-            <View style={wst.main}>
-                {/* ── TOP BAR ── */}
-                <View style={wst.topBar}>
-                    <View style={wst.topBarLeft}>
-                        <View style={wst.breadcrumb}>
-                            <Text style={wst.breadcrumbDim}>Dashboard</Text>
-                            <Ionicons name="chevron-forward" size={14} color={C.textLight} />
-                            <Text style={wst.breadcrumbActive}>Products</Text>
+            {/* NAVBAR */}
+            <View style={wst.navbar}>
+                <View style={wst.navbarInner}>
+                    <View style={wst.navLeft}>
+                        <View style={wst.navTitleIcon}>
+                            <MaterialCommunityIcons name="package-variant-closed" size={16} color={C.white} />
                         </View>
-                        <Text style={wst.topBarTitle}>Product Management</Text>
+                        <Text style={wst.navTitleText}>Product Management</Text>
                     </View>
-                    <View style={wst.topBarRight}>
-                        {/* Search */}
-                        <View style={wst.topSearch}>
-                            <Feather name="search" size={15} color={C.textLight} />
+                    <View style={wst.navRight}>
+                        <View style={wst.navSearch}>
+                            <Feather name="search" size={14} color="rgba(255,255,255,0.5)" />
                             <TextInput
-                                style={wst.topSearchInput}
+                                style={wst.navSearchInput}
                                 placeholder="Search products, SKU..."
-                                placeholderTextColor={C.textLight}
+                                placeholderTextColor="rgba(255,255,255,0.4)"
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Ionicons name="close-circle" size={16} color={C.textLight} />
+                                    <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.5)" />
                                 </TouchableOpacity>
                             )}
                         </View>
-                        {/* Add Product */}
-                        <TouchableOpacity style={wst.addBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="plus" size={18} color={C.white} />
-                            <Text style={wst.addBtnTxt}>Add Product</Text>
+                        <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
+                            <MaterialCommunityIcons name="plus" size={16} color={C.white} />
+                            <Text style={wst.navAddBtnTxt}>Add Product</Text>
                         </TouchableOpacity>
-                        {/* Bulk Upload */}
-                        <TouchableOpacity style={wst.bulkBtn} onPress={() => router.push("/(main)/bulkupload")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="cloud-upload-outline" size={16} color={C.green} />
-                            <Text style={wst.bulkBtnTxt}>Bulk Upload</Text>
+                        <TouchableOpacity style={wst.navBulkBtn} onPress={() => router.push("/(main)/bulkupload")} activeOpacity={0.85}>
+                            <MaterialCommunityIcons name="cloud-upload-outline" size={14} color={C.green} />
+                            <Text style={wst.navBulkBtnTxt}>Bulk Upload</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
+            </View>
 
-                {/* ── STATS ROW ── */}
+            <ScrollView style={wst.pageScroll} showsVerticalScrollIndicator={false} contentContainerStyle={wst.pageContent}>
+                {/* Page header */}
+                <View style={wst.pageHeader}>
+                    <View>
+                        <View style={wst.breadcrumb}>
+                            <Text style={wst.breadcrumbDim}>Dashboard</Text>
+                            <Ionicons name="chevron-forward" size={13} color={C.textLight} />
+                            <Text style={wst.breadcrumbActive}>Products</Text>
+                        </View>
+                        <Text style={wst.pageTitle}>Product Management</Text>
+                    </View>
+                    <Text style={wst.pageSubtitle}>{totalCount} products total</Text>
+                </View>
+
+                {/* STATS ROW */}
                 <View style={wst.statsRow}>
                     {[
-                        { label: "Total Products", value: totalCount, icon: "package-variant-closed", color: C.navy, bg: "#EEF1FF", trend: "+3 this week" },
-                        { label: "Active",          value: activeCount,     icon: "check-circle",         color: "#16A34A", bg: "#DCFCE7", trend: "selling well" },
-                        { label: "Inactive",        value: inactiveCount,   icon: "pause-circle",         color: "#B45309", bg: "#FEF9C3", trend: "needs review" },
-                        { label: "Out of Stock",    value: outOfStockCount, icon: "close-circle-outline", color: "#DC2626", bg: "#FEE2E2", trend: "restock soon" },
-                        { label: "Low Stock",       value: lowStockCount,   icon: "alert-circle-outline", color: C.orange,  bg: C.orangePale, trend: "≤10 units" },
+                        { label: "Total Products", value: totalCount,      icon: "package-variant-closed", color: C.navy,    bg: "#EEF1FF",    trend: "+3 this week"  },
+                        { label: "Active",          value: activeCount,     icon: "check-circle",           color: "#16A34A", bg: "#DCFCE7",    trend: "selling well"  },
+                        { label: "Inactive",        value: inactiveCount,   icon: "pause-circle",           color: "#B45309", bg: "#FEF9C3",    trend: "needs review"  },
+                        { label: "Out of Stock",    value: outOfStockCount, icon: "close-circle-outline",   color: "#DC2626", bg: "#FEE2E2",    trend: "restock soon"  },
+                        { label: "Low Stock",       value: lowStockCount,   icon: "alert-circle-outline",   color: C.orange,  bg: C.orangePale, trend: "≤10 units"     },
                     ].map((stat, i) => (
                         <View key={i} style={wst.statCard}>
                             <View style={wst.statCardTop}>
                                 <View style={[wst.statCardIcon, { backgroundColor: stat.bg }]}>
-                                    <MaterialCommunityIcons name={stat.icon as any} size={22} color={stat.color} />
+                                    <MaterialCommunityIcons name={stat.icon as any} size={20} color={stat.color} />
                                 </View>
                                 <Text style={[wst.statCardVal, { color: stat.color }]}>{stat.value}</Text>
                             </View>
@@ -748,14 +916,20 @@ const WebProductsScreen: React.FC = () => {
                     ))}
                 </View>
 
-                {/* ── CONTENT AREA: FILTER PANEL + TABLE ── */}
+                {/* MAIN AREA */}
                 <View style={wst.contentArea}>
-                    {/* LEFT FILTER PANEL */}
+
+                    {/* ── LEFT FILTER PANEL ── */}
                     <View style={wst.filterPanel}>
                         <View style={wst.filterPanelHeader}>
                             <View style={wst.filterPanelHeaderLeft}>
-                                <Feather name="sliders" size={15} color={C.navy} />
+                                <Feather name="sliders" size={14} color={C.navy} />
                                 <Text style={wst.filterPanelTitle}>Filters</Text>
+                                {activeFilterCount > 0 && (
+                                    <View style={wst.filterCountBadge}>
+                                        <Text style={wst.filterCountBadgeTxt}>{activeFilterCount}</Text>
+                                    </View>
+                                )}
                             </View>
                             {activeFilterCount > 0 && (
                                 <TouchableOpacity onPress={clearFilters}>
@@ -765,50 +939,168 @@ const WebProductsScreen: React.FC = () => {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-                            {/* Status tabs as filter */}
+
+                            {/* ── STATUS ── */}
                             <View style={wst.filterSection}>
                                 <Text style={wst.filterSectionLabel}>Status</Text>
                                 {TABS.map(tab => {
                                     const isActive = selectedTab === tab.label;
                                     return (
-                                        <TouchableOpacity
-                                            key={tab.label}
-                                            style={[wst.filterTabItem, isActive && { backgroundColor: tab.bg }]}
-                                            onPress={() => { setSelectedTab(tab.label); setVisibleCount(20); }}
-                                            activeOpacity={0.75}
-                                        >
+                                        <TouchableOpacity key={tab.label} style={[wst.filterTabItem, isActive && { backgroundColor: tab.bg }]} onPress={() => { setSelectedTab(tab.label); setVisibleCount(20); }} activeOpacity={0.75}>
                                             <View style={[wst.filterTabDot, { backgroundColor: tab.color }]} />
                                             <Text style={[wst.filterTabLabel, isActive && { color: tab.color, fontFamily: "Outfit_600SemiBold" }]}>{tab.label}</Text>
-                                            {tab.label === "Low Stock" && <View style={[wst.filterTabBadge, { backgroundColor: tab.color }]}><Text style={wst.filterTabBadgeTxt}>{lowStockCount}</Text></View>}
+                                            {tab.label === "Low Stock" && (
+                                                <View style={[wst.filterTabBadge, { backgroundColor: tab.color }]}>
+                                                    <Text style={wst.filterTabBadgeTxt}>{lowStockCount}</Text>
+                                                </View>
+                                            )}
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
 
-                            {/* Category */}
+                            <View style={wst.filterDivider} />
+
+                            {/* ── SORT IN SIDEBAR ── */}
+                            <View style={wst.filterSection}>
+                                <Text style={wst.filterSectionLabel}>Sort By</Text>
+                                {SORT_OPTIONS.map(opt => {
+                                    const isActive = sortBy === opt.value;
+                                    return (
+                                        <TouchableOpacity
+                                            key={opt.value}
+                                            style={[wst.sortSidebarItem, isActive && wst.sortSidebarItemActive]}
+                                            onPress={() => { setSortBy(opt.value); setVisibleCount(20); }}
+                                            activeOpacity={0.75}
+                                        >
+                                            <View style={[wst.sortSidebarIconBox, { backgroundColor: isActive ? C.navy : C.bg }]}>
+                                                <MaterialCommunityIcons name={opt.icon as any} size={13} color={isActive ? C.white : C.textMid} />
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[wst.sortSidebarLabel, isActive && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>{opt.value}</Text>
+                                                <Text style={wst.sortSidebarDesc}>{opt.desc}</Text>
+                                            </View>
+                                            {isActive && <Ionicons name="checkmark-circle" size={15} color={C.navy} />}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            <View style={wst.filterDivider} />
+
+                            {/* ── 3-LEVEL CATEGORY TREE ── */}
                             <View style={wst.filterSection}>
                                 <Text style={wst.filterSectionLabel}>Category</Text>
-                                {CATEGORIES.map(cat => (
-                                    <TouchableOpacity
-                                        key={cat}
-                                        style={[wst.filterRadioItem, filterCategory === cat && wst.filterRadioItemActive]}
-                                        onPress={() => { setFilterCategory(cat); setFilterSubcategory("All"); }}
-                                        activeOpacity={0.7}
-                                    >
-                                        <View style={[wst.filterRadio, filterCategory === cat && wst.filterRadioFilled]}>
-                                            {filterCategory === cat && <View style={wst.filterRadioInner} />}
+
+                                <TouchableOpacity
+                                    style={[wst.catMainItem, filterCategory === "All" && wst.catMainItemActive]}
+                                    onPress={() => { setFilterCategory("All"); setFilterSubcategory("All"); setFilterSubSubcategory("All"); setExpandedCategory(null); setExpandedSubcat(null); }}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[wst.catRadio, filterCategory === "All" && wst.catRadioFilled]}>
+                                        {filterCategory === "All" && <View style={wst.catRadioInner} />}
+                                    </View>
+                                    <Text style={[wst.catMainLabel, filterCategory === "All" && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>All</Text>
+                                </TouchableOpacity>
+
+                                {CATEGORIES.filter(c => c !== "All").map(cat => {
+                                    const isSelected = filterCategory === cat;
+                                    const isExpanded = expandedCategory === cat;
+                                    const subKeys = Object.keys(CATEGORY_TREE[cat] ?? {});
+
+                                    return (
+                                        <View key={cat}>
+                                            <TouchableOpacity
+                                                style={[wst.catMainItem, isSelected && wst.catMainItemActive]}
+                                                onPress={() => {
+                                                    if (isSelected && isExpanded) {
+                                                        setExpandedCategory(null);
+                                                    } else {
+                                                        setFilterCategory(cat);
+                                                        setFilterSubcategory("All");
+                                                        setFilterSubSubcategory("All");
+                                                        setExpandedCategory(cat);
+                                                        setExpandedSubcat(null);
+                                                    }
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <View style={[wst.catRadio, isSelected && wst.catRadioFilled]}>
+                                                    {isSelected && <View style={wst.catRadioInner} />}
+                                                </View>
+                                                <Text style={[wst.catMainLabel, isSelected && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>{cat}</Text>
+                                                {subKeys.length > 0 && (
+                                                    <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={12} color={isSelected ? C.navy : C.textLight} />
+                                                )}
+                                            </TouchableOpacity>
+
+                                            {isExpanded && subKeys.map(sub => {
+                                                const isSubSelected = filterSubcategory === sub;
+                                                const isSubExpanded = expandedSubcat === sub;
+                                                const subSubList = CATEGORY_TREE?.[cat]?.[sub] ?? [];
+
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={sub}
+                                                        style={[wst.catSubItem, isSubSelected && wst.catSubItemActive]}
+                                                        onPress={() => {
+                                                            if (isSubSelected && isSubExpanded) {
+                                                                setExpandedSubcat(null);
+                                                            } else {
+                                                                setFilterSubcategory(sub);
+                                                                setFilterSubSubcategory("All");
+                                                                setExpandedSubcat(sub);
+                                                            }
+                                                        }}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <View style={wst.catSubIndent} />
+                                                        <View style={[wst.catSubRadio, isSubSelected && wst.catSubRadioFilled]}>
+                                                            {isSubSelected && <View style={wst.catSubRadioInner} />}
+                                                        </View>
+                                                        <Text style={[wst.catSubLabel, isSubSelected && { color: C.purple, fontFamily: "Outfit_600SemiBold" }]}>{sub}</Text>
+                                                        {subSubList.length > 0 && (
+                                                            <Ionicons name={isSubExpanded ? "chevron-up" : "chevron-down"} size={11} color={isSubSelected ? C.purple : C.textLight} />
+                                                        )}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
                                         </View>
-                                        <Text style={[wst.filterRadioLabel, filterCategory === cat && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                                    );
+                                })}
                             </View>
+
+                            {subSubOptions.length > 0 && (
+                                <View style={{ marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border }}>
+                                    <Text style={[wst.filterSectionLabel, { marginBottom: 6 }]}>Last Subcategory</Text>
+                                    <View style={{ gap: 6 }}>
+                                        {subSubOptions.map(subSub => {
+                                            const isSubSubSelected = filterSubSubcategory === subSub;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={subSub}
+                                                    style={[wst.catSubSubItem, isSubSubSelected && wst.catSubSubItemActive]}
+                                                    onPress={() => setFilterSubSubcategory(isSubSubSelected ? "All" : subSub)}
+                                                    activeOpacity={0.75}
+                                                >
+                                                    <View style={[wst.catSubSubDot, isSubSubSelected && wst.catSubSubDotActive]} />
+                                                    <Text style={[wst.catSubSubLabel, isSubSubSelected && { color: C.teal, fontFamily: "Outfit_600SemiBold" }]}>{subSub}</Text>
+                                                    {isSubSubSelected && <Ionicons name="checkmark" size={11} color={C.teal} />}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            )}
+
+                            <View style={wst.filterDivider} />
 
                             {/* Price Range */}
                             <View style={wst.filterSection}>
                                 <Text style={wst.filterSectionLabel}>Price Range</Text>
                                 <View style={wst.priceRangeInputs}>
                                     <View style={wst.priceInput}>
-                                        <Text style={wst.priceInputLabel}>Min</Text>
+                                        <Text style={wst.priceInputLabel}>Min (₹)</Text>
                                         <TextInput
                                             style={wst.priceInputField}
                                             value={String(filterLowPrice)}
@@ -818,7 +1110,7 @@ const WebProductsScreen: React.FC = () => {
                                     </View>
                                     <View style={wst.priceDash} />
                                     <View style={wst.priceInput}>
-                                        <Text style={wst.priceInputLabel}>Max</Text>
+                                        <Text style={wst.priceInputLabel}>Max (₹)</Text>
                                         <TextInput
                                             style={wst.priceInputField}
                                             value={String(filterHighPrice)}
@@ -833,11 +1125,9 @@ const WebProductsScreen: React.FC = () => {
                                         width: `${((filterHighPrice - filterLowPrice) / PRICE_MAX) * 100}%` as any,
                                     }]} />
                                 </View>
-                                <View style={wst.priceLabels}>
-                                    <Text style={wst.priceLabel}>₹{filterLowPrice.toLocaleString()}</Text>
-                                    <Text style={wst.priceLabel}>₹{filterHighPrice.toLocaleString()}</Text>
-                                </View>
                             </View>
+
+                            <View style={wst.filterDivider} />
 
                             {/* Color */}
                             <View style={wst.filterSection}>
@@ -846,25 +1136,54 @@ const WebProductsScreen: React.FC = () => {
                                     {COLOR_OPTIONS.filter(c => c !== "All").map(col => (
                                         <TouchableOpacity
                                             key={col}
-                                            style={[wst.colorDot, { backgroundColor: DOT_COLORS[col] ?? "#ccc", borderWidth: filterColor === col ? 3 : 1.5, borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.1)" }]}
+                                            style={[wst.colorDot, {
+                                                backgroundColor: DOT_COLORS[col] ?? "#ccc",
+                                                borderWidth: filterColor === col ? 3 : 1.5,
+                                                borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.12)",
+                                            }]}
                                             onPress={() => setFilterColor(filterColor === col ? "All" : col)}
                                         >
-                                            {filterColor === col && <Ionicons name="checkmark" size={10} color={col === "White" || col === "Yellow" ? C.textDark : C.white} />}
+                                            {filterColor === col && (
+                                                <Ionicons name="checkmark" size={10} color={col === "White" || col === "Yellow" ? C.textDark : C.white} />
+                                            )}
                                         </TouchableOpacity>
                                     ))}
                                 </View>
                             </View>
 
+                            <View style={wst.filterDivider} />
+
+                            {/* ── WEB CHANGE 7: SIZE FILTER SECTION ── */}
+                            <View style={wst.filterSection}>
+                                <Text style={wst.filterSectionLabel}>Size</Text>
+                                <View style={wst.sizeGrid}>
+                                    {SIZE_OPTIONS.map(sz => {
+                                        const isActive = filterSize === sz;
+                                        return (
+                                            <TouchableOpacity
+                                                key={sz}
+                                                style={[wst.sizeChip, isActive && wst.sizeChipActive]}
+                                                onPress={() => setFilterSize(isActive ? "All" : sz)}
+                                                activeOpacity={0.75}
+                                            >
+                                                <Text style={[wst.sizeChipTxt, isActive && wst.sizeChipTxtActive]}>{sz}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+
                             <TouchableOpacity style={wst.applyFilterBtn} onPress={applyFilters} activeOpacity={0.85}>
-                                <Feather name="check" size={14} color={C.white} />
-                                <Text style={wst.applyFilterBtnTxt}>Apply Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}</Text>
+                                <Feather name="check" size={13} color={C.white} />
+                                <Text style={wst.applyFilterBtnTxt}>
+                                    Apply Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                                </Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
 
-                    {/* RIGHT: TABLE AREA */}
+                    {/* RIGHT TABLE AREA */}
                     <View style={wst.tableArea}>
-                        {/* Table toolbar */}
                         <View style={wst.tableToolbar}>
                             <View style={wst.tableToolbarLeft}>
                                 <Text style={wst.tableResultCount}>
@@ -874,53 +1193,44 @@ const WebProductsScreen: React.FC = () => {
                                 {(searchQuery || activeFilterCount > 0) && (
                                     <TouchableOpacity style={wst.clearChip} onPress={() => { setSearchQuery(""); clearFilters(); }}>
                                         <Text style={wst.clearChipTxt}>Clear filters</Text>
-                                        <Ionicons name="close" size={12} color={C.navy} />
+                                        <Ionicons name="close" size={11} color={C.navy} />
                                     </TouchableOpacity>
                                 )}
+                                <View style={wst.activeSortIndicator}>
+                                    <MaterialCommunityIcons name={SORT_OPTIONS.find(o=>o.value===sortBy)?.icon as any ?? "sort-variant"} size={12} color={C.purple} />
+                                    <Text style={wst.activeSortTxt}>{sortBy}</Text>
+                                </View>
                             </View>
                             <View style={wst.tableToolbarRight}>
-                                {/* Sort */}
-                                <View style={wst.sortSelect}>
-                                    <MaterialCommunityIcons name="sort-variant" size={15} color={C.textMid} />
-                                    <Text style={wst.sortSelectLabel}>Sort:</Text>
-                                    {SORT_OPTIONS.map(opt => (
-                                        <TouchableOpacity
-                                            key={opt.value}
-                                            style={[wst.sortChip, sortBy === opt.value && wst.sortChipActive]}
-                                            onPress={() => { setSortBy(opt.value); setVisibleCount(20); }}
-                                        >
-                                            <Text style={[wst.sortChipTxt, sortBy === opt.value && wst.sortChipTxtActive]}>{opt.value}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                {/* View toggle */}
                                 <View style={wst.viewToggle}>
                                     <TouchableOpacity style={[wst.viewBtn, viewType === "list" && wst.viewBtnActive]} onPress={() => setViewType("list")}>
-                                        <MaterialCommunityIcons name="format-list-bulleted" size={16} color={viewType === "list" ? C.white : C.textMid} />
+                                        <MaterialCommunityIcons name="format-list-bulleted" size={15} color={viewType === "list" ? C.white : C.textMid} />
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[wst.viewBtn, viewType === "grid" && wst.viewBtnActive]} onPress={() => setViewType("grid")}>
-                                        <MaterialCommunityIcons name="grid" size={16} color={viewType === "grid" ? C.white : C.textMid} />
+                                        <MaterialCommunityIcons name="grid" size={15} color={viewType === "grid" ? C.white : C.textMid} />
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         </View>
 
-                        {/* ── LIST VIEW (table) ── */}
+                        {/* LIST VIEW */}
                         {viewType === "list" && (
                             <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false}>
-                                {/* Table header */}
+                                {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
                                 <View style={wst.tableHead}>
                                     <Text style={[wst.tableHeadCell, { flex: 3 }]}>Product</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>SKU</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 1 }]}>Category</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1 }]}>Sub-Type</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.6 }]}>Size</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.8 }]}>Price</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.7 }]}>Stock</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.9 }]}>Status</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.8, textAlign: "right" }]}>Actions</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.7, textAlign: "right" }]}>Actions</Text>
                                 </View>
                                 {visibleProducts.length === 0 ? (
                                     <View style={wst.emptyState}>
-                                        <MaterialCommunityIcons name="package-variant-closed" size={52} color={C.textLight} />
+                                        <MaterialCommunityIcons name="package-variant-closed" size={48} color={C.textLight} />
                                         <Text style={wst.emptyTitle}>No products found</Text>
                                         <Text style={wst.emptyDesc}>Try adjusting your search or filters</Text>
                                         <TouchableOpacity style={wst.emptyBtn} onPress={() => { setSearchQuery(""); clearFilters(); }}>
@@ -932,50 +1242,64 @@ const WebProductsScreen: React.FC = () => {
                                         const st = getStatusStyle(product.status);
                                         const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                                         return (
-                                            <TouchableOpacity
-                                                key={product.id}
-                                                style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]}
-                                                onPress={() => router.push("/(main)/Productdetail")}
-                                                activeOpacity={0.7}
-                                            >
-                                                {/* Product col */}
+                                            <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push("/(main)/Productdetail")} activeOpacity={0.7}>
+                                                {/* Product */}
                                                 <View style={[wst.tableCell, { flex: 3 }]}>
                                                     <Image source={{ uri: product.image }} style={wst.tableProductImg} />
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={wst.tableProductName} numberOfLines={1}>{product.name}</Text>
-                                                        <Text style={wst.tableProductSub}>{product.color} · {product.size}</Text>
+                                                        <Text style={wst.tableProductSub}>{product.color}</Text>
                                                         <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
                                                     </View>
                                                 </View>
+                                                {/* SKU */}
                                                 <View style={[wst.tableCell, { flex: 1.2 }]}>
                                                     <Text style={wst.tableCellSku}>{product.sku}</Text>
                                                 </View>
-                                                <View style={[wst.tableCell, { flex: 1 }]}>
+                                                {/* ── WEB CHANGE 8a: Category col — only category + subcategory ── */}
+                                                <View style={[wst.tableCell, { flex: 1, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                                                     <View style={wst.categoryTag}>
                                                         <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
                                                     </View>
                                                     <Text style={wst.subcategoryTxt}>{product.subcategory}</Text>
                                                 </View>
+                                                {/* ── WEB CHANGE 8b: Sub-Type col — subSubcategory as its own distinct teal pill ── */}
+                                                <View style={[wst.tableCell, { flex: 1, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                    {product.subSubcategory ? (
+                                                        <View style={wst.subSubPill}>
+                                                            <MaterialCommunityIcons name="tag-outline" size={9} color={C.teal} />
+                                                            <Text style={wst.subSubPillTxt}>{product.subSubcategory}</Text>
+                                                        </View>
+                                                    ) : (
+                                                        <Text style={wst.subSubEmpty}>—</Text>
+                                                    )}
+                                                </View>
+                                                {/* ── WEB CHANGE 8c: Size col — its own column ── */}
+                                                <View style={[wst.tableCell, { flex: 0.6, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                    <View style={wst.sizePill}>
+                                                        <Text style={wst.sizePillTxt}>{product.size}</Text>
+                                                    </View>
+                                                </View>
+                                                {/* Price */}
                                                 <View style={[wst.tableCell, { flex: 0.8 }]}>
                                                     <Text style={wst.tablePriceVal}>₹{product.price.toLocaleString()}</Text>
                                                 </View>
-                                                <View style={[wst.tableCell, { flex: 0.7 }]}>
+                                                {/* Stock */}
+                                                <View style={[wst.tableCell, { flex: 0.7, flexDirection: "column", alignItems: "flex-start", gap: 2 }]}>
                                                     <Text style={[wst.tableStockVal, isLow && { color: C.orange }]}>{product.stock}</Text>
                                                     {isLow && <Text style={wst.lowStockHint}>Low ⚠</Text>}
                                                     {product.stock === 0 && <Text style={wst.outStockHint}>Out</Text>}
                                                 </View>
+                                                {/* Status */}
                                                 <View style={[wst.tableCell, { flex: 0.9 }]}>
                                                     <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
                                                         <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                         <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
                                                     </View>
                                                 </View>
-                                                <View style={[wst.tableCell, { flex: 0.8, justifyContent: "flex-end" }]}>
-                                                    <TouchableOpacity
-                                                        style={wst.actionBtn}
-                                                        onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }}
-                                                        activeOpacity={0.75}
-                                                    >
+                                                {/* Actions */}
+                                                <View style={[wst.tableCell, { flex: 0.7, justifyContent: "flex-end" }]}>
+                                                    <TouchableOpacity style={wst.actionBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }} activeOpacity={0.75}>
                                                         <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
                                                     </TouchableOpacity>
                                                 </View>
@@ -985,7 +1309,7 @@ const WebProductsScreen: React.FC = () => {
                                 )}
                                 {hasMore && (
                                     <TouchableOpacity style={wst.loadMoreBtn} onPress={() => setVisibleCount(c => c + 20)} activeOpacity={0.8}>
-                                        <MaterialCommunityIcons name="chevron-down-circle-outline" size={16} color={C.navy} />
+                                        <MaterialCommunityIcons name="chevron-down-circle-outline" size={15} color={C.navy} />
                                         <Text style={wst.loadMoreTxt}>Load more ({processedProducts.length - visibleCount} remaining)</Text>
                                     </TouchableOpacity>
                                 )}
@@ -995,12 +1319,12 @@ const WebProductsScreen: React.FC = () => {
                             </ScrollView>
                         )}
 
-                        {/* ── GRID VIEW ── */}
+                        {/* GRID VIEW */}
                         {viewType === "grid" && (
                             <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                                 {visibleProducts.length === 0 ? (
                                     <View style={wst.emptyState}>
-                                        <MaterialCommunityIcons name="package-variant-closed" size={52} color={C.textLight} />
+                                        <MaterialCommunityIcons name="package-variant-closed" size={48} color={C.textLight} />
                                         <Text style={wst.emptyTitle}>No products found</Text>
                                         <TouchableOpacity style={wst.emptyBtn} onPress={() => { setSearchQuery(""); clearFilters(); }}>
                                             <Text style={wst.emptyBtnTxt}>Clear Filters</Text>
@@ -1011,23 +1335,15 @@ const WebProductsScreen: React.FC = () => {
                                         {visibleProducts.map(product => {
                                             const st = getStatusStyle(product.status);
                                             return (
-                                                <TouchableOpacity
-                                                    key={product.id}
-                                                    style={wst.webGridCard}
-                                                    onPress={() => router.push("/(main)/Productdetail")}
-                                                    activeOpacity={0.75}
-                                                >
+                                                <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push("/(main)/Productdetail")} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
                                                         <Image source={{ uri: product.image }} style={wst.webGridImg} />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
                                                             <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                             <Text style={[wst.webGridStatusTxt, { color: st.color }]}>{product.status}</Text>
                                                         </View>
-                                                        <TouchableOpacity
-                                                            style={wst.webGridMoreBtn}
-                                                            onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }}
-                                                        >
-                                                            <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
+                                                        <TouchableOpacity style={wst.webGridMoreBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }}>
+                                                            <MaterialCommunityIcons name="dots-horizontal" size={15} color={C.textMid} />
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={wst.webGridInfo}>
@@ -1037,8 +1353,21 @@ const WebProductsScreen: React.FC = () => {
                                                             <Text style={wst.webGridPrice}>₹{product.price.toLocaleString()}</Text>
                                                             <Text style={wst.webGridStock}>Stock: {product.stock}</Text>
                                                         </View>
-                                                        <View style={wst.categoryTag}>
-                                                            <Text style={wst.categoryTagTxt}>{product.category}</Text>
+                                                        {/* ── WEB CHANGE 8d: Grid card shows category + subSubcategory pill separately ── */}
+                                                        <View style={wst.webGridCatRow}>
+                                                            <View style={wst.categoryTag}>
+                                                                <Text style={wst.categoryTagTxt}>{product.category}</Text>
+                                                            </View>
+                                                            {product.subSubcategory && (
+                                                                <View style={wst.subSubPill}>
+                                                                    <Text style={wst.subSubPillTxt}>{product.subSubcategory}</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                        {/* Size badge in grid */}
+                                                        <View style={wst.webGridSizeRow}>
+                                                            <MaterialCommunityIcons name="ruler" size={10} color={C.textLight} />
+                                                            <Text style={wst.webGridSizeTxt}>Size: {product.size}</Text>
                                                         </View>
                                                     </View>
                                                 </TouchableOpacity>
@@ -1055,22 +1384,14 @@ const WebProductsScreen: React.FC = () => {
                         )}
                     </View>
                 </View>
-            </View>
+            </ScrollView>
 
-            {/* ── MODALS ── */}
+            {/* MODALS */}
             {productActionId && (
-                <ProductActionSheet
-                    product={activeActionProduct}
-                    onClose={() => setProductActionId(null)}
-                    onDelete={handleDelete}
-                    onUpdateLocation={handleUpdateLocation}
-                />
+                <WebProductActionPopup product={activeActionProduct} onClose={() => setProductActionId(null)} onDelete={handleDelete} onUpdateLocation={handleUpdateLocation} />
             )}
             {locationProductId && (
-                <DeliveryLocationsModal
-                    product={locationProduct}
-                    onClose={() => setLocationProductId(null)}
-                />
+                <DeliveryLocationsModal product={locationProduct} onClose={() => setLocationProductId(null)} />
             )}
         </View>
     );
@@ -1080,159 +1401,185 @@ const WebProductsScreen: React.FC = () => {
 // WEB DESKTOP STYLES
 // ─────────────────────────────────────────────────────────────
 const wst = StyleSheet.create({
-    root: { flex: 1, flexDirection: "row", backgroundColor: "#F0F2F8", minHeight: "100%" as any },
-
-    // SIDEBAR
-    sidebar: { width: 220, backgroundColor: C.navyDeep, flexDirection: "column", paddingTop: 0 },
-    sidebarCollapsed: { width: 64 },
-    sidebarLogo: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" },
-    logoIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
-    logoText: { fontFamily: "Outfit_800ExtraBold", fontSize: 18, color: C.white, letterSpacing: 0.5 },
-    sidebarNav: { flex: 1, paddingTop: 10 },
-    navItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 11, marginHorizontal: 8, marginVertical: 2, borderRadius: 10 },
-    navItemActive: { backgroundColor: "rgba(108,99,255,0.25)", borderLeftWidth: 3, borderLeftColor: C.purple, paddingLeft: 11 },
-    navLabel: { fontFamily: "Outfit_500Medium", fontSize: 13.5, color: "rgba(255,255,255,0.55)" },
-    navLabelActive: { fontFamily: "Outfit_600SemiBold", color: C.white },
-    navBadge: { position: "absolute", top: -5, right: -8, backgroundColor: C.orange, minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-    navBadgeText: { fontFamily: "Outfit_700Bold", fontSize: 9, color: C.white },
-    collapseBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
-    collapseTxt: { fontFamily: "Outfit_400Regular", fontSize: 12, color: "rgba(255,255,255,0.4)" },
-
-    // MAIN
-    main: { flex: 1, flexDirection: "column" },
-
-    // TOP BAR
-    topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.white, paddingHorizontal: 28, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
-    topBarLeft: {},
-    breadcrumb: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
-    breadcrumbDim: { fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textLight },
-    breadcrumbActive: { fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.navy },
-    topBarTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 22, color: C.navyDeep, letterSpacing: -0.3 },
-    topBarRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-    topSearch: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.bg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: C.border, width: 260 },
-    topSearchInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13.5, color: C.textDark, outlineStyle: "none" as any },
-    addBtn: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-    addBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13.5, color: C.white },
-    bulkBtn: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: C.greenPale, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1.5, borderColor: C.green + "40" },
-    bulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13.5, color: C.green },
-
-    // STATS
-    statsRow: { flexDirection: "row", gap: 14, paddingHorizontal: 24, paddingVertical: 18 },
-    statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-    statCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-    statCardIcon: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-    statCardVal: { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.textDark },
-    statCardLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid, marginBottom: 4 },
+    root: { flex: 1, flexDirection: "column", backgroundColor: "#F4F5FA", minHeight: "100%" as any },
+    navbar: { backgroundColor: C.navyDeep, borderBottomWidth: 0, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 6, zIndex: 100 },
+    navbarInner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, height: 58 },
+    navLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    navTitleIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    navTitleText: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.white, letterSpacing: 0.2 },
+    navRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+    navSearch: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", width: 260 },
+    navSearchInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.white, outlineStyle: "none" as any },
+    navAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, shadowColor: C.purple, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
+    navAddBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
+    navBulkBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(34,197,94,0.15)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1.5, borderColor: "rgba(34,197,94,0.3)" },
+    navBulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.green },
+    pageScroll: { flex: 1 },
+    pageContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 40 },
+    pageHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 },
+    breadcrumb: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
+    breadcrumbDim: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
+    breadcrumbActive: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.navy },
+    pageTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 22, color: C.navyDeep, letterSpacing: -0.4 },
+    pageSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight },
+    statsRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
+    statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+    statCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+    statCardIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    statCardVal: { fontFamily: "Outfit_800ExtraBold", fontSize: 26 },
+    statCardLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid, marginBottom: 3 },
     statCardTrend: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+    contentArea: { flexDirection: "row", gap: 14, flex: 1, minHeight: 600 },
 
-    // CONTENT AREA
-    contentArea: { flex: 1, flexDirection: "row", gap: 0, paddingHorizontal: 24, paddingBottom: 24 },
-
-    // FILTER PANEL
-    filterPanel: { width: 230, backgroundColor: C.white, borderRadius: 16, marginRight: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+    // ── FILTER PANEL ──
+    filterPanel: { width: 240, backgroundColor: C.white, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
     filterPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-    filterPanelHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
-    filterPanelTitle: { fontFamily: "Outfit_700Bold", fontSize: 14.5, color: C.navyDeep },
-    filterClearAll: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.purple },
-    filterSection: { marginBottom: 18 },
-    filterSectionLabel: { fontFamily: "Outfit_700Bold", fontSize: 11.5, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 },
-    filterTabItem: { flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, marginBottom: 3 },
-    filterTabDot: { width: 7, height: 7, borderRadius: 3.5 },
-    filterTabLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
-    filterTabBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
-    filterTabBadgeTxt: { fontFamily: "Outfit_700Bold", fontSize: 10, color: C.white },
-    filterRadioItem: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 7, paddingHorizontal: 6, borderRadius: 8 },
-    filterRadioItemActive: { backgroundColor: "#EEF1FF" },
-    filterRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-    filterRadioFilled: { borderColor: C.navy },
-    filterRadioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.navy },
-    filterRadioLabel: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
-    priceRangeInputs: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+    filterPanelHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+    filterPanelTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navyDeep },
+    filterCountBadge: { backgroundColor: C.navy, borderRadius: 8, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+    filterCountBadgeTxt: { fontFamily: "Outfit_700Bold", fontSize: 10, color: C.white },
+    filterClearAll: { fontFamily: "Outfit_600SemiBold", fontSize: 11.5, color: C.purple },
+    filterSection: { marginBottom: 12 },
+    filterSectionLabel: { fontFamily: "Outfit_700Bold", fontSize: 10.5, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 },
+    filterDivider: { height: 1, backgroundColor: C.border, marginBottom: 14 },
+    filterTabItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 8, marginBottom: 2 },
+    filterTabDot: { width: 6, height: 6, borderRadius: 3 },
+    filterTabLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 12.5, color: C.textMid },
+    filterTabBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
+    filterTabBadgeTxt: { fontFamily: "Outfit_700Bold", fontSize: 9.5, color: C.white },
+
+    // Sort in sidebar
+    sortSidebarItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 6, borderRadius: 8, marginBottom: 3 },
+    sortSidebarItemActive: { backgroundColor: "#EEF1FF" },
+    sortSidebarIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+    sortSidebarLabel: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textMid },
+    sortSidebarDesc: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight },
+
+    // 3-level category tree
+    catMainItem: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 7, marginBottom: 1 },
+    catMainItemActive: { backgroundColor: "#EEF1FF" },
+    catRadio: { width: 15, height: 15, borderRadius: 7.5, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+    catRadioFilled: { borderColor: C.navy },
+    catRadioInner: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.navy },
+    catMainLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 12.5, color: C.textMid },
+
+    catSubItem: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 5, paddingHorizontal: 4, borderRadius: 6, marginBottom: 1 },
+    catSubItemActive: { backgroundColor: C.purplePale },
+    catSubIndent: { width: 14 },
+    catSubRadio: { width: 13, height: 13, borderRadius: 6.5, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+    catSubRadioFilled: { borderColor: C.purple },
+    catSubRadioInner: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.purple },
+    catSubLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textMid },
+
+    catSubSubItem: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4, paddingHorizontal: 4, borderRadius: 5, marginBottom: 1 },
+    catSubSubItemActive: { backgroundColor: "#F0FDF8" },
+    catSubSubIndent: { width: 26 },
+    catSubSubDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.border },
+    catSubSubDotActive: { backgroundColor: C.teal },
+    catSubSubLabel: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+
+    // Price
+    priceRangeInputs: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
     priceInput: { flex: 1 },
-    priceInputLabel: { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight, marginBottom: 4 },
-    priceInputField: { backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border, paddingHorizontal: 10, paddingVertical: 7, fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textDark, outlineStyle: "none" as any },
-    priceDash: { width: 12, height: 1.5, backgroundColor: C.border, marginTop: 14 },
-    priceSliderTrack: { height: 4, backgroundColor: C.border, borderRadius: 2, marginBottom: 6, position: "relative" },
-    priceSliderFill: { position: "absolute", height: 4, backgroundColor: C.navy, borderRadius: 2 },
-    priceLabels: { flexDirection: "row", justifyContent: "space-between" },
-    priceLabel: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textMid },
-    colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    colorDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    applyFilterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: C.navy, borderRadius: 10, paddingVertical: 11, marginTop: 4 },
-    applyFilterBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
+    priceInputLabel: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight, marginBottom: 3 },
+    priceInputField: { backgroundColor: C.bg, borderRadius: 7, borderWidth: 1, borderColor: C.border, paddingHorizontal: 8, paddingVertical: 6, fontFamily: "Outfit_500Medium", fontSize: 12.5, color: C.textDark, outlineStyle: "none" as any },
+    priceDash: { width: 10, height: 1.5, backgroundColor: C.border, marginTop: 12 },
+    priceSliderTrack: { height: 3, backgroundColor: C.border, borderRadius: 2, position: "relative" },
+    priceSliderFill: { position: "absolute", height: 3, backgroundColor: C.navy, borderRadius: 2 },
 
-    // TABLE AREA
-    tableArea: { flex: 1, backgroundColor: C.white, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3, overflow: "hidden", flexDirection: "column" },
+    // Color
+    colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    colorDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
 
-    // TOOLBAR
-    tableToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border },
-    tableToolbarLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-    tableResultCount: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
-    clearChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EEF1FF", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-    clearChipTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11.5, color: C.navy },
-    tableToolbarRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-    sortSelect: { flexDirection: "row", alignItems: "center", gap: 6 },
-    sortSelectLabel: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textLight, marginRight: 2 },
-    sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-    sortChipActive: { backgroundColor: C.navy, borderColor: C.navy },
-    sortChipTxt: { fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textMid },
-    sortChipTxtActive: { color: C.white, fontFamily: "Outfit_600SemiBold" },
-    viewToggle: { flexDirection: "row", backgroundColor: C.bg, borderRadius: 8, padding: 3, borderWidth: 1, borderColor: C.border },
-    viewBtn: { width: 30, height: 30, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-    viewBtnActive: { backgroundColor: C.navy },
+    // ── WEB CHANGE 9: Size filter styles ──
+    sizeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
+    sizeChip: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, minWidth: 36, alignItems: "center" },
+    sizeChipActive: { backgroundColor: C.navy, borderColor: C.navy },
+    sizeChipTxt: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textMid },
+    sizeChipTxtActive: { color: C.white, fontFamily: "Outfit_600SemiBold" },
+
+    applyFilterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 9, paddingVertical: 10, marginTop: 8 },
+    applyFilterBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.white },
 
     // TABLE
+    tableArea: { flex: 1, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, overflow: "hidden", flexDirection: "column" },
+    tableToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: "#FAFBFF" },
+    tableToolbarLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    tableResultCount: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
+    clearChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EEF1FF", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+    clearChipTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.navy },
+    activeSortIndicator: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.purplePale, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
+    activeSortTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.purple },
+    tableToolbarRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+    viewToggle: { flexDirection: "row", backgroundColor: C.bg, borderRadius: 7, padding: 2, borderWidth: 1, borderColor: C.border },
+    viewBtn: { width: 28, height: 28, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+    viewBtnActive: { backgroundColor: C.navy },
     tableScroll: { flex: 1 },
-    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border },
-    tableHeadCell: { fontFamily: "Outfit_700Bold", fontSize: 11.5, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.5 },
-    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 11, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border },
+    tableHeadCell: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.5 },
+    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
     tableRowAlt: { backgroundColor: "#FAFBFF" },
-    tableCell: { flexDirection: "row", alignItems: "center", paddingRight: 12, gap: 10 },
-    tableProductImg: { width: 48, height: 48, borderRadius: 10, backgroundColor: C.bg },
-    tableProductName: { fontFamily: "Outfit_600SemiBold", fontSize: 13.5, color: C.textDark, marginBottom: 2 },
-    tableProductSub: { fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textLight, marginBottom: 2 },
+    tableCell: { flexDirection: "row", alignItems: "center", paddingRight: 8, gap: 10 },
+    tableProductImg: { width: 44, height: 44, borderRadius: 9, backgroundColor: C.bg },
+    tableProductName: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark, marginBottom: 2 },
+    tableProductSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 1 },
     tableProductUpdated: { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight },
-    tableCellSku: { fontFamily: "Outfit_500Medium", fontSize: 12.5, color: C.purple, backgroundColor: C.purplePale, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    categoryTag: { backgroundColor: "#EEF1FF", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, alignSelf: "flex-start" },
-    categoryTagTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.navy },
-    subcategoryTxt: { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight, marginTop: 3 },
-    tablePriceVal: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navyDeep },
-    tableStockVal: { fontFamily: "Outfit_600SemiBold", fontSize: 13.5, color: C.textDark },
-    lowStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.orange, marginTop: 2 },
-    outStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.red, marginTop: 2 },
-    statusPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, alignSelf: "flex-start" },
-    statusDot: { width: 6, height: 6, borderRadius: 3 },
-    statusPillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11.5 },
-    actionBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    tableCellSku: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.purple, backgroundColor: C.purplePale, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
 
-    // GRID
-    webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 16, padding: 20 },
-    webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+    // Category column
+    categoryTag: { backgroundColor: "#EEF1FF", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: "flex-start" },
+    categoryTagTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10.5, color: C.navy },
+    subcategoryTxt: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight },
+
+    // ── WEB CHANGE 9: SubSubcategory as its own separate teal pill ──
+    subSubPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F0FDF8", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#CCFBEF", alignSelf: "flex-start" },
+    subSubPillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10.5, color: C.teal },
+    subSubEmpty: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+
+    // ── WEB CHANGE 9: Size pill in table ──
+    sizePill: { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: C.border, alignSelf: "flex-start" },
+    sizePillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10.5, color: C.textMid },
+
+    tablePriceVal: { fontFamily: "Outfit_700Bold", fontSize: 13.5, color: C.navyDeep },
+    tableStockVal: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark },
+    lowStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.orange },
+    outStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.red },
+    statusPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, alignSelf: "flex-start" },
+    statusDot: { width: 5, height: 5, borderRadius: 2.5 },
+    statusPillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11 },
+    actionBtn: { width: 30, height: 30, borderRadius: 7, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+
+    // Grid
+    webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 16 },
+    webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
     webGridImgWrap: { position: "relative" },
-    webGridImg: { width: "100%", height: 150, backgroundColor: C.bg },
-    webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-    webGridStatusTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10.5 },
-    webGridMoreBtn: { position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
-    webGridInfo: { padding: 12, gap: 5 },
-    webGridName: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textDark, lineHeight: 18 },
-    webGridSku: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+    webGridImg: { width: "100%", height: 140, backgroundColor: C.bg },
+    webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+    webGridStatusTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
+    webGridMoreBtn: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.93)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    webGridInfo: { padding: 12, gap: 4 },
+    webGridName: { fontFamily: "Outfit_700Bold", fontSize: 12.5, color: C.textDark, lineHeight: 17 },
+    webGridSku: { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight },
     webGridMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
-    webGridPrice: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navy },
-    webGridStock: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight },
+    webGridPrice: { fontFamily: "Outfit_700Bold", fontSize: 13.5, color: C.navy },
+    webGridStock: { fontFamily: "Outfit_500Medium", fontSize: 10.5, color: C.textLight },
+    // ── WEB CHANGE 9: Grid cat row and size row ──
+    webGridCatRow: { flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap", marginTop: 2 },
+    webGridSizeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
+    webGridSizeTxt: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight },
 
-    // MISC
-    loadMoreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 20, marginVertical: 16, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: C.navy, backgroundColor: "#EEF1FF" },
-    loadMoreTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.navy },
-    pageInfo: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, textAlign: "center", paddingBottom: 16 },
-    emptyState: { alignItems: "center", paddingVertical: 64 },
-    emptyTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textMid, marginTop: 14 },
-    emptyDesc: { fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight, marginTop: 4 },
-    emptyBtn: { marginTop: 16, backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
+    loadMoreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginHorizontal: 18, marginVertical: 14, paddingVertical: 10, borderRadius: 9, borderWidth: 1.5, borderColor: C.navy, backgroundColor: "#EEF1FF" },
+    loadMoreTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.navy },
+    pageInfo: { fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textLight, textAlign: "center", paddingBottom: 14 },
+    emptyState: { alignItems: "center", paddingVertical: 60 },
+    emptyTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textMid, marginTop: 12 },
+    emptyDesc: { fontFamily: "Outfit_400Regular", fontSize: 12.5, color: C.textLight, marginTop: 4 },
+    emptyBtn: { marginTop: 14, backgroundColor: C.navy, borderRadius: 9, paddingHorizontal: 22, paddingVertical: 9 },
     emptyBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
 });
 
 // ─────────────────────────────────────────────────────────────
-// ORIGINAL MOBILE SCREEN — unchanged
+// MOBILE SCREEN — COMPLETELY UNCHANGED
 // ─────────────────────────────────────────────────────────────
 const MobileProductsScreen: React.FC = () => {
     const router = useRouter();
@@ -1616,6 +1963,7 @@ const MobileProductsScreen: React.FC = () => {
                 ))}
             </View>
 
+            {/* Mobile filter sheet */}
             <Modal visible={showFilter} animationType="slide" transparent onRequestClose={() => setShowFilter(false)}>
                 <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowFilter(false)} />
                 <View style={s.filterSheet}>
@@ -1662,7 +2010,7 @@ const MobileProductsScreen: React.FC = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// MOBILE STYLES (unchanged from original)
+// MOBILE STYLES — COMPLETELY UNCHANGED
 // ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
     root: { flex:1, backgroundColor:C.bg },
@@ -1795,7 +2143,7 @@ const fs = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────
-// ROOT EXPORT — switches between web desktop and mobile
+// ROOT EXPORT
 // ─────────────────────────────────────────────────────────────
 const ProductsScreen: React.FC = () => {
     const [fontsLoaded] = useFonts({
