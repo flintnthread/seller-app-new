@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useEffect } from "react";
 import {
 
@@ -45,6 +47,7 @@ import { spacing } from "@/constants/spacing";
 import { fontSizes, fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import type { TextProps } from 'react-native';
+import { DesktopDashboard } from "@/components/web/DesktopDashboard";
 
 // ─── Mini Line Chart ─────────────────────────────────────────
 import Svg, { Path, Circle } from "react-native-svg";
@@ -235,25 +238,6 @@ function getLastPoint(pts: ChartPoint[], w: number, h: number) {
 }
 
 const TOP_PRODUCTS = ALL_PRODUCTS.slice(0, 4);
-
-const TASKS = [
-    { label: "Upload 5 new products", badge: "2/5", badgeColor: C.purple },
-    { label: "Process pending orders", badge: "8", badgeColor: C.yellow },
-    { label: "Update product stock", badge: "3", badgeColor: C.red },
-];
-
-const ANNOUNCEMENTS = [
-    {
-        title: "Mega Summer Sale is Live!",
-        desc: "Offer amazing discounts and boost your store sales.",
-        date: "20 May 2024",
-    },
-    {
-        title: "New Payment Gateway Added",
-        desc: "We now support UPI AutoPay for subscriptions.",
-        date: "18 May 2024",
-    },
-];
 
 const MENU_CARDS = [
     { id: "dashboard", label: "Dashboard", icon: "view-dashboard-outline", color: C.purple },
@@ -1263,14 +1247,11 @@ const dr = StyleSheet.create({
 });
 
 // ─── Main Dashboard ──────────────────────────────────────────
-const SellerDashboard: React.FC = () => {
+const MobileDashboard: React.FC = () => {
     const router = useRouter();
-    const [announcementIdx, setAnnouncementIdx] = useState(0);
-    const currentAnnouncement = ANNOUNCEMENTS?.[announcementIdx];
     const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
     const [ordersPeriod, setOrdersPeriod] = useState<SalesPeriod>("Week");
     const [productsPeriod, setProductsPeriod] = useState<SalesPeriod>("Week");
-    const [checkedTasks, setCheckedTasks] = useState<boolean[]>([false, false, false]);
     const [showAllProducts, setShowAllProducts] = useState(false);
     const [showOrdersSummary, setShowOrdersSummary] = useState(false);
     const [showAllStats, setShowAllStats] = useState(false);
@@ -1316,12 +1297,6 @@ const SellerDashboard: React.FC = () => {
     });
 
     if (!fontsLoaded) return null;
-
-    const toggleTask = (i: number) => {
-        const updated = [...checkedTasks];
-        updated[i] = !updated[i];
-        setCheckedTasks(updated);
-    };
 
     return (
         <View style={s.root}>
@@ -1728,102 +1703,6 @@ const SellerDashboard: React.FC = () => {
                     </View>
                 </View>
 
-                {/* ── TASKS ── */}
-                <View style={s.section}>
-                    <View style={s.fullCard}>
-                        <AppText style={s.halfCardTitle}>Tasks & To-Dos</AppText>
-                        <View style={{ marginTop: 12 }}>
-                            {TASKS.map((t, i) => (
-                                <View key={i} style={s.taskRow}>
-                                    <TouchableOpacity
-                                        onPress={() => toggleTask(i)}
-                                        style={[s.checkbox, checkedTasks[i] && s.checkboxChecked]}
-                                    >
-                                        {checkedTasks[i] && <Ionicons name="checkmark" size={13} color="#fff" />}
-                                    </TouchableOpacity>
-                                    <AppText style={[s.taskLabel, checkedTasks[i] && s.taskLabelDone]} numberOfLines={2}>{t.label}</AppText>
-                                    <View style={[s.taskBadge, { backgroundColor: t.badgeColor + "20", borderColor: t.badgeColor + "50" }]}>
-                                        <AppText style={[s.taskBadgeText, { color: t.badgeColor }]}>{t.badge}</AppText>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={15} color={C.textLight} style={{ marginLeft: 2 }} />
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </View>
-
-                {/* ── ANNOUNCEMENTS ── */}
-                <View style={s.root}>
-
-                    {/* ── ANNOUNCEMENTS ── */}
-                    <View style={s.section}>
-                        <View style={s.fullCard}>
-
-                            <View style={s.halfCardHeader}>
-                                <AppText style={s.halfCardTitle}>
-                                    Announcements
-                                </AppText>
-
-                                <TouchableOpacity style={s.viewAllBtn} onPress={() => router.push("/(main)/notifications")}>
-                                    <AppText style={s.viewAllText}>
-                                        View All
-                                    </AppText>
-
-                                    <Ionicons
-                                        name="chevron-forward"
-                                        size={15}
-                                        color={C.purple}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={s.announcementCard}>
-
-                                <View style={s.announcementIcon}>
-                                    <MaterialCommunityIcons
-                                        name="bullhorn-outline"
-                                        size={24}
-                                        color={C.purple}
-                                    />
-                                </View>
-
-                                {/* ✅ REPLACED CODE */}
-                                <AppText style={s.announcementTitle}>
-                                    {currentAnnouncement?.title}
-                                </AppText>
-
-                                <AppText style={s.announcementDesc}>
-                                    {currentAnnouncement?.desc}
-                                </AppText>
-
-                                <AppText style={s.announcementDate}>
-                                    {currentAnnouncement?.date}
-                                </AppText>
-
-                                <View style={s.annDots}>
-                                    {ANNOUNCEMENTS.map((_, i) => (
-                                        <TouchableOpacity
-                                            key={i}
-                                            onPress={() => setAnnouncementIdx(i)}
-                                        >
-                                            <View
-                                                style={[
-                                                    s.annDot,
-                                                    i === announcementIdx &&
-                                                    s.annDotActive,
-                                                ]}
-                                            />
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                            </View>
-
-                        </View>
-                    </View>
-
-                </View>
-
                 {/* ── SUPPORT ── */}
                 <View style={s.section}>
                     <LinearGradient
@@ -2104,5 +1983,12 @@ const s = StyleSheet.create({
         marginBottom: 0,
     },
 });
+
+const SellerDashboard: React.FC = () => {
+  if (Platform.OS === "web") {
+    return <DesktopDashboard />;
+  }
+  return <MobileDashboard />;
+};
 
 export default SellerDashboard;

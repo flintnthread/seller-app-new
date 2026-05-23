@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 32,
+    paddingHorizontal: 10,
     backdropFilter: 'blur(12px)',
     position: 'sticky' as any,
     top: 0,

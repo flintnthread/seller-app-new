@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#fafafa',
+    backgroundColor: '#F5F6FA',
     height: '100%' as any,
     overflow: 'hidden',
   },
@@ -37,9 +37,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 32,
-    maxWidth: 1200,
-    marginHorizontal: 'auto' as any,
+    padding: 24,
+    paddingBottom: 48,
     width: '100%',
   },
 });

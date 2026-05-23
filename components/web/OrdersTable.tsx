@@ -21,7 +21,11 @@ export function OrdersTable<T>({ data, columns, onRowPress }: OrdersTableProps<T
 
   return (
     <View style={styles.tableContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.table}>
           {/* Table Header */}
           <View style={styles.headerRow}>
@@ -85,8 +89,12 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     overflow: "hidden",
   },
+  scrollContent: {
+    minWidth: "100%",
+  },
   table: {
     minWidth: 800,
+    width: "100%",
   },
   headerRow: {
     flexDirection: "row",
