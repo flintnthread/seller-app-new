@@ -7,6 +7,9 @@ const NAV_ITEMS = [
   { name: 'Dashboard', path: '/dashboard', icon: 'house.fill', iconColor: '#8B5CF6' },
   { name: 'Orders', path: '/Ordersscreen', icon: 'cube.box.fill', iconColor: '#3B82F6' },
   { name: 'Products', path: '/productmanagement', icon: 'bag.fill', iconColor: '#F59E0B' },
+  { name: 'Colors', path: '/colors', icon: 'paintbrush.fill', iconColor: '#F28520' },
+  { name: 'Sizes', path: '/sizes', icon: 'ruler.fill', iconColor: '#6366F1' },
+  { name: 'Category Request', path: '/categoryrequest', icon: 'square.grid.2x2.fill', iconColor: '#14B8A6' },
   { name: 'Payments', path: '/payoutrequest', icon: 'cart.fill', iconColor: '#10B981' },
   { name: 'Profile', path: '/Profile', icon: 'person.crop.circle', iconColor: '#EC4899' },
 ] as const;

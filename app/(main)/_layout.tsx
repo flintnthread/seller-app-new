@@ -85,6 +85,9 @@ export default function TabLayout() {
       <Tabs.Screen name="sellerbanking" options={{ href: null }} />
       <Tabs.Screen name="sellerdocuments" options={{ href: null }} />
       <Tabs.Screen name="sellerticketrise" options={{ href: null }} />
+      <Tabs.Screen name="colors" options={{ href: null }} />
+      <Tabs.Screen name="sizes" options={{ href: null }} />
+      <Tabs.Screen name="categoryrequest" options={{ href: null }} />
     </Tabs>
   );
 }

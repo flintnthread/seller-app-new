@@ -30,6 +30,9 @@ const MAPPING = {
   'cart.fill': 'shopping-cart',
   'tray.full.fill': 'inventory',
   'plus': 'add',
+  'paintbrush.fill': 'palette',
+  'ruler.fill': 'straighten',
+  'square.grid.2x2.fill': 'category',
 } satisfies IconMapping;
 
 /**
