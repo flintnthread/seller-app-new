@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from 'expo-router';
 
 import {
   Alert,
@@ -21,7 +22,7 @@ import {
   Ionicons,
   MaterialIcons
 } from "@expo/vector-icons";
-import ProfileImageModal from "../../components/ProfileImageModal";
+import { Modal, Text } from "react-native";
 
 
 
@@ -31,6 +32,7 @@ export default function SellerProfileScreen() {
   const [profileImage, setProfileImage] = useState('https://i.pravatar.cc/300');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const router = useRouter();
 
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 1024;
@@ -90,7 +92,7 @@ export default function SellerProfileScreen() {
     return (
       <View style={desktopStyles.root}>
         {/* Top Nav Bar */}
-        <View style={desktopStyles.topNav}>
+        {/* <View style={desktopStyles.topNav}>
           <AppText style={desktopStyles.topNavBrand}>🛒 SellerHub</AppText>
           <View style={desktopStyles.topNavRight}>
             <AppText style={desktopStyles.topNavItem}>Dashboard</AppText>
@@ -101,7 +103,7 @@ export default function SellerProfileScreen() {
               <AppText style={desktopStyles.topNavLogoutText}>Logout</AppText>
             </TouchableOpacity>
           </View>
-        </View>
+        </View> */}
 
         {/* Page Body */}
         <View style={desktopStyles.body}>
@@ -140,14 +142,27 @@ export default function SellerProfileScreen() {
                   <AppText style={desktopStyles.sidebarInfoText}>priyasharma@gmail.com</AppText>
                 </View>
               </View>
-              <TouchableOpacity style={desktopStyles.sidebarEditBtn}>
-                <Ionicons name="create-outline" size={16} color="#FF6B35" />
-                <AppText style={desktopStyles.sidebarEditBtnText}>Edit Profile</AppText>
-              </TouchableOpacity>
+             <TouchableOpacity
+     style={desktopStyles.sidebarEditBtn}
+    onPress={() => router.push('/viewsellerprofile')}
+    >
+     <Ionicons name="create-outline" size={16} color="#FF6B35" />
+    <AppText style={desktopStyles.sidebarEditBtnText}>
+    View Profile
+    </AppText>
+   </TouchableOpacity>
             </View>
 
-            {/* Sidebar Nav */}
-            <View style={desktopStyles.sidebarNav}>
+          {/* Sidebar Nav */}
+        <View style={desktopStyles.sidebarNav}>
+          {/* Seller Hub Heading */}
+  <View style={modalStyles.desktopSellerHubHeader}>
+    <AppText style={modalStyles.desktopSellerHubTitle}>
+      Seller Hub
+    </AppText>
+
+    <View style={modalStyles.desktopSellerHubUnderline} />
+  </View>
               {[
                 { icon: 'shopping-bag', color: '#ff4d79', label: 'My Store' },
                 { icon: 'box', color: '#4caf50', label: 'Products' },
@@ -171,6 +186,13 @@ export default function SellerProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {/* Desktop Logout Button */}
+   <TouchableOpacity style={desktopStyles.desktopLogoutBtn}>
+  <AntDesign name="logout" size={18} color="#FF6B35" />
+  <AppText style={desktopStyles.desktopLogoutText}>
+    Logout
+  </AppText>
+   </TouchableOpacity>
           </View>
 
           {/* MAIN CONTENT */}
@@ -240,7 +262,7 @@ export default function SellerProfileScreen() {
                 </View>
 
                 {/* Growth & Marketing */}
-                <View style={desktopStyles.desktopCard}>
+                {/* <View style={desktopStyles.desktopCard}>
                   <DesktopSectionHeader title="Growth & Marketing" icon="trending-up" />
                   {[
                     { icon: 'tag', color: '#ff4d79', title: 'Promotions & Discounts' },
@@ -257,14 +279,14 @@ export default function SellerProfileScreen() {
                       setSelectedItem={setSelectedItem}
                     />
                   ))}
-                </View>
+                </View> */}
 
                 {/* Support & Help */}
                 <View style={desktopStyles.desktopCard}>
                   <DesktopSectionHeader title="Support & Help" icon="headphones" />
                   {[
                     { icon: 'headphones', color: '#9c27b0', title: 'Help & Support' },
-                    { icon: 'file-text', color: '#2196f3', title: 'Privacy & Support' },
+                    { icon: 'file-text', color: '#2196f3', title: 'Privacy & Policy' },
                     { icon: 'help-circle', color: '#f5a623', title: 'FAQs' },
                   ].map((item) => (
                     <DesktopListItem
@@ -283,14 +305,50 @@ export default function SellerProfileScreen() {
               <View style={{ height: 40 }} />
             </View>
           </ScrollView>
-        </View>
+        </View>      
+<Modal
+  visible={modalVisible}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setModalVisible(false)}
+>
+  <View style={modalStyles.overlay}>
+    <View
+      style={[
+        modalStyles.modalContainer,
+        Platform.OS === 'web' && modalStyles.desktopModalContainer,
+      ]}
+    >
 
-        <ProfileImageModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-          onSelectCamera={handleSelectCamera}
-          onSelectGallery={handleSelectGallery}
-        />
+      <TouchableOpacity
+        style={modalStyles.closeBtn}
+        onPress={() => setModalVisible(false)}
+      >
+        <Ionicons name="close" size={24} color="#000" />
+      </TouchableOpacity>
+
+      <Text style={modalStyles.title}>Update Profile Photo</Text>
+
+      <TouchableOpacity
+        style={modalStyles.optionBtn}
+        onPress={handleSelectCamera}
+      >
+        <Feather name="camera" size={20} color="#FF6B35" />
+        <Text style={modalStyles.optionText}>Take Photo</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={modalStyles.optionBtn}
+        onPress={handleSelectGallery}
+      >
+        <Feather name="image" size={20} color="#FF6B35" />
+        <Text style={modalStyles.optionText}>Choose From Gallery</Text>
+      </TouchableOpacity>
+
+    </View>
+  </View>
+</Modal>
+
       </View>
     );
   }
@@ -392,13 +450,13 @@ export default function SellerProfileScreen() {
         </View>
 
         {/* GROWTH */}
-        <SectionTitle title="Growth & Marketing" />
+        {/* <SectionTitle title="Growth & Marketing" />
         <View style={styles.card}>
           <ListItem icon="tag" color="#ff4d79" title="Promotions & Discounts" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
           <ListItem icon="speaker" color="#2196f3" title="Seller Advertising" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
           <ListItem icon="trending-up" color="#f5a623" title="Boost Products" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
           <ListItem icon="star" color="#4caf50" title="Customer Reviews" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-        </View>
+        </View> */}
 
         {/* SUPPORT */}
         <SectionTitle title="Support & Help" />
@@ -428,12 +486,56 @@ export default function SellerProfileScreen() {
         </View>
       )}
 
-      <ProfileImageModal
+      {/* <ProfileImageModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSelectCamera={handleSelectCamera}
         onSelectGallery={handleSelectGallery}
-      />
+      /> */}
+
+      <Modal
+  visible={modalVisible}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setModalVisible(false)}
+>
+  <View style={modalStyles.overlay}>
+    <View style={modalStyles.modalContainer}>
+
+      <TouchableOpacity
+        style={modalStyles.closeBtn}
+        onPress={() => setModalVisible(false)}
+      >
+        <Ionicons name="close" size={24} color="#000" />
+      </TouchableOpacity>
+
+      <Text style={modalStyles.title}>
+        Update Profile Photo
+      </Text>
+
+      <TouchableOpacity
+        style={modalStyles.optionBtn}
+        onPress={handleSelectCamera}
+      >
+        <Feather name="camera" size={20} color="#FF6B35" />
+        <Text style={modalStyles.optionText}>
+          Take Photo
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={modalStyles.optionBtn}
+        onPress={handleSelectGallery}
+      >
+        <Feather name="image" size={20} color="#FF6B35" />
+        <Text style={modalStyles.optionText}>
+          Choose From Gallery
+        </Text>
+      </TouchableOpacity>
+
+    </View>
+  </View>
+</Modal>
     </View>
   );
 }
@@ -581,7 +683,7 @@ const desktopStyles = StyleSheet.create({
   body: {
     flex: 1,
     flexDirection: 'row',
-    maxWidth: 1280,
+   // maxWidth: 1280,
     width: '100%' as any,
     alignSelf: 'center',
     paddingHorizontal: 24,
@@ -839,7 +941,127 @@ const desktopStyles = StyleSheet.create({
     color: '#FF6B35',
     fontFamily: fontFamilies.bold,
   },
+
+  desktopLogoutBtn: {
+  marginTop: 18,
+  backgroundColor: '#FFF3ED',
+  borderWidth: 1,
+  //borderColor: '#FFE0D2',
+  borderRadius: 14,
+  height: 52,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 10,
+  shadowColor: '#FF6B35',
+   borderColor: '#FF6B35', // orange outline
+  shadowOffset: {
+    width: 0,
+    height: 4,
+  },
+  shadowOpacity: 0.08,
+  shadowRadius: 8,
+  elevation: 3,
+},
+
+desktopLogoutText: {
+  color: '#FF6B35',
+  fontSize: 15,
+  fontFamily: fontFamilies.bold,
+},
 });
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+
+  modalContainer: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    position: 'relative',
+  },
+
+  desktopModalContainer: {
+    width: 350,
+    maxWidth: 350,
+  },
+
+  closeBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 10,
+  },
+
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1D3B6F',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+
+  optionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: '#FFF5F0',
+    marginBottom: 14,
+    gap: 12,
+  },
+
+  optionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  desktopSellerHubHeader: {
+  width: '100%',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingTop: 18,
+  paddingBottom: 14,
+  borderBottomWidth: 1,
+  borderBottomColor: '#F3F4F8',
+},
+
+desktopSellerHubTitle: {
+  fontSize: 18,
+    fontFamily: fontFamilies.bold,
+    color: "#1D3B6F",
+    marginBottom: 8,
+    marginTop: 15,
+    textAlign: "center",
+    alignSelf: "center",
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+},
+
+desktopSellerHubUnderline: {
+  width: 70,
+  height: 5,
+  backgroundColor: '#F97316',
+  borderRadius: 4,
+  marginTop: 6,
+  shadowColor: '#F97316',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+},
+
+});
+
 
 
 // ─── ORIGINAL MOBILE STYLES (untouched) ─────────────────────────────────────
