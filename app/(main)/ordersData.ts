@@ -203,7 +203,7 @@ export const ORDER_DETAILS: OrderDetail[] = [
         qty: 1,
         price: "₹1,299",
         image:
-          "https://images.unsplash.com/photo-1594938298603-c8148c4b4cd8?w=160&h=160&fit=crop&crop=center",
+          "https://images.unsplash.com/photo-1745313452052-0e4e341f326c?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8a3VydGlzfGVufDB8fDB8fHww",
       },
     ],
     pricing: {
