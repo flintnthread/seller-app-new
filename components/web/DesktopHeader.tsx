@@ -2,21 +2,29 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useActiveHeader } from './HeaderContext';
 
-export function DesktopHeader() {
-  const { activeLabel } = useActiveHeader();
-
+export function DesktopHeader({ 
+  isSidebarOpen, 
+  onToggleSidebar 
+}: { 
+  isSidebarOpen?: boolean; 
+  onToggleSidebar?: () => void; 
+}) {
   return (
     <View style={styles.container}>
-      <View style={styles.leftSection}>
-        <Text style={styles.greetingText}>{activeLabel}</Text>
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Store Active</Text>
-        </View>
-      </View>
-      
+      {!isSidebarOpen && onToggleSidebar && (
+        <Pressable 
+          onPress={onToggleSidebar} 
+          // @ts-ignore
+          style={({ hovered }) => [
+            styles.menuButton,
+            hovered && { backgroundColor: '#f3f4f6' }
+          ]}
+        >
+          <Ionicons name="menu-outline" size={22} color="#64748b" />
+        </Pressable>
+      )}
+
       <View style={styles.searchContainer}>
         <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIcon} />
         <TextInput 
@@ -27,11 +35,6 @@ export function DesktopHeader() {
       </View>
       
       <View style={styles.rightSection}>
-        <Pressable style={styles.primaryButton}>
-          <Ionicons name="add-outline" size={18} color="#fff" />
-          <Text style={styles.primaryButtonText}>Add Product</Text>
-        </Pressable>
-        
         <Pressable style={styles.iconButton}>
           <IconSymbol name="bell.fill" size={20} color="#666666" />
           <View style={styles.notificationBadge} />
@@ -47,62 +50,41 @@ export function DesktopHeader() {
 
 const styles = StyleSheet.create({
   container: {
-    height: 56,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    height: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: '#eaeaea',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    paddingHorizontal: 24,
     backdropFilter: 'blur(12px)',
     position: 'sticky' as any,
     top: 0,
     zIndex: 50,
-  },
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 16,
-    flex: 1,
   },
-  greetingText: {
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: 'Poppins_700Bold',
-    color: '#000000',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
+  menuButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#d1fae5',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10b981',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#065f46',
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    marginRight: 4,
   },
   searchContainer: {
     flex: 1,
-    maxWidth: 400,
+    maxWidth: 620,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 14,
+    height: 38,
   },
   searchIcon: {
     marginRight: 8,
@@ -117,24 +99,10 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FF6F00',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
+    gap: 8,
+    flexShrink: 0,
+    paddingLeft: 8,
+    marginLeft: 'auto' as any,
   },
   iconButton: {
     padding: 8,
@@ -153,9 +121,9 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
