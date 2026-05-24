@@ -98,6 +98,55 @@ const HEADER_NAV = [
 
 type SectionKey = "about" | "features" | "active" | "steps";
 
+// ─── FIX 1: Inject floating orb CSS at MODULE LEVEL for web ──────────────────
+// This ensures styles are available before the first render, not async.
+const injectFloatingStyles = () => {
+  if (Platform.OS !== "web") return;
+  if (typeof document === "undefined") return;
+  if (document.getElementById("__fnt_orb_styles")) return;
+  const style = document.createElement("style");
+  style.id = "__fnt_orb_styles";
+  // FIX 2: Added translateZ(0) to all keyframe transforms to force GPU
+  //        compositing layer, and will-change: transform for perf.
+  style.textContent = `
+    @keyframes fntFloat1 {
+      0%   { transform: translateZ(0) translate(0px, 0px) scale(1); }
+      33%  { transform: translateZ(0) translate(18px, -22px) scale(1.04); }
+      66%  { transform: translateZ(0) translate(-12px, 14px) scale(0.97); }
+      100% { transform: translateZ(0) translate(0px, 0px) scale(1); }
+    }
+    @keyframes fntFloat2 {
+      0%   { transform: translateZ(0) translate(0px, 0px) scale(1); }
+      40%  { transform: translateZ(0) translate(-20px, 18px) scale(1.06); }
+      70%  { transform: translateZ(0) translate(10px, -10px) scale(0.95); }
+      100% { transform: translateZ(0) translate(0px, 0px) scale(1); }
+    }
+    @keyframes fntFloat3 {
+      0%   { transform: translateZ(0) translate(0px, 0px) scale(1); }
+      50%  { transform: translateZ(0) translate(14px, 20px) scale(1.08); }
+      100% { transform: translateZ(0) translate(0px, 0px) scale(1); }
+    }
+    .fnt-orb-1 {
+      animation: fntFloat1 9s ease-in-out infinite;
+      will-change: transform;
+    }
+    .fnt-orb-2 {
+      animation: fntFloat2 12s ease-in-out infinite;
+      will-change: transform;
+    }
+    .fnt-orb-3 {
+      animation: fntFloat3 7s ease-in-out infinite;
+      will-change: transform;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+// ─── FIX 1 (continued): Call at module level — runs synchronously before render ──
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  injectFloatingStyles();
+}
+
 const DetailsDesktopHeader: React.FC<{
   onNavPress: (key: SectionKey) => void;
   onStartSelling: () => void;
@@ -110,10 +159,6 @@ const DetailsDesktopHeader: React.FC<{
           style={hs.brandLogo}
           resizeMode="contain"
         />
-        <View style={hs.brandText}>
-          <Text style={hs.brandTitle}>FLINT & THREAD</Text>
-          <Text style={hs.brandTagline}>The Infinity and Vanguard</Text>
-        </View>
       </View>
 
       <View style={hs.navRight}>
@@ -158,12 +203,12 @@ const FOOTER_BUSINESS = [
 ];
 
 const FOOTER_SOCIAL = [
-  { icon: "facebook",  color: "#1877F2" },
-  { icon: "twitter",   color: "#000000" },
-  { icon: "instagram", color: "#E4405F" },
-  { icon: "linkedin",  color: "#0A66C2" },
-  { icon: "youtube",   color: "#FF0000" },
-  { icon: "whatsapp",  color: "#25D366" },
+  { icon: "facebook",  color: "#1877F2", url: "https://www.facebook.com/p/Flint-Thread-61573147787915/" },
+  { icon: "twitter",   color: "#000000", url: "https://x.com/flintnthread"                              },
+  { icon: "instagram", color: "#E4405F", url: "https://www.instagram.com/flintnthread/"                 },
+  { icon: "linkedin",  color: "#0A66C2", url: "https://www.linkedin.com/company/flintnthread"           },
+  { icon: "youtube",   color: "#FF0000", url: "https://www.youtube.com/@flintnthread"                   },
+  { icon: "whatsapp",  color: "#25D366", url: "https://wa.me/919063499092"                              },
 ] as const;
 
 const DetailsFooter: React.FC<{
@@ -171,18 +216,16 @@ const DetailsFooter: React.FC<{
   onNavPress: (key: SectionKey) => void;
   onStartSelling: () => void;
 }> = ({ isDesktop, onNavPress, onStartSelling }) => (
-  <View style={[fs.wrap, isDesktop && fs.wrapDesktop]}>
+  <View style={[fs.wrap, isDesktop && fs.wrapDesktop, isDesktop && fs.wrapWeb]}>
     <View style={[fs.inner, isDesktop && fs.innerDesktop]}>
       <View style={[fs.col, isDesktop && fs.colBrand]}>
         <View style={fs.footerBrand}>
           <Image
-            source={require("../../assets/images/logo-removebg-preview.png")}
+            source={require("../../assets/images/fnt1.jpg")}
             style={fs.footerLogo}
             resizeMode="contain"
           />
           <View>
-            <Text style={fs.footerBrandTitle}>FLINT & THREAD</Text>
-            <Text style={fs.footerBrandTag}>The Infinity and Vanguard</Text>
           </View>
         </View>
         <Text style={fs.footerDesc}>
@@ -190,9 +233,14 @@ const DetailsFooter: React.FC<{
         </Text>
         <View style={fs.socialRow}>
           {FOOTER_SOCIAL.map((s) => (
-            <View key={s.icon} style={[fs.socialBtn, { backgroundColor: "rgba(255,255,255,0.12)" }]}>
+            <TouchableOpacity
+              key={s.icon}
+              style={[fs.socialBtn, { backgroundColor: "rgba(255,255,255,0.12)" }]}
+              onPress={() => Linking.openURL(s.url)}
+              activeOpacity={0.75}
+            >
               <MaterialCommunityIcons name={s.icon as any} size={18} color="#fff" />
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -402,6 +450,9 @@ const SellerLanding: React.FC = () => {
       scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
     }
   };
+
+  // ─── FIX 1 (removed): No longer need this useEffect for style injection.
+  //     Styles are now injected at module level above, synchronously.
 
   const ds = useMemo(
     () =>
@@ -764,8 +815,6 @@ const SellerLanding: React.FC = () => {
     Outfit_700Bold, Outfit_800ExtraBold, Outfit_900Black,
   });
 
-
-
   useEffect(() => {
     if (fontsLoaded) {
       Animated.parallel([
@@ -781,6 +830,10 @@ const SellerLanding: React.FC = () => {
     scrollRef.current?.scrollTo({ y: isDesktop ? 700 : 820, animated: true });
 
   const HeroContainer = isDesktop ? View : SafeAreaView;
+
+  // ── Helper: build web className prop safely ──────────────
+  const webClass = (cls: string): object =>
+    Platform.OS === "web" ? ({ className: cls } as object) : {};
 
   return (
     <View style={[{ flex: 1, backgroundColor: C.white, width: "100%" }, isDesktop && ds?.page]}>
@@ -822,10 +875,52 @@ const SellerLanding: React.FC = () => {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={[s.heroGrad, ds?.heroGrad]}
         >
-          {/* Decorative orbs */}
-          <View style={[s.orb,       { width: isDesktop ? 360 : 260, height: isDesktop ? 360 : 260, top: -80,  right: -80, opacity: 0.07 }]} />
-          <View style={[s.orb,       { width: isDesktop ? 240 : 180, height: isDesktop ? 240 : 180, bottom: 40, left: -60, opacity: 0.05 }]} />
-          <View style={[s.orbOrange, { width: isDesktop ? 180 : 130, height: isDesktop ? 180 : 130, top: 110,  right: isDesktop ? 80 : 24,  opacity: 0.13 }]} />
+          {/*
+            ── FLOATING ORBS ──────────────────────────────────────────────────
+            FIX 3: className is now applied on ALL web (Platform.OS === "web"),
+                   not just isDesktop. This covers tablet web too.
+            FIX 4: The heroGrad has `position: relative` on web (in s.heroGrad)
+                   so absolute-positioned orbs are scoped to the gradient container.
+          ── */}
+          <View
+            style={[
+              s.orb,
+              {
+                width: isDesktop ? 360 : 260,
+                height: isDesktop ? 360 : 260,
+                top: -80,
+                right: -80,
+                opacity: 0.07,
+              },
+            ]}
+            {...(Platform.OS === "web" ? webClass("fnt-orb-1") : {})}
+          />
+          <View
+            style={[
+              s.orb,
+              {
+                width: isDesktop ? 240 : 180,
+                height: isDesktop ? 240 : 180,
+                bottom: 40,
+                left: -60,
+                opacity: 0.05,
+              },
+            ]}
+            {...(Platform.OS === "web" ? webClass("fnt-orb-2") : {})}
+          />
+          <View
+            style={[
+              s.orbOrange,
+              {
+                width: isDesktop ? 180 : 130,
+                height: isDesktop ? 180 : 130,
+                top: 110,
+                right: isDesktop ? 80 : 24,
+                opacity: 0.13,
+              },
+            ]}
+            {...(Platform.OS === "web" ? webClass("fnt-orb-3") : {})}
+          />
 
           <HeroContainer style={isDesktop ? ds?.heroInner : undefined}>
             {!isDesktop && (
@@ -1325,7 +1420,14 @@ const SellerLanding: React.FC = () => {
 const s = StyleSheet.create({
 
   // Hero
-  heroGrad: { paddingHorizontal: 22, paddingBottom: 52, paddingTop: 20, overflow: "hidden" },
+  heroGrad: {
+    paddingHorizontal: 22,
+    paddingBottom: 52,
+    paddingTop: 20,
+    overflow: "hidden",
+    // FIX 4: position relative on web so absolute orbs are scoped to this container
+    ...(Platform.OS === "web" ? ({ position: "relative" } as object) : {}),
+  },
   orb:       { position: "absolute", borderRadius: 999, backgroundColor: "#fff" },
   orbOrange: { position: "absolute", borderRadius: 999, backgroundColor: "#F97316" },
 
@@ -1344,7 +1446,6 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.25)",
-    // Frosted glass shimmer
     shadowColor: "#ffffff",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
@@ -1584,6 +1685,9 @@ const fs = StyleSheet.create({
   wrapDesktop: {
     paddingTop: 56,
   },
+  wrapWeb: {
+    backgroundColor: C.navyDeep,
+  },
   inner: {
     paddingHorizontal: 24,
     paddingBottom: 32,
@@ -1622,8 +1726,8 @@ const fs = StyleSheet.create({
     marginBottom: 16,
   },
   footerLogo: {
-    width: 48,
-    height: 48,
+    width: 207,
+    height: 55,
   },
   footerBrandTitle: {
     fontFamily: "Outfit_700Bold",
@@ -1718,8 +1822,8 @@ const hs = StyleSheet.create({
     flexShrink: 1,
   },
   brandLogo: {
-    width: 52,
-    height: 52,
+    width: 207,
+    height: 55,
   },
   brandText: {
     justifyContent: "center",

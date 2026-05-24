@@ -100,6 +100,549 @@ const STEPS = [
 ];
 
 // ─────────────────────────────────────────────────────────────
+// SWEET ALERT — Confirm + Success (two-stage)
+// ─────────────────────────────────────────────────────────────
+type SweetAlertStage = "confirm" | "success";
+
+interface SweetAlertProps {
+    visible: boolean;
+    stage: SweetAlertStage;
+    productName?: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+    onDone: () => void;
+}
+
+// Tiny floating dot for success confetti
+const ConfettiDot = ({
+    color,
+    delay,
+    startX,
+    startY,
+}: {
+    color: string;
+    delay: number;
+    startX: number;
+    startY: number;
+}) => {
+    const translateY = useRef(new Animated.Value(0)).current;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const opacity = useRef(new Animated.Value(0)).current;
+    const scale = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const anim = Animated.sequence([
+            Animated.delay(delay),
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                Animated.spring(scale, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }),
+                Animated.timing(translateY, { toValue: startY, duration: 700, useNativeDriver: true }),
+                Animated.timing(translateX, { toValue: startX, duration: 700, useNativeDriver: true }),
+            ]),
+            Animated.timing(opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ]);
+        anim.start();
+        return () => anim.stop();
+    }, []);
+
+    return (
+        <Animated.View
+            style={{
+                position: "absolute",
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: color,
+                opacity,
+                transform: [{ translateX }, { translateY }, { scale }],
+            }}
+        />
+    );
+};
+
+const CONFETTI_DOTS = [
+    { color: "#F97316", dx: -48, dy: -52, delay: 0 },
+    { color: "#7C3AED", dx: 52, dy: -44, delay: 60 },
+    { color: "#0891B2", dx: -62, dy: -20, delay: 120 },
+    { color: "#059669", dx: 64, dy: -28, delay: 90 },
+    { color: "#F59E0B", dx: -32, dy: -70, delay: 30 },
+    { color: "#EC4899", dx: 36, dy: -68, delay: 150 },
+    { color: "#1A2B6D", dx: -70, dy: 10, delay: 180 },
+    { color: "#10B981", dx: 72, dy: 14, delay: 200 },
+];
+
+const SweetAlert: React.FC<SweetAlertProps> = ({
+    visible,
+    stage,
+    productName,
+    onConfirm,
+    onCancel,
+    onDone,
+}) => {
+    // ── Overlay fade
+    const overlayOpacity = useRef(new Animated.Value(0)).current;
+    // ── Card scale + fade
+    const cardScale = useRef(new Animated.Value(0.85)).current;
+    const cardOpacity = useRef(new Animated.Value(0)).current;
+    // ── Icon ring pulse (confirm)
+    const ringScale = useRef(new Animated.Value(0.7)).current;
+    const ringOpacity = useRef(new Animated.Value(0)).current;
+    // ── Checkmark draw (success)
+    const checkScale = useRef(new Animated.Value(0)).current;
+    const checkOpacity = useRef(new Animated.Value(0)).current;
+    // ── Success icon bg pulse
+    const iconBgScale = useRef(new Animated.Value(0.6)).current;
+    // ── Text slide in (success)
+    const textSlide = useRef(new Animated.Value(20)).current;
+    const textOpacity = useRef(new Animated.Value(0)).current;
+    // ── Show confetti dots
+    const [showConfetti, setShowConfetti] = useState(false);
+    // ── Confetti key to remount on each show
+    const [confettiKey, setConfettiKey] = useState(0);
+
+    useEffect(() => {
+        if (visible) {
+            // Reset all
+            overlayOpacity.setValue(0);
+            cardScale.setValue(0.85);
+            cardOpacity.setValue(0);
+            ringScale.setValue(0.7);
+            ringOpacity.setValue(0);
+            checkScale.setValue(0);
+            checkOpacity.setValue(0);
+            iconBgScale.setValue(0.6);
+            textSlide.setValue(20);
+            textOpacity.setValue(0);
+            setShowConfetti(false);
+
+            // Animate in
+            Animated.parallel([
+                Animated.timing(overlayOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+                Animated.spring(cardScale, { toValue: 1, tension: 65, friction: 8, useNativeDriver: true }),
+                Animated.timing(cardOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+            ]).start(() => {
+                if (stage === "confirm") {
+                    // Pulse the icon ring
+                    Animated.parallel([
+                        Animated.spring(ringScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
+                        Animated.timing(ringOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+                    ]).start();
+                } else {
+                    // Success: icon bg + checkmark + text + confetti
+                    Animated.spring(iconBgScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }).start();
+                    Animated.sequence([
+                        Animated.delay(100),
+                        Animated.parallel([
+                            Animated.spring(checkScale, { toValue: 1, tension: 70, friction: 6, useNativeDriver: true }),
+                            Animated.timing(checkOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                        ]),
+                    ]).start();
+                    Animated.sequence([
+                        Animated.delay(200),
+                        Animated.parallel([
+                            Animated.timing(textSlide, { toValue: 0, duration: 350, useNativeDriver: true }),
+                            Animated.timing(textOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+                        ]),
+                    ]).start();
+                    setTimeout(() => {
+                        setConfettiKey((k) => k + 1);
+                        setShowConfetti(true);
+                    }, 120);
+                }
+            });
+        } else {
+            setShowConfetti(false);
+        }
+    }, [visible, stage]);
+
+    const animateOut = (cb: () => void) => {
+        Animated.parallel([
+            Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+            Animated.timing(cardOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+            Animated.timing(cardScale, { toValue: 0.9, duration: 180, useNativeDriver: true }),
+        ]).start(cb);
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal visible transparent animationType="none" onRequestClose={onCancel}>
+            <Animated.View style={[sa.overlay, { opacity: overlayOpacity }]}>
+                <Animated.View
+                    style={[
+                        sa.card,
+                        {
+                            opacity: cardOpacity,
+                            transform: [{ scale: cardScale }],
+                        },
+                    ]}
+                >
+                    {stage === "confirm" ? (
+                        /* ── CONFIRM STAGE ───────────────────────── */
+                        <>
+                            {/* Icon */}
+                            <View style={sa.iconWrap}>
+                                <Animated.View
+                                    style={[
+                                        sa.iconRing,
+                                        { transform: [{ scale: ringScale }], opacity: ringOpacity },
+                                    ]}
+                                />
+                                <View style={sa.iconCircleConfirm}>
+                                    <MaterialCommunityIcons
+                                        name="content-save-check-outline"
+                                        size={34}
+                                        color="#fff"
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Text */}
+                            <AppText style={sa.title}>Save Product?</AppText>
+                            <AppText style={sa.subtitle}>
+                                {productName
+                                    ? `"${productName}" will be submitted for review. Once approved, it goes live on the marketplace.`
+                                    : "Your product will be submitted for review. Once approved, it goes live on the marketplace."}
+                            </AppText>
+
+                            {/* Info pill */}
+                            <View style={sa.infoPill}>
+                                <MaterialCommunityIcons name="clock-fast" size={14} color={C.accent4} />
+                                <AppText style={sa.infoPillTxt}>
+                                    Approval typically takes 24–48 hours
+                                </AppText>
+                            </View>
+
+                            {/* Actions */}
+                            <View style={sa.btnRow}>
+                                <TouchableOpacity
+                                    style={sa.cancelBtn}
+                                    onPress={() => animateOut(onCancel)}
+                                    activeOpacity={0.8}
+                                >
+                                    <AppText style={sa.cancelTxt}>Cancel</AppText>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={sa.confirmBtn}
+                                    onPress={onConfirm}
+                                    activeOpacity={0.88}
+                                >
+                                    <MaterialCommunityIcons name="check" size={18} color="#fff" />
+                                    <AppText style={sa.confirmTxt}>Yes, Save</AppText>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    ) : (
+                        /* ── SUCCESS STAGE ───────────────────────── */
+                        <>
+                            {/* Confetti dots */}
+                            {showConfetti && (
+                                <View style={sa.confettiAnchor} pointerEvents="none">
+                                    {CONFETTI_DOTS.map((d, i) => (
+                                        <ConfettiDot
+                                            key={`${confettiKey}-${i}`}
+                                            color={d.color}
+                                            delay={d.delay}
+                                            startX={d.dx}
+                                            startY={d.dy}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Animated icon */}
+                            <View style={sa.iconWrap}>
+                                <Animated.View
+                                    style={[
+                                        sa.iconCircleSuccess,
+                                        { transform: [{ scale: iconBgScale }] },
+                                    ]}
+                                >
+                                    <Animated.View
+                                        style={{
+                                            opacity: checkOpacity,
+                                            transform: [{ scale: checkScale }],
+                                        }}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="check-bold"
+                                            size={38}
+                                            color="#fff"
+                                        />
+                                    </Animated.View>
+                                </Animated.View>
+                            </View>
+
+                            {/* Text */}
+                            <Animated.View
+                                style={{
+                                    opacity: textOpacity,
+                                    transform: [{ translateY: textSlide }],
+                                    alignItems: "center",
+                                }}
+                            >
+                                <AppText style={sa.successTitle}>Product Saved!</AppText>
+                                <AppText style={sa.successSubtitle}>
+                                    {productName
+                                        ? `"${productName}" has been submitted for review.`
+                                        : "Your product has been submitted for review."}
+                                    {"\n"}You'll be notified once it goes live.
+                                </AppText>
+
+                                {/* Stats row */}
+                                <View style={sa.statsRow}>
+                                    {[
+                                        { icon: "clock-check-outline", label: "24–48 hr approval", color: C.accent4 },
+                                        { icon: "storefront-outline", label: "Goes live after approval", color: C.accent5 },
+                                    ].map((item) => (
+                                        <View key={item.label} style={sa.statChip}>
+                                            <MaterialCommunityIcons
+                                                name={item.icon as any}
+                                                size={14}
+                                                color={item.color}
+                                            />
+                                            <AppText style={[sa.statChipTxt, { color: item.color }]}>
+                                                {item.label}
+                                            </AppText>
+                                        </View>
+                                    ))}
+                                </View>
+                            </Animated.View>
+
+                            {/* Done button */}
+                            <Animated.View style={{ opacity: textOpacity, width: "100%", marginTop: 24 }}>
+                                <TouchableOpacity
+                                    style={sa.doneBtn}
+                                    onPress={() => animateOut(onDone)}
+                                    activeOpacity={0.88}
+                                >
+                                    <AppText style={sa.doneTxt}>Go to Products</AppText>
+                                    <Ionicons name="arrow-forward" size={17} color="#fff" />
+                                </TouchableOpacity>
+                            </Animated.View>
+                        </>
+                    )}
+                </Animated.View>
+            </Animated.View>
+        </Modal>
+    );
+};
+
+const sa = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: "rgba(10,20,60,0.55)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+    card: {
+        width: "100%",
+        maxWidth: 420,
+        backgroundColor: C.white,
+        borderRadius: 28,
+        paddingHorizontal: 28,
+        paddingTop: 36,
+        paddingBottom: 28,
+        alignItems: "center",
+        shadowColor: "#0F1A4A",
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.22,
+        shadowRadius: 40,
+        elevation: 28,
+    },
+    // ── Confirm icon ─────────────────────────────────────────
+    iconWrap: {
+        width: 90,
+        height: 90,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 22,
+    },
+    iconRing: {
+        position: "absolute",
+        width: 90,
+        height: 90,
+        borderRadius: 45,
+        borderWidth: 3,
+        borderColor: C.accent5 + "40",
+        backgroundColor: C.accent5 + "12",
+    },
+    iconCircleConfirm: {
+        width: 72,
+        height: 72,
+        borderRadius: 22,
+        backgroundColor: C.accent5,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: C.accent5,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.38,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    // ── Success icon ─────────────────────────────────────────
+    iconCircleSuccess: {
+        width: 82,
+        height: 82,
+        borderRadius: 41,
+        backgroundColor: C.green,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: C.green,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.42,
+        shadowRadius: 20,
+        elevation: 12,
+    },
+    // ── Confetti anchor (centered on icon) ───────────────────
+    confettiAnchor: {
+        position: "absolute",
+        top: 72,
+        alignSelf: "center",
+        width: 0,
+        height: 0,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    // ── Confirm text ─────────────────────────────────────────
+    title: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 22,
+        color: C.textDark,
+        textAlign: "center",
+        marginBottom: 10,
+        letterSpacing: 0.1,
+    },
+    subtitle: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 14,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 22,
+        marginBottom: 16,
+        paddingHorizontal: 4,
+    },
+    infoPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+        backgroundColor: "#FEF3C7",
+        borderRadius: 50,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: "#FCD34D",
+        marginBottom: 24,
+    },
+    infoPillTxt: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 12,
+        color: C.accent4,
+    },
+    // ── Buttons ───────────────────────────────────────────────
+    btnRow: {
+        flexDirection: "row",
+        gap: 12,
+        width: "100%",
+    },
+    cancelBtn: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: C.border,
+        backgroundColor: C.bg,
+    },
+    cancelTxt: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 15,
+        color: C.textMid,
+    },
+    confirmBtn: {
+        flex: 1.6,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingVertical: 14,
+        borderRadius: 14,
+        backgroundColor: C.accent5,
+        shadowColor: C.accent5,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    confirmTxt: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 15,
+        color: C.white,
+    },
+    // ── Success text ─────────────────────────────────────────
+    successTitle: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 24,
+        color: C.textDark,
+        textAlign: "center",
+        marginBottom: 10,
+        letterSpacing: 0.1,
+    },
+    successSubtitle: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 14,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 22,
+        marginBottom: 18,
+        paddingHorizontal: 4,
+    },
+    statsRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        justifyContent: "center",
+    },
+    statChip: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: C.bg,
+        borderRadius: 50,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    statChipTxt: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 11.5,
+    },
+    doneBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingVertical: 15,
+        borderRadius: 14,
+        backgroundColor: C.navy,
+        width: "100%",
+        shadowColor: C.navyDeep,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    doneTxt: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 15,
+        color: C.white,
+    },
+});
+
+// ─────────────────────────────────────────────────────────────
 // TOAST SYSTEM (right → left slide in)
 // ─────────────────────────────────────────────────────────────
 type ToastItem = { id: number; message: string; type: "error" | "success" };
@@ -1001,7 +1544,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            {/* CARD 1: Product Identity */}
             <Card>
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
                 <Divider />
@@ -1047,7 +1589,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            {/* CARD 2: Descriptions */}
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="text-box-edit-outline" title="Descriptions" accent={C.accent2} />
                 <Divider />
@@ -1070,7 +1611,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 />
             </Card>
 
-            {/* CARD 3: Dimensions */}
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="cube-scan" title="Product Dimensions" accent={C.accent3} />
                 <Divider />
@@ -1091,7 +1631,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            {/* CARD 4: Weight & Delivery */}
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="weight-kilogram" title="Weight & Delivery" accent={C.accent4} />
                 <Divider />
@@ -1127,7 +1666,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <Hint text="Mark if special protective packaging is required" />
             </Card>
 
-            {/* CARD 5: Customization */}
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="palette-outline" title="Customization" accent={C.accent5} />
                 <Divider />
@@ -1377,10 +1915,9 @@ const ipg = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 type Variant = {
     id: string; color: string; size: string; sku: string;
-    stock: string; mrp: string; sellingPrice: string; discount: string; images: string[];
+    stock: string; mrp: string; sellingPrice: string; discount: string; images: string[]; videoUrl: string;
 };
 
-// ─── FIX: rmVariant is now correctly received as a prop ───────
 const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
@@ -1395,7 +1932,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
         const id = Date.now().toString();
         setVariants((p: Variant[]) => [
             ...p,
-            { id, color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [] },
+            { id, color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" },
         ]);
     };
 
@@ -1439,7 +1976,6 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
                         <View style={vt.badge}><AppText style={vt.badgeTxt}>#{idx + 1}</AppText></View>
                         <AppText style={vt.title}>Variant</AppText>
                         {variants.length > 1 && (
-                            // ─── FIX: rmVariant is now defined and wired correctly ───
                             <TouchableOpacity onPress={() => rmVariant(v.id)} style={vt.rmBtn}>
                                 <MaterialCommunityIcons name="trash-can-outline" size={15} color={C.red} />
                                 <AppText style={vt.rmTxt}>Remove</AppText>
@@ -1500,12 +2036,15 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
                         hasError={hasErr(v.id, "image")}
                         label="Add Photo"
                     />
-                    <Lbl text="Variant Video (optional)" />
-                    <TouchableOpacity style={vt.fileRow}>
-                        <MaterialCommunityIcons name="file-video-outline" size={18} color={C.navyLight} />
-                        <AppText style={vt.fileTxt}>No file chosen</AppText>
-                        <View style={vt.browseBtn}><AppText style={vt.browseTxt}>Browse</AppText></View>
-                    </TouchableOpacity>
+                    <View style={{ marginTop: 10 }}>
+                        <Lbl text="Variant Video (optional)" />
+                        <Hint text="Paste a YouTube, Vimeo, or direct MP4 URL if you want to add a video." />
+                        <Field
+                            placeholder="https://example.com/variant-video.mp4"
+                            value={v.videoUrl}
+                            onChangeText={(val: string) => upVariant(v.id, "videoUrl", val)}
+                        />
+                    </View>
                 </Card>
             ))}
 
@@ -1582,8 +2121,6 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
             <Card>
                 <SecHead icon="image-multiple-outline" title="Product Images" accent={C.accent2} />
                 <Divider />
-
-                {/* Primary Image */}
                 <Lbl text="Primary Image" required />
                 <Hint text="First image shown to buyers. JPG, PNG or WebP · max 5 MB." />
                 {data.primaryImage ? (
@@ -1618,10 +2155,7 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <AppText style={ig.sub}>JPG · PNG · WebP · Max 5 MB</AppText>
                     </TouchableOpacity>
                 )}
-
                 <View style={{ height: 20 }} />
-
-                {/* Additional Images */}
                 <Lbl text="Additional Images" />
                 <Hint text="Add more images to showcase different angles. Up to 4 additional images." />
                 <ImagePickerGrid
@@ -1883,22 +2417,14 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <View style={{ flex: 1 }}>
                             <Field placeholder="Name" value={sp.name} onChangeText={(v: string) => {
                                 const arr = [...specs];
-
-                                if (arr[i]) {
-                                    arr[i].name = v;
-                                }
-
+                                if (arr[i]) { arr[i].name = v; }
                                 setSpecs(arr);
                             }} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Field placeholder="Value" value={sp.value} onChangeText={(v: string) => {
                                 const arr = [...specs];
-
-                                if (arr[i]) {
-                                    arr[i].value = v;
-                                }
-
+                                if (arr[i]) { arr[i].value = v; }
                                 setSpecs(arr);
                             }} />
                         </View>
@@ -1969,22 +2495,14 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 }
             >
                 <Lbl text="Chart Name" required />
-                <Field
-                    placeholder="e.g. Men's Clothing Size Chart"
-                    value={newChartName}
-                    onChangeText={setNewChartName}
-                />
+                <Field placeholder="e.g. Men's Clothing Size Chart" value={newChartName} onChangeText={setNewChartName} />
                 <View style={[twoCol, { marginTop: 0 }]}>
                     <View style={fieldFlex}>
                         <Lbl text="Category (Optional)" />
                         <Drop
                             placeholder={CHART_CATEGORY_ALL}
                             value={chartCategory}
-                            onPress={() => {
-                                setChartSubPick(false);
-                                setChartUnitPick(false);
-                                setChartCatPick(true);
-                            }}
+                            onPress={() => { setChartSubPick(false); setChartUnitPick(false); setChartCatPick(true); }}
                         />
                     </View>
                     <View style={fieldFlex}>
@@ -1992,23 +2510,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <Drop
                             placeholder={CHART_SUB_ALL}
                             value={chartSubcategory}
-                            onPress={() => {
-                                setChartCatPick(false);
-                                setChartUnitPick(false);
-                                setChartSubPick(true);
-                            }}
+                            onPress={() => { setChartCatPick(false); setChartUnitPick(false); setChartSubPick(true); }}
                         />
                     </View>
                 </View>
-
                 <Lbl text="Size Chart Image (Optional)" />
                 <Hint text="Upload an image of your size chart (JPG, PNG, GIF, WebP)" />
-                <CustImagePicker
-                    uri={chartImageUri}
-                    onPick={setChartImageUri}
-                    onRemove={() => setChartImageUri(null)}
-                />
-
+                <CustImagePicker uri={chartImageUri} onPick={setChartImageUri} onRemove={() => setChartImageUri(null)} />
                 <View style={dt.sizeDataHead}>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Size Chart Data" required />
@@ -2019,32 +2527,21 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <AppText style={dt.addSizeOrangeBtnTxt}>Add Size</AppText>
                     </TouchableOpacity>
                 </View>
-
                 {chartRows.length > 0 ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
                         <View style={dt.sizeTableWrap}>
                             <View style={dt.sizeTableHeader}>
                                 {SIZE_TABLE_COLS.map((col) => (
                                     <View key={col.key} style={[dt.sizeTableTh, { width: col.width, minWidth: col.width }]}>
-                                        <AppText style={dt.sizeTableThTxt} numberOfLines={2}>
-                                            {col.label}
-                                        </AppText>
+                                        <AppText style={dt.sizeTableThTxt} numberOfLines={2}>{col.label}</AppText>
                                     </View>
                                 ))}
-                                <View style={dt.sizeTableThAction}>
-                                    <AppText style={dt.sizeTableThTxt}>Action</AppText>
-                                </View>
+                                <View style={dt.sizeTableThAction}><AppText style={dt.sizeTableThTxt}>Action</AppText></View>
                             </View>
                             {chartRows.map((row, idx) => (
-                                <View
-                                    key={row.id}
-                                    style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}
-                                >
+                                <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
                                     {SIZE_TABLE_COLS.map((col) => (
-                                        <View
-                                            key={col.key}
-                                            style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}
-                                        >
+                                        <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
                                             <TextInput
                                                 style={dt.sizeTableInput}
                                                 placeholder={col.placeholder}
@@ -2069,45 +2566,23 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                     </ScrollView>
                 ) : (
                     <View style={dt.sizeEmptyHint}>
-                        <AppText style={dt.sizeEmptyHintTxt}>
-                            Use Add Size to add rows and enter measurements for each size.
-                        </AppText>
+                        <AppText style={dt.sizeEmptyHintTxt}>Use Add Size to add rows and enter measurements for each size.</AppText>
                     </View>
                 )}
-
                 <Lbl text="Measurement Unit" />
                 <Drop
                     placeholder="Select unit"
                     value={chartUnit}
-                    onPress={() => {
-                        setChartCatPick(false);
-                        setChartSubPick(false);
-                        setChartUnitPick(true);
-                    }}
+                    onPress={() => { setChartCatPick(false); setChartSubPick(false); setChartUnitPick(true); }}
                 />
-
                 <Lbl text="Additional Notes" />
-                <Field
-                    placeholder="e.g. All measurements are approximate. Please refer to the size chart for best fit."
-                    value={chartNotes}
-                    onChangeText={setChartNotes}
-                    multiline
-                    lines={3}
-                    maxLength={500}
-                />
+                <Field placeholder="e.g. All measurements are approximate." value={chartNotes} onChangeText={setChartNotes} multiline lines={3} maxLength={500} />
                 <CC cur={chartNotes.length} max={500} />
-
                 <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
-                    <TouchableOpacity
-                        style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]}
-                        onPress={() => setCreateSizeOpen(false)}
-                    >
+                    <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCreateSizeOpen(false)}>
                         <AppText style={fp.footerBtnTxtSecondary}>Cancel</AppText>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]}
-                        onPress={saveSizeChart}
-                    >
+                    <TouchableOpacity style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveSizeChart}>
                         <AppText style={fp.footerBtnTxtPrimary}>Save Chart</AppText>
                     </TouchableOpacity>
                 </View>
@@ -2120,26 +2595,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
             >
                 <Hint text="Describe your return rules clearly. This will appear to buyers on the product page." />
                 <Lbl text="Custom Policy Details" required />
-                <Field
-                    placeholder="e.g. Returns accepted within 7 days in original packaging. Customised items are non-returnable…"
-                    value={customPolicyDraft}
-                    onChangeText={setCustomPolicyDraft}
-                    multiline
-                    lines={8}
-                    maxLength={1000}
-                />
+                <Field placeholder="e.g. Returns accepted within 7 days in original packaging…" value={customPolicyDraft} onChangeText={setCustomPolicyDraft} multiline lines={8} maxLength={1000} />
                 <CC cur={customPolicyDraft.length} max={1000} />
                 <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
-                    <TouchableOpacity
-                        style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]}
-                        onPress={() => setCustomPolicyOpen(false)}
-                    >
+                    <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCustomPolicyOpen(false)}>
                         <AppText style={fp.footerBtnTxtSecondary}>Cancel</AppText>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[fp.footerBtnPrimary, !isDesktop && fp.footerBtnPrimaryFull]}
-                        onPress={saveCustomPolicy}
-                    >
+                    <TouchableOpacity style={[fp.footerBtnPrimary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveCustomPolicy}>
                         <AppText style={fp.footerBtnTxtPrimary}>Save Policy</AppText>
                     </TouchableOpacity>
                 </View>
@@ -2252,59 +2714,25 @@ const initBasicData = () => {
         subcategory: "T-Shirts",
         materialType: "Cotton",
         hsnCode: "61091000",
-        shortDesc:
-            "Soft, breathable cotton tee with a relaxed fit — ideal for everyday wear and easy styling.",
-        fullDesc:
-            "Crafted from 100% combed cotton with reinforced stitching at stress points. Pre-shrunk fabric, colour-fast dye, and comfortable round neck. Suitable for casual outings, work-from-home, and light outdoor activities. Machine wash cold, tumble dry low.",
-        length: "30",
-        width: "25",
-        height: "5",
-        weight: "0.35",
-        weightSlab: "0–1 kg",
-        fragile: "No",
-        customized: true,
+        shortDesc: "Soft, breathable cotton tee with a relaxed fit — ideal for everyday wear and easy styling.",
+        fullDesc: "Crafted from 100% combed cotton with reinforced stitching at stress points. Pre-shrunk fabric, colour-fast dye, and comfortable round neck. Suitable for casual outings, work-from-home, and light outdoor activities. Machine wash cold, tumble dry low.",
+        length: "30", width: "25", height: "5", weight: "0.35", weightSlab: "0–1 kg",
+        fragile: "No", customized: true,
         custTitle: "Personalized print",
-        custInstructions:
-            "Share the exact text or design reference. We begin production after you approve the preview.",
-        custLeadDays: "3",
-        custCharge: "149",
-        custAllowPhoto: true,
-        custImageLabel: "Upload reference image",
-        custPickedImage: null as string | null,
-        custAllowText: true,
-        custTextLabel: "Name or message",
+        custInstructions: "Share the exact text or design reference. We begin production after you approve the preview.",
+        custLeadDays: "3", custCharge: "149",
+        custAllowPhoto: true, custImageLabel: "Upload reference image", custPickedImage: null as string | null,
+        custAllowText: true, custTextLabel: "Name or message",
     };
 };
 
 const initVariants = (): Variant[] => {
     if (!PREFILL_WITH_DUMMY) {
-        return [
-            { id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [] },
-        ];
+        return [{ id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" }];
     }
     return [
-        {
-            id: "1",
-            color: "Blue",
-            size: "M",
-            sku: "FNT-TEE-BLU-M-001",
-            stock: "120",
-            mrp: "1299",
-            sellingPrice: "899",
-            discount: "31",
-            images: [],
-        },
-        {
-            id: "2",
-            color: "Black",
-            size: "L",
-            sku: "FNT-TEE-BLK-L-002",
-            stock: "85",
-            mrp: "1299",
-            sellingPrice: "949",
-            discount: "27",
-            images: [],
-        },
+        { id: "1", color: "Blue", size: "M", sku: "FNT-TEE-BLU-M-001", stock: "120", mrp: "1299", sellingPrice: "899", discount: "31", images: [], videoUrl: "" },
+        { id: "2", color: "Black", size: "L", sku: "FNT-TEE-BLK-L-002", stock: "85", mrp: "1299", sellingPrice: "949", discount: "27", images: [], videoUrl: "" },
     ];
 };
 
@@ -2319,14 +2747,11 @@ const initDetailsData = () => {
     return {
         sizeChart: "Standard Apparel",
         returnPolicy: "7 Days Return",
-        returnPolicyText:
-            "Items may be returned within 7 days if unused, with tags attached. Customised products are non-returnable once production starts.",
+        returnPolicyText: "Items may be returned within 7 days if unused, with tags attached. Customised products are non-returnable once production starts.",
         deliveryOption: "Standard Delivery",
-        minDays: "3",
-        maxDays: "7",
+        minDays: "3", maxDays: "7",
         deliveryInfo: "Ships within 3–7 business days. Free shipping on orders above ₹999.",
-        codEnabled: true,
-        onlinePayEnabled: true,
+        codEnabled: true, onlinePayEnabled: true,
         warranty: "6-month manufacturing defect warranty",
         careInstructions: "Machine wash cold with similar colours. Do not bleach. Iron on low heat.",
     };
@@ -2350,6 +2775,10 @@ const AddNewProduct: React.FC = () => {
     const [imagesData, setImagesData] = useState(initImagesData);
     const [detailsData, setDetailsData] = useState(initDetailsData);
 
+    // ── Sweet Alert state ──────────────────────────────────────
+    const [sweetAlertVisible, setSweetAlertVisible] = useState(false);
+    const [sweetAlertStage, setSweetAlertStage] = useState<SweetAlertStage>("confirm");
+
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
     useFocusEffect(
@@ -2369,12 +2798,9 @@ const AddNewProduct: React.FC = () => {
 
     const upBasic = (k: string, v: any) => {
         setBasicData(p => ({ ...p, [k]: v }));
-        // Clear the specific error for the field being edited
         setBasicErrors(prev => prev.filter(e => !e.toLowerCase().includes(k.toLowerCase())));
     };
     const upDetails = (k: string, v: any) => setDetailsData(p => ({ ...p, [k]: v }));
-
-    // ─── FIX: rmVariant defined here and passed as prop ──────────
     const rmVariant = (id: string) => setVariants(p => p.filter(v => v.id !== id));
 
     const resetAndGoBack = () => {
@@ -2413,28 +2839,43 @@ const AddNewProduct: React.FC = () => {
         setStep(next);
     };
 
+    // ── handleSave: validate first, then show SweetAlert confirm ──
     const handleSave = () => {
         const errors = validateDetails(detailsData);
         setDetailErrors(errors);
-        if (errors.length > 0) { showErrors(errors); return; }
+        if (errors.length > 0) {
+            showErrors(errors);
+            return;
+        }
         setDetailErrors([]);
-        showToast("Product saved successfully!", "success");
-        setTimeout(resetAndGoBack, 900);
+        // Open the SweetAlert in confirm stage
+        setSweetAlertStage("confirm");
+        setSweetAlertVisible(true);
+    };
+
+    // ── User confirms in SweetAlert → save & switch to success ──
+    const handleSweetConfirm = () => {
+        setSweetAlertStage("success");
+    };
+
+    // ── User closes success stage → navigate away ──────────────
+    const handleSweetDone = () => {
+        setSweetAlertVisible(false);
+        setTimeout(resetAndGoBack, 180);
+    };
+
+    // ── User cancels confirm stage ─────────────────────────────
+    const handleSweetCancel = () => {
+        setSweetAlertVisible(false);
     };
 
     const leftAction =
         step === 0 ? (
-            <TouchableOpacity
-                style={isDesktop ? ds.cancelBtn : sc.cancelBtn}
-                onPress={resetAndGoBack}
-            >
+            <TouchableOpacity style={isDesktop ? ds.cancelBtn : sc.cancelBtn} onPress={resetAndGoBack}>
                 <AppText style={isDesktop ? ds.cancelTxt : sc.cancelTxt}>Cancel</AppText>
             </TouchableOpacity>
         ) : (
-            <TouchableOpacity
-                style={isDesktop ? ds.prevBtn : sc.prevBtn}
-                onPress={() => setStep((s) => s - 1)}
-            >
+            <TouchableOpacity style={isDesktop ? ds.prevBtn : sc.prevBtn} onPress={() => setStep((s) => s - 1)}>
                 <Ionicons name="chevron-back" size={16} color={C.navy} />
                 <AppText style={isDesktop ? ds.prevTxt : sc.prevTxt}>Back</AppText>
             </TouchableOpacity>
@@ -2462,40 +2903,22 @@ const AddNewProduct: React.FC = () => {
 
     const stepContent = (
         <>
-            {step === 0 && (
-                <StepBasicInfo
-                    data={basicData}
-                    onChange={upBasic}
-                    errors={basicErrors}
-                    isDesktop={isDesktop}
-                />
-            )}
-            {step === 1 && (
-                <StepVariants
-                    variants={variants}
-                    setVariants={setVariants}
-                    rmVariant={rmVariant}
-                    errors={variantErrors}
-                    isDesktop={isDesktop}
-                />
-            )}
-            {step === 2 && (
-                <StepImages
-                    data={imagesData}
-                    onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))}
-                    errors={imageErrors}
-                    isDesktop={isDesktop}
-                />
-            )}
-            {step === 3 && (
-                <StepDetails
-                    data={detailsData}
-                    onChange={upDetails}
-                    errors={detailErrors}
-                    isDesktop={isDesktop}
-                />
-            )}
+            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} isDesktop={isDesktop} />}
+            {step === 1 && <StepVariants variants={variants} setVariants={setVariants} rmVariant={rmVariant} errors={variantErrors} isDesktop={isDesktop} />}
+            {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
+            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} isDesktop={isDesktop} />}
         </>
+    );
+
+    const sweetAlert = (
+        <SweetAlert
+            visible={sweetAlertVisible}
+            stage={sweetAlertStage}
+            productName={basicData.name ?? ""}
+            onConfirm={handleSweetConfirm}
+            onCancel={handleSweetCancel}
+            onDone={handleSweetDone}
+        />
     );
 
     if (isDesktop) {
@@ -2508,25 +2931,19 @@ const AddNewProduct: React.FC = () => {
                     </TouchableOpacity>
                     <View style={ds.topCenter}>
                         <AppText style={ds.topTitle}>Add New Product</AppText>
-                        <AppText style={ds.topSub}>
-                            {STEPS[step]?.label} · Step {step + 1} of {STEPS.length}
-                        </AppText>
+                        <AppText style={ds.topSub}>{STEPS[step]?.label} · Step {step + 1} of {STEPS.length}</AppText>
                     </View>
                     <TouchableOpacity onPress={resetAndGoBack} style={ds.topBtn}>
                         <Ionicons name="close" size={22} color={C.textMid} />
                     </TouchableOpacity>
                 </View>
-                <StepProgressBar
-                    step={step}
-                    maxUnlocked={maxUnlocked}
-                    onTabPress={handleTabPress}
-                    isDesktop
-                />
+                <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} isDesktop />
                 <View style={ds.mainColumn}>
                     <View style={ds.mainScroll}>{stepContent}</View>
                     <View style={ds.barWrap}>{actionBar}</View>
                 </View>
                 <ToastContainer toasts={toasts} onRemove={removeToast} />
+                {sweetAlert}
             </View>
         );
     }
@@ -2550,6 +2967,7 @@ const AddNewProduct: React.FC = () => {
             <View style={{ flex: 1, backgroundColor: C.bg }}>{stepContent}</View>
             {actionBar}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
+            {sweetAlert}
         </SafeAreaView>
     );
 };
@@ -2609,7 +3027,6 @@ const at = StyleSheet.create({
     custSubFieldBar: { width: 2, borderRadius: 2, backgroundColor: C.accent5, alignSelf: "stretch", opacity: 0.5 },
 });
 
-// ─── Variant Styles ───────────────────────────────────────────
 const vt = StyleSheet.create({
     hdr: { flexDirection: "row", alignItems: "center", gap: 8 },
     badge: { width: 28, height: 28, borderRadius: 8, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center" },
@@ -2631,134 +3048,29 @@ const vt = StyleSheet.create({
     infoTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
 });
 
-// ─── Details Styles ───────────────────────────────────────────
 const dt = StyleSheet.create({
     responsiveCol: { flexDirection: "column", gap: 10 },
     responsiveField: { width: "100%", minWidth: 0 },
-    outBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        borderWidth: 1.2,
-        borderColor: C.navy,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        minHeight: 44,
-        backgroundColor: C.white,
-    },
+    outBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navy, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, minHeight: 44, backgroundColor: C.white },
     outBtnFull: { width: "100%", alignSelf: "stretch" },
     outBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.navy },
-    sizeDataHead: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        marginTop: 4,
-    },
-    addSizeOrangeBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: C.accent4,
-        borderRadius: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        marginTop: 12,
-    },
-    addSizeOrangeBtnTxt: {
-        fontFamily: fontFamilies.bold,
-        fontSize: 13,
-        color: C.white,
-    },
+    sizeDataHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginTop: 4 },
+    addSizeOrangeBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.accent4, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
+    addSizeOrangeBtnTxt: { fontFamily: fontFamilies.bold, fontSize: 13, color: C.white },
     sizeTableScroll: { marginTop: 8, marginBottom: 4 },
-    sizeTableWrap: {
-        borderWidth: 1,
-        borderColor: C.border,
-        borderRadius: 10,
-        overflow: "hidden",
-        backgroundColor: C.white,
-    },
-    sizeTableHeader: {
-        flexDirection: "row",
-        backgroundColor: C.navyGhost,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-    },
-    sizeTableTh: {
-        paddingVertical: 10,
-        paddingHorizontal: 6,
-        justifyContent: "center",
-        borderRightWidth: 1,
-        borderRightColor: C.border,
-    },
-    sizeTableThAction: {
-        width: 56,
-        minWidth: 56,
-        paddingVertical: 10,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    sizeTableThTxt: {
-        fontFamily: fontFamilies.semiBold,
-        fontSize: 10,
-        color: C.textMid,
-        textAlign: "center",
-    },
-    sizeTableRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-        backgroundColor: C.white,
-    },
+    sizeTableWrap: { borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.white },
+    sizeTableHeader: { flexDirection: "row", backgroundColor: C.navyGhost, borderBottomWidth: 1, borderBottomColor: C.border },
+    sizeTableTh: { paddingVertical: 10, paddingHorizontal: 6, justifyContent: "center", borderRightWidth: 1, borderRightColor: C.border },
+    sizeTableThAction: { width: 56, minWidth: 56, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
+    sizeTableThTxt: { fontFamily: fontFamilies.semiBold, fontSize: 10, color: C.textMid, textAlign: "center" },
+    sizeTableRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.white },
     sizeTableRowAlt: { backgroundColor: "#FAFBFE" },
-    sizeTableTd: {
-        padding: 5,
-        borderRightWidth: 1,
-        borderRightColor: C.border,
-        justifyContent: "center",
-    },
-    sizeTableTdAction: {
-        width: 56,
-        minWidth: 56,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 6,
-    },
-    sizeTableInput: {
-        backgroundColor: C.inputBg,
-        borderWidth: 1,
-        borderColor: C.border,
-        borderRadius: 6,
-        paddingHorizontal: 6,
-        paddingVertical: 7,
-        fontFamily: fontFamilies.regular,
-        fontSize: 12,
-        color: C.textDark,
-        minHeight: 34,
-    },
-    sizeTableDelBtn: {
-        padding: 6,
-        borderRadius: 8,
-        backgroundColor: C.redPale,
-    },
-    sizeEmptyHint: {
-        marginTop: 8,
-        padding: 14,
-        borderRadius: 12,
-        backgroundColor: C.navyGhost,
-        borderWidth: 1,
-        borderColor: C.navyBorder,
-    },
-    sizeEmptyHintTxt: {
-        fontFamily: fontFamilies.regular,
-        fontSize: 12,
-        color: C.textMid,
-        textAlign: "center",
-        lineHeight: 18,
-    },
+    sizeTableTd: { padding: 5, borderRightWidth: 1, borderRightColor: C.border, justifyContent: "center" },
+    sizeTableTdAction: { width: 56, minWidth: 56, alignItems: "center", justifyContent: "center", paddingVertical: 6 },
+    sizeTableInput: { backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 7, fontFamily: fontFamilies.regular, fontSize: 12, color: C.textDark, minHeight: 34 },
+    sizeTableDelBtn: { padding: 6, borderRadius: 8, backgroundColor: C.redPale },
+    sizeEmptyHint: { marginTop: 8, padding: 14, borderRadius: 12, backgroundColor: C.navyGhost, borderWidth: 1, borderColor: C.navyBorder },
+    sizeEmptyHintTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, textAlign: "center", lineHeight: 18 },
     togRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
     togLbl: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textMid },
     addBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 10, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
@@ -2767,155 +3079,38 @@ const dt = StyleSheet.create({
     specDel: { width: 36, height: 36, backgroundColor: C.redPale, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });
 
-// ─── Desktop / laptop styles (web ≥1024px) ────────────────────
 const ds = StyleSheet.create({
     page: {
         flex: 1,
         backgroundColor: C.bg,
         ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as object) : {}),
     },
-    topBar: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: C.white,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-        shadowColor: "#0F1A4A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    topBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: C.navyGhost,
-    },
+    topBar: { flexDirection: "row", alignItems: "center", backgroundColor: C.white, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, shadowColor: "#0F1A4A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 4 },
+    topBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.navyGhost },
     topCenter: { flex: 1, alignItems: "center", paddingHorizontal: 12 },
-    topTitle: {
-        fontFamily: fontFamilies.bold,
-        fontSize: 20,
-        color: C.textDark,
-        letterSpacing: 0.2,
-    },
-    topSub: {
-        fontFamily: fontFamilies.medium,
-        fontSize: 13,
-        color: C.textLight,
-        marginTop: 2,
-    },
-    hStepBar: {
-        paddingTop: 12,
-        paddingBottom: 14,
-        maxWidth: CONTENT_MAX + 64,
-        width: "100%",
-        alignSelf: "center",
-    },
-    mainColumn: {
-        flex: 1,
-        minWidth: 0,
-        width: "100%",
-        backgroundColor: C.bg,
-    },
+    topTitle: { fontFamily: fontFamilies.bold, fontSize: 20, color: C.textDark, letterSpacing: 0.2 },
+    topSub: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textLight, marginTop: 2 },
+    hStepBar: { paddingTop: 12, paddingBottom: 14, maxWidth: CONTENT_MAX + 64, width: "100%", alignSelf: "center" },
+    mainColumn: { flex: 1, minWidth: 0, width: "100%", backgroundColor: C.bg },
     mainScroll: { flex: 1 },
     stepScroll: { flex: 1 },
-    barWrap: {
-        backgroundColor: C.white,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        width: "100%",
-    },
-    bar: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        maxWidth: CONTENT_MAX,
-        alignSelf: "center",
-    },
+    barWrap: { backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, paddingHorizontal: 32, paddingVertical: 16, width: "100%" },
+    bar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: CONTENT_MAX, alignSelf: "center" },
     barLeft: { alignItems: "flex-start" },
     barRight: { alignItems: "flex-end" },
-    cancelBtn: {
-        minWidth: 140,
-        paddingHorizontal: 28,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1.2,
-        borderColor: C.border,
-        borderRadius: 12,
-        paddingVertical: 14,
-        backgroundColor: C.white,
-    },
+    cancelBtn: { minWidth: 140, paddingHorizontal: 28, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 14, backgroundColor: C.white },
     cancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
-    prevBtn: {
-        minWidth: 140,
-        paddingHorizontal: 24,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        borderWidth: 1.2,
-        borderColor: C.navyBorder,
-        borderRadius: 12,
-        paddingVertical: 14,
-        backgroundColor: C.white,
-    },
+    prevBtn: { minWidth: 140, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 14, backgroundColor: C.white },
     prevTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
-    nextBtn: {
-        minWidth: 180,
-        paddingHorizontal: 32,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: C.navy,
-        borderRadius: 12,
-        paddingVertical: 14,
-        shadowColor: C.navyDeep,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 6,
-    },
+    nextBtn: { minWidth: 180, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 14, shadowColor: C.navyDeep, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 6 },
     nextTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
-    saveBtn: {
-        minWidth: 200,
-        paddingHorizontal: 32,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: C.accent5,
-        borderRadius: 12,
-        paddingVertical: 14,
-        shadowColor: C.accent5,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 6,
-    },
+    saveBtn: { minWidth: 200, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent5, borderRadius: 12, paddingVertical: 14, shadowColor: C.accent5, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6 },
     saveTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
-    card: {
-        borderRadius: 20,
-        paddingHorizontal: 24,
-        paddingTop: 20,
-        paddingBottom: 22,
-        marginBottom: 20,
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-    },
+    card: { borderRadius: 20, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 22, marginBottom: 20, shadowOpacity: 0.08, shadowRadius: 16 },
     fieldWrap: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14 },
     fieldFocused: { borderWidth: 2 },
 });
 
-// ─── Screen Styles ────────────────────────────────────────────
 const sc = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     header: { backgroundColor: C.navyDeep, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: 10, paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 10 : 10 },
@@ -2923,70 +3118,16 @@ const sc = StyleSheet.create({
     hCenter: { flex: 1, alignItems: "center" },
     hTitle: { fontFamily: fontFamilies.bold, fontSize: 17, color: C.white },
     hSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 1 },
-    bar: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: C.white,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 10,
-    },
+    bar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10 },
     barLeft: { alignItems: "flex-start" },
     barRight: { alignItems: "flex-end" },
-    cancelBtn: {
-        minWidth: 120,
-        paddingHorizontal: 20,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1.2,
-        borderColor: C.border,
-        borderRadius: 12,
-        paddingVertical: 13,
-    },
+    cancelBtn: { minWidth: 120, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 13 },
     cancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid },
-    prevBtn: {
-        minWidth: 110,
-        paddingHorizontal: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        borderWidth: 1.2,
-        borderColor: C.navyBorder,
-        borderRadius: 12,
-        paddingVertical: 13,
-    },
+    prevBtn: { minWidth: 110, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 13 },
     prevTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
-    nextBtn: {
-        minWidth: 150,
-        paddingHorizontal: 24,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        backgroundColor: C.navy,
-        borderRadius: 12,
-        paddingVertical: 13,
-    },
+    nextBtn: { minWidth: 150, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
     nextTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
-    saveBtn: {
-        minWidth: 160,
-        paddingHorizontal: 20,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: C.navy,
-        borderRadius: 12,
-        paddingVertical: 13,
-    },
+    saveBtn: { minWidth: 160, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
     saveTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
 });
 
