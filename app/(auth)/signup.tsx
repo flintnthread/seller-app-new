@@ -31,6 +31,21 @@ import { useRouter } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Path, Circle } from "react-native-svg";
 import { showMessage } from "react-native-flash-message";
+
+// ─── Suppress browser focus outline globally (web only) ───────────────────────
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input:focus, textarea:focus, [contenteditable]:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    * {
+      outline: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 
 const C = {
@@ -1426,6 +1441,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 54,
     fontFamily: fontFamilies.bold,
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
   },
   inputRowDisabled: {
     opacity: 0.55,
@@ -1439,6 +1455,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderColor: "#e2e8f0",
     minHeight: 52,
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
   },
   inputRowFocusedDesktop: {
     borderColor: C.orange,
@@ -1448,6 +1465,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 2,
+        // ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
+
   },
   inputLeft: {
     marginRight: 10,
@@ -1458,6 +1477,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: TEXT,
     paddingVertical: 12,
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
   },
   inputRight: {
     marginLeft: 8,
