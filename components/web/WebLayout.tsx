@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Sidebar } from './Sidebar';
 import { DesktopHeader } from './DesktopHeader';
 import { ActiveHeaderProvider } from './HeaderContext';
 
 export function WebLayout({ children }: { children: React.ReactNode }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
     <ActiveHeaderProvider>
       <View style={styles.container}>
-        <Sidebar />
+        {isSidebarOpen && <Sidebar onClose={() => setIsSidebarOpen(false)} />}
         <View style={styles.mainArea}>
-          <DesktopHeader />
+          <DesktopHeader 
+            isSidebarOpen={isSidebarOpen} 
+            onToggleSidebar={() => setIsSidebarOpen(true)} 
+          />
           <ScrollView 
             style={styles.contentScroll} 
             contentContainerStyle={styles.contentContainer}
