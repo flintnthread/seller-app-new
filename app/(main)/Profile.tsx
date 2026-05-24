@@ -262,7 +262,7 @@ export default function SellerProfileScreen() {
                 </View>
 
                 {/* Growth & Marketing */}
-                {/* <View style={desktopStyles.desktopCard}>
+                 {/* <View style={desktopStyles.desktopCard}>
                   <DesktopSectionHeader title="Growth & Marketing" icon="trending-up" />
                   {[
                     { icon: 'tag', color: '#ff4d79', title: 'Promotions & Discounts' },
@@ -279,7 +279,7 @@ export default function SellerProfileScreen() {
                       setSelectedItem={setSelectedItem}
                     />
                   ))}
-                </View> */}
+                </View>  */}
 
                 {/* Support & Help */}
                 <View style={desktopStyles.desktopCard}>
@@ -302,7 +302,7 @@ export default function SellerProfileScreen() {
 
               </View>
 
-              <View style={{ height: 40 }} />
+              {/* <View style={{ height: 40 }} /> */}
             </View>
           </ScrollView>
         </View>      
@@ -680,17 +680,27 @@ const desktopStyles = StyleSheet.create({
   },
 
   // Body layout
-  body: {
-    flex: 1,
-    flexDirection: 'row',
-   // maxWidth: 1280,
-    width: '100%' as any,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 32,
-    gap: 24,
-  },
+  //  body: {
+  //   flex: 1,
+  //    flexDirection: 'row',
+  //   max Width: 1280,
+  //    width: '100%' ,
+  // height: '100%',
+  //    alignSelf: 'center',
+  //    paddingHorizontal: 24,
+  //    paddingTop: 28,
+  //   paddingBottom: 32,
+  //   gap: 24,
+  //  },
+   body: {
+   flex: 1,
+  flexDirection: 'row',
+  width: '100%',
+  height: '100%',
+  gap: 24,
+   paddingTop: 0,
+  marginTop: 0,
+ },
 
   // Sidebar
   sidebar: {
