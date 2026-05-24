@@ -623,9 +623,16 @@ const s = StyleSheet.create({
 
   // ── Desktop root ───────────────────────────────────────────────
   desktopRoot: {
-    flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
-    ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
-  },
+  flex: 1,
+  flexDirection: 'row',
+  backgroundColor: C.offWhite,
+  width: '100%',
+  height: '100vh',
+},
+  // desktopRoot: {
+  //   flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
+  //   ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
+  // },
 
   // ── Sidebar ────────────────────────────────────────────────────
   desktopSidebar: {
@@ -660,12 +667,28 @@ const s = StyleSheet.create({
   avatarCircle:      { width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
 
   // ── Scroll area ────────────────────────────────────────────────
-  desktopMain:          { flex: 1, flexDirection: 'column', overflow: 'hidden' },
+  desktopMain: {
+  flex: 1,
+  width: '100%',
+  flexDirection: 'column',
+  overflow: 'hidden',
+},
   desktopScrollArea:    { flex: 1 },
-  desktopScrollContent: { padding: 24, gap: 20 },
+  desktopScrollContent: {
+  width: '100%',
+  paddingHorizontal: 24,
+  paddingBottom: 0,
+  gap: 20,
+},
+
 
   // ── Rows — alignItems:'stretch' gives equal height to children ─
-  desktopRow:     { flexDirection: 'row', gap: 20, alignItems: 'stretch' },
+desktopRow: {
+  width: '100%',
+  flexDirection: 'row',
+  gap: 20,
+  alignItems: 'stretch',
+},
   desktopFullRow: { flexDirection: 'row' },
 
   // ── Card ───────────────────────────────────────────────────────
