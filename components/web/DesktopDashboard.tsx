@@ -129,7 +129,7 @@ const ALL_STATS_DATA = {
   },
 };
 
-const REFERRAL_CODE = "F&T-THEL-0023611";
+
 
 export const DesktopDashboard: React.FC = () => {
   const router = useRouter();
@@ -137,18 +137,12 @@ export const DesktopDashboard: React.FC = () => {
   const isDesktop = width >= 1200;
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
-  const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    Clipboard.setString(REFERRAL_CODE);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <View style={styles.container}>
       {/* ── 1. SMART WELCOME HEADER ── */}
-      <SmartWelcomeHeader name="Gopi" />
+      <SmartWelcomeHeader name="Priya" />
 
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>
@@ -215,34 +209,7 @@ export const DesktopDashboard: React.FC = () => {
           {/* Repeat Cohort customer LTV metric */}
           <CustomerAnalytics />
 
-          {/* Referral Reward Banner */}
-          <View style={styles.referralCard}>
-            <View style={styles.referralHeader}>
-              <View style={styles.referralIconBox}>
-                <MaterialCommunityIcons name="gift-outline" size={18} color={C.orange} />
-              </View>
-              <View>
-                <AppText style={styles.referralTitle}>Referral Rewards Program</AppText>
-                <AppText style={styles.referralSubtitle}>Invite other sellers & earn +5% commission</AppText>
-              </View>
-            </View>
-            <View style={styles.referralCodeWrap}>
-              <AppText style={styles.referralCodeLabel}>YOUR CODE</AppText>
-              <View style={styles.codePill}>
-                <AppText style={styles.codeText}>{REFERRAL_CODE}</AppText>
-                <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
-                  <MaterialCommunityIcons
-                    name={copied ? "check" : "content-copy"}
-                    size={13}
-                    color={copied ? C.green : C.textMid}
-                  />
-                  <AppText style={[styles.copyBtnText, copied && { color: C.green }]}>
-                    {copied ? "Copied!" : "Copy"}
-                  </AppText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+
         </View>
 
       </View>
@@ -273,86 +240,5 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 16,
   },
-  referralCard: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    padding: 20,
-    ...Platform.select({
-      web: {
-        background: "linear-gradient(135deg, #FFFBEB 0%, #FFF7ED 100%)",
-        boxShadow: "0 2px 8px 0 rgba(245, 158, 11, 0.10)",
-      },
-    }),
-  },
-  referralHeader: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  referralIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  referralTitle: {
-    fontSize: 13,
-    fontFamily: "Poppins_700Bold",
-    color: C.textDark,
-  },
-  referralSubtitle: {
-    fontSize: 11,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-    marginTop: 1,
-  },
-  referralCodeWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: C.bg,
-    gap: 6,
-  },
-  referralCodeLabel: {
-    fontSize: 9,
-    fontFamily: "Poppins_700Bold",
-    color: C.textLight,
-    letterSpacing: 0.8,
-  },
-  codePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  codeText: {
-    fontSize: 12,
-    fontFamily: "Poppins_700Bold",
-    color: C.textDark,
-    letterSpacing: 0.5,
-  },
-  copyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: C.white,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  copyBtnText: {
-    fontSize: 10,
-    fontFamily: "Poppins_600SemiBold",
-    color: C.textMid,
-  },
+
 });

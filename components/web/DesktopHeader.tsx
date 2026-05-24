@@ -2,12 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useActiveHeader } from './HeaderContext';
 
 export function DesktopHeader() {
+  const { activeLabel } = useActiveHeader();
+
   return (
     <View style={styles.container}>
       <View style={styles.leftSection}>
-        <Text style={styles.greetingText}>Welcome back, Priya 👋</Text>
+        <Text style={styles.greetingText}>{activeLabel}</Text>
         <View style={styles.statusBadge}>
           <View style={styles.statusDot} />
           <Text style={styles.statusText}>Store Active</Text>
@@ -44,7 +47,7 @@ export function DesktopHeader() {
 
 const styles = StyleSheet.create({
   container: {
-    height: 64,
+    height: 56,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderBottomWidth: 1,
     borderBottomColor: '#eaeaea',
@@ -64,7 +67,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greetingText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     fontFamily: 'Poppins_700Bold',
     color: '#000000',

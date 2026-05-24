@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, Pressable, useWindowDimensions, Platform } from "react-native";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -43,47 +43,65 @@ interface DashboardAnalyticsProps {
 const Sparkline: React.FC<{ points: number[]; color: string; width?: number; height?: number }> = ({
   points,
   color,
-  width = 75,
-  height = 32,
+  width = 80,
+  height = 36,
 }) => {
+  if (!points || points.length < 2) return null;
+
   const max = Math.max(...points);
   const min = Math.min(...points);
   const range = max - min || 1;
-  // Use generous padding so strokeWidth=1.5 + round linecap never bleeds out
-  const padding = 4;
-  const W = width;
-  const H = height;
 
-  const pointsStr = points.map((val, idx) => {
-    const x = padding + (idx / (points.length - 1)) * (W - padding * 2);
-    const y = H - padding - ((val - min) / range) * (H - padding * 2);
-    return `${x},${y}`;
-  });
+  // Generous padding ensures stroke + round linecap never bleed outside
+  const padX = 3;
+  const padY = 4;
+  const drawW = width - padX * 2;
+  const drawH = height - padY * 2;
 
-  const path = `M ${pointsStr.map((p, i) => (i === 0 ? ` ${p}` : ` L ${p}`)).join("")}`;
-  const fillPath = `${path} L ${W - padding},${H - padding} L ${padding},${H - padding} Z`;
-  const clipId = `clip-${color.replace("#", "")}`;
-  const gradId = `sparkgrad-${color.replace("#", "")}`;
+  // Map values to pixel coordinates
+  const coords = points.map((val, i) => ({
+    x: padX + (i / (points.length - 1)) * drawW,
+    y: padY + drawH - ((val - min) / range) * drawH,
+  }));
+
+  // Smooth cubic bezier path — uses midpoint control points
+  let linePath = `M ${coords[0]!.x} ${coords[0]!.y}`;
+  for (let i = 1; i < coords.length; i++) {
+    const p0 = coords[i - 1]!;
+    const p1 = coords[i]!;
+    const cpX = (p0.x + p1.x) / 2;
+    linePath += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
+  }
+
+  // Fill: close path to the bottom of the SVG
+  const last = coords[coords.length - 1]!;
+  const first = coords[0]!;
+  const fillPath = `${linePath} L ${last.x} ${height} L ${first.x} ${height} Z`;
+
+  // Unique IDs per color — prevent gradient/clip collision between cards
+  const uid = color.replace(/[^a-z0-9]/gi, "");
+  const gradId = `sg${uid}`;
+  const clipId = `sc${uid}`;
 
   return (
-    // overflow:hidden on wrapper clips any sub-pixel stroke bleed at edges
     <View style={{ width, height, overflow: "hidden" }}>
-      <Svg width={width} height={height}>
+      <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <Defs>
           <SvgLinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={color} stopOpacity={0.22} />
-            <Stop offset="100%" stopColor={color} stopOpacity={0.0} />
+            <Stop offset="0%" stopColor={color} stopOpacity={0.28} />
+            <Stop offset="100%" stopColor={color} stopOpacity={0} />
           </SvgLinearGradient>
-          {/* ClipPath guarantees nothing renders outside the viewbox */}
           <ClipPath id={clipId}>
-            <Rect x={0} y={0} width={W} height={H} />
+            <Rect x={0} y={0} width={width} height={height} />
           </ClipPath>
         </Defs>
+        {/* Gradient fill area */}
         <Path d={fillPath} fill={`url(#${gradId})`} clipPath={`url(#${clipId})`} />
+        {/* Smooth bezier line */}
         <Path
-          d={path}
+          d={linePath}
           stroke={color}
-          strokeWidth={1.5}
+          strokeWidth={1.8}
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -92,6 +110,30 @@ const Sparkline: React.FC<{ points: number[]; color: string; width?: number; hei
       </Svg>
     </View>
   );
+};
+
+// Self-measuring wrapper — gets actual rendered pixel width via onLayout
+const SparklineRow: React.FC<{ points: number[]; color: string }> = ({ points, color }) => {
+  const [w, setW] = useState(0);
+  return (
+    <View
+      style={sparkRowStyle}
+      onLayout={(e) => {
+        const measured = e.nativeEvent.layout.width;
+        if (measured > 0) setW(measured);
+      }}
+    >
+      {w > 0 && <Sparkline points={points} color={color} width={w} height={36} />}
+    </View>
+  );
+};
+
+const sparkRowStyle = {
+  width: "100%" as const,
+  height: 36,
+  overflow: "hidden" as const,
+  marginTop: 8,
+  marginBottom: 4,
 };
 
 export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
@@ -224,12 +266,9 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             </View>
             
             <View style={styles.cardBody}>
+              {/* Value + Change badge row */}
               <View style={styles.valueRow}>
                 <AppText style={styles.cardValue}>{kpi.value}</AppText>
-                <Sparkline points={kpi.points} color={kpi.color} />
-              </View>
-              
-              <View style={styles.changeRow}>
                 <View style={[styles.badge, { backgroundColor: kpi.isPositive ? "#e6f9ed" : "#feebee" }]}>
                   <MaterialCommunityIcons
                     name={kpi.isPositive ? "arrow-up" : "arrow-down"}
@@ -240,6 +279,11 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                     {kpi.change}
                   </AppText>
                 </View>
+              </View>
+
+              {/* Full-width sparkline below the value */}
+              <SparklineRow points={kpi.points} color={kpi.color} />
+              <View style={styles.changeRow}>
                 <AppText style={styles.descText} numberOfLines={1}>{kpi.description}</AppText>
               </View>
             </View>
@@ -256,6 +300,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     marginHorizontal: -8,
     marginBottom: 8,
+    paddingTop: 10,
   },
   col: {
     paddingHorizontal: 8,
@@ -318,6 +363,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 6,
+  },
+  sparklineWrap: {
+    width: "100%",
+    height: 36,
+    marginVertical: 6,
+    overflow: "hidden",
   },
   cardValue: {
     fontSize: 22,
@@ -328,7 +380,7 @@ const styles = StyleSheet.create({
   changeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 6,
+    marginTop: 2,
     gap: 6,
   },
   badge: {

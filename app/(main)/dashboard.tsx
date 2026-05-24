@@ -48,6 +48,7 @@ import { fontSizes, fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import type { TextProps } from 'react-native';
 import { DesktopDashboard } from "@/components/web/DesktopDashboard";
+import { useActiveHeader } from "@/components/web/HeaderContext";
 
 // ─── Mini Line Chart ─────────────────────────────────────────
 import Svg, { Path, Circle } from "react-native-svg";
@@ -244,6 +245,8 @@ const MENU_CARDS = [
     { id: "products", label: "Products", icon: "shopping-outline", color: C.blue },
     { id: "orders", label: "Orders", icon: "clipboard-list-outline", color: C.orange, badge: "12" },
     { id: "categories", label: "Categories", icon: "shape-outline", color: C.pink },
+    { id: "colors", label: "Colors", icon: "palette-outline", color: C.teal },
+    { id: "sizes", label: "Sizes", icon: "format-size", color: C.indigo },
     { id: "request", label: "Request ", icon: "tag-plus-outline", color: C.teal },
     { id: "support", label: "Support", icon: "headset", color: C.indigo },
     { id: "logout", label: "Logout", icon: "logout", color: C.red },
@@ -1073,6 +1076,7 @@ const SideDrawer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visib
                                         if (item.label === "Dashboard") router.push("/(main)/dashboard");
                                         else if (item.label === "Products") router.push("/(main)/productmanagement");
                                         else if (item.label === "Orders") router.push("/(main)/Ordersscreen");
+                                        else if (item.label === "Category Request") router.push("/(main)/categoryrequest");
                                     }}
                                     activeOpacity={0.75}
                                 >
@@ -1258,17 +1262,32 @@ const MobileDashboard: React.FC = () => {
     const [drawerOpen, setDrawerOpen] = useState(false);
 
     const [activeMenuCard, setActiveMenuCard] = useState<string>("dashboard");
+    const { setActiveLabel } = (() => {
+        try {
+            // dynamic import hook usage only works when provider wraps this component
+            // if provider missing, avoid throwing.
+            return useActiveHeader();
+        } catch (e) {
+            return { setActiveLabel: (l: string) => {} } as const;
+        }
+    })();
 
     const handleCardPress = (id: string) => {
         setActiveMenuCard(id);
+        const label = MENU_CARDS.find(c => c.id === id)?.label ?? "Dashboard";
+        setActiveLabel(label);
         if (id === "products") {
             router.push("/(main)/productmanagement");
         } else if (id === "orders") {
             router.push("/(main)/Ordersscreen");
         } else if (id === "categories") {
-            Alert.alert("Categories", "Categories management is coming soon!");
+            router.push("/(main)/categoryrequest");
+        } else if (id === "colors") {
+            router.push("/(main)/colors");
+        } else if (id === "sizes") {
+            router.push("/(main)/sizes");
         } else if (id === "request") {
-            Alert.alert("Request Category", "New category request form is coming soon!");
+            router.push("/(main)/sellerticketrise");
         } else if (id === "support") {
             router.push("/(main)/helpsupport");
         } else if (id === "logout") {
@@ -1298,6 +1317,22 @@ const MobileDashboard: React.FC = () => {
 
     if (!fontsLoaded) return null;
 
+    const activeLabel = MENU_CARDS.find(c => c.id === activeMenuCard)?.label ?? "Dashboard";
+    const activeCardColor = MENU_CARDS.find(c => c.id === activeMenuCard)?.color ?? C.purple;
+
+    const CARD_SUBTITLES: Record<string, string> = {
+        dashboard: `${greeting}, Priya Sharma`,
+        products: "Manage your products",
+        orders: "Track & manage orders",
+        categories: "Browse product categories",
+        colors: "Manage colour options",
+        sizes: "Manage size options",
+        request: "Submit a category request",
+        support: "Help & support centre",
+        logout: "See you soon!",
+    };
+    const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, Priya Sharma`;
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
@@ -1314,8 +1349,8 @@ const MobileDashboard: React.FC = () => {
                             />
                         </View>
                         <View style={s.navTitleContainer}>
-                            <AppText style={s.navGreeting}>{greeting},</AppText>
-                            <AppText style={s.navName}>Priya Sharma</AppText>
+                            <AppText style={s.navName} numberOfLines={1}>{activeLabel}</AppText>
+                            <AppText style={s.navGreeting} numberOfLines={1}>{activeSubtitle}</AppText>
                         </View>
                         <View style={s.navRight}>
                             <TouchableOpacity style={s.navIconBtn} onPress={() => router.push("/(main)/notifications")}>
@@ -1778,7 +1813,7 @@ const MobileDashboard: React.FC = () => {
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     navSafe: { backgroundColor: C.navyDeep, marginTop: 32 },
-    navBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, minHeight: 56 },
+    navBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, height: 60, minHeight: 60 },
     navTitleContainer: { flex: 1, marginHorizontal: 12 },
     navGreeting: { fontFamily: fontFamilies.regular, fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: -2 },
     navName: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.white },
