@@ -49,6 +49,7 @@ import { useRouter } from "expo-router";
 import type { TextProps } from 'react-native';
 import { DesktopDashboard } from "@/components/web/DesktopDashboard";
 import { useActiveHeader } from "@/components/web/HeaderContext";
+import { AppHeader } from "@/components/common/AppHeader";
 
 // ─── Mini Line Chart ─────────────────────────────────────────
 import Svg, { Path, Circle } from "react-native-svg";
@@ -1337,33 +1338,7 @@ const MobileDashboard: React.FC = () => {
         <View style={s.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
 
-            {/* ── NAVBAR ── */}
-            {Platform.OS !== 'web' && (
-                <SafeAreaView style={s.navSafe}>
-                    <View style={s.navBar}>
-                        <View style={[s.navIconBtn, { backgroundColor: "#ffffff", width: 36, height: 36, borderRadius: 18 }]}>
-                            <Image
-                                source={require("../../assets/images/fav.png")}
-                                style={{ width: 24, height: 24 }}
-                                resizeMode="contain"
-                            />
-                        </View>
-                        <View style={s.navTitleContainer}>
-                            <AppText style={s.navName} numberOfLines={1}>{activeLabel}</AppText>
-                            <AppText style={s.navGreeting} numberOfLines={1}>{activeSubtitle}</AppText>
-                        </View>
-                        <View style={s.navRight}>
-                            <TouchableOpacity style={s.navIconBtn} onPress={() => router.push("/(main)/notifications")}>
-                                <Ionicons name="notifications-outline" size={22} color={C.white} />
-                                <View style={s.notifBadge}><AppText style={s.notifBadgeText}>3</AppText></View>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={s.navIconBtn} onPress={() => router.push("/(main)/settingsModule")}>
-                                <Ionicons name="settings-outline" size={22} color={C.white} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            )}
+            <AppHeader title={activeLabel} subtitle={activeSubtitle} showBackButton={false} />
 
             <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} bounces={false}
                 contentContainerStyle={{ paddingBottom: 100 }}>
@@ -1766,26 +1741,24 @@ const MobileDashboard: React.FC = () => {
             {Platform.OS !== 'web' && (
                 <View style={s.tabBar}>
                     {[
-                        { icon: "home-outline", label: "Home", active: true },
-                        { icon: "shopping-outline", label: "Products", active: false },
-                        { icon: "clipboard-list-outline", label: "Orders", active: false, badge: 12 },
-                        { icon: "message-outline", label: "Messages", active: false },
-                        { icon: "account-outline", label: "Profile", active: false },
+                        { icon: "home-outline", iconActive: "home", label: "Home", active: true, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
+                        { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: false, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
+                        { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+                        { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
                     ].map((tab, i) => (
                         <TouchableOpacity 
                             key={i} 
                             style={s.tabItem} 
                             activeOpacity={0.7}
                             onPress={() => {
-                                if (tab.label === "Products") router.push("/(main)/productmanagement");
-                                if (tab.label === "Orders") router.push("/(main)/Ordersscreen");
+                                if (!tab.active) router.push(tab.route as any);
                             }}
                         >
                             <View style={{ position: "relative" }}>
                                 <MaterialCommunityIcons
-                                    name={tab.icon as any}
-                                    size={26}
-                                    color={tab.active ? C.purple : C.textLight}
+                                    name={(tab.active ? tab.iconActive : tab.icon) as any}
+                                    size={24}
+                                    color={tab.active ? tab.color : tab.colorMuted}
                                 />
                                 {tab.badge && (
                                     <View style={s.tabBadge}>
@@ -1793,7 +1766,7 @@ const MobileDashboard: React.FC = () => {
                                     </View>
                                 )}
                             </View>
-                            <AppText style={[s.tabLabel, tab.active && { color: C.purple }]}>{tab.label}</AppText>
+                            <AppText style={[s.tabLabel, { color: tab.active ? tab.color : tab.colorMuted }, tab.active && { fontFamily: fontFamilies.semiBold }]}>{tab.label}</AppText>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -1929,7 +1902,27 @@ const s = StyleSheet.create({
     supportSub: { fontFamily: fontFamilies.regular, fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2, maxWidth: 130 },
     supportBtn: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: C.purpleLight, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 50 },
     supportBtnText: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purpleLight },
-    tabBar: { flexDirection: "row", backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, paddingBottom: 8, paddingTop: 8, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10 },
+    tabBar: {
+        flexDirection: "row",
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+        height: Platform.OS === "ios" ? 84 : 64,
+        paddingTop: 8,
+        paddingBottom: Platform.OS === "ios" ? 24 : 8,
+        justifyContent: "space-around",
+        alignItems: "center",
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 8,
+    },
     tabItem: { flex: 1, alignItems: "center", gap: 3 },
     tabLabel: { fontFamily: fontFamilies.medium, fontSize: 11, color: C.textLight },
     tabBadge: { position: "absolute", top: -4, right: -9, backgroundColor: C.orange, minWidth: 17, height: 17, borderRadius: 8.5, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },

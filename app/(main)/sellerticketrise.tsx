@@ -12,6 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { AppHeader } from "@/components/common/AppHeader";
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 
@@ -596,35 +597,7 @@ const RaiseTicketScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#151D4F" />
-      <SafeAreaView style={{ backgroundColor: "#151D4F", marginTop: 32 }}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerLogoBtn}
-            onPress={() => { /* back */ }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.headerLogoCircle}>
-              <Image
-                source={require("../../assets/images/fav.png")}
-                style={{ width: 22, height: 22 }}
-                resizeMode="contain"
-              />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.headerTitleBlock}>
-            <AppText style={styles.headerTitle} numberOfLines={1}>Request</AppText>
-            <AppText style={styles.headerSubtitle} numberOfLines={1}>Submit a support ticket</AppText>
-          </View>
-          <View style={styles.headerRightBtns}>
-            <TouchableOpacity style={styles.headerIconBtn}>
-              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerIconBtn}>
-              <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
+      <AppHeader title="Request" subtitle="Submit a support ticket" showBackButton />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

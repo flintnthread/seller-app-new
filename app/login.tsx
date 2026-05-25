@@ -163,6 +163,11 @@ export default function SellerLogin() {
   const handleLogin = () => {
     if (!validate()) return;
     setLoading(true);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('isProfileCompleted', 'false');
+      } catch (e) {}
+    }
     setTimeout(() => {
       setLoading(false);
       router.replace("/(main)/dashboard");
@@ -320,7 +325,7 @@ export default function SellerLogin() {
                 onPress={() => router.push("/(auth)/forgotpassword")}
                 style={styles.forgetWrap}
               >
-                <AppText weight="bold" color={Colors.light.primary} style={styles.forget}>Forget Password?</AppText>
+                <AppText weight="bold" color={Colors.light.primary} style={styles.forget}>Forgot Password?</AppText>
               </Pressable>
 
               <Pressable

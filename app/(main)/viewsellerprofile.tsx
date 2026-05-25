@@ -18,6 +18,7 @@ import {
   useWindowDimensions,
   Alert,
 } from 'react-native';
+import { AppHeader } from '@/components/common/AppHeader';
 
 // ─── Bootstrap Icons via web font (desktop/web) ───────────────────────────────
 // On native, falls back to a simple text character via BI component below.
@@ -412,14 +413,17 @@ export default function SellerProfileScreen() {
 
   if (!isDesktop) {
     return (
-      <ScrollView style={s.mobileContainer}>
-        <MobileProfileContent
-          photoUri={photoUri}   onPhotoChange={setPhotoUri}
-          address={address}     onAddressSave={setAddress}
-          road={road}           onRoadSave={setRoad}
-          landmark={landmark}   onLandmarkSave={setLandmark}
-        />
-      </ScrollView>
+      <View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+        <AppHeader title="Profile" subtitle="View and edit your seller details" showBackButton />
+        <ScrollView style={s.mobileContainer}>
+          <MobileProfileContent
+            photoUri={photoUri}   onPhotoChange={setPhotoUri}
+            address={address}     onAddressSave={setAddress}
+            road={road}           onRoadSave={setRoad}
+            landmark={landmark}   onLandmarkSave={setLandmark}
+          />
+        </ScrollView>
+      </View>
     );
   }
 

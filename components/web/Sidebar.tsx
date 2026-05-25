@@ -1,43 +1,63 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Image, Alert, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Ionicons } from '@expo/vector-icons';
-
-const SECTIONS = [
-  {
-    title: 'GENERAL',
-    items: [
-      { name: 'Dashboard', path: '/dashboard', icon: 'house.fill', iconColor: '#8B5CF6' },
-    ],
-  },
-  {
-    title: 'SELLER TOOLS',
-    items: [
-      { name: 'Products', path: '/productmanagement', icon: 'bag.fill', iconColor: '#F59E0B' },
-      { name: 'Orders', path: '/Ordersscreen', icon: 'cube.box.fill', iconColor: '#3B82F6' },
-      { name: 'Colors', path: '/colors', icon: 'paintbrush.fill', iconColor: '#F28520' },
-      { name: 'Sizes', path: '/sizes', icon: 'ruler.fill', iconColor: '#6366F1' },
-    ],
-  },
-  {
-    title: 'SERVICES',
-    items: [
-      { name: 'Category Request', path: '/categoryrequest', icon: 'square.grid.2x2.fill', iconColor: '#14B8A6' },
-      { name: 'Payments', path: '/payoutrequest', icon: 'cart.fill', iconColor: '#10B981' },
-    ],
-  },
-  {
-    title: 'ACCOUNT',
-    items: [
-      { name: 'Profile', path: '/Profile', icon: 'person.crop.circle', iconColor: '#EC4899' },
-    ],
-  },
-] as const;
+import { useProfileStatus } from '@/hooks/useProfileStatus';
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isProfileCompleted, setIsProfileCompleted } = useProfileStatus();
+
+  // Dynamically define sections based on profile completion status
+  const sections = isProfileCompleted
+    ? [
+        {
+          title: 'GENERAL',
+          items: [
+            { name: 'Dashboard', path: '/dashboard', icon: 'house.fill' as const, iconColor: '#8B5CF6' },
+          ],
+        },
+        {
+          title: 'SELLER TOOLS',
+          items: [
+            { name: 'Products', path: '/productmanagement', icon: 'bag.fill' as const, iconColor: '#F59E0B' },
+            { name: 'Orders', path: '/Ordersscreen', icon: 'cube.box.fill' as const, iconColor: '#3B82F6' },
+            { name: 'Colors', path: '/colors', icon: 'paintbrush.fill' as const, iconColor: '#F28520' },
+            { name: 'Sizes', path: '/sizes', icon: 'ruler.fill' as const, iconColor: '#6366F1' },
+          ],
+        },
+        {
+          title: 'SERVICES',
+          items: [
+            { name: 'Category Request', path: '/categoryrequest', icon: 'square.grid.2x2.fill' as const, iconColor: '#14B8A6' },
+            { name: 'Payments', path: '/payoutrequest', icon: 'cart.fill' as const, iconColor: '#10B981' },
+          ],
+        },
+        {
+          title: 'ACCOUNT',
+          items: [
+            { name: 'Profile', path: '/Profile', icon: 'person.crop.circle' as const, iconColor: '#EC4899' },
+            { name: 'Logout', path: 'logout', icon: 'arrow.right.to.line' as const, iconColor: '#EF4444' },
+          ],
+        },
+      ]
+    : [
+        {
+          title: 'GENERAL',
+          items: [
+            { name: 'Dashboard', path: '/dashboard', icon: 'house.fill' as const, iconColor: '#8B5CF6' },
+          ],
+        },
+        {
+          title: 'ACCOUNT',
+          items: [
+            { name: 'Complete Profile', path: '/Profile', icon: 'person.crop.circle' as const, iconColor: '#EC4899' },
+            { name: 'Logout', path: 'logout', icon: 'arrow.right.to.line' as const, iconColor: '#EF4444' },
+          ],
+        },
+      ];
 
   return (
     <View style={styles.container}>
@@ -61,8 +81,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         )}
       </View>
 
-      <View style={styles.navContainer}>
-        {SECTIONS.map((section) => (
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.navContainer}
+      >
+        {sections.map((section) => (
           <View key={section.title} style={styles.sectionContainer}>
             <Text style={styles.sectionHeading}>{section.title}</Text>
             <View style={styles.sectionItems}>
@@ -71,7 +95,30 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                 return (
                   <Pressable
                     key={item.path}
-                    onPress={() => router.push(item.path as any)}
+                    onPress={() => {
+                      if (item.path === 'logout') {
+                        if (Platform.OS === 'web') {
+                          const confirmLogout = window.confirm("Are you sure you want to logout?");
+                          if (confirmLogout) {
+                            router.replace("/(auth)/login");
+                          }
+                        } else {
+                          Alert.alert("Logout", "Are you sure you want to logout?", [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Logout", style: "destructive", onPress: () => router.replace("/(auth)/login") },
+                          ]);
+                        }
+                      } else if (item.name === 'Complete Profile') {
+                        setIsProfileCompleted(true);
+                        if (Platform.OS === 'web') {
+                          window.alert("Profile completed successfully! Full sidebar access unlocked.");
+                        } else {
+                          Alert.alert("Success", "Profile completed successfully!");
+                        }
+                      } else {
+                        router.push(item.path as any);
+                      }
+                    }}
                     // @ts-ignore
                     style={({ hovered }) => [
                       styles.navItem,
@@ -96,7 +143,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             </View>
           </View>
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -109,6 +156,9 @@ const styles = StyleSheet.create({
     borderRightColor: '#eaeaea',
     height: '100%',
     paddingVertical: 24,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   logoContainer: {
     paddingHorizontal: 24,

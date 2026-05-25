@@ -16,6 +16,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppHeader } from "@/components/common/AppHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -672,20 +673,7 @@ export default function EnhancedPayoutRequest() {
   // ─── ORIGINAL MOBILE LAYOUT (untouched) ─────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
-      {Platform.OS !== "web" && (
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 15 }}>
-            <Ionicons name="arrow-back" size={24} color="#f1eeec" />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.greeting}>Payout Request</Text>
-            <Text style={styles.subGreeting}>Manage your earnings & withdrawals</Text>
-          </View>
-          <TouchableOpacity style={styles.profileBtn}>
-            <MaterialCommunityIcons name="account" size={24} color="#f97316" />
-          </TouchableOpacity>
-        </View>
-      )}
+      <AppHeader title="Payout Request" subtitle="Manage your earnings & withdrawals" showBackButton />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

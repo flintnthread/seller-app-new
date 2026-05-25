@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from "react-native";
+import { AppHeader } from "@/components/common/AppHeader";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 
@@ -271,11 +272,7 @@ export default function BulkUpload() {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bulk Import Products</Text>
-        <Text style={styles.headerSub}>Upload products in bulk using ZIP templates</Text>
-      </View>
+      <AppHeader title="Bulk Import Products" subtitle="Upload products in bulk using ZIP templates" showBackButton />
 
       <ScrollView
         style={styles.scroll}

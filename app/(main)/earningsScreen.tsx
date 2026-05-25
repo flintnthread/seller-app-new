@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { AppHeader } from "@/components/common/AppHeader";
 
 // 🔥 Mock Transactions (replace with API later)
 const transactions = [
@@ -104,19 +105,14 @@ const EarningsScreen = () => {
     `₹${num.toLocaleString("en-IN")}`;
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Earnings</Text>
-        <Text style={styles.subtitle}>
-          Track your sales performance 💰
-        </Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#f4f6fb" }}>
+      <AppHeader title="Earnings" subtitle="Track your sales performance 💰" showBackButton />
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
 
       {/* 🔥 Filter */}
       <View style={styles.filterRow}>
@@ -184,7 +180,8 @@ const EarningsScreen = () => {
           color="#3b82f6"
         />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 

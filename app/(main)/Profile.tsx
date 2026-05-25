@@ -11,6 +11,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
+import { AppHeader } from "@/components/common/AppHeader";
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 
@@ -20,7 +21,8 @@ import {
   AntDesign,
   Feather,
   Ionicons,
-  MaterialIcons
+  MaterialIcons,
+  MaterialCommunityIcons
 } from "@expo/vector-icons";
 import { Modal, Text } from "react-native";
 
@@ -357,14 +359,7 @@ export default function SellerProfileScreen() {
   return (
     <View style={styles.container}>
 
-      {/* HEADER */}
-      {Platform.OS !== 'web' && (
-        <View style={styles.header}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-          <AppText style={styles.headerTitle}>My Seller Profile</AppText>
-          <View style={styles.placeholder} />
-        </View>
-      )}
+      <AppHeader title="My Seller Profile" showBackButton />
 
       <ScrollView showsVerticalScrollIndicator={false}>
 
@@ -478,11 +473,53 @@ export default function SellerProfileScreen() {
       {/* BOTTOM TAB */}
       {Platform.OS !== 'web' && (
         <View style={styles.bottomTab}>
-          <BottomItem icon="home" label="Home" />
-          <BottomItem icon="grid" label="Categories" />
-          <BottomItem icon="activity" label="Trending" />
-          <BottomItem icon="shopping-bag" label="Orders" />
-          <BottomItem icon="user" label="Profile" active />
+          {[
+            { icon: "home-outline", iconActive: "home", label: "Home", active: false, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
+            { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: false, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
+            { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+            { icon: "account-outline", iconActive: "account", label: "Profile", active: true, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
+          ].map((tab, i) => (
+            <TouchableOpacity 
+              key={i} 
+              style={styles.bottomItem} 
+              activeOpacity={0.7} 
+              onPress={() => {
+                if (!tab.active) router.push(tab.route as any);
+              }}
+            >
+              <View style={{ position: "relative" }}>
+                <MaterialCommunityIcons 
+                  name={(tab.active ? tab.iconActive : tab.icon) as any} 
+                  size={24} 
+                  color={tab.active ? tab.color : tab.colorMuted} 
+                />
+                {tab.badge && (
+                  <View style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -9,
+                    backgroundColor: "#EA6000",
+                    minWidth: 17,
+                    height: 17,
+                    borderRadius: 8.5,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                  }}>
+                    <Text style={{
+                      fontSize: 10,
+                      color: "#fff",
+                      fontWeight: "bold",
+                      lineHeight: 12,
+                    }}>{tab.badge}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.bottomText, { color: tab.active ? tab.color : tab.colorMuted }, tab.active && { fontWeight: "600" }]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
@@ -1080,7 +1117,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f8f8",
-    paddingTop: 55,
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
@@ -1375,12 +1412,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     flexDirection: "row",
     justifyContent: "space-around",
-    paddingVertical: 12,
+    alignItems: "center",
+    height: Platform.OS === "ios" ? 84 : 64,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 24 : 8,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderTopColor: "#F3F4F6",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
   },
   bottomItem: {
     alignItems: "center",

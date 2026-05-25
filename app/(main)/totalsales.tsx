@@ -12,6 +12,7 @@ import {
   TouchableWithoutFeedback,
   View
 } from 'react-native';
+import { AppHeader } from "@/components/common/AppHeader";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, {
   Circle,
@@ -761,18 +762,15 @@ const TotalSalesScreen: React.FC = () => {
 
       {/* ── Header ── */}
       <View style={s.headerShell}>
-        <LinearGradient colors={[C.navyDeep, C.navyMid, C.navy]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[s.header, { paddingTop: Math.max(insets.top - 10, 0) }]}>
-          <View style={s.headerTop}>
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={s.headerIconBtn}>
-              <Ionicons name="arrow-back" size={22} color={C.white} />
-            </TouchableOpacity>
-            <Text style={s.headerTitle}>Total Sales</Text>
+        <AppHeader
+          title="Total Sales"
+          showBackButton
+          rightActions={
             <TouchableOpacity activeOpacity={0.7} style={s.headerIconBtn} onPress={() => setShowHeaderCal(true)}>
-              <Ionicons name="calendar-outline" size={22} color={C.white} />
+              <Ionicons name="calendar-outline" size={22} color="#ffffff" />
             </TouchableOpacity>
-          </View>
-        </LinearGradient>
+          }
+        />
 
         {/* ── Filters ── */}
         <View style={s.filterCard}>

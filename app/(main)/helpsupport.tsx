@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Modal,
 } from "react-native";
+import { AppHeader } from "@/components/common/AppHeader";
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -1106,16 +1107,15 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         onClose={() => setSuccessModalVisible(false)}
       />
 
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={C.white} />
-        </TouchableOpacity>
-        <Text style={[s.headerTitle, { fontFamily: F.bold }]}>Help & Support</Text>
-        <View style={s.headerIconWrap}>
-          <Ionicons name="help-circle-outline" size={22} color={C.orange} />
-        </View>
-      </View>
+      <AppHeader
+        title="Help & Support"
+        showBackButton
+        rightActions={
+          <View style={s.headerIconWrap}>
+            <Ionicons name="help-circle-outline" size={22} color={C.orange} />
+          </View>
+        }
+      />
 
       <ScrollView
         style={s.scroll}

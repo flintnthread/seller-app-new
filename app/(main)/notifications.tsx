@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppHeader } from "@/components/common/AppHeader";
 
 type NotificationItem = {
   id: string;
@@ -24,28 +25,7 @@ type NotificationItem = {
 
 const ORANGE = "#1a2b5edc"; 
 
-const Header: React.FC<{
-  onBack: () => void;
-  onMarkAll: () => void;
-  count: number;
-}> = ({ onBack, onMarkAll, count }) => (
-  <View style={styles.header}>
-    <View style={styles.headerLeftGroup}>
-      <TouchableOpacity onPress={onBack} style={styles.headerLeft}>
-        <MaterialCommunityIcons name="chevron-left" size={26} color="#fff" />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Notifications</Text>
-    </View>
-    <TouchableOpacity onPress={onMarkAll} style={styles.headerRight}>
-      <Text style={styles.markAllText}>Mark all read</Text>
-      {count > 0 ? (
-        <View style={styles.countBadge}>
-          <Text style={styles.countBadgeText}>{count}</Text>
-        </View>
-      ) : null}
-    </TouchableOpacity>
-  </View>
-);
+
 
 const SectionHeader: React.FC<{
   icon: string;
@@ -200,10 +180,19 @@ export default function Notifications() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Header
-        onBack={() => router.back()}
-        onMarkAll={() => markAllRead()}
-        count={unreadCount}
+      <AppHeader
+        title="Notifications"
+        showBackButton
+        rightActions={
+          <TouchableOpacity onPress={() => markAllRead()} style={styles.headerRight}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+            {unreadCount > 0 ? (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{unreadCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        }
       />
 
       {/* quick section tabs */}
