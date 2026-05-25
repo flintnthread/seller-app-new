@@ -18,6 +18,7 @@ import {
   Feather,
   FontAwesome5,
 } from "@expo/vector-icons";
+import { AppHeader } from "@/components/common/AppHeader";
 
 interface SettingItem {
   id: string;
@@ -267,22 +268,7 @@ export default function SettingsScreen() {
       >
         {/* Header */}
 
-        <View style={styles.header}>
-          <View>
-            <AppText style={styles.heading}>Settings</AppText>
-            <AppText style={styles.subHeading}>
-              Manage your seller account
-            </AppText>
-          </View>
-
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color="#0f172a"
-            />
-          </TouchableOpacity>
-        </View>
+        <AppHeader title="Settings" subtitle="Manage your seller account" showBackButton />
 
         {/* Profile Card */}
 

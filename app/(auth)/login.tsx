@@ -177,6 +177,7 @@ export default function SellerLogin() {
 
     if (!email.trim()) {
       setEmailError(true);
+      setEmailErrorMessage("email or mobile number is required");
       hasError = true;
     }
 
@@ -231,6 +232,11 @@ export default function SellerLogin() {
   const handleLogin = () => {
     if (!validate()) return;
     setLoading(true);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('isProfileCompleted', 'false');
+      } catch (e) {}
+    }
     setTimeout(() => {
       setLoading(false);
       router.replace("/(main)/dashboard");
@@ -386,7 +392,7 @@ export default function SellerLogin() {
           style={styles.forgetWrap}
         >
           <AppText style={[styles.forget, isDesktop && styles.forgetDesktop]}>
-            Forget Password?
+            Forgot Password?
           </AppText>
         </Pressable>
 

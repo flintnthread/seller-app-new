@@ -16,6 +16,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppHeader } from "@/components/common/AppHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -62,7 +63,7 @@ const MOCK_BANKS: BankAccount[] = [
 const MOCK_TRANSACTIONS: Transaction[] = [
   {
     id: "TXN1",
-    orderId: "ORD10293",
+    orderId: "FNT10293",
     amount: 2400,
     date: "2024-05-12T10:00:00Z",
     status: "Completed",
@@ -70,7 +71,7 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   },
   {
     id: "TXN2",
-    orderId: "ORD10294",
+    orderId: "FNT10294",
     amount: 1500,
     date: "2024-05-11T14:30:00Z",
     status: "Pending",
@@ -78,7 +79,7 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   },
   {
     id: "TXN3",
-    orderId: "ORD10295",
+    orderId: "FNT10295",
     amount: 800,
     date: "2024-05-10T09:15:00Z",
     status: "Failed",
@@ -467,7 +468,7 @@ export default function EnhancedPayoutRequest() {
                     style={desktopStyles.textInput}
                     value={orderId}
                     onChangeText={handleOrderIdChange}
-                    placeholder="Example: ORD10293"
+                    placeholder="Example: FNT10293"
                     placeholderTextColor="#94a3b8"
                     autoCapitalize="characters"
                   />
@@ -661,7 +662,7 @@ export default function EnhancedPayoutRequest() {
             </View>
           </View>
 
-          <View style={{ height: 48 }} />
+          <View style={{ height: 12 }} />
         </ScrollView>
 
         {sharedModals}
@@ -672,20 +673,7 @@ export default function EnhancedPayoutRequest() {
   // ─── ORIGINAL MOBILE LAYOUT (untouched) ─────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
-      {Platform.OS !== "web" && (
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 15 }}>
-            <Ionicons name="arrow-back" size={24} color="#f1eeec" />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.greeting}>Payout Request</Text>
-            <Text style={styles.subGreeting}>Manage your earnings & withdrawals</Text>
-          </View>
-          <TouchableOpacity style={styles.profileBtn}>
-            <MaterialCommunityIcons name="account" size={24} color="#f97316" />
-          </TouchableOpacity>
-        </View>
-      )}
+      <AppHeader title="Payout Request" subtitle="Manage your earnings & withdrawals" showBackButton />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -762,7 +750,7 @@ export default function EnhancedPayoutRequest() {
                     style={styles.orderInput}
                     value={orderId}
                     onChangeText={handleOrderIdChange}
-                    placeholder="Example: ORD10293"
+                    placeholder="Example: FNT10293"
                     placeholderTextColor="#94a3b8"
                     autoCapitalize="characters"
                   />

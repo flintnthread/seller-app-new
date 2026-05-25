@@ -21,6 +21,7 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { AppHeader } from "@/components/common/AppHeader";
 
 interface Transaction {
   id: string;
@@ -174,27 +175,7 @@ export default function EarningsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-          <Ionicons name="arrow-back" size={24} color="#fbfaf9" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.heading}>Earnings</Text>
-          <Text style={styles.subHeading}>
-            Your monetization analytics overview
-          </Text>
-        </View>
-
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={22} color="#f97316" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.profileButton, { marginLeft: 12 }]}>
-            <MaterialCommunityIcons name="account" size={26} color="#f97316" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader title="Earnings" subtitle="Your monetization analytics overview" showBackButton />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { AppHeader } from "@/components/common/AppHeader";
 
 const initialReviews = [
   {
@@ -149,16 +150,7 @@ const ReviewsScreen = () => {
         </Animated.View>
       )}
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 10 }}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Customer Reviews</Text>
-        <Text style={styles.subtitle}>
-          See what your customers are saying 💬
-        </Text>
-      </View>
+      <AppHeader title="Customer Reviews" subtitle="See what your customers are saying 💬" showBackButton />
 
       <FlatList
         data={reviews}

@@ -11,6 +11,7 @@ import {
     StatusBar,
     Platform,
 } from "react-native";
+import { AppHeader } from "@/components/common/AppHeader";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
@@ -267,37 +268,13 @@ export function CategoryRequestScreen() {
     }
 
     return (
-        <View style={pg.mobileRoot}>
+        <SafeAreaView style={pg.mobileRoot}>
             <StatusBar barStyle="light-content" backgroundColor="#151D4F" />
-            <SafeAreaView style={{ backgroundColor: "#151D4F", marginTop: 32 }}>
-                <View style={pg.mobileHeader}>
-                    <TouchableOpacity onPress={() => router.back()} style={pg.headerLogoBtn} activeOpacity={0.8}>
-                        <View style={pg.headerLogoCircle}>
-                            <Image
-                                source={require("../../assets/images/fav.png")}
-                                style={{ width: 22, height: 22 }}
-                                resizeMode="contain"
-                            />
-                        </View>
-                    </TouchableOpacity>
-                    <View style={pg.headerTitleBlock}>
-                        <Text style={pg.mobileHeaderTitle} numberOfLines={1}>Categories</Text>
-                        <Text style={pg.mobileHeaderSub} numberOfLines={1}>Browse product categories</Text>
-                    </View>
-                    <View style={pg.headerActions}>
-                        <TouchableOpacity style={pg.headerIconBtn} onPress={() => router.push("/(main)/notifications")}>
-                            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={pg.headerIconBtn} onPress={() => router.push("/(main)/settingsModule")}>
-                            <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </SafeAreaView>
+            <AppHeader title="Categories" subtitle="Browse product categories" showBackButton />
             <ScrollView contentContainerStyle={pg.mobileScroll} showsVerticalScrollIndicator={false}>
                 {pageBody}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 

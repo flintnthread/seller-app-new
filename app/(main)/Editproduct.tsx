@@ -2971,16 +2971,19 @@ const ds = StyleSheet.create({
         paddingVertical: 16,
         width: "100%",
     },
-    bar: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        maxWidth: CONTENT_MAX,
-        alignSelf: "center",
-    },
-    barLeft: { alignItems: "flex-start" },
-    barRight: { alignItems: "flex-end" },
+   bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: C.white,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+},
+barLeft: { flex: 1, alignItems: "flex-start" },
+barRight: { flex: 1, alignItems: "flex-end" },
     cancelBtn: {
         minWidth: 140,
         paddingHorizontal: 28,
@@ -3089,15 +3092,80 @@ const sc = StyleSheet.create({
     },
     barLeft: { flex: 1 },
     barRight: { flex: 1, alignItems: "flex-end" },
-    cancelBtn: { flex: 1, maxWidth: 160, alignItems: "center", justifyContent: "center", borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 13 },
-    cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
-    prevBtn: { flex: 1, maxWidth: 160, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 13 },
-    prevTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
-    nextBtn: { flex: 2, maxWidth: 220, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
-    nextTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
-    saveBtn: { flex: 2, maxWidth: 240, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    // CANCEL BUTTON - remove flex:1, maxWidth; use explicit width
+cancelBtn: {
+    minWidth: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.2,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: C.white,
+},
+cancelTxt: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+    color: C.textMid,   // ← explicit color, not inherited
+},
+
+// PREV BUTTON
+prevBtn: {
+    minWidth: 120,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderWidth: 1.2,
+    borderColor: C.navyBorder,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: C.white,
+},
+prevTxt: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+    color: C.navy,      // ← explicit
+},
+
+// NEXT BUTTON  
+nextBtn: {
+    minWidth: 140,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: C.navy,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+},
+nextTxt: {
+    fontFamily: "Outfit_700Bold",
+    fontSize: 14,
+    color: C.white,     // ← explicit, never inherit
+},
+
+// SAVE BUTTON
+saveBtn: {
+    minWidth: 160,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.navy,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+},
+saveTxt: {
+    fontFamily: "Outfit_700Bold",
+    fontSize: 14,
+    color: C.white,     // ← explicit
+},
     saveBtnDim: { backgroundColor: C.navyLight, opacity: 0.6 },
-    saveTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
 });
 
 export default EditProduct;

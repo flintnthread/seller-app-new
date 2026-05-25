@@ -10,6 +10,7 @@ import {
     Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
 import { useRouter } from "expo-router";
+import { AppHeader } from "@/components/common/AppHeader";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -843,43 +844,6 @@ const WebProductsScreen: React.FC = () => {
 
     return (
         <View style={wst.root}>
-            {/* NAVBAR */}
-            <View style={wst.navbar}>
-                <View style={wst.navbarInner}>
-                    <View style={wst.navLeft}>
-                        <View style={wst.navTitleIcon}>
-                            <MaterialCommunityIcons name="package-variant-closed" size={16} color={C.white} />
-                        </View>
-                        <Text style={wst.navTitleText}>Product Management</Text>
-                    </View>
-                    <View style={wst.navRight}>
-                        <View style={wst.navSearch}>
-                            <Feather name="search" size={14} color="rgba(255,255,255,0.5)" />
-                            <TextInput
-                                style={wst.navSearchInput}
-                                placeholder="Search products, SKU..."
-                                placeholderTextColor="rgba(255,255,255,0.4)"
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                            {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.5)" />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                        <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="plus" size={16} color={C.white} />
-                            <Text style={wst.navAddBtnTxt}>Add Product</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={wst.navBulkBtn} onPress={() => router.push("/(main)/bulkupload")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="cloud-upload-outline" size={14} color={C.green} />
-                            <Text style={wst.navBulkBtnTxt}>Bulk Upload</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-
             <ScrollView style={wst.pageScroll} showsVerticalScrollIndicator={false} contentContainerStyle={wst.pageContent}>
                 {/* Page header */}
                 <View style={wst.pageHeader}>
@@ -891,7 +855,18 @@ const WebProductsScreen: React.FC = () => {
                         </View>
                         <Text style={wst.pageTitle}>Product Management</Text>
                     </View>
-                    <Text style={wst.pageSubtitle}>{totalCount} products total</Text>
+                    
+                    <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                        <Text style={[wst.pageSubtitle, { marginRight: 8 }]}>{totalCount} products total</Text>
+                        <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
+                            <MaterialCommunityIcons name="plus" size={16} color={C.white} />
+                            <Text style={wst.navAddBtnTxt}>Add Product</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={wst.navBulkBtn} onPress={() => router.push("/(main)/bulkupload")} activeOpacity={0.85}>
+                            <MaterialCommunityIcons name="cloud-upload-outline" size={14} color={C.green} />
+                            <Text style={wst.navBulkBtnTxt}>Bulk Upload</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* STATS ROW */}
@@ -1702,8 +1677,8 @@ const MobileProductsScreen: React.FC = () => {
     return (
         <SafeAreaView style={s.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
-            <View style={s.headerWrapper}>
-                {showSearch ? (
+            {showSearch ? (
+                <View style={s.headerWrapper}>
                     <View style={s.searchBarRow}>
                         <TouchableOpacity onPress={() => { setShowSearch(false); setSearchQuery(""); setVisibleCount(viewRange); }} style={s.backBtn}>
                             <Ionicons name="arrow-back" size={22} color={C.white} />
@@ -1715,29 +1690,29 @@ const MobileProductsScreen: React.FC = () => {
                             </TouchableOpacity>
                         )}
                     </View>
-                ) : (
-                    <View style={s.headerRow}>
-                        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                            <Ionicons name="arrow-back" size={22} color={C.white} />
-                        </TouchableOpacity>
-                        <View style={s.headerContent}>
-                            <Text style={s.headerTitle}>Products</Text>
-                            <Text style={s.headerSub}>Manage and view your products</Text>
+                </View>
+            ) : (
+                <AppHeader 
+                    title="Products" 
+                    subtitle="Manage and view your products" 
+                    showBackButton 
+                    rightActions={
+                        <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                            <TouchableOpacity onPress={() => setShowSearch(true)}>
+                                <Feather name="search" size={21} color="#ffffff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowFilter(true)}>
+                                <View style={{ position: "relative" }}>
+                                    <Feather name="filter" size={21} color="#ffffff" />
+                                    {activeFilterCount > 0 && (
+                                        <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
+                                    )}
+                                </View>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={s.headerIcon} onPress={() => setShowSearch(true)}>
-                            <Feather name="search" size={21} color={C.white} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.headerIcon} onPress={() => setShowFilter(true)}>
-                            <View>
-                                <Feather name="filter" size={21} color={C.white} />
-                                {activeFilterCount > 0 && (
-                                    <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
+                    }
+                />
+            )}
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
                 <View style={s.actionRow}>
@@ -1945,23 +1920,41 @@ const MobileProductsScreen: React.FC = () => {
                 )}
             </ScrollView>
 
-            <View style={s.bottomTabBar}>
-                {[
-                    { icon:"home-outline",          label:"Dashboard", route:"/(main)/dashboard"                      },
-                    { icon:"shopping-outline",       label:"Products",  route:"/(main)/productmanagement", active:true  },
-                    { icon:"clipboard-list-outline", label:"Orders",    route:"/(main)/Ordersscreen",      badge:12     },
-                    { icon:"message-outline",        label:"Messages",  route:"/messages"                              },
-                    { icon:"account-outline",        label:"Profile",   route:"/(main)/Profile"                        },
-                ].map((tab, i) => (
-                    <TouchableOpacity key={i} style={s.tabItem} activeOpacity={0.7} onPress={() => { if (!tab.active) router.push(tab.route as any); }}>
-                        <View style={{ position:"relative" }}>
-                            <MaterialCommunityIcons name={tab.icon as any} size={26} color={tab.active ? C.navy : C.textLight} />
-                            {tab.badge && <View style={s.tabBadge}><Text style={s.tabBadgeText}>{tab.badge}</Text></View>}
-                        </View>
-                        <Text style={[s.tabLabel, tab.active && { color:C.navy, fontFamily:"Outfit_600SemiBold" }]}>{tab.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            {Platform.OS !== 'web' && (
+                <View style={s.bottomTabBar}>
+                    {[
+                        { icon: "home-outline", iconActive: "home", label: "Home", active: false, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
+                        { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: true, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
+                        { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+                        { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
+                    ].map((tab, i) => (
+                        <TouchableOpacity 
+                            key={i} 
+                            style={s.tabItem} 
+                            activeOpacity={0.7} 
+                            onPress={() => {
+                                if (!tab.active) router.push(tab.route as any);
+                            }}
+                        >
+                            <View style={{ position: "relative" }}>
+                                <MaterialCommunityIcons 
+                                    name={(tab.active ? tab.iconActive : tab.icon) as any} 
+                                    size={24} 
+                                    color={tab.active ? tab.color : tab.colorMuted} 
+                                />
+                                {tab.badge && (
+                                    <View style={s.tabBadge}>
+                                        <Text style={s.tabBadgeText}>{tab.badge}</Text>
+                                    </View>
+                                )}
+                            </View>
+                            <Text style={[s.tabLabel, { color: tab.active ? tab.color : tab.colorMuted }, tab.active && { fontFamily: "Outfit_600SemiBold" }]}>
+                                {tab.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
 
             {/* Mobile filter sheet */}
             <Modal visible={showFilter} animationType="slide" transparent onRequestClose={() => setShowFilter(false)}>
@@ -2110,7 +2103,27 @@ const s = StyleSheet.create({
     viewMoreBtn: { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:8, marginHorizontal:16, marginTop:4, marginBottom:4, paddingVertical:13, borderRadius:12, borderWidth:1.5, borderColor:C.navy, backgroundColor:C.card },
     viewMoreTxt: { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.navy },
     pageInfo:    { fontFamily:"Outfit_400Regular", fontSize:12, color:C.textLight, textAlign:"center", paddingBottom:8, marginTop:4 },
-    bottomTabBar: { flexDirection:"row", backgroundColor:C.white, borderTopWidth:1, borderTopColor:C.border, paddingBottom:8, paddingTop:8, shadowColor:"#000", shadowOffset:{width:0,height:-4}, shadowOpacity:0.06, shadowRadius:12, elevation:10 },
+    bottomTabBar: {
+        flexDirection: "row",
+        backgroundColor: C.white,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+        height: Platform.OS === "ios" ? 84 : 64,
+        paddingTop: 8,
+        paddingBottom: Platform.OS === "ios" ? 24 : 8,
+        justifyContent: "space-around",
+        alignItems: "center",
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 8,
+    },
     tabItem:      { flex:1, alignItems:"center", gap:3 },
     tabLabel:     { fontFamily:"Outfit_500Medium", fontSize:11, color:C.textLight },
     tabBadge:     { position:"absolute", top:-4, right:-9, backgroundColor:C.orange, minWidth:17, height:17, borderRadius:8.5, alignItems:"center", justifyContent:"center", paddingHorizontal:3 },

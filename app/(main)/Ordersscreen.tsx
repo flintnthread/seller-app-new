@@ -9,7 +9,7 @@
  */
 
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { router } from "expo-router";
+import { router, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -815,6 +815,7 @@ const DesktopFilterModal: React.FC<{
 // Main Screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function OrdersScreen() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= DESKTOP_BREAKPOINT;
 
@@ -1554,6 +1555,7 @@ export default function OrdersScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
+            onPress={() => router.back()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="arrow-back" size={22} color={C.white} />
@@ -1632,7 +1634,7 @@ export default function OrdersScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1887,6 +1889,43 @@ export default function OrdersScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* ── BOTTOM TAB BAR ── */}
+      {Platform.OS !== 'web' && (
+        <View style={styles.bottomTabBar}>
+          {[
+            { icon: "home-outline", iconActive: "home", label: "Home", active: false, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
+            { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: false, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
+            { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: true, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+            { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
+          ].map((tab, i) => (
+            <TouchableOpacity 
+              key={i} 
+              style={styles.tabItem} 
+              activeOpacity={0.7} 
+              onPress={() => {
+                if (!tab.active) router.push(tab.route as any);
+              }}
+            >
+              <View style={{ position: "relative" }}>
+                <MaterialCommunityIcons 
+                  name={(tab.active ? tab.iconActive : tab.icon) as any} 
+                  size={24} 
+                  color={tab.active ? tab.color : tab.colorMuted} 
+                />
+                {tab.badge && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{tab.badge}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.tabLabel, { color: tab.active ? tab.color : tab.colorMuted }, tab.active && { fontWeight: "600" }]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* ── Sort Overlay ── */}
       <Animated.View
@@ -2221,8 +2260,8 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   backBtn: {
-    width: 20,
-    height: 30,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -2660,6 +2699,55 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
   },
   customDateText: { fontSize: 12, color: C.textMid, fontWeight: "600" },
+  bottomTabBar: {
+    flexDirection: "row",
+    backgroundColor: C.white,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    height: Platform.OS === "ios" ? 84 : 64,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 24 : 8,
+    justifyContent: "space-around",
+    alignItems: "center",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  tabItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  tabLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 3,
+  },
+  tabBadge: {
+    position: "absolute",
+    top: -4,
+    right: -9,
+    backgroundColor: C.orange,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 8.5,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    color: "#fff",
+    fontWeight: "bold",
+    lineHeight: 12,
+  },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

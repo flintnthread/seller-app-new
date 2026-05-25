@@ -18,6 +18,7 @@ import {
   useWindowDimensions,
   Alert,
 } from 'react-native';
+import { AppHeader } from '@/components/common/AppHeader';
 
 // ─── Bootstrap Icons via web font (desktop/web) ───────────────────────────────
 // On native, falls back to a simple text character via BI component below.
@@ -412,14 +413,17 @@ export default function SellerProfileScreen() {
 
   if (!isDesktop) {
     return (
-      <ScrollView style={s.mobileContainer}>
-        <MobileProfileContent
-          photoUri={photoUri}   onPhotoChange={setPhotoUri}
-          address={address}     onAddressSave={setAddress}
-          road={road}           onRoadSave={setRoad}
-          landmark={landmark}   onLandmarkSave={setLandmark}
-        />
-      </ScrollView>
+      <View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+        <AppHeader title="Profile" subtitle="View and edit your seller details" showBackButton />
+        <ScrollView style={s.mobileContainer}>
+          <MobileProfileContent
+            photoUri={photoUri}   onPhotoChange={setPhotoUri}
+            address={address}     onAddressSave={setAddress}
+            road={road}           onRoadSave={setRoad}
+            landmark={landmark}   onLandmarkSave={setLandmark}
+          />
+        </ScrollView>
+      </View>
     );
   }
 
@@ -623,9 +627,16 @@ const s = StyleSheet.create({
 
   // ── Desktop root ───────────────────────────────────────────────
   desktopRoot: {
-    flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
-    ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
-  },
+  flex: 1,
+  flexDirection: 'row',
+  backgroundColor: C.offWhite,
+  width: '100%',
+  height: '100vh',
+},
+  // desktopRoot: {
+  //   flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
+  //   ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
+  // },
 
   // ── Sidebar ────────────────────────────────────────────────────
   desktopSidebar: {
@@ -660,12 +671,28 @@ const s = StyleSheet.create({
   avatarCircle:      { width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
 
   // ── Scroll area ────────────────────────────────────────────────
-  desktopMain:          { flex: 1, flexDirection: 'column', overflow: 'hidden' },
+  desktopMain: {
+  flex: 1,
+  width: '100%',
+  flexDirection: 'column',
+  overflow: 'hidden',
+},
   desktopScrollArea:    { flex: 1 },
-  desktopScrollContent: { padding: 24, gap: 20 },
+  desktopScrollContent: {
+  width: '100%',
+  paddingHorizontal: 24,
+  paddingBottom: 0,
+  gap: 20,
+},
+
 
   // ── Rows — alignItems:'stretch' gives equal height to children ─
-  desktopRow:     { flexDirection: 'row', gap: 20, alignItems: 'stretch' },
+desktopRow: {
+  width: '100%',
+  flexDirection: 'row',
+  gap: 20,
+  alignItems: 'stretch',
+},
   desktopFullRow: { flexDirection: 'row' },
 
   // ── Card ───────────────────────────────────────────────────────

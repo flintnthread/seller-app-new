@@ -274,8 +274,8 @@ const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
     <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`} />
     {order.items.map((item, idx) => (
       <View key={idx} style={[{ flexDirection:"row", gap:12 }, idx>0 && { marginTop:14, paddingTop:14, borderTopWidth:1, borderTopColor:C.border }]}>
-        <TouchableOpacity onPress={() => router.push("/(main)/productmanagement")} activeOpacity={0.85}>
-          <Image source={{ uri:item.image }} style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border }} />
+            <TouchableOpacity onPress={() => router.push("/(main)/productmanagement")} activeOpacity={0.85}>
+            <Image source={{ uri:item.image }} style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border }} />
         </TouchableOpacity>
         <View style={{ flex:1 }}>
           <View style={{ flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
@@ -1234,8 +1234,12 @@ const tStyles = StyleSheet.create({
 
 // Shipping label styles (identical to original)
 const lStyles = StyleSheet.create({
-  modalOverlay: { flex:1, backgroundColor:"rgba(0,0,0,0.45)", alignItems:"center", justifyContent:"center" },
-  safeArea: { width:"100%", maxWidth:680, maxHeight:"90%", backgroundColor:"#EBEBEB", borderRadius:16, overflow:"hidden" },
+  modalOverlay: Platform.OS === "web"
+    ? { flex:1, backgroundColor:"rgba(0,0,0,0.45)", alignItems:"center", justifyContent:"center" }
+    : { flex:1 },
+  safeArea: Platform.OS === "web"
+    ? { width:"100%", maxWidth:680, maxHeight:"90%", backgroundColor:"#EBEBEB", borderRadius:16, overflow:"hidden" }
+    : { flex:1, backgroundColor:"#EBEBEB" },
   scroll: { flex:1 },
   scrollContent: { padding:12, paddingBottom:16 },
   labelCard: { backgroundColor:C.white, borderRadius:4, overflow:"hidden", shadowColor:"#000", shadowOpacity:0.12, shadowOffset:{width:0,height:4}, shadowRadius:12, elevation:6 },

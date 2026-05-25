@@ -33,6 +33,7 @@ const MAPPING = {
   'paintbrush.fill': 'palette',
   'ruler.fill': 'straighten',
   'square.grid.2x2.fill': 'category',
+  'arrow.right.to.line': 'logout',
 } satisfies IconMapping;
 
 /**
