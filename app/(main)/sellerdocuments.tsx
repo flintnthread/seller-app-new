@@ -1,9 +1,14 @@
 /**
  * Seller Documents - Screen 5 of 5
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
+ *
+ * WEB ENHANCEMENTS (mobile code 100% unchanged):
+ *  - UploadBox: drag & drop support on web (Platform.OS === 'web')
+ *  - Live Selfie: opens browser camera via getUserMedia on web
+ *  - 2-column grid for upload boxes on web (width >= 600)
  */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   View,
   TouchableOpacity,
@@ -17,6 +22,7 @@ import {
   Alert,
   Dimensions,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
@@ -29,6 +35,9 @@ import * as DocumentPicker from "expo-document-picker";
 import Animated, { useSharedValue, withTiming, withSpring } from "react-native-reanimated";
 
 const { width: screenWidth } = Dimensions.get("window");
+
+// ─── Breakpoint for web two-column layout ────────────────────
+const WEB_BREAKPOINT = 600;
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -67,6 +76,177 @@ const validateCompanyPan = (pan: string): string => {
   if (!/^[A-Z]{3}C[A-Z][0-9]{4}[A-Z]$/.test(pan))
     return "Invalid format — Company PAN must be like AAAC A 1234 A (4th char must be C)";
   return "";
+};
+
+// ─── WEB ONLY: Drag & Drop wrapper ───────────────────────────
+const WebDragWrapper: React.FC<{
+  children: React.ReactNode;
+  onFileDrop: (uri: string, fileType: "image" | "pdf") => void;
+  accentColor?: string;
+  disabled?: boolean;
+}> = ({ children, onFileDrop, accentColor = T.navy, disabled = false }) => {
+  const [isDragging, setIsDragging] = useState(false);
+
+  if (Platform.OS !== "web") {
+    return <>{children}</>;
+  }
+
+  const handleDragOver = (e: any) => { e.preventDefault(); e.stopPropagation(); if (!disabled) setIsDragging(true); };
+  const handleDragEnter = (e: any) => { e.preventDefault(); e.stopPropagation(); if (!disabled) setIsDragging(true); };
+  const handleDragLeave = (e: any) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+
+  const handleDrop = (e: any) => {
+    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+    if (disabled) return;
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    const isPdf = file.type === "application/pdf";
+    const isImage = file.type.startsWith("image/");
+    if (!isPdf && !isImage) { window?.alert("Only images (JPG, PNG) or PDF files are supported."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev: any) => { const dataUri = ev.target?.result as string; if (dataUri) onFileDrop(dataUri, isPdf ? "pdf" : "image"); };
+    reader.readAsDataURL(file);
+  };
+
+  const overlayStyle: React.CSSProperties = { position: "relative", transition: "all 0.18s ease" };
+  const dragOverlayStyle: React.CSSProperties = {
+    position: "absolute", inset: 0, borderRadius: 14,
+    border: `2.5px dashed ${accentColor}`, backgroundColor: `${accentColor}12`,
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    zIndex: 10, pointerEvents: "none", gap: 8,
+  };
+
+  return (
+    <div style={overlayStyle} onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      {children}
+      {isDragging && (
+        <div style={dragOverlayStyle}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: `${accentColor}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 26 }}>⬆️</span>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: accentColor }}>Drop file here</span>
+          <span style={{ fontSize: 11, color: T.textSoft }}>JPG, PNG or PDF accepted</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── WEB ONLY: Camera Modal for selfie ───────────────────────
+const WebCameraModal: React.FC<{
+  visible: boolean;
+  onCapture: (dataUri: string) => void;
+  onClose: () => void;
+}> = ({ visible, onCapture, onClose }) => {
+  const videoRef = useRef<any>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string>("");
+  const [capturing, setCapturing] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    let localStream: MediaStream | null = null;
+    const startCamera = async () => {
+      setError("");
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        setStream(localStream);
+        if (videoRef.current) { videoRef.current.srcObject = localStream; videoRef.current.play(); }
+      } catch (err: any) {
+        if (err.name === "NotAllowedError") setError("Camera permission was denied. Please allow camera access in your browser settings.");
+        else if (err.name === "NotFoundError") setError("No camera found on this device.");
+        else setError("Could not access camera: " + (err.message || "Unknown error"));
+      }
+    };
+    startCamera();
+    return () => { localStream?.getTracks().forEach(t => t.stop()); setStream(null); };
+  }, [visible]);
+
+  const handleCapture = useCallback(() => {
+    if (!videoRef.current || capturing) return;
+    setCapturing(true);
+    let count = 3;
+    setCountdown(count);
+    const interval = setInterval(() => {
+      count -= 1;
+      if (count === 0) {
+        clearInterval(interval);
+        setCountdown(null);
+        const video = videoRef.current;
+        if (!video) { setCapturing(false); return; }
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext("2d");
+        if (ctx) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, canvas.width, canvas.height); }
+        const dataUri = canvas.toDataURL("image/jpeg", 0.92);
+        stream?.getTracks().forEach(t => t.stop());
+        setStream(null); setCapturing(false);
+        onCapture(dataUri);
+      } else { setCountdown(count); }
+    }, 1000);
+  }, [capturing, stream, onCapture]);
+
+  const handleClose = () => {
+    stream?.getTracks().forEach(t => t.stop());
+    setStream(null); setCountdown(null); setCapturing(false); onClose();
+  };
+
+  if (Platform.OS !== "web" || !visible) return null;
+
+  const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, backgroundColor: "rgba(10,21,51,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 };
+  const modalStyle: React.CSSProperties = { backgroundColor: T.cardBg, borderRadius: 20, overflow: "hidden", width: "min(92vw, 520px)", boxShadow: `0 24px 60px rgba(10,21,51,0.3)`, display: "flex", flexDirection: "column" };
+  const headerStyle: React.CSSProperties = { background: `linear-gradient(135deg, ${T.navy}, ${T.navyMid})`, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+  const videoWrapStyle: React.CSSProperties = { position: "relative", backgroundColor: "#0a0a0a", minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" };
+  const videoStyle: React.CSSProperties = { width: "100%", maxHeight: 380, objectFit: "cover", transform: "scaleX(-1)", display: "block" };
+  const footerStyle: React.CSSProperties = { padding: "16px 20px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, backgroundColor: T.white };
+  const captureRingStyle: React.CSSProperties = { width: 72, height: 72, borderRadius: "50%", border: `3px solid ${T.navy}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: capturing ? "not-allowed" : "pointer", transition: "all 0.15s ease", backgroundColor: "transparent", outline: "none" };
+  const captureInnerStyle: React.CSSProperties = { width: 54, height: 54, borderRadius: "50%", backgroundColor: capturing ? T.textLight : T.navy, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s ease" };
+  const countdownStyle: React.CSSProperties = { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)", zIndex: 5 };
+
+  return (
+    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div style={modalStyle}>
+        <div style={headerStyle}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.white }}>Take a Selfie</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>Position your face in the frame</div>
+          </div>
+          <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.white, fontSize: 14 }}>✕</button>
+        </div>
+        <div style={videoWrapStyle}>
+          {error ? (
+            <div style={{ padding: 24, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 36 }}>📷</div>
+              <div style={{ fontSize: 13, color: T.error, fontWeight: 600, lineHeight: 1.5 }}>{error}</div>
+            </div>
+          ) : (
+            <>
+              <video ref={videoRef} style={videoStyle} autoPlay playsInline muted />
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                <div style={{ width: 160, height: 200, borderRadius: "50%", border: `2px dashed rgba(255,255,255,0.5)` }} />
+              </div>
+              {countdown !== null && (
+                <div style={countdownStyle}>
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 900, color: T.white }}>{countdown}</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div style={footerStyle}>
+          <div style={{ fontSize: 11, color: T.textSoft, textAlign: "center" }}>{capturing ? "Hold still…" : "Tap the button to capture — 3 second countdown"}</div>
+          {!error && (
+            <button onClick={handleCapture} disabled={capturing || !stream} style={captureRingStyle} title="Capture selfie">
+              <div style={captureInnerStyle}><span style={{ fontSize: 20 }}>📷</span></div>
+            </button>
+          )}
+          <button onClick={handleClose} style={{ fontSize: 12, fontWeight: 700, color: T.textSoft, background: "none", border: "none", cursor: "pointer", padding: "4px 12px" }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ─── SectionCard — exact Screen 1 pattern ────────────────────
@@ -110,28 +290,21 @@ const scard = StyleSheet.create({
   subtitle: { fontSize: 12, color: T.textSoft, lineHeight: 17 },
 });
 
-// ─── InfoBanner — exact Screen 1 ─────────────────────────────
+// ─── InfoBanner ───────────────────────────────────────────────
 const InfoBanner: React.FC<{ text: string; iconName?: string; color?: string }> = ({
   text, iconName = "info-circle", color = T.navy,
 }) => (
-  <View style={[ib.wrap, {
-    borderColor: color + "30",
-    backgroundColor: color === T.navy ? T.navyPale : T.orangePale,
-  }]}>
+  <View style={[ib.wrap, { borderColor: color + "30", backgroundColor: color === T.navy ? T.navyPale : T.orangePale }]}>
     <Icon name={iconName} size={14} color={color} style={{ marginTop: 1 }} />
     <AppText style={[ib.text, { color: color === T.navy ? T.textMid : T.orangeDeep }]}>{text}</AppText>
   </View>
 );
 const ib = StyleSheet.create({
-  wrap: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1,
-  },
+  wrap: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1 },
   text: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: "500" },
 });
 
-// ─── UploadBox — navy/orange styled upload card ───────────────
-// ─── UploadBox — with PDF support, drag-drop hint, preview, retake & delete ──
+// ─── UploadBox ────────────────────────────────────────────────
 const UploadBox: React.FC<{
   label: string;
   value: string | null;
@@ -144,38 +317,26 @@ const UploadBox: React.FC<{
   accentColor?: string;
   isSelfie?: boolean;
   onRetake?: () => void;
+  onWebFileDrop?: (uri: string, fileType: "image" | "pdf") => void;
 }> = ({
   value, fileType, onPress, onDelete, label, helper, error,
   iconName = "cloud-upload", accentColor = T.navy,
-  isSelfie = false, onRetake,
-}) => (
+  isSelfie = false, onRetake, onWebFileDrop,
+}) => {
+  const boxContent = (
     <View style={ub.wrap}>
       <AppText style={ub.label}>
         {label} <AppText style={[ub.asterisk, { color: accentColor }]}>*</AppText>
       </AppText>
       {helper && <AppText style={ub.helper}>{helper}</AppText>}
-
-      {/* Drag & drop hint — non-selfie only
-      {!isSelfie && !value && (
-        <View style={[ub.dragHint, { borderColor: accentColor + "30", backgroundColor: accentColor + "08" }]}>
-          <Icon name="arrows" size={11} color={accentColor} />
-          <AppText style={[ub.dragHintText, { color: accentColor }]}>Drag & drop or tap to browse</AppText>
-        </View>
-      )} */}
-
       <TouchableOpacity
-        style={[
-          ub.box,
-          value ? ub.boxFilled : null,
-          error ? ub.boxError : { borderColor: value ? accentColor + "80" : accentColor + "40" },
-        ]}
+        style={[ub.box, value ? ub.boxFilled : null, error ? ub.boxError : { borderColor: value ? accentColor + "80" : accentColor + "40" }]}
         onPress={onPress}
         activeOpacity={0.85}
       >
         {value ? (
           <>
             {fileType === "pdf" ? (
-              /* PDF preview */
               <View style={ub.pdfPreview}>
                 <View style={[ub.pdfIconBox, { backgroundColor: accentColor + "15" }]}>
                   <Icon name="file-pdf-o" size={40} color={accentColor} />
@@ -187,19 +348,11 @@ const UploadBox: React.FC<{
                 </View>
               </View>
             ) : (
-              /* Full visible image preview */
               <View style={ub.imagePreviewWrap}>
-                <Image
-                  source={{ uri: value }}
-                  style={ub.preview}
-                  resizeMode="contain"
-                />
-                {/* Subtle overlay at bottom for badge readability */}
+                <Image source={{ uri: value }} style={ub.preview} resizeMode="contain" />
                 <View style={ub.imageOverlay} />
               </View>
             )}
-
-            {/* Uploaded badge */}
             <View style={[ub.uploadedBadge, { backgroundColor: T.success }]}>
               <Icon name="check" size={10} color={T.white} />
               <AppText style={ub.uploadedBadgeText}>Uploaded</AppText>
@@ -214,58 +367,39 @@ const UploadBox: React.FC<{
               {isSelfie ? "Capture Selfie" : "Upload Document"}
             </AppText>
             <AppText style={ub.uploadSub}>
-              {isSelfie ? "Camera required" : "JPG, PNG or PDF • Max 5MB"}
+              {isSelfie ? "Camera required" : Platform.OS === "web" ? "JPG, PNG or PDF • Drag & drop or tap" : "JPG, PNG or PDF • Max 5MB"}
             </AppText>
             <AppText style={[ub.tapHint, { color: accentColor }]}>
-              {isSelfie ? "Tap to open camera" : "Tap to browse / drag & drop"}
+              {isSelfie ? "Tap to open camera" : Platform.OS === "web" ? "Tap to browse or drag & drop" : "Tap to browse / drag & drop"}
             </AppText>
           </View>
         )}
       </TouchableOpacity>
-
-      {/* Retake / Add Photo / Delete row — shown when value exists */}
       {value && (
         <View style={ub.actionRow}>
           {isSelfie ? (
             <>
-              <TouchableOpacity
-                style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]}
-                onPress={onRetake}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]} onPress={onRetake} activeOpacity={0.8}>
                 <Icon name="refresh" size={11} color={accentColor} />
                 <AppText style={[ub.actionBtnText, { color: accentColor }]}>Retake</AppText>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]}
-                onPress={onPress}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]} onPress={onPress} activeOpacity={0.8}>
                 <Icon name="camera" size={11} color={accentColor} />
                 <AppText style={[ub.actionBtnText, { color: accentColor }]}>Add Photo</AppText>
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity
-              style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]}
-              onPress={onPress}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[ub.actionBtn, { borderColor: accentColor, backgroundColor: accentColor + "10" }]} onPress={onPress} activeOpacity={0.8}>
               <Icon name="refresh" size={11} color={accentColor} />
               <AppText style={[ub.actionBtnText, { color: accentColor }]}>Replace</AppText>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[ub.actionBtn, { borderColor: T.error, backgroundColor: T.error + "10" }]}
-            onPress={onDelete}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={[ub.actionBtn, { borderColor: T.error, backgroundColor: T.error + "10" }]} onPress={onDelete} activeOpacity={0.8}>
             <Icon name="trash" size={11} color={T.error} />
             <AppText style={[ub.actionBtnText, { color: T.error }]}>Delete</AppText>
           </TouchableOpacity>
         </View>
       )}
-
       {!!error && (
         <View style={ub.errorRow}>
           <Icon name="exclamation-circle" size={11} color={T.error} style={{ marginTop: 4 }} />
@@ -274,77 +408,44 @@ const UploadBox: React.FC<{
       )}
     </View>
   );
+
+  if (Platform.OS === "web" && !isSelfie && onWebFileDrop) {
+    return <WebDragWrapper onFileDrop={onWebFileDrop} accentColor={accentColor}>{boxContent}</WebDragWrapper>;
+  }
+  return boxContent;
+};
+
 const ub = StyleSheet.create({
   wrap: { marginBottom: 16 },
   label: { fontSize: 11, fontWeight: "700", color: T.textMid, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
   asterisk: { fontSize: 11, fontWeight: "700" },
   helper: { fontSize: 11, color: T.textLight, marginBottom: 8, fontStyle: "italic" },
-  dragHint: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    borderWidth: 1, borderStyle: "dashed", borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8,
-  },
-  dragHintText: { fontSize: 11, fontWeight: "600" },
-  box: {
-    borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14,
-    minHeight: 140, overflow: "hidden", position: "relative",
-    backgroundColor: T.white,
-  },
-  boxFilled: {
-    borderStyle: "solid", borderWidth: 2,
-  },
+  box: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14, minHeight: 140, overflow: "hidden", position: "relative", backgroundColor: T.white },
+  boxFilled: { borderStyle: "solid", borderWidth: 2 },
   boxError: { borderColor: T.error },
   placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 24 },
   iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   uploadTitle: { fontSize: 13, fontWeight: "700", color: T.textDark },
   uploadSub: { fontSize: 11, color: T.textSoft, lineHeight: 16 },
   tapHint: { fontSize: 11, fontWeight: "600", fontStyle: "italic" },
-  /* Full visible image preview */
-  /* Image preview */
-  imagePreviewWrap: {
-    width: "100%", backgroundColor: "#F8F9FC",
-  },
-  preview: {
-    width: "100%", height: 220,
-    backgroundColor: "#F8F9FC",
-  },
-  imageOverlay: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    height: 40,
-    backgroundColor: "rgba(0,0,0,0.18)",
-  },
-  /* PDF preview */
-  pdfPreview: {
-    alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 32,
-    backgroundColor: T.white,
-  },
-  pdfIconBox: {
-    width: 72, height: 72, borderRadius: 18,
-    alignItems: "center", justifyContent: "center", marginBottom: 4,
-  },
+  imagePreviewWrap: { width: "100%", backgroundColor: "#F8F9FC" },
+  preview: { width: "100%", height: 220, backgroundColor: "#F8F9FC" },
+  imageOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: "rgba(0,0,0,0.18)" },
+  pdfPreview: { alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 32, backgroundColor: T.white },
+  pdfIconBox: { width: 72, height: 72, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   pdfLabel: { fontSize: 14, fontWeight: "700", color: T.textDark },
   pdfTapRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   pdfSub: { fontSize: 11, color: T.textSoft, fontStyle: "italic" },
-  uploadedBadge: {
-    position: "absolute", bottom: 8, right: 8,
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-  },
+  uploadedBadge: { position: "absolute", bottom: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   uploadedBadgeText: { fontSize: 10, fontWeight: "700", color: T.white },
-  /* Action row: Retake / Replace / Delete */
   actionRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  actionBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    borderWidth: 1.5, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6,
-  },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   actionBtnText: { fontSize: 11, fontWeight: "700" },
   errorRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 6, marginLeft: 2 },
   errorText: { fontSize: 11, color: T.error, fontWeight: "400", flex: 1, lineHeight: 16 },
 });
 
-// ─── InputRow — Screen 1 field style ─────────────────────────
+// ─── InputRow ─────────────────────────────────────────────────
 const InputRow: React.FC<{
   label: string;
   value: string;
@@ -366,7 +467,6 @@ const InputRow: React.FC<{
         borderColor: error ? T.error : focused ? accentColor : T.border,
         backgroundColor: forceWhiteBg ? T.white : focused ? (accentColor === T.navy ? T.navyPale : T.orangePale) : T.white,
       }]}>
-        {/* Icon removed as per request */}
         <TextInput
           style={inp.input}
           value={value}
@@ -410,8 +510,11 @@ const inp = StyleSheet.create({
 export default function SellerDocuments() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { width } = useWindowDimensions();
 
-  // ── Scroll to top on mount (unchanged) ──
+  // True when running on web AND viewport is wide enough for 2-col layout
+  const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
+
   useEffect(() => {
     setTimeout(() => { scrollViewRef.current?.scrollTo({ y: 0, animated: false }); }, 100);
   }, []);
@@ -435,34 +538,48 @@ export default function SellerDocuments() {
   const [iecCertificate, setIecCertificate] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([]);
   const [success, setSuccess] = useState(false);
-
-  // Track file types (image vs pdf) for each document
   const [fileTypes, setFileTypes] = useState<Record<string, "image" | "pdf">>({});
   const [sourceModalVisible, setSourceModalVisible] = useState(false);
   const [pendingDocumentType, setPendingDocumentType] = useState<string>("");
+  const [webCameraVisible, setWebCameraVisible] = useState(false);
+
   const setFileType = (field: string, type: "image" | "pdf") =>
     setFileTypes(prev => ({ ...prev, [field]: type }));
 
-  // ── Reanimated (unchanged) ──
   const modalOpacity = useSharedValue(0);
   const modalScale = useSharedValue(0.92);
 
-  // ── Router params (unchanged) ──
   const routerParams = useLocalSearchParams();
   React.useEffect(() => {
     const cat = routerParams.businessCategory as string;
     if (cat) setBusinessCategory(cat);
   }, [routerParams]);
 
-  // ── Helpers (unchanged) ──
   const clearFieldError = (field: string) =>
     setValidationErrors(prev => prev.filter(e => e.field !== field));
 
   const getError = (field: string) =>
     validationErrors.find(e => e.field === field)?.message;
 
-  // ── Document picker: images + PDFs ──
   const pickDocument = (documentType: string) => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      input.onchange = (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+        const isPdf = file.type === "application/pdf";
+        const reader = new FileReader();
+        reader.onload = (ev: any) => {
+          const dataUri = ev.target?.result as string;
+          if (dataUri) { setDocumentValue(documentType, dataUri); setFileType(documentType, isPdf ? "pdf" : "image"); clearFieldError(documentType); }
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
     setPendingDocumentType(documentType);
     setSourceModalVisible(true);
   };
@@ -471,45 +588,22 @@ export default function SellerDocuments() {
     setSourceModalVisible(false);
     await new Promise(r => setTimeout(r, 300));
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Camera roll permission is needed.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      setDocumentValue(pendingDocumentType, result.assets[0].uri);
-      setFileType(pendingDocumentType, "image");
-      clearFieldError(pendingDocumentType);
-    }
+    if (status !== "granted") { Alert.alert("Permission Required", "Camera roll permission is needed."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1 });
+    if (!result.canceled && result.assets?.[0]) { setDocumentValue(pendingDocumentType, result.assets[0].uri); setFileType(pendingDocumentType, "image"); clearFieldError(pendingDocumentType); }
   };
 
   const handlePickPdf = async () => {
     setSourceModalVisible(false);
     await new Promise(r => setTimeout(r, 300));
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf", "image/*"],
-      copyToCacheDirectory: true,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setDocumentValue(pendingDocumentType, asset.uri);
-      setFileType(pendingDocumentType, asset.mimeType === "application/pdf" ? "pdf" : "image");
-      clearFieldError(pendingDocumentType);
-    }
+    const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], copyToCacheDirectory: true });
+    if (!result.canceled && result.assets?.[0]) { const asset = result.assets[0]; setDocumentValue(pendingDocumentType, asset.uri); setFileType(pendingDocumentType, asset.mimeType === "application/pdf" ? "pdf" : "image"); clearFieldError(pendingDocumentType); }
   };
 
-  // ── Helper to set doc value by field name ──
   const setDocumentValue = (field: string, uri: string) => {
     const map: Record<string, (v: string) => void> = {
-      aadharFront: setAadharFront,
-      aadharBack: setAadharBack,
-      panCard: setPanCard,
-      businessProof: setBusinessProof,
-      bankAccountProof: setBankAccountProof,
+      aadharFront: setAadharFront, aadharBack: setAadharBack, panCard: setPanCard,
+      businessProof: setBusinessProof, bankAccountProof: setBankAccountProof,
       cancelledCheque: setCancelledCheque,
       liveSelfie: (uri) => setLiveSelfies(prev => [...prev, uri]),
       companyPanDocument: setCompanyPanDocument,
@@ -521,17 +615,11 @@ export default function SellerDocuments() {
     map[field]?.(uri);
   };
 
-  // ── Helper to clear (delete) a document ──
   const deleteDocument = (field: string) => {
-    setDocumentValue(field, "");
-    // For fields that use null, we need to explicitly null them
     const nullMap: Record<string, () => void> = {
-      aadharFront: () => setAadharFront(null),
-      aadharBack: () => setAadharBack(null),
-      panCard: () => setPanCard(null),
-      businessProof: () => setBusinessProof(null),
-      bankAccountProof: () => setBankAccountProof(null),
-      cancelledCheque: () => setCancelledCheque(null),
+      aadharFront: () => setAadharFront(null), aadharBack: () => setAadharBack(null),
+      panCard: () => setPanCard(null), businessProof: () => setBusinessProof(null),
+      bankAccountProof: () => setBankAccountProof(null), cancelledCheque: () => setCancelledCheque(null),
       liveSelfie: () => setLiveSelfies([]),
       companyPanDocument: () => setCompanyPanDocument(null),
       certificateOfIncorporation: () => setCertificateOfIncorporation(null),
@@ -544,27 +632,20 @@ export default function SellerDocuments() {
     clearFieldError(field);
   };
 
-  // ── Selfie capture (unchanged) ──
   const captureSelfie = async () => {
+    if (Platform.OS === "web") { setWebCameraVisible(true); return; }
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Sorry, we need camera permission to capture your selfie.");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-      aspect: [1, 1],
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const uri = result.assets[0].uri;
-      setLiveSelfies(prev => [...prev, uri]);
-      clearFieldError("liveSelfie");
-    }
+    if (status !== "granted") { Alert.alert("Permission Required", "Sorry, we need camera permission to capture your selfie."); return; }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 1, aspect: [1, 1] });
+    if (!result.canceled && result.assets?.[0]) { const uri = result.assets[0].uri; setLiveSelfies(prev => [...prev, uri]); clearFieldError("liveSelfie"); }
   };
 
-  // ── Validation (unchanged) ──
+  const handleWebSelfieCapture = (dataUri: string) => {
+    setWebCameraVisible(false);
+    setLiveSelfies(prev => [...prev, dataUri]);
+    clearFieldError("liveSelfie");
+  };
+
   const validateDocuments = () => {
     const errors: { field: string; message: string }[] = [];
     if (!aadharFront) errors.push({ field: "aadharFront", message: "Aadhaar Card (Front) is required" });
@@ -586,7 +667,6 @@ export default function SellerDocuments() {
     return errors;
   };
 
-  // ── Finish (unchanged) ──
   const handleFinish = () => {
     const errors = validateDocuments();
     if (errors.length > 0) { setValidationErrors(errors); return; }
@@ -601,12 +681,43 @@ export default function SellerDocuments() {
     setTimeout(() => { setSuccess(false); router.push("/(main)/dashboard"); }, 300);
   };
 
-  // ─── Render ───────────────────────────────────────────────
+  const makeWebFileDrop = (field: string) => (uri: string, type: "image" | "pdf") => {
+    setDocumentValue(field, uri);
+    setFileType(field, type);
+    clearFieldError(field);
+  };
+
+  // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
+  const TwoColRow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const childArray = React.Children.toArray(children);
+    if (!isWebWide) return <>{childArray}</>;
+    const rows: React.ReactNode[][] = [];
+    for (let i = 0; i < childArray.length; i += 2) rows.push(childArray.slice(i, i + 2));
+    return (
+      <>
+        {rows.map((pair, rowIdx) => (
+          <View key={rowIdx} style={ws.fieldRow}>
+            <View style={ws.fieldCol}>{pair[0]}</View>
+            {pair[1] ? <View style={ws.fieldCol}>{pair[1]}</View> : <View style={ws.fieldCol} />}
+          </View>
+        ))}
+      </>
+    );
+  };
+
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
 
-      {/* ── Top gradient header — exact Screen 1 ── */}
+      {Platform.OS === "web" && (
+        <WebCameraModal
+          visible={webCameraVisible}
+          onCapture={handleWebSelfieCapture}
+          onClose={() => setWebCameraVisible(false)}
+        />
+      )}
+
+      {/* ── Top gradient header ── */}
       <LinearGradient
         colors={[T.navy, T.navyMid]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -614,14 +725,7 @@ export default function SellerDocuments() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            <TouchableOpacity 
-              style={s.backBtnHeader} 
-              onPress={() => router.back()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity>
-            <View style={{ flex: 1, marginTop: 18 }}>
+            <View style={{ flex: 1 }}>
               <AppText style={s.headerLabel}>STEP 5 OF 5</AppText>
               <AppText style={s.headerTitle}>Upload Documents</AppText>
               <AppText style={s.headerSub}>Submit clear documents for verification</AppText>
@@ -641,7 +745,10 @@ export default function SellerDocuments() {
         <ScrollView
           ref={scrollViewRef}
           style={s.scroll}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[
+            s.scrollContent,
+            isWebWide && ws.scrollContentWeb,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -660,6 +767,7 @@ export default function SellerDocuments() {
                 color={T.orange}
               />
 
+              {/* Company PAN input stays full-width (not an UploadBox) */}
               <InputRow
                 label="Company PAN Number"
                 value={companyPanNumber}
@@ -668,8 +776,7 @@ export default function SellerDocuments() {
                   setCompanyPanNumber(upper);
                   const e = validateCompanyPan(upper);
                   setCompanyPanError(e);
-                  if (!e) clearFieldError("companyPanNumber");
-                  else clearFieldError("companyPanNumber");
+                  clearFieldError("companyPanNumber");
                 }}
                 placeholder="e.g. AAACB1234C"
                 iconName="id-card"
@@ -679,39 +786,50 @@ export default function SellerDocuments() {
                 forceWhiteBg
               />
 
-              <UploadBox label="Company PAN Document" value={companyPanDocument}
-                fileType={fileTypes["companyPanDocument"] ?? null}
-                onPress={() => pickDocument("companyPanDocument")}
-                onDelete={() => deleteDocument("companyPanDocument")}
-                error={getError("companyPanDocument")} accentColor={T.orange} />
+              {/*
+                Web: B2B upload boxes 2-per-row.
+                Mobile: unchanged — stacked.
+              */}
+              <TwoColRow>
+                <UploadBox label="Company PAN Document" value={companyPanDocument}
+                  fileType={fileTypes["companyPanDocument"] ?? null}
+                  onPress={() => pickDocument("companyPanDocument")}
+                  onDelete={() => deleteDocument("companyPanDocument")}
+                  onWebFileDrop={makeWebFileDrop("companyPanDocument")}
+                  error={getError("companyPanDocument")} accentColor={T.orange} />
 
-              <UploadBox label="Certificate of Incorporation" value={certificateOfIncorporation}
-                helper="Pvt Ltd / LLP"
-                fileType={fileTypes["certificateOfIncorporation"] ?? null}
-                onPress={() => pickDocument("certificateOfIncorporation")}
-                onDelete={() => deleteDocument("certificateOfIncorporation")}
-                error={getError("certificateOfIncorporation")} accentColor={T.orange} />
+                <UploadBox label="Certificate of Incorporation" value={certificateOfIncorporation}
+                  helper="Pvt Ltd / LLP"
+                  fileType={fileTypes["certificateOfIncorporation"] ?? null}
+                  onPress={() => pickDocument("certificateOfIncorporation")}
+                  onDelete={() => deleteDocument("certificateOfIncorporation")}
+                  onWebFileDrop={makeWebFileDrop("certificateOfIncorporation")}
+                  error={getError("certificateOfIncorporation")} accentColor={T.orange} />
 
-              <UploadBox label="Partnership Deed" value={partnershipDeed}
-                helper="For partnership firms"
-                fileType={fileTypes["partnershipDeed"] ?? null}
-                onPress={() => pickDocument("partnershipDeed")}
-                onDelete={() => deleteDocument("patnershipDeed")}
-                error={getError("partnershipDeed")} accentColor={T.orange} />
+                <UploadBox label="Partnership Deed" value={partnershipDeed}
+                  helper="For partnership firms"
+                  fileType={fileTypes["partnershipDeed"] ?? null}
+                  onPress={() => pickDocument("partnershipDeed")}
+                  onDelete={() => deleteDocument("partnershipDeed")}
+                  onWebFileDrop={makeWebFileDrop("partnershipDeed")}
+                  error={getError("partnershipDeed")} accentColor={T.orange} />
 
-              <UploadBox label="MSME / Udyam Certificate" value={msmeUdyamCertificate}
-                helper="If registered under MSME"
-                fileType={fileTypes["msmeUdyamCertificate"] ?? null}
-                onPress={() => pickDocument("msmeUdyamCertificate")}
-                onDelete={() => deleteDocument("msmeUdyamCertificate")}
-                error={getError("msmeUdyamCertificate")} accentColor={T.orange} />
+                <UploadBox label="MSME / Udyam Certificate" value={msmeUdyamCertificate}
+                  helper="If registered under MSME"
+                  fileType={fileTypes["msmeUdyamCertificate"] ?? null}
+                  onPress={() => pickDocument("msmeUdyamCertificate")}
+                  onDelete={() => deleteDocument("msmeUdyamCertificate")}
+                  onWebFileDrop={makeWebFileDrop("msmeUdyamCertificate")}
+                  error={getError("msmeUdyamCertificate")} accentColor={T.orange} />
 
-              <UploadBox label="Import Export Code (IEC)" value={iecCertificate}
-                helper="For import/export businesses"
-                fileType={fileTypes["iecCertificate"] ?? null}
-                onPress={() => pickDocument("iecCertificate")}
-                onDelete={() => deleteDocument("iecCertificate")}
-                error={getError("iecCertificate")} accentColor={T.orange} />
+                <UploadBox label="Import Export Code (IEC)" value={iecCertificate}
+                  helper="For import/export businesses"
+                  fileType={fileTypes["iecCertificate"] ?? null}
+                  onPress={() => pickDocument("iecCertificate")}
+                  onDelete={() => deleteDocument("iecCertificate")}
+                  onWebFileDrop={makeWebFileDrop("iecCertificate")}
+                  error={getError("iecCertificate")} accentColor={T.orange} />
+              </TwoColRow>
             </SectionCard>
           )}
 
@@ -728,46 +846,58 @@ export default function SellerDocuments() {
               color={T.navy}
             />
 
-            <UploadBox label="Aadhaar Card (Front)" value={aadharFront}
-              fileType={fileTypes["aadharFront"] ?? null}
-              onPress={() => pickDocument("aadharFront")}
-              onDelete={() => deleteDocument("aadharFront")}
-              error={getError("aadharFront")} accentColor={T.navy} />
+            {/*
+              Web: identity upload boxes 2-per-row.
+              Mobile: unchanged — stacked.
+            */}
+            <TwoColRow>
+              <UploadBox label="Aadhaar Card (Front)" value={aadharFront}
+                fileType={fileTypes["aadharFront"] ?? null}
+                onPress={() => pickDocument("aadharFront")}
+                onDelete={() => deleteDocument("aadharFront")}
+                onWebFileDrop={makeWebFileDrop("aadharFront")}
+                error={getError("aadharFront")} accentColor={T.navy} />
 
-            <UploadBox label="Aadhaar Card (Back)" value={aadharBack}
-              fileType={fileTypes["aadharBack"] ?? null}
-              onPress={() => pickDocument("aadharBack")}
-              onDelete={() => deleteDocument("aadharBack")}
-              error={getError("aadharBack")} accentColor={T.navy} />
+              <UploadBox label="Aadhaar Card (Back)" value={aadharBack}
+                fileType={fileTypes["aadharBack"] ?? null}
+                onPress={() => pickDocument("aadharBack")}
+                onDelete={() => deleteDocument("aadharBack")}
+                onWebFileDrop={makeWebFileDrop("aadharBack")}
+                error={getError("aadharBack")} accentColor={T.navy} />
 
-            <UploadBox label="PAN Card" value={panCard}
-              fileType={fileTypes["panCard"] ?? null}
-              onPress={() => pickDocument("panCard")}
-              onDelete={() => deleteDocument("panCard")}
-              error={getError("panCard")} accentColor={T.navy} />
+              <UploadBox label="PAN Card" value={panCard}
+                fileType={fileTypes["panCard"] ?? null}
+                onPress={() => pickDocument("panCard")}
+                onDelete={() => deleteDocument("panCard")}
+                onWebFileDrop={makeWebFileDrop("panCard")}
+                error={getError("panCard")} accentColor={T.navy} />
 
-            <UploadBox label="Business Proof" value={businessProof}
-              helper="Shop License / Registration Certificate / GST Certificate"
-              fileType={fileTypes["businessProof"] ?? null}
-              onPress={() => pickDocument("businessProof")}
-              onDelete={() => deleteDocument("businessProof")}
-              error={getError("businessProof")} accentColor={T.navy} />
+              <UploadBox label="Business Proof" value={businessProof}
+                helper="Shop License / Registration Certificate / GST Certificate"
+                fileType={fileTypes["businessProof"] ?? null}
+                onPress={() => pickDocument("businessProof")}
+                onDelete={() => deleteDocument("businessProof")}
+                onWebFileDrop={makeWebFileDrop("businessProof")}
+                error={getError("businessProof")} accentColor={T.navy} />
 
-            <UploadBox label="Bank Account Proof" value={bankAccountProof}
-              helper="Bank Statement / Passbook"
-              fileType={fileTypes["bankAccountProof"] ?? null}
-              onPress={() => pickDocument("bankAccountProof")}
-              onDelete={() => deleteDocument("bankAccountProof")}
-              error={getError("bankAccountProof")} accentColor={T.navy} />
+              <UploadBox label="Bank Account Proof" value={bankAccountProof}
+                helper="Bank Statement / Passbook"
+                fileType={fileTypes["bankAccountProof"] ?? null}
+                onPress={() => pickDocument("bankAccountProof")}
+                onDelete={() => deleteDocument("bankAccountProof")}
+                onWebFileDrop={makeWebFileDrop("bankAccountProof")}
+                error={getError("bankAccountProof")} accentColor={T.navy} />
 
-            <UploadBox label="Cancelled Cheque" value={cancelledCheque}
-              helper="Upload a clear image of your cancelled cheque"
-              fileType={fileTypes["cancelledCheque"] ?? null}
-              onPress={() => pickDocument("cancelledCheque")}
-              onDelete={() => deleteDocument("cancelledCheque")}
-              error={getError("cancelledCheque")} accentColor={T.navy} />
+              <UploadBox label="Cancelled Cheque" value={cancelledCheque}
+                helper="Upload a clear image of your cancelled cheque"
+                fileType={fileTypes["cancelledCheque"] ?? null}
+                onPress={() => pickDocument("cancelledCheque")}
+                onDelete={() => deleteDocument("cancelledCheque")}
+                onWebFileDrop={makeWebFileDrop("cancelledCheque")}
+                error={getError("cancelledCheque")} accentColor={T.navy} />
+            </TwoColRow>
 
-            {/* Important note for Live Selfie */}
+            {/* Important note — full width on both platforms */}
             <View style={s.selfieNote}>
               <View style={s.selfieNoteHeader}>
                 <Icon name="exclamation-triangle" size={13} color={T.orange} />
@@ -778,14 +908,15 @@ export default function SellerDocuments() {
               </AppText>
             </View>
 
-            {/* Multi-selfie upload area */}
+            {/* Live Selfie section — full width on both platforms */}
             <View style={s.selfieSection}>
               <AppText style={s.selfieFieldLabel}>
                 Live Selfie <AppText style={{ color: T.navy }}>*</AppText>
               </AppText>
-              <AppText style={s.selfieFieldHelper}>Use camera to take a live photo</AppText>
+              <AppText style={s.selfieFieldHelper}>
+                {Platform.OS === "web" ? "Click below to open camera" : "Use camera to take a live photo"}
+              </AppText>
 
-              {/* All captured selfie previews */}
               {(liveSelfies ?? []).length > 0 && (
                 <ScrollView
                   horizontal
@@ -796,11 +927,9 @@ export default function SellerDocuments() {
                   {(liveSelfies ?? []).map((uri, index) => (
                     <View key={index} style={s.selfieThumbWrap}>
                       <Image source={{ uri }} style={s.selfieThumb} resizeMode="cover" />
-                      {/* Index badge */}
                       <View style={s.selfieIndexBadge}>
                         <AppText style={s.selfieIndexText}>{index + 1}</AppText>
                       </View>
-                      {/* Delete individual photo */}
                       <TouchableOpacity
                         style={s.selfieDeleteBtn}
                         onPress={() => setLiveSelfies(prev => prev.filter((_, i) => i !== index))}
@@ -813,29 +942,16 @@ export default function SellerDocuments() {
                 </ScrollView>
               )}
 
-              {/* Action buttons row */}
               <View style={s.selfieActionsRow}>
-                {/* Retake — replaces the last photo */}
                 {(liveSelfies ?? []).length > 0 && (
                   <TouchableOpacity
                     style={[s.selfieActionBtn, { borderColor: T.navy, backgroundColor: T.navy + "10" }]}
                     onPress={async () => {
+                      if (Platform.OS === "web") { setWebCameraVisible(true); return; }
                       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                      if (status !== "granted") {
-                        Alert.alert("Permission Required", "Camera permission is needed.");
-                        return;
-                      }
-                      const result = await ImagePicker.launchCameraAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        allowsEditing: true,
-                        quality: 1,
-                        aspect: [1, 1],
-                      });
-                      if (!result.canceled && result.assets?.[0]) {
-                        // Replace last photo
-                        const newUri = result.assets[0].uri;
-                        setLiveSelfies(prev => [...prev.slice(0, -1), newUri]);
-                      }
+                      if (status !== "granted") { Alert.alert("Permission Required", "Camera permission is needed."); return; }
+                      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 1, aspect: [1, 1] });
+                      if (!result.canceled && result.assets?.[0]) { const newUri = result.assets[0].uri; setLiveSelfies(prev => [...prev.slice(0, -1), newUri]); }
                     }}
                     activeOpacity={0.8}
                   >
@@ -843,14 +959,9 @@ export default function SellerDocuments() {
                     <AppText style={[s.selfieActionBtnText, { color: T.navy }]}>Retake</AppText>
                   </TouchableOpacity>
                 )}
-
-                {/* Add Photo — only visible when selfies exist */}
                 {(liveSelfies ?? []).length > 0 && (
                   <TouchableOpacity
-                    style={[s.selfieActionBtn, {
-                      borderColor: T.orange,
-                      backgroundColor: T.orange + "10",
-                    }]}
+                    style={[s.selfieActionBtn, { borderColor: T.orange, backgroundColor: T.orange + "10" }]}
                     onPress={captureSelfie}
                     activeOpacity={0.8}
                   >
@@ -858,8 +969,6 @@ export default function SellerDocuments() {
                     <AppText style={[s.selfieActionBtnText, { color: T.orange }]}>Add Photo</AppText>
                   </TouchableOpacity>
                 )}
-
-                {/* Delete All */}
                 {(liveSelfies ?? []).length > 0 && (
                   <TouchableOpacity
                     style={[s.selfieActionBtn, { borderColor: T.error, backgroundColor: T.error + "10" }]}
@@ -877,7 +986,6 @@ export default function SellerDocuments() {
                 )}
               </View>
 
-              {/* Photo count badge */}
               {(liveSelfies ?? []).length > 0 && (
                 <View style={s.selfieCountBadge}>
                   <Icon name="check-circle" size={11} color={T.success} />
@@ -885,7 +993,6 @@ export default function SellerDocuments() {
                 </View>
               )}
 
-              {/* Empty state box */}
               {(liveSelfies ?? []).length === 0 && (
                 <TouchableOpacity
                   style={[s.selfieEmptyBox, getError("liveSelfie") ? { borderColor: T.error } : { borderColor: T.navy + "40" }]}
@@ -896,7 +1003,9 @@ export default function SellerDocuments() {
                     <Icon name="camera" size={22} color={T.navy} />
                   </View>
                   <AppText style={s.selfieEmptyTitle}>No selfie captured yet</AppText>
-                  <AppText style={s.selfieEmptySub}>Tap &quot;Capture Selfie&quot; above or this box</AppText>
+                  <AppText style={s.selfieEmptySub}>
+                    {Platform.OS === "web" ? "Tap to open camera" : "Tap \"Capture Selfie\" above or this box"}
+                  </AppText>
                 </TouchableOpacity>
               )}
 
@@ -921,22 +1030,14 @@ export default function SellerDocuments() {
               iconName="lock"
               color={T.orange}
             />
-
-            {/* Checkbox — Screen 1 infoBanner container style */}
             <TouchableOpacity
               style={[s.checkboxRow, termsAccepted && s.checkboxRowChecked]}
-              onPress={() => {
-                const newVal = !termsAccepted;
-                setTermsAccepted(newVal);
-                if (newVal) clearFieldError("termsAccepted");
-              }}
+              onPress={() => { const newVal = !termsAccepted; setTermsAccepted(newVal); if (newVal) clearFieldError("termsAccepted"); }}
               activeOpacity={0.85}
             >
-              {/* Custom checkbox — orange when checked */}
               <View style={[s.checkbox, termsAccepted && { backgroundColor: T.orange, borderColor: T.orange }]}>
                 {termsAccepted && <Icon name="check" size={11} color={T.white} />}
               </View>
-              {/* Screen 1 infoBannerText style */}
               <AppText style={s.termsText}>
                 I agree to the{" "}
                 <AppText style={{ color: T.orange, fontWeight: "700" }}>Terms & Conditions</AppText>
@@ -944,7 +1045,6 @@ export default function SellerDocuments() {
                 <AppText style={{ color: T.orange, fontWeight: "700" }}>Privacy Policy</AppText>
               </AppText>
             </TouchableOpacity>
-
             {!!getError("termsAccepted") && (
               <View style={s.termsErrorRow}>
                 <Icon name="exclamation-circle" size={11} color={T.error} style={{ marginTop: 4 }} />
@@ -953,28 +1053,15 @@ export default function SellerDocuments() {
             )}
           </SectionCard>
 
-          {/* ── Buttons — exact Screen 1 ── */}
+          {/* ── Buttons ── */}
           <View style={s.buttonRow}>
-            {/* Back — navy outline */}
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={s.backBtn}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity onPress={() => router.push("/(main)/sellerbanking")} style={s.backBtn} activeOpacity={0.85}>
               <View style={s.backBtnInner}>
                 <AppText style={s.backBtnText}>Back</AppText>
               </View>
             </TouchableOpacity>
-
-
-            {/* Submit — orange gradient, Screen 1 continueBtn style */}
             <TouchableOpacity onPress={handleFinish} style={s.continueBtn} activeOpacity={0.85}>
-              <LinearGradient
-                colors={[T.orange, T.orangeDeep]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={s.continueBtnInner}
-              >
-                {/* Screen 1: 16px 800 white letterSpacing 0.2 */}
+              <LinearGradient colors={[T.orange, T.orangeDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.continueBtnInner}>
                 <AppText style={s.continueBtnText}>Submit Profile</AppText>
               </LinearGradient>
             </TouchableOpacity>
@@ -984,44 +1071,23 @@ export default function SellerDocuments() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── Success Modal (functionality unchanged, restyled) ── */}
-      {/* ── Source Picker Modal ── */}
+      {/* ── Source Picker Modal (mobile only — unchanged) ── */}
       <Modal visible={sourceModalVisible} transparent animationType="fade">
-        <TouchableOpacity
-          style={sm.overlay}
-          activeOpacity={1}
-          onPress={() => setSourceModalVisible(false)}
-        >
+        <TouchableOpacity style={sm.overlay} activeOpacity={1} onPress={() => setSourceModalVisible(false)}>
           <TouchableOpacity activeOpacity={1} style={sm.sheet}>
-            {/* Handle bar */}
             <View style={sm.handle} />
-
-            {/* Header */}
             <View style={sm.header}>
-
               <View style={{ flex: 1 }}>
                 <AppText style={sm.headerTitle}>Add Document</AppText>
                 <AppText style={sm.headerSub}>Choose how to upload your file</AppText>
               </View>
-              <TouchableOpacity
-                style={sm.closeBtn}
-                onPress={() => setSourceModalVisible(false)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={sm.closeBtn} onPress={() => setSourceModalVisible(false)} activeOpacity={0.7}>
                 <Icon name="times" size={14} color={T.textSoft} />
               </TouchableOpacity>
             </View>
-
-            {/* Divider */}
             <View style={sm.divider} />
-
-            {/* Options */}
             <TouchableOpacity style={sm.option} onPress={handlePickFromLibrary} activeOpacity={0.85}>
-              <LinearGradient
-                colors={[T.navy + "12", T.navy + "06"]}
-                style={sm.optionIconBox}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              >
+              <LinearGradient colors={[T.navy + "12", T.navy + "06"]} style={sm.optionIconBox} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <Icon name="image" size={20} color={T.navy} />
               </LinearGradient>
               <View style={sm.optionText}>
@@ -1030,13 +1096,8 @@ export default function SellerDocuments() {
               </View>
               <Icon name="chevron-right" size={12} color={T.textLight} />
             </TouchableOpacity>
-
             <TouchableOpacity style={sm.option} onPress={handlePickPdf} activeOpacity={0.85}>
-              <LinearGradient
-                colors={[T.orange + "18", T.orange + "08"]}
-                style={sm.optionIconBox}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              >
+              <LinearGradient colors={[T.orange + "18", T.orange + "08"]} style={sm.optionIconBox} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <Icon name="file-pdf-o" size={20} color={T.orange} />
               </LinearGradient>
               <View style={sm.optionText}>
@@ -1045,59 +1106,32 @@ export default function SellerDocuments() {
               </View>
               <Icon name="chevron-right" size={12} color={T.textLight} />
             </TouchableOpacity>
-
-            {/* Cancel */}
-            {/* <TouchableOpacity
-              style={sm.cancelBtn}
-              onPress={() => setSourceModalVisible(false)}
-              activeOpacity={0.85}
-            >
-              <AppText style={sm.cancelText}>Cancel</AppText>
-            </TouchableOpacity> */}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Success Modal (unchanged) ── */}
       <Modal visible={success} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <Animated.View style={[s.modalCard, { opacity: modalOpacity, transform: [{ scale: modalScale }] }]}>
-            {/* Success icon — green glow circles */}
             <View style={s.successIconWrap}>
               <View style={s.successOuter}>
                 <View style={s.successMiddle}>
-                  <LinearGradient
-                    colors={["#22C55E", "#16A34A"]}
-                    style={s.successInner}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  >
+                  <LinearGradient colors={["#22C55E", "#16A34A"]} style={s.successInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                     <Icon name="check" size={24} color={T.white} />
                   </LinearGradient>
                 </View>
               </View>
             </View>
-
-            {/* Orange top accent bar on modal card */}
             <View style={s.modalAccent} />
-
-            {/* Screen 1 headerTitle style adapted */}
             <AppText style={s.modalTitle}>Profile Submitted!</AppText>
-            {/* Screen 1 scard.subtitle style */}
-            <AppText style={s.modalDesc}>
-              Your seller profile has been submitted for verification. Our team will review your documents within 24 hours.
-            </AppText>
-
-            {/* Status chip */}
+            <AppText style={s.modalDesc}>Your seller profile has been submitted for verification. Our team will review your documents within 24 hours.</AppText>
             <View style={s.statusChip}>
               <View style={s.statusDot} />
               <AppText style={s.statusText}>Verification in Progress</AppText>
             </View>
-
-            {/* Modal CTA — Screen 1 continueBtn */}
             <TouchableOpacity onPress={closeModal} style={s.modalBtn} activeOpacity={0.85}>
-              <LinearGradient
-                colors={[T.orange, T.orangeDeep]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={s.modalBtnInner}
-              >
+              <LinearGradient colors={[T.orange, T.orangeDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.modalBtnInner}>
                 <AppText style={s.modalBtnText}>Go to Dashboard</AppText>
                 <Icon name="chevron-right" size={12} color={T.white} style={{ marginLeft: 6 }} />
               </LinearGradient>
@@ -1109,106 +1143,63 @@ export default function SellerDocuments() {
   );
 }
 
+// ─── Web-only layout styles (2-col grid) ─────────────────────
+const ws = StyleSheet.create({
+  scrollContentWeb: {
+    maxWidth: 860,
+    alignSelf: "center",
+    width: "100%",
+  },
+  fieldRow: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  fieldCol: {
+    flex: 1,
+  },
+});
+
 // ─── Source Picker Modal styles ───────────────────────────────
 const sm = StyleSheet.create({
-  overlay: {
-    flex: 1, backgroundColor: "rgba(10,21,51,0.52)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12,
-    shadowColor: T.navy, shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.1, shadowRadius: 20, elevation: 20,
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: T.border, alignSelf: "center", marginBottom: 18,
-  },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16,
-  },
-  headerIconBox: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: T.navyPale, alignItems: "center", justifyContent: "center",
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(10,21,51,0.52)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12, shadowColor: T.navy, shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 20 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: T.border, alignSelf: "center", marginBottom: 18 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
+  headerIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: T.navyPale, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 15, fontWeight: "800", color: T.textDark },
   headerSub: { fontSize: 11, color: T.textSoft, marginTop: 1 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: T.bg, alignItems: "center", justifyContent: "center",
-  },
+  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: T.bg, alignItems: "center", justifyContent: "center" },
   divider: { height: 1, backgroundColor: T.borderLight, marginBottom: 16 },
-  option: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    paddingVertical: 14, paddingHorizontal: 14,
-    borderRadius: 14, borderWidth: 1, borderColor: T.borderLight,
-    backgroundColor: T.white, marginBottom: 10,
-  },
-  optionIconBox: {
-    width: 46, height: 46, borderRadius: 13,
-    alignItems: "center", justifyContent: "center",
-  },
+  option: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: T.borderLight, backgroundColor: T.white, marginBottom: 10 },
+  optionIconBox: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   optionText: { flex: 1 },
   optionTitle: { fontSize: 14, fontWeight: "700", color: T.textDark },
   optionSub: { fontSize: 11, color: T.textSoft, marginTop: 2 },
-  cancelBtn: {
-    marginTop: 6, height: 48, borderRadius: 12,
-    backgroundColor: T.bg, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: T.borderLight,
-  },
+  cancelBtn: { marginTop: 6, height: 48, borderRadius: 12, backgroundColor: T.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: T.borderLight },
   cancelText: { fontSize: 14, fontWeight: "700", color: T.textSoft },
 });
+
 // ─── Styles — mirrors Screen 1 exactly ───────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
-
-  // ── Header — exact Screen 1 ──
-  topHeader:    { paddingHorizontal: 20, height: 200 },
-  headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
-  backBtnHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
+  topHeader: { paddingHorizontal: 20, height: 200 },
+  headerInner: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "800", color: T.white, marginBottom: 2 },
-  headerSub: { fontSize: 12, color: "rgba(255,255,255,0.65)" },
+  headerTitle: { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
+  headerSub: { fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: "400" },
   headerBadge: { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
-
-  // ── Progress — exact Screen 1 ──
+  headerBadgeText: { fontSize: 22 },
   progressRow: { flexDirection: "row", gap: 6, marginBottom: 7 },
   progressSeg: { flex: 1, height: 5, borderRadius: 3 },
   progressLabel: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: "600" },
-
-  // ── Scroll ──
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 },
-
-  // ── Terms checkbox row — Screen 1 infoBanner container ──
-  checkboxRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    borderRadius: 10,
-    padding: 12, borderWidth: 1, borderColor: T.borderLight,
-  },
+  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight },
   checkboxRowChecked: { borderColor: T.orangeSoft },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: T.border,
-    backgroundColor: T.white,
-    alignItems: "center", justifyContent: "center",
-    marginTop: 1,
-  },
-  /* Screen 1 infoBannerText: 12px textMid lineHeight 17 weight 500 */
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", marginTop: 1 },
   termsText: { flex: 1, fontSize: 12, color: T.textMid, lineHeight: 17, fontWeight: "500" },
   termsErrorRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, marginLeft: 2 },
   termsErrorText: { fontSize: 11, color: T.error, fontWeight: "400", flex: 1, lineHeight: 16 },
-
-  // ── Buttons — exact Screen 1 ──
   buttonRow: { flexDirection: "row", gap: 12, marginTop: 4, marginBottom: 4 },
   backBtn: { flex: 1, borderRadius: 14, borderWidth: 2, borderColor: T.navy, overflow: "hidden" },
   backBtnInner: { height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: T.white, borderRadius: 12 },
@@ -1216,103 +1207,44 @@ const s = StyleSheet.create({
   continueBtn: { flex: 2 },
   continueBtnInner: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 14 },
   continueBtnText: { fontSize: 16, fontWeight: "800", color: T.white, letterSpacing: 0.2 },
-
-  // ── Success Modal ──
-  modalOverlay: {
-    flex: 1, backgroundColor: "rgba(10,21,51,0.55)",
-    justifyContent: "center", alignItems: "center", paddingHorizontal: 20,
-  },
-  modalCard: {
-    width: screenWidth * 0.88, backgroundColor: T.cardBg,
-    borderRadius: 24, overflow: "hidden",
-    padding: 28, paddingTop: 24,
-    shadowColor: T.navy, shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15, shadowRadius: 30, elevation: 18,
-    alignItems: "center",
-  },
-  /* Orange top accent on modal — matches SectionCard topBar */
+  modalOverlay: { flex: 1, backgroundColor: "rgba(10,21,51,0.55)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
+  modalCard: { width: screenWidth * 0.88, backgroundColor: T.cardBg, borderRadius: 24, overflow: "hidden", padding: 28, paddingTop: 24, shadowColor: T.navy, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 30, elevation: 18, alignItems: "center" },
   modalAccent: { position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: T.orange },
   successIconWrap: { marginBottom: 20, marginTop: 16, alignItems: "center", justifyContent: "center" },
   successOuter: { width: 88, height: 88, borderRadius: 44, backgroundColor: "rgba(34,197,94,0.1)", justifyContent: "center", alignItems: "center" },
   successMiddle: { width: 62, height: 62, borderRadius: 31, backgroundColor: "rgba(34,197,94,0.18)", justifyContent: "center", alignItems: "center" },
   successInner: { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
-  /* Screen 1: 18px 800 textDark */
   modalTitle: { fontSize: 20, fontWeight: "800", color: T.textDark, textAlign: "center", marginBottom: 10, letterSpacing: -0.3 },
-  /* Screen 1 scard.subtitle */
   modalDesc: { fontSize: 12, color: T.textSoft, textAlign: "center", lineHeight: 18, marginBottom: 16 },
   statusChip: { flexDirection: "row", alignItems: "center", backgroundColor: T.successBg, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginBottom: 20 },
   statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T.success, marginRight: 7 },
-  /* Screen 1: 11px 700 uppercase */
   statusText: { fontSize: 11, fontWeight: "700", color: T.success, letterSpacing: 0.5, textTransform: "uppercase" },
-  /* Modal CTA — Screen 1 continueBtn */
   modalBtn: { width: "100%", borderRadius: 14, overflow: "hidden" },
   modalBtnInner: { height: 50, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   modalBtnText: { fontSize: 15, fontWeight: "800", color: T.white, letterSpacing: 0.2 },
-
-  // ── Live Selfie important note ──
-  selfieNote: {
-    borderWidth: 1, borderColor: T.orange + "40",
-    backgroundColor: T.orangePale,
-    borderRadius: 10, padding: 12, marginBottom: 12,
-  },
+  selfieNote: { borderWidth: 1, borderColor: T.orange + "40", backgroundColor: T.orangePale, borderRadius: 10, padding: 12, marginBottom: 12 },
   selfieNoteHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   selfieNoteTitle: { fontSize: 12, fontWeight: "800", color: T.orange, textTransform: "uppercase", letterSpacing: 0.5 },
   selfieNoteText: { fontSize: 11, color: T.orangeDeep, lineHeight: 17, fontWeight: "500" },
-
-  // ── Multi-selfie section ──
   selfieSection: { marginBottom: 16 },
   selfieFieldLabel: { fontSize: 11, fontWeight: "700", color: T.textMid, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
   selfieFieldHelper: { fontSize: 11, color: T.textLight, marginBottom: 10, fontStyle: "italic" },
-
   selfieScroll: { marginBottom: 10 },
   selfieScrollContent: { gap: 10, paddingRight: 4 },
-
-  selfieThumbWrap: {
-    width: 100, height: 100, borderRadius: 12,
-    overflow: "visible", position: "relative",
-    marginTop: 10,    /* room for delete badge at top */
-    marginBottom: 10, /* room for index badge at bottom */
-    marginLeft: 8,    /* room for index badge at left */
-    marginRight: 8,   /* room for delete badge at right */
-  },
-  selfieThumb: {
-    width: 100, height: 100, borderRadius: 12,
-    borderWidth: 2, borderColor: T.navy + "30",
-  },
-  selfieIndexBadge: {
-    position: "absolute", bottom: -10, left: -10,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: T.navy, alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: T.white,
-    zIndex: 10,
-  },
+  selfieThumbWrap: { width: 100, height: 100, borderRadius: 12, overflow: "visible", position: "relative", marginTop: 10, marginBottom: 10, marginLeft: 8, marginRight: 8 },
+  selfieThumb: { width: 100, height: 100, borderRadius: 12, borderWidth: 2, borderColor: T.navy + "30" },
+  selfieIndexBadge: { position: "absolute", bottom: -10, left: -10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.navy, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.white, zIndex: 10 },
   selfieIndexText: { fontSize: 9, fontFamily: fontFamilies.bold, color: T.white },
-  selfieDeleteBtn: {
-    position: "absolute", top: -10, right: -10,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: T.error, alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: T.white,
-    zIndex: 10,
-  },
-
+  selfieDeleteBtn: { position: "absolute", top: -10, right: -10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.error, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: T.white, zIndex: 10 },
   selfieActionsRow: { flexDirection: "row", gap: 8, marginBottom: 10, flexWrap: "wrap" },
   selfieActionBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   selfieActionBtnText: { fontSize: 12, fontWeight: "700" },
-
   selfieCountBadge: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8 },
   selfieCountText: { fontSize: 11, fontWeight: "600", color: T.success },
-
-  selfieEmptyBox: {
-    borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14,
-    height: 120, alignItems: "center", justifyContent: "center",
-    gap: 6, backgroundColor: T.white,
-  },
+  selfieEmptyBox: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14, height: 120, alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.white },
   selfieEmptyIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   selfieEmptyTitle: { fontSize: 13, fontWeight: "700", color: T.textDark },
   selfieEmptySub: { fontSize: 11, color: T.textSoft },
-
   selfieErrorRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 4, marginLeft: 2 },
   selfieErrorText: { fontSize: 11, color: T.error, fontWeight: "400", flex: 1, lineHeight: 16 },
-
 });
-

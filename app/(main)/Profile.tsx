@@ -409,7 +409,7 @@ export default function SellerProfileScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.editBtn}>
+          <TouchableOpacity style={styles.editBtn} >
             <View style={styles.editBtnHighlight}>
               <Ionicons name="create-outline" size={20} color="#FF6B35" />
               <AppText style={styles.editBtnText}>Edit Seller Profile</AppText>
