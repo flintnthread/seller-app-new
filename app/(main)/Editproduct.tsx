@@ -140,7 +140,6 @@ const MOCK_DETAILS = {
     careInstructions: "Machine wash cold (30°C). Do not bleach. Tumble dry low. Cool iron. Do not dry clean. Wash dark colours separately.",
 };
 
-// Mock existing product images
 const EXISTING_IMAGES = [
     "https://picsum.photos/seed/polo_front/400/400",
     "https://picsum.photos/seed/polo_back/400/400",
@@ -355,19 +354,10 @@ const pm = StyleSheet.create({
 });
 
 const InlinePicker = ({
-    visible,
-    title,
-    options,
-    selected,
-    onSelect,
-    onClose,
+    visible, title, options, selected, onSelect, onClose,
 }: {
-    visible: boolean;
-    title: string;
-    options: string[];
-    selected: string;
-    onSelect: (v: string) => void;
-    onClose: () => void;
+    visible: boolean; title: string; options: string[]; selected: string;
+    onSelect: (v: string) => void; onClose: () => void;
 }) => {
     if (!visible) return null;
     return (
@@ -385,18 +375,11 @@ const InlinePicker = ({
                         <TouchableOpacity
                             key={opt}
                             style={[fp.inlinePickerItem, selected === opt && fp.inlinePickerItemOn]}
-                            onPress={() => {
-                                onSelect(opt);
-                                onClose();
-                            }}
+                            onPress={() => { onSelect(opt); onClose(); }}
                         >
-                            <Text style={[fp.inlinePickerItemTxt, selected === opt && fp.inlinePickerItemTxtOn]}>
-                                {opt}
-                            </Text>
+                            <Text style={[fp.inlinePickerItemTxt, selected === opt && fp.inlinePickerItemTxtOn]}>{opt}</Text>
                             {selected === opt && (
-                                <View style={pm.chk}>
-                                    <Ionicons name="checkmark" size={13} color={C.white} />
-                                </View>
+                                <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>
                             )}
                         </TouchableOpacity>
                     ))}
@@ -407,52 +390,23 @@ const InlinePicker = ({
 };
 
 const FormPopupModal = ({
-    visible,
-    onClose,
-    title,
-    children,
-    overlay,
-    wide = false,
-    accentHeader = false,
-    headerIcon = "ruler-square",
+    visible, onClose, title, children, overlay, wide = false, accentHeader = false, headerIcon = "ruler-square",
 }: {
-    visible: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-    overlay?: React.ReactNode;
-    wide?: boolean;
-    accentHeader?: boolean;
-    headerIcon?: string;
+    visible: boolean; onClose: () => void; title: string; children: React.ReactNode;
+    overlay?: React.ReactNode; wide?: boolean; accentHeader?: boolean; headerIcon?: string;
 }) => {
     const { isDesktop } = useResponsive();
-
     return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType={isDesktop ? "fade" : "slide"}
-            onRequestClose={onClose}
-        >
+        <Modal visible={visible} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={onClose}>
             <View style={[fp.overlay, isDesktop && fp.overlayCenter]}>
                 <TouchableOpacity style={fp.backdrop} activeOpacity={1} onPress={onClose} />
-                <View
-                    style={[
-                        fp.sheet,
-                        isDesktop && fp.popup,
-                        isDesktop && wide && fp.popupWide,
-                        fp.sheetOverflow,
-                    ]}
-                >
+                <View style={[fp.sheet, isDesktop && fp.popup, isDesktop && wide && fp.popupWide, fp.sheetOverflow]}>
                     {!isDesktop && !accentHeader && <View style={fp.drag} />}
                     <View style={[fp.headerRow, accentHeader && fp.headerRowAccent]}>
                         {accentHeader && (
                             <MaterialCommunityIcons name={headerIcon as any} size={22} color={C.white} />
                         )}
-                        <Text
-                            style={[fp.title, isDesktop && fp.titleDesktop, accentHeader && fp.titleAccent]}
-                            numberOfLines={2}
-                        >
+                        <Text style={[fp.title, isDesktop && fp.titleDesktop, accentHeader && fp.titleAccent]} numberOfLines={2}>
                             {title}
                         </Text>
                         <TouchableOpacity
@@ -484,161 +438,65 @@ const fp = StyleSheet.create({
     overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
     backdrop: { ...StyleSheet.absoluteFillObject },
     sheet: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        maxHeight: "88%",
-        backgroundColor: C.white,
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
+        position: "absolute", bottom: 0, left: 0, right: 0, maxHeight: "88%",
+        backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
         paddingBottom: Platform.OS === "ios" ? 28 : 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.14,
-        shadowRadius: 24,
-        elevation: 24,
+        shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.14, shadowRadius: 24, elevation: 24,
     },
     popup: {
-        position: "relative",
-        bottom: undefined,
-        left: undefined,
-        right: undefined,
-        width: "100%",
-        maxWidth: 480,
-        maxHeight: "85%",
-        borderRadius: 20,
-        paddingBottom: 24,
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.22,
-        shadowRadius: 32,
-        elevation: 28,
-        zIndex: 2,
+        position: "relative", bottom: undefined, left: undefined, right: undefined,
+        width: "100%", maxWidth: 480, maxHeight: "85%", borderRadius: 20, paddingBottom: 24,
+        shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.22, shadowRadius: 32, elevation: 28, zIndex: 2,
     },
     popupWide: { maxWidth: 720 },
     sheetOverflow: { overflow: "hidden" },
-    inlinePickerWrap: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 20,
-        justifyContent: "flex-end",
-    },
-    inlinePickerBackdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(10,20,60,0.35)",
-    },
+    inlinePickerWrap: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: "flex-end" },
+    inlinePickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(10,20,60,0.35)" },
     inlinePickerSheet: {
-        maxHeight: "55%",
-        backgroundColor: C.white,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        elevation: 16,
+        maxHeight: "55%", backgroundColor: C.white, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        borderTopWidth: 1, borderTopColor: C.border, elevation: 16,
     },
     inlinePickerHdr: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 18,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+        paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border,
     },
     inlinePickerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textDark, flex: 1 },
     inlinePickerList: { maxHeight: 280 },
-    inlinePickerItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 18,
-        paddingVertical: 14,
-    },
+    inlinePickerItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 14 },
     inlinePickerItemOn: { backgroundColor: C.navyGhost },
     inlinePickerItemTxt: { fontFamily: "Outfit_500Medium", fontSize: 14, color: C.textMid },
     inlinePickerItemTxtOn: { fontFamily: "Outfit_600SemiBold", color: C.navy },
     headerRowAccent: {
-        backgroundColor: C.accent4,
-        borderBottomWidth: 0,
-        paddingTop: 16,
-        paddingBottom: 16,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
+        backgroundColor: C.accent4, borderBottomWidth: 0, paddingTop: 16, paddingBottom: 16,
+        borderTopLeftRadius: 20, borderTopRightRadius: 20,
     },
     titleAccent: { color: C.white, flex: 1 },
     closeBtnAccent: { backgroundColor: "rgba(255,255,255,0.2)" },
-    drag: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: C.border,
-        alignSelf: "center",
-        marginTop: 12,
-        marginBottom: 8,
-    },
+    drag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 8 },
     headerRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 20,
-        paddingTop: 8,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-        gap: 12,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+        paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12,
+        borderBottomWidth: 1, borderBottomColor: C.border, gap: 12,
     },
     title: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark, flex: 1 },
     titleDesktop: { fontSize: 18 },
-    closeBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: C.bg,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+    closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
     bodyScroll: { flexGrow: 0 },
     bodyContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-    footerRow: {
-        flexDirection: "row",
-        gap: 10,
-        marginTop: 20,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-    },
+    footerRow: { flexDirection: "row", gap: 10, marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
     footerRowDesktop: { justifyContent: "flex-end" },
     footerBtnSecondary: {
-        flex: 1,
-        maxWidth: 160,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 13,
-        borderRadius: 12,
-        borderWidth: 1.2,
-        borderColor: C.border,
-        backgroundColor: C.white,
+        flex: 1, maxWidth: 160, alignItems: "center", justifyContent: "center",
+        paddingVertical: 13, borderRadius: 12, borderWidth: 1.2, borderColor: C.border, backgroundColor: C.white,
     },
-    footerBtnPrimary: {
-        flex: 1,
-        maxWidth: 180,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 13,
-        borderRadius: 12,
-        backgroundColor: C.navy,
-    },
+    footerBtnPrimary: { flex: 1, maxWidth: 180, alignItems: "center", justifyContent: "center", paddingVertical: 13, borderRadius: 12, backgroundColor: C.navy },
     footerBtnAccent: { backgroundColor: C.accent4 },
     footerBtnPrimaryFull: { maxWidth: undefined },
     footerBtnTxtSecondary: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
     footerBtnTxtPrimary: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
 });
 
-const DEFAULT_SIZE_CHART_OPTIONS = [
-    "No Size Chart",
-    "Standard Apparel",
-    "Small Chart",
-    "Large Chart",
-];
+const DEFAULT_SIZE_CHART_OPTIONS = ["No Size Chart", "Standard Apparel", "Small Chart", "Large Chart"];
 const CHART_CATEGORY_ALL = "All Categories";
 const CHART_SUB_ALL = "All Subcategories";
 const ALL_CHART_SUBCATEGORIES = Array.from(new Set(Object.values(SUBCATEGORIES).flat()));
@@ -646,27 +504,12 @@ const MEASUREMENT_UNIT_OPTIONS = ["Centimetres (cm)", "Inches (in)"] as const;
 const DEFAULT_CHART_UNIT = MEASUREMENT_UNIT_OPTIONS[0];
 
 type SizeChartRow = {
-    id: string;
-    size: string;
-    chest: string;
-    waist: string;
-    hip: string;
-    length: string;
-    sleeve: string;
+    id: string; size: string; chest: string; waist: string; hip: string; length: string; sleeve: string;
 };
 
 let sizeRowId = 0;
 const newRowId = () => `sz-${++sizeRowId}-${Date.now()}`;
-
-const emptySizeRow = (size = ""): SizeChartRow => ({
-    id: newRowId(),
-    size,
-    chest: "",
-    waist: "",
-    hip: "",
-    length: "",
-    sleeve: "",
-});
+const emptySizeRow = (size = ""): SizeChartRow => ({ id: newRowId(), size, chest: "", waist: "", hip: "", length: "", sleeve: "" });
 
 const SIZE_TABLE_COLS = [
     { key: "size" as const, label: "Size", width: 72, placeholder: "S" },
@@ -691,7 +534,6 @@ const RichEditor = ({ placeholder, value, onChangeText, maxLength, hasError }: a
             return { ...f, [key]: !f[key] };
         });
     };
-
     const insertText = (insertion: string) => onChangeText(value + insertion);
 
     const textStyle: any = {
@@ -707,10 +549,10 @@ const RichEditor = ({ placeholder, value, onChangeText, maxLength, hasError }: a
             {icon
                 ? <MaterialCommunityIcons name={icon} size={14} color={active ? C.white : C.textMid} />
                 : <Text style={[at.tbTxt,
-                label === "B" && { fontFamily: "Outfit_800ExtraBold" },
-                label === "I" && { fontStyle: "italic" },
-                label === "U" && { textDecorationLine: "underline" },
-                active && { color: C.white },
+                    label === "B" && { fontFamily: "Outfit_800ExtraBold" },
+                    label === "I" && { fontStyle: "italic" },
+                    label === "U" && { textDecorationLine: "underline" },
+                    active && { color: C.white },
                 ]}>{label}</Text>
             }
         </TouchableOpacity>
@@ -835,62 +677,21 @@ const cp = StyleSheet.create({
     modalOverlayCenter: { justifyContent: "center", alignItems: "center", padding: 24 },
     modalBackdrop: { ...StyleSheet.absoluteFillObject },
     modalSheet: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: C.white,
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        paddingBottom: 40,
-        paddingHorizontal: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 20,
-        elevation: 24,
+        position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C.white,
+        borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 40, paddingHorizontal: 20,
+        shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24,
     },
     modalPopup: {
-        position: "relative",
-        bottom: undefined,
-        left: undefined,
-        right: undefined,
-        width: "100%",
-        maxWidth: 440,
-        borderRadius: 20,
-        paddingTop: 20,
-        paddingBottom: 24,
-        paddingHorizontal: 24,
-        elevation: 28,
-        zIndex: 2,
+        position: "relative", bottom: undefined, left: undefined, right: undefined,
+        width: "100%", maxWidth: 440, borderRadius: 20, paddingTop: 20, paddingBottom: 24, paddingHorizontal: 24, elevation: 28, zIndex: 2,
     },
     modalDrag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 18 },
-    modalHeaderRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 16,
-    },
+    modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
     modalTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark, marginBottom: 16 },
     modalTitleDesktop: { fontSize: 18, marginBottom: 0, flex: 1 },
-    modalCloseBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: C.bg,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+    modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
     modalOption: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-    modalOptionDesktop: {
-        borderBottomWidth: 0,
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        marginBottom: 10,
-        backgroundColor: C.inputBg,
-        borderWidth: 1,
-        borderColor: C.border,
-    },
+    modalOptionDesktop: { borderBottomWidth: 0, borderRadius: 14, paddingHorizontal: 14, marginBottom: 10, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.border },
     modalIconWrap: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
     modalOptTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textDark },
     modalOptSub: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, marginTop: 2 },
@@ -914,7 +715,6 @@ const ImagePickerGrid = ({ images, onAdd, onRemove, maxCount = MAX_IMAGES, hasEr
         setSrcModal(false);
         const remaining = maxCount - images.length;
         if (remaining <= 0) return;
-
         if (source === "camera") {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed."); return; }
@@ -924,10 +724,7 @@ const ImagePickerGrid = ({ images, onAdd, onRemove, maxCount = MAX_IMAGES, hasEr
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed."); return; }
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsMultipleSelection: remaining > 1,
-                selectionLimit: remaining,
-                quality: 0.85,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: 0.85,
             });
             if (!result.canceled && result.assets?.length) onAdd(result.assets.map((a: any) => a.uri));
         }
@@ -994,7 +791,7 @@ const ipg = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────
-// STEP 1 — Basic Info (Edit)
+// STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
 const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
@@ -1010,7 +807,6 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            {/* Product ID badge */}
             <View style={eb.idBadge}>
                 <MaterialCommunityIcons name="barcode" size={14} color={C.navyLight} />
                 <Text style={eb.idText}>Product ID: {MOCK_PRODUCT.id}</Text>
@@ -1093,7 +889,7 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                     </View>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Weight Slab" />
-                        <Drop placeholder="Auto-selected" value={data.weightSlab} onPress={() => { }} />
+                        <Drop placeholder="Auto-selected" value={data.weightSlab} onPress={() => {}} />
                         <Hint text="Based on entered weight" />
                     </View>
                 </View>
@@ -1189,7 +985,7 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// STEP 2 — Variants (Edit)
+// STEP 2 — Variants
 // ─────────────────────────────────────────────────────────────
 type Variant = {
     id: string; color: string; size: string; sku: string;
@@ -1237,7 +1033,6 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            {/* Summary strip */}
             <View style={eb.variantSummary}>
                 <MaterialCommunityIcons name="tune-variant" size={15} color={C.navyLight} />
                 <Text style={eb.variantSummaryTxt}>{variants.length} variant{variants.length !== 1 ? "s" : ""} — editing existing product</Text>
@@ -1249,9 +1044,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
                         <View style={vt.badge}><Text style={vt.badgeTxt}>#{idx + 1}</Text></View>
                         <Text style={vt.title}>Variant</Text>
                         <View style={[eb.stockBadge, parseInt(v.stock) < 10 && eb.stockBadgeLow]}>
-                            <Text style={[eb.stockTxt, parseInt(v.stock) < 10 && eb.stockTxtLow]}>
-                                Stock: {v.stock || "0"}
-                            </Text>
+                            <Text style={[eb.stockTxt, parseInt(v.stock) < 10 && eb.stockTxtLow]}>Stock: {v.stock || "0"}</Text>
                         </View>
                         {variants.length > 1 && (
                             <TouchableOpacity onPress={() => rmVariant(v.id)} style={vt.rmBtn}>
@@ -1304,9 +1097,6 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
                         <Field placeholder="0" value={v.discount} onChangeText={(val: string) => upVariant(v.id, "discount", val)} keyboardType="numeric" />
                     </View>
                     <Divider />
-                    {/* <Lbl text="Variant Images" />
-                    <Hint text="Add up to 6 images · first image is used as primary" />
-                    <ImagePickerGrid images={v.images} onAdd={(uris: string[]) => addVariantImage(v.id, uris)} onRemove={(i: number) => removeVariantImage(v.id, i)} maxCount={6} hasError={hasErr(v.id, "image")} label="Add Photo" /> */}
                     <Lbl text="Variant Video (optional)" />
                     <TouchableOpacity style={vt.fileRow}>
                         <MaterialCommunityIcons name="file-video-outline" size={18} color={C.navyLight} />
@@ -1333,7 +1123,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
 };
 
 // ─────────────────────────────────────────────────────────────
-// STEP 3 — Images (Edit)  ← UPDATED
+// STEP 3 — Images
 // ─────────────────────────────────────────────────────────────
 const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
@@ -1350,7 +1140,6 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     const totalCount = allImages.length;
     const canAdd = totalCount < MAX_TOTAL;
 
-    // Keep parent's primaryImage in sync for validation
     useEffect(() => {
         onChange("primaryImage", allImages[primaryIndex] ?? null);
     }, [existingImages, newImages, primaryIndex]);
@@ -1359,29 +1148,19 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         setSrcModal(false);
         const remaining = MAX_TOTAL - totalCount;
         if (remaining <= 0) return;
-
         if (source === "camera") {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed."); return; }
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true, quality: 0.85,
-            });
-            if (!result.canceled && result.assets?.[0]?.uri) {
-                const uri = result.assets[0].uri;
-                setNewImages(p => [...p, uri]);
-            }
+            const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.85 });
+            const assets = result.assets ?? [];
+            const uri = assets[0]?.uri;
+            if (!result.canceled && uri) setNewImages(p => [...p, uri]);
         } else {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed."); return; }
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsMultipleSelection: remaining > 1,
-                selectionLimit: remaining,
-                quality: 0.85,
-            });
-            if (!result.canceled && result.assets?.length)
-                setNewImages(p => [...p, ...result.assets.map((a: any) => a.uri)]);
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: 0.85 });
+            const assets = result.assets ?? [];
+            if (!result.canceled && assets.length) setNewImages(p => [...p, ...assets.map((a: any) => a.uri)]);
         }
     };
 
@@ -1389,24 +1168,17 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         if (deleteConfirmIdx === null) return;
         const idx = deleteConfirmIdx;
         setDeleteConfirmIdx(null);
-
         const newTotal = totalCount - 1;
         let newPrimary = primaryIndex;
-
         if (idx < existingImages.length) {
             setExistingImages(prev => prev.filter((_, i) => i !== idx));
         } else {
             const newIdx = idx - existingImages.length;
             setNewImages(prev => prev.filter((_, i) => i !== newIdx));
         }
-
-        if (newTotal === 0) {
-            newPrimary = 0;
-        } else if (primaryIndex === idx) {
-            newPrimary = 0;
-        } else if (primaryIndex > idx) {
-            newPrimary = primaryIndex - 1;
-        }
+        if (newTotal === 0) { newPrimary = 0; }
+        else if (primaryIndex === idx) { newPrimary = 0; }
+        else if (primaryIndex > idx) { newPrimary = primaryIndex - 1; }
         setPrimaryIndex(newPrimary);
     };
 
@@ -1416,16 +1188,9 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         const isPrimary = primaryIndex === globalIdx;
         const isNew = isNewImageAt(globalIdx);
         const extra = totalCount - 3;
-
         return (
             <View key={`preview-${uri}-${globalIdx}`} style={si.previewCardWrap}>
-                <View
-                    style={[
-                        si.previewCard,
-                        isPrimary && si.previewCardPrimary,
-                        isNew && si.previewCardNew,
-                    ]}
-                >
+                <View style={[si.previewCard, isPrimary && si.previewCardPrimary, isNew && si.previewCardNew]}>
                     <Image source={{ uri }} style={si.previewImage} resizeMode="cover" />
                     {isPrimary && (
                         <View style={si.primaryRibbon}>
@@ -1434,25 +1199,15 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         </View>
                     )}
                     {isNew && !isPrimary && (
-                        <View style={si.newImageBadge}>
-                            <Text style={si.newImageBadgeTxt}>New</Text>
-                        </View>
+                        <View style={si.newImageBadge}><Text style={si.newImageBadgeTxt}>New</Text></View>
                     )}
                     {!showMoreOverlay && (
-                        <TouchableOpacity
-                            style={si.deleteBtn}
-                            onPress={() => setDeleteConfirmIdx(globalIdx)}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
+                        <TouchableOpacity style={si.deleteBtn} onPress={() => setDeleteConfirmIdx(globalIdx)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                             <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
                         </TouchableOpacity>
                     )}
                     {showMoreOverlay && extra > 0 && (
-                        <TouchableOpacity
-                            style={si.moreOverlay}
-                            onPress={() => setManageImagesOpen(true)}
-                            activeOpacity={0.9}
-                        >
+                        <TouchableOpacity style={si.moreOverlay} onPress={() => setManageImagesOpen(true)} activeOpacity={0.9}>
                             <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.white} />
                             <Text style={si.moreOverlayTxt}>+{extra} more</Text>
                         </TouchableOpacity>
@@ -1466,14 +1221,8 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         const isPrimary = primaryIndex === globalIdx;
         const isNew = isNewImageAt(globalIdx);
         const cardStyle = compact
-            ? [
-                si.modalImageCard,
-                isDesktop && si.modalImageCardDesktop,
-                isPrimary && si.imageCardPrimary,
-                isNew && si.imageCardNew,
-            ]
+            ? [si.modalImageCard, isDesktop && si.modalImageCardDesktop, isPrimary && si.imageCardPrimary, isNew && si.imageCardNew]
             : [si.imageCard, isPrimary && si.imageCardPrimary, isNew && si.imageCardNew];
-
         return (
             <View key={`img-${uri}-${globalIdx}`} style={cardStyle}>
                 <View style={si.imageFrame}>
@@ -1484,40 +1233,23 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                             <Text style={si.primaryRibbonTxt}>Primary</Text>
                         </View>
                     )}
-                    {isNew && !isPrimary && (
-                        <View style={si.newImageBadge}>
-                            <Text style={si.newImageBadgeTxt}>New</Text>
-                        </View>
-                    )}
-                    <TouchableOpacity
-                        style={si.deleteBtn}
-                        onPress={() => setDeleteConfirmIdx(globalIdx)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
+                    {isNew && !isPrimary && <View style={si.newImageBadge}><Text style={si.newImageBadgeTxt}>New</Text></View>}
+                    <TouchableOpacity style={si.deleteBtn} onPress={() => setDeleteConfirmIdx(globalIdx)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                         <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    style={si.radioRow}
-                    onPress={() => setPrimaryIndex(globalIdx)}
-                    activeOpacity={0.75}
-                >
+                <TouchableOpacity style={si.radioRow} onPress={() => setPrimaryIndex(globalIdx)} activeOpacity={0.75}>
                     <View style={[si.radio, isPrimary && si.radioOn]}>
                         {isPrimary && <View style={si.radioDot} />}
                     </View>
-                    <Text style={[si.radioLbl, isPrimary && si.radioLblOn]}>
-                        {isPrimary ? "Primary Image" : "Set as Primary"}
-                    </Text>
+                    <Text style={[si.radioLbl, isPrimary && si.radioLblOn]}>{isPrimary ? "Primary Image" : "Set as Primary"}</Text>
                 </TouchableOpacity>
             </View>
         );
     };
 
     const openAddImages = () => {
-        if (!canAdd) {
-            Alert.alert("Limit reached", `Maximum ${MAX_TOTAL} images allowed. Remove one to add more.`);
-            return;
-        }
+        if (!canAdd) { Alert.alert("Limit reached", `Maximum ${MAX_TOTAL} images allowed. Remove one to add more.`); return; }
         setSrcModal(true);
     };
 
@@ -1527,31 +1259,21 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            {/* Tip banner */}
             <View style={eb.tipCard}>
                 <MaterialCommunityIcons name="lightbulb-outline" size={16} color={C.amber} />
-                <Text style={eb.tipTxt}>
-                    High-quality images increase conversions. Tap "Set as Primary" on any image to change the main display image.
-                </Text>
+                <Text style={eb.tipTxt}>High-quality images increase conversions. Tap "Set as Primary" on any image to change the main display image.</Text>
             </View>
 
             <Card>
                 <SecHead icon="image-multiple-outline" title="Product Images" accent={C.accent2} />
                 <Divider />
-
                 <View style={si.sectionRow}>
                     <View style={si.sectionLabelWrap}>
                         <MaterialCommunityIcons name="cloud-check-outline" size={13} color={C.accent2} />
                         <Text style={si.sectionLabel}>Current Images</Text>
-                        {totalCount > 0 && (
-                            <Text style={si.sectionCountInline}>· {totalCount} saved</Text>
-                        )}
+                        {totalCount > 0 && <Text style={si.sectionCountInline}>· {totalCount} saved</Text>}
                     </View>
-                    <TouchableOpacity
-                        style={si.moreImagesBtn}
-                        onPress={() => setManageImagesOpen(true)}
-                        activeOpacity={0.85}
-                    >
+                    <TouchableOpacity style={si.moreImagesBtn} onPress={() => setManageImagesOpen(true)} activeOpacity={0.85}>
                         <MaterialCommunityIcons name="image-plus" size={15} color={C.white} />
                         <Text style={si.moreImagesBtnTxt}>More Images</Text>
                     </TouchableOpacity>
@@ -1560,55 +1282,30 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                 {totalCount > 0 ? (
                     <>
                         <View style={si.previewRow}>
-                            {allImages.slice(0, 3).map((uri, i) =>
-                                renderCompactThumb(uri, i, i === 2 && totalCount > 3)
-                            )}
+                            {allImages.slice(0, 3).map((uri, i) => renderCompactThumb(uri, i, i === 2 && totalCount > 3))}
                         </View>
-                        <Text style={si.hintTxt}>
-                            Tap <Text style={{ fontFamily: "Outfit_600SemiBold" }}>More Images</Text> to add, remove, or set the primary image
-                        </Text>
+                        <Text style={si.hintTxt}>Tap <Text style={{ fontFamily: "Outfit_600SemiBold" }}>More Images</Text> to add, remove, or set the primary image</Text>
                     </>
                 ) : (
                     <TouchableOpacity
-                        style={[
-                            si.addBox,
-                            hasErr && { borderColor: C.red, backgroundColor: "#FFF8F8" },
-                        ]}
+                        style={[si.addBox, hasErr && { borderColor: C.red, backgroundColor: "#FFF8F8" }]}
                         onPress={() => setManageImagesOpen(true)}
                         activeOpacity={0.75}
                     >
                         <View style={si.addIconWrap}>
-                            <MaterialCommunityIcons
-                                name="camera-plus-outline"
-                                size={28}
-                                color={hasErr ? C.red : C.navyLight}
-                            />
+                            <MaterialCommunityIcons name="camera-plus-outline" size={28} color={hasErr ? C.red : C.navyLight} />
                         </View>
-                        <Text style={[si.addTitle, hasErr && { color: C.red }]}>
-                            {hasErr ? "At least one image is required" : "Add product images"}
-                        </Text>
+                        <Text style={[si.addTitle, hasErr && { color: C.red }]}>{hasErr ? "At least one image is required" : "Add product images"}</Text>
                         <Text style={si.addSub}>JPG · PNG · WebP · up to {MAX_TOTAL} images</Text>
                     </TouchableOpacity>
                 )}
-
-                <Text style={[si.sectionCount, { marginTop: 10, textAlign: "right" }]}>
-                    {totalCount}/{MAX_TOTAL} images
-                </Text>
+                <Text style={[si.sectionCount, { marginTop: 10, textAlign: "right" }]}>{totalCount}/{MAX_TOTAL} images</Text>
             </Card>
 
-            <FormPopupModal
-                visible={manageImagesOpen}
-                onClose={() => setManageImagesOpen(false)}
-                title="Manage Product Images"
-                wide
-                accentHeader
-                headerIcon="image-multiple-outline"
-            >
+            <FormPopupModal visible={manageImagesOpen} onClose={() => setManageImagesOpen(false)} title="Manage Product Images" wide accentHeader headerIcon="image-multiple-outline">
                 <Hint text="Set one image as primary. New uploads are marked until you update the product." />
                 <View style={[si.sectionRow, { marginTop: 4 }]}>
-                    <Text style={si.sectionLabel}>
-                        {totalCount} image{totalCount !== 1 ? "s" : ""} · {MAX_TOTAL - totalCount} slot{MAX_TOTAL - totalCount !== 1 ? "s" : ""} left
-                    </Text>
+                    <Text style={si.sectionLabel}>{totalCount} image{totalCount !== 1 ? "s" : ""} · {MAX_TOTAL - totalCount} slot{MAX_TOTAL - totalCount !== 1 ? "s" : ""} left</Text>
                     {canAdd && (
                         <TouchableOpacity style={si.moreImagesBtn} onPress={openAddImages} activeOpacity={0.85}>
                             <Ionicons name="add" size={16} color={C.white} />
@@ -1616,7 +1313,6 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         </TouchableOpacity>
                     )}
                 </View>
-
                 {existingImages.length > 0 && (
                     <>
                         <Text style={[si.modalGroupLbl, { marginTop: 12 }]}>Saved on server</Text>
@@ -1625,18 +1321,14 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         </View>
                     </>
                 )}
-
                 {newImages.length > 0 && (
                     <>
                         <Text style={[si.modalGroupLbl, { marginTop: 14 }]}>Pending upload</Text>
                         <View style={[si.modalGrid, isDesktop && si.modalGridDesktop]}>
-                            {newImages.map((uri, i) =>
-                                renderImageCard(uri, existingImages.length + i, true)
-                            )}
+                            {newImages.map((uri, i) => renderImageCard(uri, existingImages.length + i, true))}
                         </View>
                     </>
                 )}
-
                 {totalCount === 0 && (
                     <View style={si.emptyBox}>
                         <MaterialCommunityIcons name="image-off-outline" size={40} color={C.textLight} />
@@ -1644,30 +1336,20 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <Text style={si.emptyDesc}>Add at least one product image.</Text>
                     </View>
                 )}
-
                 {!canAdd && totalCount > 0 && (
                     <View style={[si.maxBox, { marginTop: 12 }]}>
                         <MaterialCommunityIcons name="check-circle-outline" size={18} color={C.accent5} />
                         <Text style={si.maxTxt}>Maximum {MAX_TOTAL} images reached.</Text>
                     </View>
                 )}
-
                 <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
-                    <TouchableOpacity
-                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]}
-                        onPress={() => setManageImagesOpen(false)}
-                    >
+                    <TouchableOpacity style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setManageImagesOpen(false)}>
                         <Text style={fp.footerBtnTxtPrimary}>Done</Text>
                     </TouchableOpacity>
                 </View>
             </FormPopupModal>
 
-            <Modal
-                visible={srcModal}
-                transparent
-                animationType={isDesktop ? "fade" : "slide"}
-                onRequestClose={() => setSrcModal(false)}
-            >
+            <Modal visible={srcModal} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={() => setSrcModal(false)}>
                 <View style={[cp.modalOverlay, isDesktop && cp.modalOverlayCenter]}>
                     <TouchableOpacity style={cp.modalBackdrop} activeOpacity={1} onPress={() => setSrcModal(false)} />
                     <View style={[cp.modalSheet, isDesktop && cp.modalPopup]}>
@@ -1683,25 +1365,13 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                             <Text style={cp.modalTitle}>Add Images</Text>
                         )}
                         <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickNewImages("camera")}>
-                            <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}>
-                                <MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={cp.modalOptTitle}>Take a Photo</Text>
-                                <Text style={cp.modalOptSub}>Use your camera right now</Text>
-                            </View>
+                            <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}><MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} /></View>
+                            <View style={{ flex: 1 }}><Text style={cp.modalOptTitle}>Take a Photo</Text><Text style={cp.modalOptSub}>Use your camera right now</Text></View>
                             <Ionicons name="chevron-forward" size={16} color={C.textLight} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickNewImages("gallery")}>
-                            <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}>
-                                <MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={cp.modalOptTitle}>Choose from Gallery</Text>
-                                <Text style={cp.modalOptSub}>
-                                    Pick up to {MAX_TOTAL - totalCount} photo{MAX_TOTAL - totalCount !== 1 ? "s" : ""}
-                                </Text>
-                            </View>
+                            <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}><MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} /></View>
+                            <View style={{ flex: 1 }}><Text style={cp.modalOptTitle}>Choose from Gallery</Text><Text style={cp.modalOptSub}>Pick up to {MAX_TOTAL - totalCount} photo{MAX_TOTAL - totalCount !== 1 ? "s" : ""}</Text></View>
                             <Ionicons name="chevron-forward" size={16} color={C.textLight} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[cp.modalCancel, isDesktop && cp.modalCancelDesktop]} onPress={() => setSrcModal(false)}>
@@ -1711,13 +1381,10 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Modal>
 
-            {/* ── Delete Confirm Modal ── */}
             <Modal visible={deleteConfirmIdx !== null} transparent animationType="fade" onRequestClose={() => setDeleteConfirmIdx(null)}>
                 <View style={si.deleteOverlay}>
                     <View style={si.deleteSheet}>
-                        <View style={si.deleteIconWrap}>
-                            <MaterialCommunityIcons name="trash-can-outline" size={32} color={C.red} />
-                        </View>
+                        <View style={si.deleteIconWrap}><MaterialCommunityIcons name="trash-can-outline" size={32} color={C.red} /></View>
                         <Text style={si.deleteTitle}>Remove Image?</Text>
                         <Text style={si.deleteBody}>
                             {deleteConfirmIdx !== null && deleteConfirmIdx < existingImages.length
@@ -1737,254 +1404,66 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     );
 };
 
-// ─── StepImages Styles ────────────────────────────────────────
 const si = StyleSheet.create({
-    sectionRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 12,
-        gap: 10,
-    },
+    sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 10 },
     sectionLabelWrap: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, flexWrap: "wrap" },
-    sectionLabel: {
-        fontFamily: "Outfit_600SemiBold",
-        fontSize: 12.5,
-        color: C.textMid,
-    },
-    sectionCountInline: {
-        fontFamily: "Outfit_500Medium",
-        fontSize: 11.5,
-        color: C.textLight,
-    },
-    sectionCount: {
-        fontFamily: "Outfit_500Medium",
-        fontSize: 11.5,
-        color: C.textLight,
-    },
-    moreImagesBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: C.accent4,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    moreImagesBtnTxt: {
-        fontFamily: "Outfit_700Bold",
-        fontSize: 12,
-        color: C.white,
-    },
-    previewRow: {
-        flexDirection: "row",
-        width: "100%",
-        gap: 12,
-        alignItems: "stretch",
-    },
-    previewCardWrap: {
-        flex: 1,
-        minWidth: 0,
-    },
-    previewCard: {
-        width: "100%",
-        aspectRatio: 1,
-        borderRadius: 12,
-        overflow: "hidden",
-        borderWidth: 1.5,
-        borderColor: C.border,
-        backgroundColor: C.inputBg,
-        position: "relative",
-    },
-    previewCardPrimary: {
-        borderColor: C.navy,
-        borderWidth: 2,
-    },
-    previewCardNew: {
-        borderColor: C.accent5,
-    },
-    previewImage: {
-        width: "100%",
-        height: "100%",
-    },
-    moreOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(10,20,60,0.55)",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-    },
-    moreOverlayTxt: {
-        fontFamily: "Outfit_700Bold",
-        fontSize: 13,
-        color: C.white,
-    },
-    modalGroupLbl: {
-        fontFamily: "Outfit_600SemiBold",
-        fontSize: 12,
-        color: C.textMid,
-        marginBottom: 8,
-    },
-    modalGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 10,
-    },
-    modalGridDesktop: {
-        gap: 12,
-    },
-    modalImageCard: {
-        width: "47%",
-        borderRadius: 12,
-        overflow: "hidden",
-        borderWidth: 1.5,
-        borderColor: C.border,
-        backgroundColor: C.inputBg,
-    },
-    modalImageCardDesktop: {
-        width: "31%",
-    },
-    imageCard: {
-        width: "47%",
-        borderRadius: 12,
-        overflow: "hidden",
-        borderWidth: 1.5,
-        borderColor: C.border,
-        backgroundColor: C.inputBg,
-    },
-    imageCardPrimary: {
-        borderColor: C.navy,
-        borderWidth: 2,
-    },
-    imageCardNew: {
-        borderColor: C.accent5,
-        borderWidth: 1.5,
-    },
-    imageFrame: {
-        width: "100%",
-        aspectRatio: 1,
-        position: "relative",
-    },
-    image: {
-        width: "100%",
-        height: "100%",
-    },
-    primaryRibbon: {
-        position: "absolute", top: 0, left: 0, right: 0,
-        flexDirection: "row", alignItems: "center", justifyContent: "center",
-        gap: 4, backgroundColor: C.navy,
-        paddingVertical: 5,
-    },
-    primaryRibbonTxt: {
-        fontFamily: "Outfit_700Bold", fontSize: 10, color: C.white, letterSpacing: 0.3,
-    },
-    newImageBadge: {
-        position: "absolute", top: 8, left: 8,
-        backgroundColor: C.accent5, borderRadius: 6,
-        paddingHorizontal: 7, paddingVertical: 3,
-    },
-    newImageBadgeTxt: {
-        fontFamily: "Outfit_700Bold", fontSize: 9, color: C.white,
-    },
-    deleteBtn: {
-        position: "absolute", top: 8, right: 8,
-        width: 28, height: 28, borderRadius: 14,
-        backgroundColor: "rgba(200,30,30,0.85)",
-        alignItems: "center", justifyContent: "center",
-    },
-    radioRow: {
-        flexDirection: "row", alignItems: "center",
-        gap: 8, paddingHorizontal: 10, paddingVertical: 9,
-        backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border,
-    },
-    radio: {
-        width: 16, height: 16, borderRadius: 8,
-        borderWidth: 2, borderColor: C.navyBorder,
-        alignItems: "center", justifyContent: "center",
-        backgroundColor: C.white,
-    },
+    sectionLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.textMid },
+    sectionCountInline: { fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textLight },
+    sectionCount: { fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textLight },
+    moreImagesBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.accent4, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+    moreImagesBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.white },
+    previewRow: { flexDirection: "row", width: "100%", gap: 12, alignItems: "stretch" },
+    previewCardWrap: { flex: 1, minWidth: 0 },
+    previewCard: { width: "100%", aspectRatio: 1, borderRadius: 12, overflow: "hidden", borderWidth: 1.5, borderColor: C.border, backgroundColor: C.inputBg, position: "relative" },
+    previewCardPrimary: { borderColor: C.navy, borderWidth: 2 },
+    previewCardNew: { borderColor: C.accent5 },
+    previewImage: { width: "100%", height: "100%" },
+    moreOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(10,20,60,0.55)", alignItems: "center", justifyContent: "center", gap: 4 },
+    moreOverlayTxt: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.white },
+    modalGroupLbl: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid, marginBottom: 8 },
+    modalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    modalGridDesktop: { gap: 12 },
+    modalImageCard: { width: "47%", borderRadius: 12, overflow: "hidden", borderWidth: 1.5, borderColor: C.border, backgroundColor: C.inputBg },
+    modalImageCardDesktop: { width: "31%" },
+    imageCard: { width: "47%", borderRadius: 12, overflow: "hidden", borderWidth: 1.5, borderColor: C.border, backgroundColor: C.inputBg },
+    imageCardPrimary: { borderColor: C.navy, borderWidth: 2 },
+    imageCardNew: { borderColor: C.accent5, borderWidth: 1.5 },
+    imageFrame: { width: "100%", aspectRatio: 1, position: "relative" },
+    image: { width: "100%", height: "100%" },
+    primaryRibbon: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: C.navy, paddingVertical: 5 },
+    primaryRibbonTxt: { fontFamily: "Outfit_700Bold", fontSize: 10, color: C.white, letterSpacing: 0.3 },
+    newImageBadge: { position: "absolute", top: 8, left: 8, backgroundColor: C.accent5, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+    newImageBadgeTxt: { fontFamily: "Outfit_700Bold", fontSize: 9, color: C.white },
+    deleteBtn: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(200,30,30,0.85)", alignItems: "center", justifyContent: "center" },
+    radioRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border },
+    radio: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: C.navyBorder, alignItems: "center", justifyContent: "center", backgroundColor: C.white },
     radioOn: { borderColor: C.navy },
-    radioDot: {
-        width: 8, height: 8, borderRadius: 4, backgroundColor: C.navy,
-    },
-    radioLbl: {
-        fontFamily: "Outfit_500Medium", fontSize: 10.5, color: C.textMid, flex: 1,
-    },
-    radioLblOn: {
-        fontFamily: "Outfit_700Bold", color: C.navy,
-    },
-    emptyBox: {
-        alignItems: "center", paddingVertical: 32, gap: 6,
-    },
-    emptyTitle: {
-        fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textMid, marginTop: 4,
-    },
-    emptyDesc: {
-        fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, textAlign: "center",
-    },
-    addBox: {
-        borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed",
-        borderRadius: 14, alignItems: "center", paddingVertical: 22,
-        paddingHorizontal: 16, gap: 6, backgroundColor: C.inputBg,
-    },
-    addIconWrap: {
-        width: 56, height: 56, borderRadius: 14,
-        backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center",
-        marginBottom: 4,
-    },
-    addTitle: {
-        fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid, textAlign: "center",
-    },
-    addSub: {
-        fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, textAlign: "center",
-    },
-    maxBox: {
-        flexDirection: "row", alignItems: "center", gap: 8,
-        backgroundColor: C.greenPale, borderRadius: 12, padding: 12,
-        borderWidth: 1, borderColor: "#A3E9C8",
-    },
-    maxTxt: {
-        fontFamily: "Outfit_500Medium", fontSize: 12, color: C.greenText, flex: 1,
-    },
-    hintTxt: {
-        fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginTop: 10, textAlign: "center",
-    },
-    // Delete confirm modal
-    deleteOverlay: {
-        flex: 1, backgroundColor: "rgba(10,20,60,0.45)",
-        alignItems: "center", justifyContent: "center", paddingHorizontal: 28,
-    },
-    deleteSheet: {
-        backgroundColor: C.white, borderRadius: 22, padding: 28,
-        alignItems: "center", width: "100%",
-        shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.18, shadowRadius: 24, elevation: 20,
-    },
-    deleteIconWrap: {
-        width: 64, height: 64, borderRadius: 16,
-        backgroundColor: C.redPale, alignItems: "center", justifyContent: "center", marginBottom: 14,
-    },
-    deleteTitle: {
-        fontFamily: "Outfit_700Bold", fontSize: 17, color: C.textDark, marginBottom: 8,
-    },
-    deleteBody: {
-        fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textMid,
-        textAlign: "center", lineHeight: 20, marginBottom: 22,
-    },
-    deleteConfirmBtn: {
-        width: "100%", backgroundColor: C.red, borderRadius: 13,
-        paddingVertical: 13, alignItems: "center", marginBottom: 10,
-    },
+    radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.navy },
+    radioLbl: { fontFamily: "Outfit_500Medium", fontSize: 10.5, color: C.textMid, flex: 1 },
+    radioLblOn: { fontFamily: "Outfit_700Bold", color: C.navy },
+    emptyBox: { alignItems: "center", paddingVertical: 32, gap: 6 },
+    emptyTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textMid, marginTop: 4 },
+    emptyDesc: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, textAlign: "center" },
+    addBox: { borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 22, paddingHorizontal: 16, gap: 6, backgroundColor: C.inputBg },
+    addIconWrap: { width: 56, height: 56, borderRadius: 14, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    addTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid, textAlign: "center" },
+    addSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, textAlign: "center" },
+    maxBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.greenPale, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#A3E9C8" },
+    maxTxt: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.greenText, flex: 1 },
+    hintTxt: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginTop: 10, textAlign: "center" },
+    deleteOverlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.45)", alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
+    deleteSheet: { backgroundColor: C.white, borderRadius: 22, padding: 28, alignItems: "center", width: "100%", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 20 },
+    deleteIconWrap: { width: 64, height: 64, borderRadius: 16, backgroundColor: C.redPale, alignItems: "center", justifyContent: "center", marginBottom: 14 },
+    deleteTitle: { fontFamily: "Outfit_700Bold", fontSize: 17, color: C.textDark, marginBottom: 8 },
+    deleteBody: { fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textMid, textAlign: "center", lineHeight: 20, marginBottom: 22 },
+    deleteConfirmBtn: { width: "100%", backgroundColor: C.red, borderRadius: 13, paddingVertical: 13, alignItems: "center", marginBottom: 10 },
     deleteConfirmTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
-    deleteCancelBtn: {
-        width: "100%", backgroundColor: C.navyGhost, borderRadius: 13,
-        paddingVertical: 13, alignItems: "center",
-    },
+    deleteCancelBtn: { width: "100%", backgroundColor: C.navyGhost, borderRadius: 13, paddingVertical: 13, alignItems: "center" },
     deleteCancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
 });
 
 // ─────────────────────────────────────────────────────────────
-// STEP 4 — Details (Edit)
+// STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
 const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
     const [sizePick, setSizePick] = useState(false);
@@ -2015,41 +1494,24 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     const chartCategoryOptions = [CHART_CATEGORY_ALL, ...CATEGORIES];
-    const chartSubOptions =
-        chartCategory === CHART_CATEGORY_ALL
-            ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
-            : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
+    const chartSubOptions = chartCategory === CHART_CATEGORY_ALL
+        ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
+        : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
 
     const openCreateSizeChart = () => {
-        setNewChartName("");
-        setChartCategory(CHART_CATEGORY_ALL);
-        setChartSubcategory(CHART_SUB_ALL);
-        setChartImageUri(null);
-        setChartUnit(DEFAULT_CHART_UNIT);
-        setChartNotes("");
-        setChartRows([emptySizeRow()]);
-        setChartCatPick(false);
-        setChartSubPick(false);
-        setChartUnitPick(false);
+        setNewChartName(""); setChartCategory(CHART_CATEGORY_ALL); setChartSubcategory(CHART_SUB_ALL);
+        setChartImageUri(null); setChartUnit(DEFAULT_CHART_UNIT); setChartNotes("");
+        setChartRows([emptySizeRow()]); setChartCatPick(false); setChartSubPick(false); setChartUnitPick(false);
         setCreateSizeOpen(true);
     };
 
-    const openCustomPolicy = () => {
-        setCustomPolicyDraft(data.returnPolicyText || "");
-        setCustomPolicyOpen(true);
-    };
+    const openCustomPolicy = () => { setCustomPolicyDraft(data.returnPolicyText || ""); setCustomPolicyOpen(true); };
 
     const saveSizeChart = () => {
         const name = newChartName.trim();
-        if (!name) {
-            Alert.alert("Chart name required", "Please enter a name for your size chart.");
-            return;
-        }
+        if (!name) { Alert.alert("Chart name required", "Please enter a name for your size chart."); return; }
         const validRows = chartRows.filter((r) => r.size.trim());
-        if (validRows.length === 0) {
-            Alert.alert("Sizes required", "Add at least one size row to the chart.");
-            return;
-        }
+        if (validRows.length === 0) { Alert.alert("Sizes required", "Add at least one size row to the chart."); return; }
         setSizeChartOptions((prev) => (prev.includes(name) ? prev : [...prev, name]));
         onChange("sizeChart", name);
         setCreateSizeOpen(false);
@@ -2057,10 +1519,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
 
     const saveCustomPolicy = () => {
         const text = customPolicyDraft.trim();
-        if (!text) {
-            Alert.alert("Policy required", "Please write your custom return policy.");
-            return;
-        }
+        if (!text) { Alert.alert("Policy required", "Please write your custom return policy."); return; }
         onChange("returnPolicy", "Custom Policy");
         onChange("returnPolicyText", text);
         setCustomPolicyOpen(false);
@@ -2089,11 +1548,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                     <View style={fieldFlex}>
                         <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} />
                     </View>
-                    <TouchableOpacity
-                        style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
-                        onPress={openCreateSizeChart}
-                        activeOpacity={0.85}
-                    >
+                    <TouchableOpacity style={[dt.outBtn, !isDesktop && dt.outBtnFull]} onPress={openCreateSizeChart} activeOpacity={0.85}>
                         <Ionicons name="add" size={15} color={C.navy} />
                         <Text style={dt.outBtnTxt}>Create New</Text>
                     </TouchableOpacity>
@@ -2110,11 +1565,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
-                        <TouchableOpacity
-                            style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
-                            onPress={openCustomPolicy}
-                            activeOpacity={0.85}
-                        >
+                        <TouchableOpacity style={[dt.outBtn, !isDesktop && dt.outBtnFull]} onPress={openCustomPolicy} activeOpacity={0.85}>
                             <Feather name="edit-2" size={13} color={C.navy} />
                             <Text style={dt.outBtnTxt}>Write Custom</Text>
                         </TouchableOpacity>
@@ -2144,18 +1595,6 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
                 <Field placeholder="Extra delivery notes…" value={data.deliveryInfo} onChangeText={(v: string) => onChange("deliveryInfo", v)} multiline lines={3} maxLength={1000} />
             </Card>
-{/* 
-            <Card style={{ marginTop: 12 }}>
-                <SecHead icon="credit-card-outline" title="Payment Options" accent={C.accent5} />
-                <Divider />
-                <Hint text="Select all payment methods available for this product." />
-                {([["codEnabled", "Cash on Delivery (COD)"], ["onlinePayEnabled", "Online Payment — Razorpay"]] as [string, string][]).map(([key, label]) => (
-                    <View key={key} style={dt.togRow}>
-                        <Switch value={(data as any)[key]} onValueChange={v => onChange(key, v)} trackColor={{ false: C.border, true: C.navy }} thumbColor={C.white} />
-                        <Text style={dt.togLbl}>{label}</Text>
-                    </View>
-                ))}
-            </Card> */}
 
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="shield-check-outline" title="Warranty & Care" accent={C.accent2} />
@@ -2219,45 +1658,16 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
 
             <FormPopupModal
                 visible={createSizeOpen}
-                onClose={() => {
-                    setChartCatPick(false);
-                    setChartSubPick(false);
-                    setChartUnitPick(false);
-                    setCreateSizeOpen(false);
-                }}
+                onClose={() => { setChartCatPick(false); setChartSubPick(false); setChartUnitPick(false); setCreateSizeOpen(false); }}
                 title="Create Size Chart"
                 wide
                 accentHeader
                 headerIcon="ruler"
                 overlay={
                     <>
-                        <InlinePicker
-                            visible={chartCatPick}
-                            title="Select Category"
-                            options={chartCategoryOptions}
-                            selected={chartCategory}
-                            onSelect={(v) => {
-                                setChartCategory(v);
-                                setChartSubcategory(CHART_SUB_ALL);
-                            }}
-                            onClose={() => setChartCatPick(false)}
-                        />
-                        <InlinePicker
-                            visible={chartSubPick}
-                            title="Select Subcategory"
-                            options={chartSubOptions}
-                            selected={chartSubcategory}
-                            onSelect={setChartSubcategory}
-                            onClose={() => setChartSubPick(false)}
-                        />
-                        <InlinePicker
-                            visible={chartUnitPick}
-                            title="Measurement Unit"
-                            options={[...MEASUREMENT_UNIT_OPTIONS]}
-                            selected={chartUnit}
-                            onSelect={setChartUnit}
-                            onClose={() => setChartUnitPick(false)}
-                        />
+                        <InlinePicker visible={chartCatPick} title="Select Category" options={chartCategoryOptions} selected={chartCategory} onSelect={(v) => { setChartCategory(v); setChartSubcategory(CHART_SUB_ALL); }} onClose={() => setChartCatPick(false)} />
+                        <InlinePicker visible={chartSubPick} title="Select Subcategory" options={chartSubOptions} selected={chartSubcategory} onSelect={setChartSubcategory} onClose={() => setChartSubPick(false)} />
+                        <InlinePicker visible={chartUnitPick} title="Measurement Unit" options={[...MEASUREMENT_UNIT_OPTIONS]} selected={chartUnit} onSelect={setChartUnit} onClose={() => setChartUnitPick(false)} />
                     </>
                 }
             >
@@ -2266,27 +1676,11 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <View style={[twoCol, { marginTop: 0 }]}>
                     <View style={fieldFlex}>
                         <Lbl text="Category (Optional)" />
-                        <Drop
-                            placeholder={CHART_CATEGORY_ALL}
-                            value={chartCategory}
-                            onPress={() => {
-                                setChartSubPick(false);
-                                setChartUnitPick(false);
-                                setChartCatPick(true);
-                            }}
-                        />
+                        <Drop placeholder={CHART_CATEGORY_ALL} value={chartCategory} onPress={() => { setChartSubPick(false); setChartUnitPick(false); setChartCatPick(true); }} />
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Subcategory (Optional)" />
-                        <Drop
-                            placeholder={CHART_SUB_ALL}
-                            value={chartSubcategory}
-                            onPress={() => {
-                                setChartCatPick(false);
-                                setChartUnitPick(false);
-                                setChartSubPick(true);
-                            }}
-                        />
+                        <Drop placeholder={CHART_SUB_ALL} value={chartSubcategory} onPress={() => { setChartCatPick(false); setChartUnitPick(false); setChartSubPick(true); }} />
                     </View>
                 </View>
                 <Lbl text="Size Chart Image (Optional)" />
@@ -2311,9 +1705,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                                         <Text style={dt.sizeTableThTxt} numberOfLines={2}>{col.label}</Text>
                                     </View>
                                 ))}
-                                <View style={dt.sizeTableThAction}>
-                                    <Text style={dt.sizeTableThTxt}>Action</Text>
-                                </View>
+                                <View style={dt.sizeTableThAction}><Text style={dt.sizeTableThTxt}>Action</Text></View>
                             </View>
                             {chartRows.map((row, idx) => (
                                 <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
@@ -2343,24 +1735,9 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                     </View>
                 )}
                 <Lbl text="Measurement Unit" />
-                <Drop
-                    placeholder="Select unit"
-                    value={chartUnit}
-                    onPress={() => {
-                        setChartCatPick(false);
-                        setChartSubPick(false);
-                        setChartUnitPick(true);
-                    }}
-                />
+                <Drop placeholder="Select unit" value={chartUnit} onPress={() => { setChartCatPick(false); setChartSubPick(false); setChartUnitPick(true); }} />
                 <Lbl text="Additional Notes" />
-                <Field
-                    placeholder="e.g. All measurements are approximate. Please refer to the size chart for best fit."
-                    value={chartNotes}
-                    onChangeText={setChartNotes}
-                    multiline
-                    lines={3}
-                    maxLength={500}
-                />
+                <Field placeholder="e.g. All measurements are approximate." value={chartNotes} onChangeText={setChartNotes} multiline lines={3} maxLength={500} />
                 <CC cur={chartNotes.length} max={500} />
                 <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
                     <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCreateSizeOpen(false)}>
@@ -2375,14 +1752,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
             <FormPopupModal visible={customPolicyOpen} onClose={() => setCustomPolicyOpen(false)} title="Write Custom Return Policy">
                 <Hint text="Describe your return rules clearly. This will appear to buyers on the product page." />
                 <Lbl text="Custom Policy Details" required />
-                <Field
-                    placeholder="e.g. Returns accepted within 7 days in original packaging…"
-                    value={customPolicyDraft}
-                    onChangeText={setCustomPolicyDraft}
-                    multiline
-                    lines={8}
-                    maxLength={1000}
-                />
+                <Field placeholder="e.g. Returns accepted within 7 days in original packaging…" value={customPolicyDraft} onChangeText={setCustomPolicyDraft} multiline lines={8} maxLength={1000} />
                 <CC cur={customPolicyDraft.length} max={1000} />
                 <View style={[fp.footerRow, isDesktop && fp.footerRowDesktop]}>
                     <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCustomPolicyOpen(false)}>
@@ -2405,16 +1775,8 @@ const ICON_R = ICON_D / 2;
 const LINE_H = 3;
 const N_STEPS = STEPS.length;
 
-const StepProgressBar = ({
-    step,
-    maxUnlocked,
-    onTabPress,
-    isDesktop = false,
-}: {
-    step: number;
-    maxUnlocked: number;
-    onTabPress: (i: number) => void;
-    isDesktop?: boolean;
+const StepProgressBar = ({ step, maxUnlocked, onTabPress, isDesktop = false }: {
+    step: number; maxUnlocked: number; onTabPress: (i: number) => void; isDesktop?: boolean;
 }) => {
     const [barW, setBarW] = useState(SW);
     const colW = barW / N_STEPS;
@@ -2444,12 +1806,7 @@ const StepProgressBar = ({
                         <View style={[spp.circle, { backgroundColor: iconBg }, isActive && { shadowColor: s.color, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 7 }]}>
                             <MaterialCommunityIcons name={s.icon as any} size={18} color={C.white} />
                         </View>
-                        <Text style={[
-                            spp.lbl,
-                            isDesktop && spp.lblDesktop,
-                            isActive && { color: s.color, fontFamily: "Outfit_700Bold" },
-                            isDone && { color: s.color, fontFamily: "Outfit_600SemiBold" },
-                        ]}>
+                        <Text style={[spp.lbl, isDesktop && spp.lblDesktop, isActive && { color: s.color, fontFamily: "Outfit_700Bold" }, isDone && { color: s.color, fontFamily: "Outfit_600SemiBold" }]}>
                             {s.label}
                         </Text>
                     </TouchableOpacity>
@@ -2475,17 +1832,11 @@ const DiscardModal = ({ visible, onDiscard, onKeep }: { visible: boolean; onDisc
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onKeep}>
         <View style={dm.overlay}>
             <View style={dm.sheet}>
-                <View style={dm.iconWrap}>
-                    <MaterialCommunityIcons name="alert-circle-outline" size={36} color={C.amber} />
-                </View>
+                <View style={dm.iconWrap}><MaterialCommunityIcons name="alert-circle-outline" size={36} color={C.amber} /></View>
                 <Text style={dm.title}>Discard Changes?</Text>
                 <Text style={dm.body}>You have unsaved edits. If you leave now, your changes will be lost.</Text>
-                <TouchableOpacity style={dm.discardBtn} onPress={onDiscard}>
-                    <Text style={dm.discardTxt}>Yes, Discard</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={dm.keepBtn} onPress={onKeep}>
-                    <Text style={dm.keepTxt}>Keep Editing</Text>
-                </TouchableOpacity>
+                <TouchableOpacity style={dm.discardBtn} onPress={onDiscard}><Text style={dm.discardTxt}>Yes, Discard</Text></TouchableOpacity>
+                <TouchableOpacity style={dm.keepBtn} onPress={onKeep}><Text style={dm.keepTxt}>Keep Editing</Text></TouchableOpacity>
             </View>
         </View>
     </Modal>
@@ -2504,6 +1855,292 @@ const dm = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────
+// WEB SUCCESS POPUP  ← NEW
+// ─────────────────────────────────────────────────────────────
+const SuccessPopup = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+    const scaleAnim = useRef(new Animated.Value(0.72)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            scaleAnim.setValue(0.72);
+            opacityAnim.setValue(0);
+            Animated.parallel([
+                Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 8 }),
+                Animated.timing(opacityAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+            ]).start();
+        }
+    }, [visible]);
+
+    if (!visible) return null;
+
+    return (
+        <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+            <View style={sp.overlay}>
+                <Animated.View style={[sp.card, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+                    {/* Decorative top bar */}
+                    <View style={sp.topBar} />
+
+                    {/* Confetti dots row */}
+                    <View style={sp.confettiRow}>
+                        {[
+                            { color: "#7C3AED", rot: "0deg" },
+                            { color: "#0891B2", rot: "45deg" },
+                            { color: "#059669", rot: "20deg" },
+                            { color: "#D97706", rot: "70deg" },
+                            { color: "#E53E3E", rot: "35deg" },
+                            { color: "#1A2B6D", rot: "55deg" },
+                            { color: "#C47D0E", rot: "15deg" },
+                        ].map((dot, i) => (
+                            <View key={i} style={[sp.confettiDot, { backgroundColor: dot.color, transform: [{ rotate: dot.rot }] }]} />
+                        ))}
+                    </View>
+
+                    {/* Success icon */}
+                    <View style={sp.iconWrap}>
+                        <View style={sp.iconRingOuter}>
+                            <View style={sp.iconRingInner}>
+                                <MaterialCommunityIcons name="check-bold" size={38} color={C.white} />
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Text */}
+                    <Text style={sp.title}>Product Updated!</Text>
+                    <Text style={sp.subtitle}>
+                        Your changes have been saved{"\n"}and are now live.
+                    </Text>
+
+                    {/* Divider */}
+                    <View style={sp.divider} />
+
+                    {/* Product info strip */}
+                    <View style={sp.infoStrip}>
+                        <View style={sp.infoIconBox}>
+                            <MaterialCommunityIcons name="package-variant-closed" size={16} color={C.navyLight} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={sp.infoLabel}>Product ID</Text>
+                            <Text style={sp.infoValue}>{MOCK_PRODUCT.id}</Text>
+                        </View>
+                        <View style={sp.activePill}>
+                            <View style={sp.activeDot} />
+                            <Text style={sp.activePillTxt}>Active</Text>
+                        </View>
+                    </View>
+
+                    {/* Timestamp */}
+                    <View style={sp.timestampRow}>
+                        <MaterialCommunityIcons name="clock-check-outline" size={12} color={C.textLight} />
+                        <Text style={sp.timestampTxt}>
+                            Updated just now · {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </Text>
+                    </View>
+
+                    {/* CTA Button */}
+                    <TouchableOpacity style={sp.btn} onPress={onClose} activeOpacity={0.85}>
+                        <MaterialCommunityIcons name="arrow-right-circle-outline" size={20} color={C.white} />
+                        <Text style={sp.btnTxt}>Done</Text>
+                    </TouchableOpacity>
+
+                    {/* Secondary link */}
+                    <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ marginTop: 12 }}>
+                        <Text style={sp.secondaryLink}>Continue editing</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            </View>
+        </Modal>
+    );
+};
+
+const sp = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: "rgba(10,20,60,0.58)",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 24,
+    },
+    card: {
+        backgroundColor: C.white,
+        borderRadius: 28,
+        paddingHorizontal: 28,
+        paddingTop: 0,
+        paddingBottom: 28,
+        width: "100%",
+        maxWidth: 400,
+        alignItems: "center",
+        shadowColor: "#0F1A4A",
+        shadowOffset: { width: 0, height: 24 },
+        shadowOpacity: 0.28,
+        shadowRadius: 48,
+        elevation: 32,
+        overflow: "hidden",
+    },
+    topBar: {
+        width: "100%",
+        height: 6,
+        backgroundColor: C.navy,
+        marginBottom: 20,
+    },
+    confettiRow: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 22,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    confettiDot: {
+        width: 9,
+        height: 9,
+        borderRadius: 3,
+    },
+    iconWrap: {
+        marginBottom: 20,
+    },
+    iconRingOuter: {
+        width: 96,
+        height: 96,
+        borderRadius: 24,
+        backgroundColor: C.navyGhost,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: C.navyBorder,
+    },
+    iconRingInner: {
+        width: 76,
+        height: 76,
+        borderRadius: 18,
+        backgroundColor: C.navy,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: C.navy,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 18,
+        elevation: 12,
+    },
+    title: {
+        fontFamily: "Outfit_800ExtraBold",
+        fontSize: 26,
+        color: C.textDark,
+        marginBottom: 8,
+        textAlign: "center",
+        letterSpacing: -0.5,
+    },
+    subtitle: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14.5,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 22,
+    },
+    divider: {
+        width: "100%",
+        height: 1,
+        backgroundColor: C.border,
+        marginVertical: 20,
+    },
+    infoStrip: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        backgroundColor: C.navyGhost,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        width: "100%",
+        borderWidth: 1,
+        borderColor: C.navyBorder,
+        marginBottom: 10,
+    },
+    infoIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: C.white,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    infoLabel: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 10,
+        color: C.textLight,
+        marginBottom: 1,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+    },
+    infoValue: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 13,
+        color: C.textDark,
+    },
+    activePill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        backgroundColor: C.greenPale,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderWidth: 1,
+        borderColor: "#A3E9C8",
+    },
+    activeDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: C.greenText,
+    },
+    activePillTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 11,
+        color: C.greenText,
+    },
+    timestampRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        marginBottom: 20,
+    },
+    timestampTxt: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 11,
+        color: C.textLight,
+    },
+    btn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: C.navy,
+        borderRadius: 14,
+        paddingVertical: 15,
+        width: "100%",
+        shadowColor: C.navyDeep,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.32,
+        shadowRadius: 14,
+        elevation: 8,
+    },
+    btnTxt: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 15,
+        color: C.white,
+        letterSpacing: 0.2,
+    },
+    secondaryLink: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 13,
+        color: C.textLight,
+        textDecorationLine: "underline",
+    },
+});
+
+// ─────────────────────────────────────────────────────────────
 // MAIN EDIT SCREEN
 // ─────────────────────────────────────────────────────────────
 const EditProduct: React.FC = () => {
@@ -2517,6 +2154,8 @@ const EditProduct: React.FC = () => {
     const [detailErrors, setDetailErrors] = useState<string[]>([]);
     const [isDirty, setIsDirty] = useState(false);
     const [discardModal, setDiscardModal] = useState(false);
+    // ── NEW: web success popup state ──
+    const [successPopup, setSuccessPopup] = useState(false);
 
     const [basicData, setBasicData] = useState({ ...MOCK_PRODUCT });
     const [variants, setVariants] = useState<Variant[]>(MOCK_VARIANTS);
@@ -2569,14 +2208,22 @@ const EditProduct: React.FC = () => {
         setStep(s => Math.min(s + 1, STEPS.length - 1));
     };
 
+    // ── UPDATED: shows web popup on web, toast on mobile ──
     const handleUpdate = () => {
         const errors = validateDetails(detailsData);
         setDetailErrors(errors);
         if (errors.length > 0) { showErrors(errors); return; }
         setDetailErrors([]);
         setIsDirty(false);
-        showToast("Product updated successfully!", "success");
-        setTimeout(() => router.back(), 900);
+
+        if (Platform.OS === "web") {
+            // Show the custom success popup on web
+            setSuccessPopup(true);
+        } else {
+            // Keep original toast + navigate behaviour on mobile
+            showToast("Product updated successfully!", "success");
+            setTimeout(() => router.back(), 900);
+        }
     };
 
     const leftAction =
@@ -2649,9 +2296,7 @@ const EditProduct: React.FC = () => {
                     </TouchableOpacity>
                     <View style={ds.topCenter}>
                         <Text style={ds.topTitle}>Edit Product</Text>
-                        <Text style={ds.topSub}>
-                            {STEPS[step]?.label} · Step {step + 1} of {STEPS.length}
-                        </Text>
+                        <Text style={ds.topSub}>{STEPS[step]?.label} · Step {step + 1} of {STEPS.length}</Text>
                     </View>
                     <TouchableOpacity onPress={handleBackPress} style={ds.topBtn}>
                         {isDirty ? <View style={sc.dirtyDot} /> : <Ionicons name="close" size={22} color={C.textMid} />}
@@ -2673,11 +2318,17 @@ const EditProduct: React.FC = () => {
                     onDiscard={() => { setDiscardModal(false); router.back(); }}
                     onKeep={() => setDiscardModal(false)}
                 />
+                {/* ── Web Success Popup ── */}
+                <SuccessPopup
+                    visible={successPopup}
+                    onClose={() => { setSuccessPopup(false); router.back(); }}
+                />
                 <ToastContainer toasts={toasts} onRemove={removeToast} />
             </View>
         );
     }
 
+    // ── MOBILE ──
     return (
         <SafeAreaView style={sc.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
@@ -2794,125 +2445,28 @@ const dt = StyleSheet.create({
     responsiveCol: { flexDirection: "column", gap: 10 },
     responsiveField: { width: "100%", minWidth: 0 },
     outBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        borderWidth: 1.2,
-        borderColor: C.navy,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        minHeight: 44,
-        backgroundColor: C.white,
+        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+        borderWidth: 1.2, borderColor: C.navy, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, minHeight: 44, backgroundColor: C.white,
     },
     outBtnFull: { width: "100%", alignSelf: "stretch" },
     outBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.navy },
-    sizeDataHead: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        marginTop: 4,
-    },
-    addSizeOrangeBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: C.accent4,
-        borderRadius: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        marginTop: 12,
-    },
+    sizeDataHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginTop: 4 },
+    addSizeOrangeBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.accent4, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
     addSizeOrangeBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.white },
     sizeTableScroll: { marginTop: 8, marginBottom: 4 },
-    sizeTableWrap: {
-        borderWidth: 1,
-        borderColor: C.border,
-        borderRadius: 10,
-        overflow: "hidden",
-        backgroundColor: C.white,
-    },
-    sizeTableHeader: {
-        flexDirection: "row",
-        backgroundColor: C.navyGhost,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-    },
-    sizeTableTh: {
-        paddingVertical: 10,
-        paddingHorizontal: 6,
-        justifyContent: "center",
-        borderRightWidth: 1,
-        borderRightColor: C.border,
-    },
-    sizeTableThAction: {
-        width: 56,
-        minWidth: 56,
-        paddingVertical: 10,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    sizeTableThTxt: {
-        fontFamily: "Outfit_600SemiBold",
-        fontSize: 10,
-        color: C.textMid,
-        textAlign: "center",
-    },
-    sizeTableRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-        backgroundColor: C.white,
-    },
+    sizeTableWrap: { borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.white },
+    sizeTableHeader: { flexDirection: "row", backgroundColor: C.navyGhost, borderBottomWidth: 1, borderBottomColor: C.border },
+    sizeTableTh: { paddingVertical: 10, paddingHorizontal: 6, justifyContent: "center", borderRightWidth: 1, borderRightColor: C.border },
+    sizeTableThAction: { width: 56, minWidth: 56, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
+    sizeTableThTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.textMid, textAlign: "center" },
+    sizeTableRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.white },
     sizeTableRowAlt: { backgroundColor: "#FAFBFE" },
-    sizeTableTd: {
-        padding: 5,
-        borderRightWidth: 1,
-        borderRightColor: C.border,
-        justifyContent: "center",
-    },
-    sizeTableTdAction: {
-        width: 56,
-        minWidth: 56,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 6,
-    },
-    sizeTableInput: {
-        backgroundColor: C.inputBg,
-        borderWidth: 1,
-        borderColor: C.border,
-        borderRadius: 6,
-        paddingHorizontal: 6,
-        paddingVertical: 7,
-        fontFamily: "Outfit_400Regular",
-        fontSize: 12,
-        color: C.textDark,
-        minHeight: 34,
-    },
-    sizeTableDelBtn: {
-        padding: 6,
-        borderRadius: 8,
-        backgroundColor: C.redPale,
-    },
-    sizeEmptyHint: {
-        marginTop: 8,
-        padding: 14,
-        borderRadius: 12,
-        backgroundColor: C.navyGhost,
-        borderWidth: 1,
-        borderColor: C.navyBorder,
-    },
-    sizeEmptyHintTxt: {
-        fontFamily: "Outfit_400Regular",
-        fontSize: 12,
-        color: C.textMid,
-        textAlign: "center",
-        lineHeight: 18,
-    },
+    sizeTableTd: { padding: 5, borderRightWidth: 1, borderRightColor: C.border, justifyContent: "center" },
+    sizeTableTdAction: { width: 56, minWidth: 56, alignItems: "center", justifyContent: "center", paddingVertical: 6 },
+    sizeTableInput: { backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 7, fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textDark, minHeight: 34 },
+    sizeTableDelBtn: { padding: 6, borderRadius: 8, backgroundColor: C.redPale },
+    sizeEmptyHint: { marginTop: 8, padding: 14, borderRadius: 12, backgroundColor: C.navyGhost, borderWidth: 1, borderColor: C.navyBorder },
+    sizeEmptyHintTxt: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textMid, textAlign: "center", lineHeight: 18 },
     togRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
     togLbl: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
     addBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 10, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
@@ -2921,7 +2475,7 @@ const dt = StyleSheet.create({
     specDel: { width: 36, height: 36, backgroundColor: C.redPale, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });
 
-// ─── Desktop / laptop styles (web ≥1024px) ────────────────────
+// ─── Desktop styles ───────────────────────────────────────────
 const ds = StyleSheet.create({
     page: {
         flex: 1,
@@ -2929,122 +2483,50 @@ const ds = StyleSheet.create({
         ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as object) : {}),
     },
     topBar: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: C.white,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: C.border,
-        shadowColor: "#0F1A4A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 4,
+        flexDirection: "row", alignItems: "center", backgroundColor: C.white,
+        paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border,
+        shadowColor: "#0F1A4A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 4,
     },
-    topBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: C.navyGhost,
-    },
+    topBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.navyGhost },
     topCenter: { flex: 1, alignItems: "center", paddingHorizontal: 12 },
     topTitle: { fontFamily: "Outfit_700Bold", fontSize: 20, color: C.textDark, letterSpacing: 0.2 },
     topSub: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textLight, marginTop: 2 },
-    hStepBar: {
-        paddingTop: 12,
-        paddingBottom: 14,
-        maxWidth: CONTENT_MAX + 64,
-        width: "100%",
-        alignSelf: "center",
-    },
+    hStepBar: { paddingTop: 12, paddingBottom: 14, maxWidth: CONTENT_MAX + 64, width: "100%", alignSelf: "center" },
     mainColumn: { flex: 1, minWidth: 0, width: "100%", backgroundColor: C.bg },
     mainScroll: { flex: 1 },
     stepScroll: { flex: 1 },
     barWrap: {
-        backgroundColor: C.white,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        width: "100%",
+        backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border,
+        paddingHorizontal: 32, paddingVertical: 16, width: "100%",
     },
-   bar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: C.white,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-},
-barLeft: { flex: 1, alignItems: "flex-start" },
-barRight: { flex: 1, alignItems: "flex-end" },
+    bar: {
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10,
+        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white,
+        borderTopWidth: 1, borderTopColor: C.border,
+    },
+    barLeft: { flex: 1, alignItems: "flex-start" },
+    barRight: { flex: 1, alignItems: "flex-end" },
     cancelBtn: {
-        minWidth: 140,
-        paddingHorizontal: 28,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1.2,
-        borderColor: C.border,
-        borderRadius: 12,
-        paddingVertical: 14,
-        backgroundColor: C.white,
+        minWidth: 140, paddingHorizontal: 28, alignItems: "center", justifyContent: "center",
+        borderWidth: 1.2, borderColor: C.border, borderRadius: 12, paddingVertical: 14, backgroundColor: C.white,
     },
     cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
     prevBtn: {
-        minWidth: 140,
-        paddingHorizontal: 24,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        borderWidth: 1.2,
-        borderColor: C.navyBorder,
-        borderRadius: 12,
-        paddingVertical: 14,
-        backgroundColor: C.white,
+        minWidth: 140, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        gap: 6, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12, paddingVertical: 14, backgroundColor: C.white,
     },
     prevTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
     nextBtn: {
-        minWidth: 180,
-        paddingHorizontal: 32,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: C.navy,
-        borderRadius: 12,
-        paddingVertical: 14,
-        elevation: 6,
+        minWidth: 180, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 14, elevation: 6,
     },
     nextTxt: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
     saveBtn: {
-        minWidth: 200,
-        paddingHorizontal: 32,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: C.navy,
-        borderRadius: 12,
-        paddingVertical: 14,
-        elevation: 6,
+        minWidth: 200, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 14, elevation: 6,
     },
     saveTxt: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
-    card: {
-        borderRadius: 20,
-        paddingHorizontal: 24,
-        paddingTop: 20,
-        paddingBottom: 22,
-        marginBottom: 20,
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-    },
+    card: { borderRadius: 20, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 22, marginBottom: 20, shadowOpacity: 0.08, shadowRadius: 16 },
 });
 
 // ─── Edit-specific Styles ─────────────────────────────────────
@@ -3066,7 +2548,11 @@ const eb = StyleSheet.create({
 // ─── Screen Styles ────────────────────────────────────────────
 const sc = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
-    header: { backgroundColor: C.navyDeep, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: 10, paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 10 : 10 },
+    header: {
+        backgroundColor: C.navyDeep, flexDirection: "row", alignItems: "center",
+        paddingHorizontal: 6, paddingVertical: 10,
+        paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 10 : 10,
+    },
     hBtn: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
     hCenter: { flex: 1, alignItems: "center" },
     hTitle: { fontFamily: "Outfit_700Bold", fontSize: 17, color: C.white },
@@ -3075,96 +2561,35 @@ const sc = StyleSheet.create({
     unsavedBanner: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: C.amberPale, paddingHorizontal: 16, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "#FCD34D" },
     unsavedTxt: { fontFamily: "Outfit_500Medium", fontSize: 12, color: "#92400E" },
     bar: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: C.white,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 10,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10,
+        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white,
+        borderTopWidth: 1, borderTopColor: C.border,
+        shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10,
     },
     barLeft: { flex: 1 },
     barRight: { flex: 1, alignItems: "flex-end" },
-    // CANCEL BUTTON - remove flex:1, maxWidth; use explicit width
-cancelBtn: {
-    minWidth: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.2,
-    borderColor: C.border,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    backgroundColor: C.white,
-},
-cancelTxt: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 14,
-    color: C.textMid,   // ← explicit color, not inherited
-},
-
-// PREV BUTTON
-prevBtn: {
-    minWidth: 120,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    borderWidth: 1.2,
-    borderColor: C.navyBorder,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    backgroundColor: C.white,
-},
-prevTxt: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 14,
-    color: C.navy,      // ← explicit
-},
-
-// NEXT BUTTON  
-nextBtn: {
-    minWidth: 140,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: C.navy,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 20,
-},
-nextTxt: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 14,
-    color: C.white,     // ← explicit, never inherit
-},
-
-// SAVE BUTTON
-saveBtn: {
-    minWidth: 160,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: C.navy,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 20,
-},
-saveTxt: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 14,
-    color: C.white,     // ← explicit
-},
+    cancelBtn: {
+        minWidth: 120, alignItems: "center", justifyContent: "center",
+        borderWidth: 1.2, borderColor: C.border, borderRadius: 12,
+        paddingVertical: 13, paddingHorizontal: 16, backgroundColor: C.white,
+    },
+    cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.textMid },
+    prevBtn: {
+        minWidth: 120, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+        borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 12,
+        paddingVertical: 13, paddingHorizontal: 16, backgroundColor: C.white,
+    },
+    prevTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
+    nextBtn: {
+        minWidth: 140, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+        backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 20,
+    },
+    nextTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
+    saveBtn: {
+        minWidth: 160, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+        backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 20,
+    },
+    saveTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
     saveBtnDim: { backgroundColor: C.navyLight, opacity: 0.6 },
 });
 

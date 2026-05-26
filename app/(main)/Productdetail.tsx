@@ -183,6 +183,92 @@ const COLOR_HEX: Record<string, string> = {
   Orange:"#F97316", Gray:"#6B7280", Brown:"#92400E",
 };
 
+// ─── SWEET ALERT COMPONENT ────────────────────────────────────
+const SweetAlert: React.FC<{
+  visible: boolean;
+  type?: "success" | "error" | "warning";
+  title: string;
+  subtitle: string;
+}> = ({ visible, type = "success", title, subtitle }) => {
+  const iconName =
+    type === "success" ? "check-bold" :
+    type === "error"   ? "close-thick" :
+                         "alert-outline";
+
+  const iconBg =
+    type === "success" ? C.green :
+    type === "error"   ? C.red   :
+                         C.yellow;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => {}}
+    >
+      <View style={sa.overlay} pointerEvents="none">
+        <View style={sa.box}>
+          <View style={[sa.iconCircle, { backgroundColor: iconBg }]}>
+            <MaterialCommunityIcons name={iconName as any} size={34} color={C.white} />
+          </View>
+          <Text style={sa.title}>{title}</Text>
+          <Text style={sa.subtitle}>{subtitle}</Text>
+          <View style={[sa.progressBar, { backgroundColor: iconBg + "22" }]}>
+            <View style={[sa.progressFill, { backgroundColor: iconBg }]} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const sa = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  box: {
+    backgroundColor: C.white,
+    borderRadius: 24,
+    paddingVertical: 34,
+    paddingHorizontal: 32,
+    alignItems: "center",
+    width: 268,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 28,
+    elevation: 24,
+  },
+  iconCircle: {
+    width: 78, height: 78, borderRadius: 39,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontFamily: "Outfit_800ExtraBold",
+    fontSize: 20, color: C.textDark,
+    marginBottom: 6, textAlign: "center",
+  },
+  subtitle: {
+    fontFamily: "Outfit_400Regular",
+    fontSize: 13, color: C.textLight,
+    textAlign: "center", lineHeight: 20,
+    marginBottom: 20,
+  },
+  progressBar: {
+    width: "100%", height: 4, borderRadius: 2, overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%", borderRadius: 2,
+    width: "100%",
+  },
+});
+
 // ─── SIZE CHART MODAL ─────────────────────────────────────────
 const SizeChartModal: React.FC<{ visible: boolean; onClose: () => void; chart: SizeChartEntry[] }> = ({ visible, onClose, chart }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -259,15 +345,21 @@ const sc = StyleSheet.create({
 });
 
 // ─── EDIT VARIANT MODAL ───────────────────────────────────────
-const EditVariantModal: React.FC<{ visible: boolean; variant: Variant | null; onClose: () => void; onSave: (v: Variant) => void }> = ({ visible, variant, onClose, onSave }) => {
-  const [color, setColor]       = useState(variant?.color ?? "");
-  const [size, setSize]         = useState(variant?.size ?? "");
-  const [stock, setStock]       = useState(String(variant?.stock ?? ""));
-  const [mrp, setMrp]           = useState(String(variant?.mrp ?? ""));
-  const [discount, setDiscount] = useState(String(variant?.discount ?? ""));
-  const [gst, setGst]           = useState(String(variant?.gstPercent ?? "5"));
+const EditVariantModal: React.FC<{
+  visible: boolean;
+  variant: Variant | null;
+  onClose: () => void;
+  onSave: (v: Variant) => void;
+}> = ({ visible, variant, onClose, onSave }) => {
+  const [color, setColor]           = useState(variant?.color ?? "");
+  const [size, setSize]             = useState(variant?.size ?? "");
+  const [stock, setStock]           = useState(String(variant?.stock ?? ""));
+  const [mrp, setMrp]               = useState(String(variant?.mrp ?? ""));
+  const [discount, setDiscount]     = useState(String(variant?.discount ?? ""));
+  const [gst, setGst]               = useState(String(variant?.gstPercent ?? "5"));
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showSizePicker,  setShowSizePicker]  = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   React.useEffect(() => {
     if (variant) {
@@ -302,10 +394,19 @@ const EditVariantModal: React.FC<{ visible: boolean; variant: Variant | null; on
       totalIntraCity: parseFloat(intraCity.toFixed(2)),
       totalMetroMetro: parseFloat(metroMetro.toFixed(2)),
     });
-    onClose();
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      onClose();
+    }, 2000);
   };
 
-  const PickerSheet: React.FC<{ options: string[]; onSelect: (v: string) => void; onClose: () => void; withDot?: boolean }> = ({ options, onSelect, onClose: closeSheet, withDot }) => (
+  const PickerSheet: React.FC<{
+    options: string[];
+    onSelect: (v: string) => void;
+    onClose: () => void;
+    withDot?: boolean;
+  }> = ({ options, onSelect, onClose: closeSheet, withDot }) => (
     <Modal visible transparent animationType="slide" onRequestClose={closeSheet}>
       <View style={av.pickerRoot}>
         <TouchableOpacity style={av.pickerOverlay} activeOpacity={1} onPress={closeSheet} />
@@ -325,90 +426,100 @@ const EditVariantModal: React.FC<{ visible: boolean; variant: Variant | null; on
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={av.root}>
-        <TouchableOpacity style={av.overlayTransparent} activeOpacity={1} onPress={onClose} />
-        <View style={[av.sheet, isWeb && av.sheetWeb]}>
-          <View style={av.drag} />
-          <View style={av.header}>
-            <View style={av.headerLeft}>
-              <View style={[av.headerIconWrap, { backgroundColor: C.blue }]}>
-                <MaterialCommunityIcons name="pencil-outline" size={18} color={C.white} />
+    <>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={av.root}>
+          <TouchableOpacity style={av.overlayTransparent} activeOpacity={1} onPress={onClose} />
+          <View style={[av.sheet, isWeb && av.sheetWeb]}>
+            <View style={av.drag} />
+            <View style={av.header}>
+              <View style={av.headerLeft}>
+                <View style={[av.headerIconWrap, { backgroundColor: C.navy }]}>
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={C.white} />
+                </View>
+                <Text style={av.headerTitle}>Edit Variant</Text>
               </View>
-              <Text style={av.headerTitle}>Edit Variant</Text>
+              <TouchableOpacity style={av.closeBtn} onPress={onClose}>
+                <Ionicons name="close" size={18} color={C.textMid} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={av.closeBtn} onPress={onClose}>
-              <Ionicons name="close" size={18} color={C.textMid} />
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              <View style={av.row2}>
+                <View style={{ flex: 1 }}>
+                  <Text style={av.lbl}>Color <Text style={{ color: C.red }}>*</Text></Text>
+                  <TouchableOpacity style={av.dropBtn} onPress={() => setShowColorPicker(true)}>
+                    {color ? <View style={[av.colorDotSmall, { backgroundColor: COLOR_HEX[color] ?? "#9CA3AF" }]} /> : null}
+                    <Text style={[av.dropTxt, !color && { color: C.textLight }]}>{color || "Select color"}</Text>
+                    <Ionicons name="chevron-down" size={14} color={C.textLight} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={av.lbl}>Size <Text style={{ color: C.red }}>*</Text></Text>
+                  <TouchableOpacity style={av.dropBtn} onPress={() => setShowSizePicker(true)}>
+                    <Text style={[av.dropTxt, !size && { color: C.textLight }]}>{size || "Select size"}</Text>
+                    <Ionicons name="chevron-down" size={14} color={C.textLight} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={av.lbl}>Stock Quantity <Text style={{ color: C.red }}>*</Text></Text>
+              <TextInput style={av.input} placeholder="e.g. 15" placeholderTextColor={C.textLight} value={stock} onChangeText={setStock} keyboardType="numeric" />
+
+              <View style={av.row2}>
+                <View style={{ flex: 1 }}>
+                  <Text style={av.lbl}>MRP (Excl. GST) <Text style={{ color: C.red }}>*</Text></Text>
+                  <View style={av.inputPrefix}>
+                    <Text style={av.prefixTxt}>₹</Text>
+                    <TextInput style={av.prefixInput} placeholder="0.00" placeholderTextColor={C.textLight} value={mrp} onChangeText={setMrp} keyboardType="decimal-pad" />
+                  </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={av.lbl}>Discount (%) <Text style={{ color: C.red }}>*</Text></Text>
+                  <View style={av.inputPrefix}>
+                    <TextInput style={[av.prefixInput, { flex: 1 }]} placeholder="0" placeholderTextColor={C.textLight} value={discount} onChangeText={setDiscount} keyboardType="numeric" />
+                    <Text style={av.suffixTxt}>%</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={av.lbl}>GST (%)</Text>
+              <TextInput style={av.input} placeholder="5" placeholderTextColor={C.textLight} value={gst} onChangeText={setGst} keyboardType="numeric" />
+
+              {mrp && discount && (
+                <View style={av.calcBox}>
+                  <Text style={av.calcTitle}>Live Calculations</Text>
+                  <View style={av.calcGrid}>
+                    <View style={av.calcItem}><Text style={av.calcLabel}>Selling Price (Excl. GST)</Text><Text style={av.calcValue}>₹{sellingPriceExGst.toFixed(2)}</Text></View>
+                    <View style={av.calcItem}><Text style={av.calcLabel}>GST Amount ({gst}%)</Text><Text style={[av.calcValue, { color: C.orange }]}>+ ₹{gstAmount.toFixed(2)}</Text></View>
+                    {/* FIX: navy instead of blue for selling price with GST */}
+                    <View style={av.calcItem}><Text style={av.calcLabel}>Selling Price (With GST)</Text><Text style={[av.calcValue, { color: C.navy }]}>₹{sellingWithGst.toFixed(2)}</Text></View>
+                    <View style={av.calcItem}><Text style={av.calcLabel}>Commission (15%)</Text><Text style={[av.calcValue, { color: C.red }]}>+ ₹{commission.toFixed(2)}</Text></View>
+                    <View style={[av.calcItem, { backgroundColor: "#F0FDF4" }]}><Text style={av.calcLabel}>Total (Intra-City)</Text><Text style={[av.calcValue, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{intraCity.toFixed(2)}</Text></View>
+                    <View style={[av.calcItem, { backgroundColor: "#FFFBEB" }]}><Text style={av.calcLabel}>Total (Metro-Metro)</Text><Text style={[av.calcValue, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{metroMetro.toFixed(2)}</Text></View>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity style={[av.addBtn, { backgroundColor: C.navy }]} onPress={handleSave} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="content-save-outline" size={18} color={C.white} />
+              <Text style={av.addBtnTxt}>Save Changes</Text>
             </TouchableOpacity>
           </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            <View style={av.row2}>
-              <View style={{ flex: 1 }}>
-                <Text style={av.lbl}>Color <Text style={{ color: C.red }}>*</Text></Text>
-                <TouchableOpacity style={av.dropBtn} onPress={() => setShowColorPicker(true)}>
-                  {color ? <View style={[av.colorDotSmall, { backgroundColor: COLOR_HEX[color] ?? "#9CA3AF" }]} /> : null}
-                  <Text style={[av.dropTxt, !color && { color: C.textLight }]}>{color || "Select color"}</Text>
-                  <Ionicons name="chevron-down" size={14} color={C.textLight} />
-                </TouchableOpacity>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={av.lbl}>Size <Text style={{ color: C.red }}>*</Text></Text>
-                <TouchableOpacity style={av.dropBtn} onPress={() => setShowSizePicker(true)}>
-                  <Text style={[av.dropTxt, !size && { color: C.textLight }]}>{size || "Select size"}</Text>
-                  <Ionicons name="chevron-down" size={14} color={C.textLight} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <Text style={av.lbl}>Stock Quantity <Text style={{ color: C.red }}>*</Text></Text>
-            <TextInput style={av.input} placeholder="e.g. 15" placeholderTextColor={C.textLight} value={stock} onChangeText={setStock} keyboardType="numeric" />
-
-            <View style={av.row2}>
-              <View style={{ flex: 1 }}>
-                <Text style={av.lbl}>MRP (Excl. GST) <Text style={{ color: C.red }}>*</Text></Text>
-                <View style={av.inputPrefix}>
-                  <Text style={av.prefixTxt}>₹</Text>
-                  <TextInput style={av.prefixInput} placeholder="0.00" placeholderTextColor={C.textLight} value={mrp} onChangeText={setMrp} keyboardType="decimal-pad" />
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={av.lbl}>Discount (%) <Text style={{ color: C.red }}>*</Text></Text>
-                <View style={av.inputPrefix}>
-                  <TextInput style={[av.prefixInput, { flex: 1 }]} placeholder="0" placeholderTextColor={C.textLight} value={discount} onChangeText={setDiscount} keyboardType="numeric" />
-                  <Text style={av.suffixTxt}>%</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={av.lbl}>GST (%)</Text>
-            <TextInput style={av.input} placeholder="5" placeholderTextColor={C.textLight} value={gst} onChangeText={setGst} keyboardType="numeric" />
-
-            {mrp && discount && (
-              <View style={av.calcBox}>
-                <Text style={av.calcTitle}>Live Calculations</Text>
-                <View style={av.calcGrid}>
-                  <View style={av.calcItem}><Text style={av.calcLabel}>Selling Price (Excl. GST)</Text><Text style={av.calcValue}>₹{sellingPriceExGst.toFixed(2)}</Text></View>
-                  <View style={av.calcItem}><Text style={av.calcLabel}>GST Amount ({gst}%)</Text><Text style={[av.calcValue, { color: C.orange }]}>+ ₹{gstAmount.toFixed(2)}</Text></View>
-                  <View style={av.calcItem}><Text style={av.calcLabel}>Selling Price (With GST)</Text><Text style={[av.calcValue, { color: C.blue }]}>₹{sellingWithGst.toFixed(2)}</Text></View>
-                  <View style={av.calcItem}><Text style={av.calcLabel}>Commission (15%)</Text><Text style={[av.calcValue, { color: C.red }]}>+ ₹{commission.toFixed(2)}</Text></View>
-                  <View style={[av.calcItem, { backgroundColor: "#F0FDF4" }]}><Text style={av.calcLabel}>Total (Intra-City)</Text><Text style={[av.calcValue, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{intraCity.toFixed(2)}</Text></View>
-                  <View style={[av.calcItem, { backgroundColor: "#FFFBEB" }]}><Text style={av.calcLabel}>Total (Metro-Metro)</Text><Text style={[av.calcValue, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{metroMetro.toFixed(2)}</Text></View>
-                </View>
-              </View>
-            )}
-          </ScrollView>
-
-          <TouchableOpacity style={[av.addBtn, { backgroundColor: C.blue }]} onPress={handleSave} activeOpacity={0.85}>
-            <MaterialCommunityIcons name="content-save-outline" size={18} color={C.white} />
-            <Text style={av.addBtnTxt}>Save Changes</Text>
-          </TouchableOpacity>
         </View>
-      </View>
 
-      {showColorPicker && <PickerSheet options={COLOR_OPTIONS} onSelect={setColor} onClose={() => setShowColorPicker(false)} withDot />}
-      {showSizePicker  && <PickerSheet options={SIZE_OPTIONS}  onSelect={setSize}  onClose={() => setShowSizePicker(false)}  />}
-    </Modal>
+        {showColorPicker && <PickerSheet options={COLOR_OPTIONS} onSelect={setColor} onClose={() => setShowColorPicker(false)} withDot />}
+        {showSizePicker  && <PickerSheet options={SIZE_OPTIONS}  onSelect={setSize}  onClose={() => setShowSizePicker(false)}  />}
+      </Modal>
+
+      <SweetAlert
+        visible={showSuccess}
+        type="success"
+        title="Changes Saved!"
+        subtitle={`${color} · Size ${size} variant updated successfully.`}
+      />
+    </>
   );
 };
 
@@ -603,9 +714,10 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
                     <Text style={av.calcLabel}>GST Amount ({gst}%)</Text>
                     <Text style={[av.calcValue, { color: C.orange }]}>+ ₹{gstAmount.toFixed(2)}</Text>
                   </View>
+                  {/* FIX: navy instead of blue */}
                   <View style={av.calcItem}>
                     <Text style={av.calcLabel}>Selling Price (With GST)</Text>
-                    <Text style={[av.calcValue, { color: C.blue }]}>₹{sellingWithGst.toFixed(2)}</Text>
+                    <Text style={[av.calcValue, { color: C.navy }]}>₹{sellingWithGst.toFixed(2)}</Text>
                   </View>
                   <View style={av.calcItem}>
                     <Text style={av.calcLabel}>Commission (15%)</Text>
@@ -699,8 +811,9 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
             <Text style={vr.gridCardName}>{v.color}</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 4 }}>
+            {/* FIX: navy background for edit button */}
             <TouchableOpacity style={vr.gridEditBtn} onPress={() => onEdit(v)}>
-              <MaterialCommunityIcons name="pencil-outline" size={13} color={C.blue} />
+              <MaterialCommunityIcons name="pencil-outline" size={13} color={C.navy} />
             </TouchableOpacity>
             <TouchableOpacity
               style={vr.gridDelBtn}
@@ -714,7 +827,8 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
           </View>
         </View>
         <Text style={vr.gridSku}>{v.sku}</Text>
-        <Text style={vr.gridPrice}>₹{v.sellingPriceWithGst.toFixed(2)}</Text>
+        {/* FIX: navy color for selling price */}
+        <Text style={[vr.gridPrice, { color: C.navy }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text>
         <Text style={vr.gridMrp}>MRP ₹{v.mrp.toFixed(2)}</Text>
         <View style={vr.gridDivider} />
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Stock</Text><Text style={vr.gridRowVal}>{v.stock} units</Text></View>
@@ -760,8 +874,9 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
             <Text style={vr.listCardSku}>{v.sku} · {v.stock} units</Text>
           </View>
           <View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount}% OFF</Text></View>
+          {/* FIX: navy background for edit button */}
           <TouchableOpacity
-            style={[vr.deleteBtn, { backgroundColor: C.blue, width: 30, height: 30 }]}
+            style={[vr.deleteBtn, { backgroundColor: C.navy, width: 30, height: 30 }]}
             onPress={() => onEdit(v)}
           >
             <MaterialCommunityIcons name="pencil-outline" size={14} color={C.white} />
@@ -780,7 +895,8 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
           <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>MRP</Text><Text style={[vr.listPriceVal, { color: C.red }]}>₹{v.mrp.toFixed(2)}</Text></View>
           <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>Excl. GST</Text><Text style={vr.listPriceVal}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
           <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>GST {v.gstPercent}%</Text><Text style={[vr.listPriceVal, { color: C.orange }]}>+₹{v.gstAmount.toFixed(2)}</Text></View>
-          <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>With GST</Text><Text style={[vr.listPriceVal, { color: C.blue, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
+          {/* FIX: navy instead of blue for selling price with GST */}
+          <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>With GST</Text><Text style={[vr.listPriceVal, { color: C.navy, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
           <View style={[vr.listPriceTile, { backgroundColor: "#F0FDF4" }]}><Text style={vr.listPriceLabel}>Intra-City</Text><Text style={[vr.listPriceVal, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{v.totalIntraCity.toFixed(2)}</Text></View>
           <View style={[vr.listPriceTile, { backgroundColor: "#FFFBEB" }]}><Text style={vr.listPriceLabel}>Metro</Text><Text style={[vr.listPriceVal, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text></View>
         </View>
@@ -790,10 +906,16 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
 );
 
 // ─── VARIANTS TABLE VIEW ──────────────────────────────────────
-// FIX 1: Removed duplicate color dot in first cell (only show image if available, no fallback color dot)
 const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -14 }}>
-    <View style={{ minWidth: SW + 300 }}>
+  // FIX: remove negative marginHorizontal on web to eliminate the gap/space
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={!isWeb}
+    showsVerticalScrollIndicator={false}
+    style={isWeb ? { marginHorizontal: 0 } : { marginHorizontal: -14 }}
+  >
+    {/* FIX: use fixed 1100 width on web instead of SW+300 to prevent gap */}
+    <View style={isWeb ? { minWidth: 1100 } : { minWidth: SW + 300 }}>
       <View style={vr.tableHead}>
         {["","Color","Size","SKU","Stock","MRP\n(Excl. GST)","Discount\n(%)","Selling Price\n(Excl. GST)","GST\n(%)","Selling Price\n(With GST)","Commission\n(% of SP w/ GST)","Intra-City\nDelivery","Metro-Metro\nDelivery","Total\n(Intra-City)","Total\n(Metro-Metro)","Actions"].map((col, i) => (
           <View key={i} style={[vr.headCell,
@@ -806,7 +928,6 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
       </View>
       {variants.map((v, idx) => (
         <View key={v.id} style={[vr.tableRow, { backgroundColor: idx % 2 === 0 ? C.white : "#FAFBFF" }]}>
-          {/* FIX 1: First cell only shows image thumbnail or video icon — no duplicate color dot */}
           <View style={[vr.cell, { width: 44, justifyContent: "center", gap: 4 }]}>
             {v.imageUri
               ? <Image source={{ uri: v.imageUri }} style={vr.tableThumb} resizeMode="cover" />
@@ -814,7 +935,6 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
             }
             {v.videoUri ? <MaterialCommunityIcons name="video-outline" size={11} color={C.green} style={{ alignSelf: "center" }} /> : null}
           </View>
-          {/* Color column always shows dot + name (single occurrence) */}
           <View style={[vr.cell, { width: 80 }]}>
             <View style={[vr.colorDot, { backgroundColor: v.colorHex, borderWidth: v.color === "White" ? 1 : 0, borderColor: C.border }]} />
             <Text style={vr.cellTxt}>{v.color}</Text>
@@ -826,14 +946,16 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
           <View style={[vr.cell, { width: 100 }]}><View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount.toFixed(2)}% OFF</Text></View></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={vr.cellTxt}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.orange }]}>+ ₹{v.gstAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.gstPercent}%)</Text></View>
-          <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.blue, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
+          {/* FIX: navy instead of blue for selling price with GST in table */}
+          <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.navy, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.red }]}>+ ₹{v.commissionAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.commissionPercent}%)</Text></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={vr.cellTxt}>+ ₹{v.intraCityDelivery.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={vr.cellTxt}>+ ₹{v.metroMetroDelivery.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100, backgroundColor: "#F0FDF4" }]}><Text style={[vr.cellTxt, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{v.totalIntraCity.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100, backgroundColor: "#FFFBEB" }]}><Text style={[vr.cellTxt, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 80, flexDirection: "row", justifyContent: "center", gap: 6 }]}>
-            <TouchableOpacity style={[vr.deleteBtn, { backgroundColor: C.blue }]} onPress={() => onEdit(v)}>
+            {/* FIX: navy background for edit button in table */}
+            <TouchableOpacity style={[vr.deleteBtn, { backgroundColor: C.navy }]} onPress={() => onEdit(v)}>
               <MaterialCommunityIcons name="pencil-outline" size={14} color={C.white} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -853,7 +975,6 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
 );
 
 // ─── VARIANTS TAB ─────────────────────────────────────────────
-// FIX 2: Summary card is above the heading, headerRow marginTop removed to eliminate extra space
 const VariantsTab: React.FC<{
   variants: Variant[];
   onAdd: () => void;
@@ -864,7 +985,6 @@ const VariantsTab: React.FC<{
 
   return (
     <>
-      {/* Summary card ABOVE the heading */}
       {variants.length > 0 && (
         <View style={vr.summary}>
           <View style={vr.summaryItem}>
@@ -879,14 +999,14 @@ const VariantsTab: React.FC<{
           <View style={vr.summaryDivider} />
           <View style={vr.summaryItem}>
             <Text style={vr.summaryLabel}>Avg. Selling Price</Text>
-            <Text style={[vr.summaryValue, { color: C.blue }]}>
+            {/* FIX: navy instead of blue for average selling price */}
+            <Text style={[vr.summaryValue, { color: C.navy }]}>
               ₹{(variants.reduce((a, v) => a + v.sellingPriceWithGst, 0) / variants.length).toFixed(2)}
             </Text>
           </View>
         </View>
       )}
 
-      {/* Heading row */}
       <View style={vr.headerRow}>
         <View style={vr.headerLeft}>
           <MaterialCommunityIcons name="menu" size={16} color={C.navyLight} />
@@ -938,7 +1058,6 @@ const VariantsTab: React.FC<{
 };
 
 const vr = StyleSheet.create({
-  // FIX 2: marginTop: 0 (was 12) — summary card provides top spacing, no extra gap needed
   headerRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, marginTop: 0 },
   headerLeft:  { flexDirection: "row", alignItems: "center", gap: 8 },
   headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textDark },
@@ -956,7 +1075,8 @@ const vr = StyleSheet.create({
   gridCardTop:  { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   gridCardName: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textDark },
   gridSku:      { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight, marginBottom: 8 },
-  gridPrice:    { fontFamily: "Outfit_800ExtraBold", fontSize: 16, color: C.navy },
+  // FIX: base color removed (overridden inline with C.navy)
+  gridPrice:    { fontFamily: "Outfit_800ExtraBold", fontSize: 16 },
   gridMrp:      { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, textDecorationLine: "line-through", marginBottom: 4 },
   gridDivider:  { borderTopWidth: 1, borderTopColor: "#F3F4F6", marginVertical: 6 },
   gridRow:      { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
@@ -964,7 +1084,8 @@ const vr = StyleSheet.create({
   gridRowVal:   { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textDark },
   gridTotalRow: { flexDirection: "row", justifyContent: "space-between", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, marginTop: 2 },
   gridDelBtn:   { width: 24, height: 24, borderRadius: 6, backgroundColor: C.redPale, alignItems: "center", justifyContent: "center" },
-  gridEditBtn:  { width: 24, height: 24, borderRadius: 6, backgroundColor: C.bluePale, alignItems: "center", justifyContent: "center" },
+  // FIX: navy pale background for edit button in grid
+  gridEditBtn:  { width: 24, height: 24, borderRadius: 6, backgroundColor: "#EEF1FF", alignItems: "center", justifyContent: "center" },
   listCard:      { backgroundColor: C.white, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: C.border, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   listCardTop:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   listThumb:     { width: 36, height: 36, borderRadius: 8 },
@@ -990,7 +1111,6 @@ const vr = StyleSheet.create({
   discountPill:    { backgroundColor: C.greenPale, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, alignSelf: "flex-start" },
   discountPillTxt: { fontFamily: "Outfit_700Bold", fontSize: 10.5, color: "#16A34A" },
   deleteBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: C.red, alignItems: "center", justifyContent: "center" },
-  // FIX 2: summary marginBottom: 12 provides spacing before heading row
   summary:         { flexDirection: "row", backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 12, justifyContent: "space-around" },
   summaryItem:     { alignItems: "center", gap: 4 },
   summaryLabel:    { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
@@ -1179,7 +1299,7 @@ const ReturnTab: React.FC<{ p: Product }> = ({ p }) => {
   );
 };
 
-// ─── Size Chart Tab (Web full-screen view) ────────────────────
+// ─── Size Chart Tab ───────────────────────────────────────────
 const SizeChartTab: React.FC<{ chart: SizeChartEntry[] }> = ({ chart }) => (
   isWeb ? (
     <View style={wt.twoColGrid}>
@@ -1254,7 +1374,6 @@ const sct = StyleSheet.create({
 });
 
 // ─── WEB: Hero section ────────────────────────────────────────
-// FIX 3: Added size pills display (like color swatches) in hero section
 const WebHeroSection: React.FC<{
   p: Product;
   activeImg: number;
@@ -1262,14 +1381,11 @@ const WebHeroSection: React.FC<{
   variants: Variant[];
 }> = ({ p, activeImg, setActiveImg, variants }) => {
   const st = getStatusStyle(p.status);
-  // FIX 1: Deduplicate by color name (not just hex)
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
-  // FIX 3: Unique sizes from variants
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
 
   return (
     <View style={wh.container}>
-      {/* LEFT: Image Gallery */}
       <View style={wh.imageSection}>
         <View style={wh.heroImageWrap}>
           <Image source={{ uri: p.images[activeImg] }} style={wh.heroImage} resizeMode="cover" />
@@ -1288,7 +1404,6 @@ const WebHeroSection: React.FC<{
         </View>
       </View>
 
-      {/* RIGHT: Product Details */}
       <View style={wh.detailsSection}>
         <View style={wh.detailsInner}>
           <View style={wh.topRow}>
@@ -1322,7 +1437,6 @@ const WebHeroSection: React.FC<{
 
           <View style={wh.divider} />
 
-          {/* Colors */}
           {uniqueColors.length > 0 && (
             <View style={wh.colorsSection}>
               <Text style={wh.colorsLabel}>Available Colors</Text>
@@ -1337,7 +1451,6 @@ const WebHeroSection: React.FC<{
             </View>
           )}
 
-          {/* FIX 3: Sizes section — displayed like colors with pills */}
           {uniqueSizes.length > 0 && (
             <View style={wh.sizesSection}>
               <Text style={wh.sizesLabel}>Available Sizes</Text>
@@ -1388,6 +1501,10 @@ const ProductDetailScreen: React.FC = () => {
 
   const st = getStatusStyle(p.status);
 
+  const goToProductManagement = () => {
+    router.push("/(main)/productmanagement" as any);
+  };
+
   const handleAddVariant = useCallback((v: Variant) => {
     setVariants(prev => [...prev, v]);
   }, []);
@@ -1402,22 +1519,18 @@ const ProductDetailScreen: React.FC = () => {
 
   const handleSaveVariant = useCallback((updated: Variant) => {
     setVariants(prev => prev.map(v => v.id === updated.id ? updated : v));
-    setEditingVariant(null);
   }, []);
 
-  // FIX 1: Deduplicate by color name
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
-  // FIX 3: Unique sizes from variants for mobile hero
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
 
   // ─── WEB LAYOUT ───────────────────────────────────────────
   if (isWeb) {
     return (
       <View style={sw.root}>
-        {/* WEB HEADER */}
         <View style={sw.header}>
           <View style={sw.headerInner}>
-            <TouchableOpacity onPress={() => router.back()} style={sw.backBtn}>
+            <TouchableOpacity onPress={goToProductManagement} style={sw.backBtn}>
               <Ionicons name="arrow-back" size={18} color={C.white} />
               <Text style={sw.backBtnText}>Back</Text>
             </TouchableOpacity>
@@ -1442,7 +1555,6 @@ const ProductDetailScreen: React.FC = () => {
           <View style={sw.contentWrap}>
             <WebHeroSection p={p} activeImg={activeImg} setActiveImg={setActiveImg} variants={variants} />
 
-            {/* WEB TAB BAR */}
             <View style={sw.tabBar}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sw.tabScrollContent}>
                 {TABS.map(tab => {
@@ -1467,7 +1579,6 @@ const ProductDetailScreen: React.FC = () => {
               </ScrollView>
             </View>
 
-            {/* WEB TAB CONTENT */}
             <View style={sw.tabContent}>
               {activeTab === "overview"       && <OverviewTab p={p} />}
               {activeTab === "variants"       && (
@@ -1487,20 +1598,24 @@ const ProductDetailScreen: React.FC = () => {
         </ScrollView>
 
         <AddVariantModal visible={showAddVariant} onClose={() => setShowAddVariant(false)} onAdd={handleAddVariant} />
-        <EditVariantModal visible={!!editingVariant} variant={editingVariant} onClose={() => setEditingVariant(null)} onSave={handleSaveVariant} />
+        <EditVariantModal
+          visible={!!editingVariant}
+          variant={editingVariant}
+          onClose={() => setEditingVariant(null)}
+          onSave={handleSaveVariant}
+        />
         <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
       </View>
     );
   }
 
-  // ─── MOBILE / TABLET LAYOUT ───────────────────────────────
+  // ─── MOBILE LAYOUT ────────────────────────────────────────
   return (
     <SafeAreaView style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
 
-      {/* HEADER */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={goToProductManagement} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={C.white} />
         </TouchableOpacity>
         <View style={s.headerContent}>
@@ -1514,7 +1629,6 @@ const ProductDetailScreen: React.FC = () => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
-        {/* IMAGE GALLERY */}
         <View style={s.galleryContainer}>
           <Image source={{ uri: p.images[activeImg] }} style={s.heroImage} resizeMode="cover" />
           <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
@@ -1524,7 +1638,6 @@ const ProductDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Thumbnails */}
         <View style={s.thumbRow}>
           {p.images.map((img, i) => (
             <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[s.thumb, i === activeImg && s.thumbActive]}>
@@ -1533,7 +1646,6 @@ const ProductDetailScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* HERO INFO CARD */}
         <View style={s.heroCard}>
           <View style={s.catPill}><Text style={s.catPillText}>{p.category} · {p.subcategory}</Text></View>
           <Text style={s.productName}>{p.name}</Text>
@@ -1545,7 +1657,6 @@ const ProductDetailScreen: React.FC = () => {
           </View>
           <Text style={s.priceNote}>Metro City Price · Incl. GST ({p.gst})</Text>
 
-          {/* FIX 1: Colors (deduplicated by name) */}
           {uniqueColors.length > 0 && (
             <View style={s.colorsSection}>
               <Text style={s.colorsLabel}>Available Colors</Text>
@@ -1560,7 +1671,6 @@ const ProductDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {/* FIX 3: Sizes section — pill style, same pattern as colors */}
           {uniqueSizes.length > 0 && (
             <View style={s.sizesSection}>
               <Text style={s.sizesLabel}>Available Sizes</Text>
@@ -1588,7 +1698,6 @@ const ProductDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* MOBILE TAB BAR */}
         <View style={s.tabBarRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabScrollContent} style={s.tabScrollWrapper}>
             {TABS.map(tab => {
@@ -1606,13 +1715,8 @@ const ProductDetailScreen: React.FC = () => {
               );
             })}
           </ScrollView>
-          <TouchableOpacity style={s.tabRowSizeChartBtn} onPress={() => setShowSizeChart(true)} activeOpacity={0.85}>
-            <MaterialCommunityIcons name="ruler" size={12} color={C.navy} />
-            <Text style={s.tabRowSizeChartTxt}>Size</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* TAB CONTENT */}
         <View style={s.tabContent}>
           {activeTab === "overview"       && <OverviewTab p={p} />}
           {activeTab === "variants"       && (
@@ -1626,12 +1730,12 @@ const ProductDetailScreen: React.FC = () => {
           {activeTab === "specifications" && <SpecsTab    p={p} />}
           {activeTab === "delivery"       && <DeliveryTab p={p} />}
           {activeTab === "return"         && <ReturnTab   p={p} />}
+          {activeTab === "sizechart"      && <SizeChartTab chart={p.sizeChart} />}
         </View>
       </ScrollView>
 
-      {/* BOTTOM BAR */}
       <View style={s.bottomBar}>
-        <TouchableOpacity style={s.backAction} onPress={() => router.back()} activeOpacity={0.8}>
+        <TouchableOpacity style={s.backAction} onPress={() => router.push("/(main)/productmanagement" as any)} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={17} color={C.navy} />
           <Text style={s.backActionText}>Back</Text>
         </TouchableOpacity>
@@ -1646,7 +1750,12 @@ const ProductDetailScreen: React.FC = () => {
       </View>
 
       <AddVariantModal visible={showAddVariant} onClose={() => setShowAddVariant(false)} onAdd={handleAddVariant} />
-      <EditVariantModal visible={!!editingVariant} variant={editingVariant} onClose={() => setEditingVariant(null)} onSave={handleSaveVariant} />
+      <EditVariantModal
+        visible={!!editingVariant}
+        variant={editingVariant}
+        onClose={() => setEditingVariant(null)}
+        onSave={handleSaveVariant}
+      />
       <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
     </SafeAreaView>
   );
@@ -1723,7 +1832,6 @@ const s = StyleSheet.create({
   swatchWrap:    { alignItems: "center", gap: 5 },
   swatch:        { width: 30, height: 30, borderRadius: 15 },
   swatchLabel:   { fontFamily: "Outfit_500Medium", fontSize: 10, color: C.textMid },
-  // FIX 3: Sizes section styles (mobile) — same divider pattern as colors
   sizesSection:  { marginTop: 10, marginBottom: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   sizesLabel:    { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textLight, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   sizePills:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -1733,7 +1841,7 @@ const s = StyleSheet.create({
   attrChip:  { flexDirection: "row", alignItems: "center", backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
   attrLabel: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight },
   attrValue: { fontFamily: "Outfit_700Bold",   fontSize: 11, color: C.navy     },
-  tabBarRow:        { flexDirection: "row", alignItems: "center", marginBottom: 8, paddingRight: 14 },
+  tabBarRow:        { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   tabScrollWrapper: { flex: 1 },
   tabScrollContent: { paddingHorizontal: 14, gap: 8, paddingVertical: 4 },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card },
@@ -1742,8 +1850,6 @@ const s = StyleSheet.create({
   tabBtnTextActive:{ color: C.white },
   tabBadge:        { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
   tabBadgeTxt:     { fontFamily: "Outfit_700Bold", fontSize: 10 },
-  tabRowSizeChartBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.purplePale, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: C.purpleLight, flexShrink: 0 },
-  tabRowSizeChartTxt: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.navy },
   tabContent:      { paddingHorizontal: 14 },
   bottomBar:         { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", gap: 6, padding: 10, paddingBottom: Platform.OS === "ios" ? 28 : 12, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.10, shadowRadius: 12, elevation: 12 },
   backAction:        { flex: 0.8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1.5, borderColor: C.navy, borderRadius: 13, paddingVertical: 11 },
@@ -1784,7 +1890,6 @@ const wh = StyleSheet.create({
   swatchWrap:     { alignItems: "center", gap: 5 },
   swatch:         { width: 34, height: 34, borderRadius: 17 },
   swatchLabel:    { fontFamily: "Outfit_500Medium", fontSize: 10.5, color: C.textMid },
-  // FIX 3: Sizes section styles (web) — pill style matching colors section
   sizesSection:   { marginTop: 12 },
   sizesLabel:     { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textLight, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   sizePills:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -1830,8 +1935,6 @@ const sw = StyleSheet.create({
   tabBtnTextActive:{ color: C.white },
   tabBadge:    { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   tabBadgeTxt: { fontFamily: "Outfit_700Bold", fontSize: 11 },
-  tabBarSizeChartBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.purplePale, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: C.purpleLight, flexShrink: 0 },
-  tabBarSizeChartTxt: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.navy },
   tabContent:  { paddingTop: 0 },
 });
 
