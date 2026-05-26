@@ -22,6 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { Checkbox } from "./sellerComponents";
+import { fontFamilies } from "@/constants/fonts";
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -190,6 +191,20 @@ const ib = StyleSheet.create({
 
 interface ValidationError { field: string; message: string; }
 
+// ─── Web-only: InputPairRow renders 2 inputs side-by-side on web, stacked on mobile ──
+const isWeb = Platform.OS === "web";
+
+const InputPairRow: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  isWeb ? (
+    <View style={pair.row}>{children}</View>
+  ) : (
+    <>{children}</>
+  );
+
+const pair = StyleSheet.create({
+  row: { flexDirection: "row", gap: 10 },
+});
+
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerAddressInfo() {
   const router = useRouter();
@@ -278,7 +293,7 @@ export default function SellerAddressInfo() {
     }
   }, [validations, fieldRefs, fieldPositions]);
 
-  const handleBack = () => router.back();
+  const handleBack = () => router.push("/(main)/sellerbusinessinfo");
 
   const handleNext = () => {
     const errors: ValidationError[] = [];
@@ -317,14 +332,14 @@ export default function SellerAddressInfo() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={s.backBtnHeader} 
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity>
-            <View style={{ flex: 1, marginTop: 18 }}>
+            </TouchableOpacity> */}
+            <View style={{ flex: 1}}>
               {/* Screen 1: 10px 700 uppercase 1.5 letterSpacing, rgba white 0.55 */}
               <Text style={s.headerLabel}>STEP 3 OF 5</Text>
               {/* Screen 1: 18px 800 white */}
@@ -374,27 +389,34 @@ export default function SellerAddressInfo() {
               color={T.orange}
             />
 
-            <InputRow
-              label="Street Address"
-              value={streetAddress}
-              onChangeText={(t) => { clearFieldError("streetAddress"); setStreetAddress(t); }}
-              placeholder="Enter your street address"
-              inputRef={fieldRefs.streetAddress}
-              error={validationErrors.find(e => e.field === "streetAddress")?.message}
-              onLayout={(e) => handleFieldLayout("streetAddress", e)}
-              borderColor={T.orange}
-              accentColor={T.orange}
-            />
-            <InputRow
-              label="Landmark"
-              value={landmark}
-              onChangeText={(t) => { clearFieldError("landmark"); setLandmark(t); }}
-              placeholder="Enter nearby landmark"
-              error={validationErrors.find(e => e.field === "landmark")?.message}
-              onLayout={(e) => handleFieldLayout("landmark", e)}
-              borderColor={T.orange}
-              accentColor={T.orange}
-            />
+            {/* Street Address + Landmark: side-by-side on web, stacked on mobile */}
+            <InputPairRow>
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Street Address"
+                  value={streetAddress}
+                  onChangeText={(t) => { clearFieldError("streetAddress"); setStreetAddress(t); }}
+                  placeholder="Enter your street address"
+                  inputRef={fieldRefs.streetAddress}
+                  error={validationErrors.find(e => e.field === "streetAddress")?.message}
+                  onLayout={(e) => handleFieldLayout("streetAddress", e)}
+                  borderColor={T.orange}
+                  accentColor={T.orange}
+                />
+              </View>
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Landmark"
+                  value={landmark}
+                  onChangeText={(t) => { clearFieldError("landmark"); setLandmark(t); }}
+                  placeholder="Enter nearby landmark"
+                  error={validationErrors.find(e => e.field === "landmark")?.message}
+                  onLayout={(e) => handleFieldLayout("landmark", e)}
+                  borderColor={T.orange}
+                  accentColor={T.orange}
+                />
+              </View>
+            </InputPairRow>
 
             {/* City + State row */}
             <View style={s.row}>
@@ -479,24 +501,31 @@ export default function SellerAddressInfo() {
                 color={T.navy}
               />
 
-              <InputRow
-                label="Street Address"
-                value={warehouseAddress}
-                onChangeText={(t) => { clearFieldError("warehouseAddress"); setWarehouseAddress(t); }}
-                placeholder="Enter warehouse street address"
-                error={validationErrors.find(e => e.field === "warehouseAddress")?.message}
-                borderColor={T.navy}
-                accentColor={T.navy}
-              />
-              <InputRow
-                label="Landmark"
-                value={warehouseLandmark}
-                onChangeText={(t) => { clearFieldError("warehouseLandmark"); setWarehouseLandmark(t); }}
-                placeholder="Enter nearby landmark"
-                error={validationErrors.find(e => e.field === "warehouseLandmark")?.message}
-                borderColor={T.navy}
-                accentColor={T.navy}
-              />
+              {/* Warehouse Street Address + Landmark: side-by-side on web, stacked on mobile */}
+              <InputPairRow>
+                <View style={isWeb ? { flex: 1 } : {}}>
+                  <InputRow
+                    label="Street Address"
+                    value={warehouseAddress}
+                    onChangeText={(t) => { clearFieldError("warehouseAddress"); setWarehouseAddress(t); }}
+                    placeholder="Enter warehouse street address"
+                    error={validationErrors.find(e => e.field === "warehouseAddress")?.message}
+                    borderColor={T.navy}
+                    accentColor={T.navy}
+                  />
+                </View>
+                <View style={isWeb ? { flex: 1 } : {}}>
+                  <InputRow
+                    label="Landmark"
+                    value={warehouseLandmark}
+                    onChangeText={(t) => { clearFieldError("warehouseLandmark"); setWarehouseLandmark(t); }}
+                    placeholder="Enter nearby landmark"
+                    error={validationErrors.find(e => e.field === "warehouseLandmark")?.message}
+                    borderColor={T.navy}
+                    accentColor={T.navy}
+                  />
+                </View>
+              </InputPairRow>
 
               <View style={s.row}>
                 <View style={s.half}>
@@ -596,19 +625,20 @@ const s = StyleSheet.create({
   // ── Header — exact Screen 1 ──
   topHeader:    { paddingHorizontal: 20, height: 200 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
-  backBtnHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
-  headerLabel:  { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
-  headerTitle:  { fontSize: 18, fontWeight: "800", color: T.white, marginBottom: 2 },
-  headerSub:    { fontSize: 12, color: "rgba(255,255,255,0.65)" },
-  headerBadge:  { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+  // backBtnHeader: {
+  //   width: 40,
+  //   height: 40,
+  //   borderRadius: 20,
+  //   backgroundColor: "rgba(255,255,255,0.15)",
+  //   alignItems: "center",
+  //   justifyContent: "center",
+  //   marginTop: 18,
+  // },
+    headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
+    headerTitle: { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
+    headerSub: { fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: "400" },
+    headerBadge: { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+    headerBadgeText: { fontSize: 22 },
 
   // ── Progress — exact Screen 1 ──
   progressRow:   { flexDirection: "row", gap: 6, marginBottom: 7 },

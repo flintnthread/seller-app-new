@@ -1,6 +1,7 @@
 /**
  * Seller Personal Info - Screen 1 of 5
  * Navy blue & orange premium onboarding UI
+ * Web: 2 fields per row | Mobile: unchanged
  */
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
@@ -14,6 +15,7 @@ import {
   Image,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
 import { AppText } from "@/components/AppText";
@@ -63,6 +65,9 @@ const T = {
   success:     "#16A34A",
   error:       "#DC2626",
 };
+
+// ─── Breakpoint for web two-column layout ────────────────────
+const WEB_BREAKPOINT = 600;
 
 interface ValidationError { field: string; message: string; }
 
@@ -142,6 +147,10 @@ export default function SellerPersonalInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const routerParams = useLocalSearchParams();
+  const { width } = useWindowDimensions();
+
+  // True when running on web AND viewport is wide enough for 2-col layout
+  const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
 
   const [image, setImage] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -216,8 +225,54 @@ export default function SellerPersonalInfo() {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      router.push("/(main)/sellerdocuments");
+      router.push("/(main)/sellerbusinessinfo");
     }, 1000);
+  };
+
+  // ── Personal info fields config ──────────────────────────
+  const personalFields = [
+    { key: "name",   label: "Full Name",       value: name   || "Sri Raj Dodda",      iconName: "user"     },
+    { key: "mobile", label: "Mobile Number",   value: mobile ? `+91 ${mobile}` : "9876543210", iconName: "phone"    },
+    { key: "email",  label: "Email Address",   value: email  || "sriraj@gmail.com",   iconName: "envelope" },
+  ];
+
+  // ── Render personal fields: 2-col on web, 1-col on mobile ─
+  const renderPersonalFields = () => {
+    if (!isWebWide) {
+      // ── Mobile: unchanged — render one by one ──
+      return personalFields.map(f => (
+        <ReadOnlyField
+          key={f.key}
+          label={f.label}
+          value={f.value}
+          iconName={f.iconName}
+          onLayout={e => handleFieldLayout(f.key, e)}
+        />
+      ));
+    }
+
+    // ── Web wide: pair fields into rows of 2 ──
+    const rows: (typeof personalFields)[] = [];
+    for (let i = 0; i < personalFields.length; i += 2) {
+      rows.push(personalFields.slice(i, i + 2));
+    }
+
+    return rows.map((pair, rowIdx) => (
+      <View key={rowIdx} style={ws.fieldRow}>
+        {pair.map(f => (
+          <View key={f.key} style={ws.fieldCol}>
+            <ReadOnlyField
+              label={f.label}
+              value={f.value}
+              iconName={f.iconName}
+              onLayout={e => handleFieldLayout(f.key, e)}
+            />
+          </View>
+        ))}
+        {/* If odd field is last, fill the second column with empty space */}
+        {pair.length === 1 && <View style={ws.fieldCol} />}
+      </View>
+    ));
   };
 
   return (
@@ -232,15 +287,15 @@ export default function SellerPersonalInfo() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={s.backBtnHeader} 
               onPress={() => router.back()}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity>
-            <View style={{ flex: 1, marginTop: 18 }}>
-              <AppText style={s.headerLabel}>STEP 1 OF 5</AppText>
+            </TouchableOpacity> */}
+                <View style={{ flex: 1 }}>
+                <AppText style={s.headerLabel}>STEP 1 OF 5</AppText>
               <AppText style={s.headerTitle}>Personal Profile</AppText>
               <AppText style={s.headerSub}>Set up your seller identity</AppText>
             </View>
@@ -267,7 +322,11 @@ export default function SellerPersonalInfo() {
         <ScrollView
           ref={scrollViewRef}
           style={s.scroll}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[
+            s.scrollContent,
+            // On web wide screens, constrain max width and centre content
+            isWebWide && ws.scrollContentWeb,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -324,24 +383,8 @@ export default function SellerPersonalInfo() {
               </AppText>
             </View>
 
-            <ReadOnlyField
-              label="Full Name"
-              value={name || "Sri Raj Dodda"}
-              iconName="user"
-              onLayout={e => handleFieldLayout("name", e)}
-            />
-            <ReadOnlyField
-              label="Mobile Number"
-              value={mobile ? `+91 ${mobile}` : "9876543210"}
-              iconName="phone"
-              onLayout={e => handleFieldLayout("mobile", e)}
-            />
-            <ReadOnlyField
-              label="Email Address"
-              value={email || "sriraj@gmail.com"}
-              iconName="envelope"
-              onLayout={e => handleFieldLayout("email", e)}
-            />
+            {/* ── Fields: 2-col on web, 1-col on mobile ── */}
+            {renderPersonalFields()}
           </SectionCard>
 
           {/* ── What's next card ── */}
@@ -396,22 +439,40 @@ export default function SellerPersonalInfo() {
   );
 }
 
+// ─── Web-only layout styles (2-col grid) ─────────────────────
+const ws = StyleSheet.create({
+  // Constrain and centre the scroll content on wide web screens
+  scrollContentWeb: {
+    maxWidth: 860,
+    alignSelf: "center",
+    width: "100%",
+  },
+  // A horizontal row that holds up to 2 field columns
+  fieldRow: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  // Each column takes equal width within the row
+  fieldCol: {
+    flex: 1,
+  },
+});
+
 // ─── Styles ──────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
 
   // ── Header ──
   topHeader:    { paddingHorizontal: 20, height: 200},
-  headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
-  backBtnHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
+ headerInner: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },  // backBtnHeader: {
+  //   width: 30,
+  //   height: 30,
+    // borderRadius: 20,
+    // backgroundColor: "rgba(255,255,255,0.15)",
+  //   alignItems: "center",
+  //   justifyContent: "center",
+  //   marginTop: 18,
+  // },
   headerLabel:  { fontSize: 10, fontFamily: fontFamilies.bold, color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
   headerTitle:  { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
   headerSub:    { fontSize: 12, color: "rgba(255,255,255,0.65)" },

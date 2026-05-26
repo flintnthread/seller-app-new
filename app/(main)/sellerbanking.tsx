@@ -19,6 +19,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Icon from "react-native-vector-icons/FontAwesome";
+import { fontFamilies } from "@/constants/fonts";
+
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -297,6 +299,20 @@ const inp = StyleSheet.create({
   autoNote:  { fontSize: 11, color: T.textLight, marginTop: 5, marginLeft: 2, fontStyle: "italic" },
 });
 
+// ─── Web-only: InputPairRow renders 2 inputs side-by-side on web, stacked on mobile ──
+const isWeb = Platform.OS === "web";
+
+const InputPairRow: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  isWeb ? (
+    <View style={pair.row}>{children}</View>
+  ) : (
+    <>{children}</>
+  );
+
+const pair = StyleSheet.create({
+  row: { flexDirection: "row", gap: 16 },
+});
+
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBanking() {
   const router = useRouter();
@@ -355,6 +371,8 @@ export default function SellerBanking() {
     }
   };
 
+  const autoFilled = bankName.length > 0 && branchName.length > 0;
+
   // ── Submit (100% unchanged) ──
   const handleNext = () => {
     const errors: { field: string; message: string }[] = [];
@@ -371,10 +389,8 @@ export default function SellerBanking() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
-    router.push({ pathname: "/sellerdocuments", params: { businessCategory } });
+    router.push({ pathname: "/(main)/sellerdocuments", params: { businessCategory } });
   };
-
-  const autoFilled = ifscCode.length === 11;
 
   // ─── Render ───────────────────────────────────────────────
   return (
@@ -389,14 +405,7 @@ export default function SellerBanking() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            <TouchableOpacity 
-              style={s.backBtnHeader} 
-              onPress={() => router.back()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity>
-            <View style={{ flex: 1, marginTop: 18 }}>
+            <View style={{ flex: 1}}>
               {/* Screen 1: 10px 700 uppercase letterSpacing 1.5 rgba white 0.55 */}
               <Text style={s.headerLabel}>STEP 4 OF 5</Text>
               {/* Screen 1: 18px 800 white */}
@@ -463,25 +472,31 @@ export default function SellerBanking() {
             <View style={s.innerDivider} />
             <SectionLabel title="Auto-filled Details" iconName="magic" color={T.success} />
 
-            <InputRow
-              label="Bank Name"
-              value={bankName}
-              onChangeText={(t) => { setBankName(t); clearError("bankName"); }}
-              placeholder="Auto-fills from IFSC code"
-              editable={!autoFilled}
-              autoFilled={autoFilled && bankName.length > 0}
-              accentColor={T.orange}
-            />
-
-            <InputRow
-              label="Branch Name"
-              value={branchName}
-              onChangeText={(t) => { setBranchName(t); clearError("branchName"); }}
-              placeholder="Auto-fills from IFSC code"
-              editable={!autoFilled}
-              autoFilled={autoFilled && branchName.length > 0}
-              accentColor={T.orange}
-            />
+            {/* Bank Name + Branch Name: side-by-side on web, stacked on mobile */}
+            <InputPairRow>
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Bank Name"
+                  value={bankName}
+                  onChangeText={() => null}
+                  placeholder="Auto-fills from IFSC code"
+                  editable={false}
+                  autoFilled={autoFilled && bankName.length > 0}
+                  accentColor={T.orange}
+                />
+              </View>
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Branch Name"
+                  value={branchName}
+                  onChangeText={() => null}
+                  placeholder="Auto-fills from IFSC code"
+                  editable={false}
+                  autoFilled={autoFilled && branchName.length > 0}
+                  accentColor={T.orange}
+                />
+              </View>
+            </InputPairRow>
           </SectionCard>
 
           {/* ── Account Information card ── */}
@@ -514,82 +529,64 @@ export default function SellerBanking() {
               showTick={false}
             />
 
-            <InputRow
-              label="Account Number"
-              value={accountNumber}
-              onChangeText={(t) => {
-                setAccountNumber(t);
-                const e = validateAccountNumber(t);
-                if (e) setError("accountNumber", e);
-                else { clearError("accountNumber"); setFieldValid(prev => ({ ...prev, accountNumber: true })); }
-                // Re-validate confirm field live if already has a value
-                if (confirmAccountNumber.length > 0) {
-                  const ce = validateConfirmAccountNumber(confirmAccountNumber, t);
-                  if (ce.error) setError("confirmAccountNumber", ce.error);
-                  else { clearError("confirmAccountNumber"); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
-                }
-              }}              
-              onBlur={() => { const e = validateAccountNumber(accountNumber); if (e) setError("accountNumber", e); else setFieldValid(prev => ({ ...prev, accountNumber: true })); }}
-              placeholder="Enter your bank account number"
-              keyboardType="numeric"
-              maxLength={20}
-              secureTextEntry
-              error={getError("accountNumber")}
-              accentColor={T.navy}
-              showTick={fieldValid.accountNumber ?? false}
-            />
-
-            <InputRow
-              label="Confirm Account Number"
-              value={confirmAccountNumber}
-              onChangeText={(t) => {
-                setConfirmAccountNumber(t);
-                const result = validateConfirmAccountNumber(t, accountNumber);
-                if (result.error) setError("confirmAccountNumber", result.error);
-                else if (result.success) { setSuccess("confirmAccountNumber", result.success); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
-                else { clearError("confirmAccountNumber"); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
-              }}
-              onBlur={() => { const result = validateConfirmAccountNumber(confirmAccountNumber, accountNumber); if (result.error) setError("confirmAccountNumber", result.error); else if (result.success) { setSuccess("confirmAccountNumber", result.success); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); } else setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }}
-              placeholder="Re-enter account number"
-              keyboardType="numeric"
-              maxLength={20}
-              secureTextEntry
-              error={getError("confirmAccountNumber")}
-              success={getSuccess("confirmAccountNumber")}
-              accentColor={T.navy}
-              showTick={fieldValid.confirmAccountNumber ?? false}
-            />
-          </SectionCard>
-
-          {/* ── What's Next card — exact Screen 1 ── */}
-          {/* <View style={s.whatNextCard}>
-            <LinearGradient
-              colors={[T.navy, T.navyLight]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={s.whatNextGrad}
-            > */}
-              {/* Screen 1: 14px 800 white letterSpacing 0.3 */}
-              {/* <Text style={s.whatNextTitle}>What's Next?</Text>
-              <View style={{ gap: 10 }}>
-                {[{ icon: "file-text", label: "Upload Documents" }].map(item => (
-                  <View key={item.icon} style={s.nextItem}> */}
-                    {/* Screen 1 nextDot */}
-                    {/* <View style={[s.nextDot, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
-                      <Icon name={item.icon} size={12} color={T.white} />
-                    </View> */}
-                    {/* Screen 1: 13px rgba white 0.8 weight 500 */}
-                    {/* <Text style={s.nextLabel}>{item.label}</Text>
-                  </View>
-                ))}
+            {/* Account Number + Confirm: side-by-side on web, stacked on mobile */}
+            <InputPairRow>
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Account Number"
+                  value={accountNumber}
+                  onChangeText={(t) => {
+                    setAccountNumber(t);
+                    const e = validateAccountNumber(t);
+                    if (e) setError("accountNumber", e);
+                    else { clearError("accountNumber"); setFieldValid(prev => ({ ...prev, accountNumber: true })); }
+                    // Re-validate confirm field live if already has a value
+                    if (confirmAccountNumber.length > 0) {
+                      const ce = validateConfirmAccountNumber(confirmAccountNumber, t);
+                      if (ce.error) setError("confirmAccountNumber", ce.error);
+                      else { clearError("confirmAccountNumber"); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
+                    }
+                  }}              
+                  onBlur={() => { const e = validateAccountNumber(accountNumber); if (e) setError("accountNumber", e); else setFieldValid(prev => ({ ...prev, accountNumber: true })); }}
+                  placeholder="Enter your bank account number"
+                  keyboardType="numeric"
+                  maxLength={20}
+                  secureTextEntry
+                  error={getError("accountNumber")}
+                  accentColor={T.navy}
+                  showTick={fieldValid.accountNumber ?? false}
+                />
               </View>
-            </LinearGradient>
-          </View> */}
+              <View style={isWeb ? { flex: 1 } : {}}>
+                <InputRow
+                  label="Confirm Account Number"
+                  value={confirmAccountNumber}
+                  onChangeText={(t) => {
+                    setConfirmAccountNumber(t);
+                    const result = validateConfirmAccountNumber(t, accountNumber);
+                    if (result.error) setError("confirmAccountNumber", result.error);
+                    else if (result.success) { setSuccess("confirmAccountNumber", result.success); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
+                    else { clearError("confirmAccountNumber"); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }
+                  }}
+                  onBlur={() => { const result = validateConfirmAccountNumber(confirmAccountNumber, accountNumber); if (result.error) setError("confirmAccountNumber", result.error); else if (result.success) { setSuccess("confirmAccountNumber", result.success); setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); } else setFieldValid(prev => ({ ...prev, confirmAccountNumber: true })); }}
+                  placeholder="Re-enter account number"
+                  keyboardType="numeric"
+                  maxLength={20}
+                  secureTextEntry
+                  error={getError("confirmAccountNumber")}
+                  success={getSuccess("confirmAccountNumber")}
+                  accentColor={T.navy}
+                  showTick={fieldValid.confirmAccountNumber ?? false}
+                />
+              </View>
+            </InputPairRow>
+          </SectionCard>
 
           {/* ── Buttons — exact Screen 1 ── */}
           <View style={s.buttonRow}>
             {/* Back — navy outline */}
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => router.push("/(main)/selleraddressinfo")}
               style={s.backBtn}
               activeOpacity={0.85}
             >
@@ -626,19 +623,11 @@ const s = StyleSheet.create({
   // ── Header — exact Screen 1 ──
   topHeader:    { paddingHorizontal: 20, height: 200 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
-  backBtnHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
-  headerLabel:  { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
-  headerTitle:  { fontSize: 18, fontWeight: "800", color: T.white, marginBottom: 2 },
-  headerSub:    { fontSize: 12, color: "rgba(255,255,255,0.65)" },
-  headerBadge:  { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+    headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
+    headerTitle: { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
+    headerSub: { fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: "400" },
+    headerBadge: { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+    headerBadgeText: { fontSize: 22 },
 
   // ── Progress — exact Screen 1 ──
   progressRow:   { flexDirection: "row", gap: 6, marginBottom: 7 },
@@ -651,14 +640,6 @@ const s = StyleSheet.create({
 
   // ── Inner divider ──
   innerDivider: { height: 1, backgroundColor: T.borderLight, marginBottom: 14 },
-
-  // ── What's Next — exact Screen 1 ──
-  // whatNextCard:  { borderRadius: 16, overflow: "hidden", marginBottom: 16 },
-  // whatNextGrad:  { padding: 18, borderRadius: 16 },
-  // whatNextTitle: { fontSize: 14, fontWeight: "800", color: T.white, marginBottom: 14, letterSpacing: 0.3 },
-  // nextItem:      { flexDirection: "row", alignItems: "center", gap: 12 },
-  // nextDot:       { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  // nextLabel:     { flex: 1, fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: "500" },
 
   // ── Buttons — exact Screen 1 ──
   buttonRow:        { flexDirection: "row", gap: 12, marginTop: 4, marginBottom: 4 },

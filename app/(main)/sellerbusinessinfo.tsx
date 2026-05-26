@@ -462,7 +462,7 @@ export default function SellerBusinessInfo() {
     setTimeout(() => { setGstVerified(true); setIsLoading(false); clearFieldError("gstNumber"); }, 1800);
   }, [gstNumber]);
 
-  const handleBack = () => router.back();
+  const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
   const handleNext = () => {
     const gstErr = businessCategory && hasGST ? validateGST(gstNumber) : "";
@@ -484,7 +484,7 @@ export default function SellerBusinessInfo() {
 
     if (errors.length > 0) { setValidationErrors(errors); return; }
     setValidationErrors([]);
-    router.push({ pathname: "/selleraddressinfo", params: { businessCategory } });
+    router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
   };
 
   return (
@@ -499,14 +499,14 @@ export default function SellerBusinessInfo() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={s.backBtnHeader} 
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity>
-            <View style={{ flex: 1, marginTop: 18 }}>
+            </TouchableOpacity> */}
+            <View style={{ flex: 1}}>
               <AppText style={s.headerLabel}>STEP 2 OF 5</AppText>
               <AppText style={s.headerTitle}>Business Information</AppText>
               <AppText style={s.headerSub}>Tell us about your business & documents</AppText>
@@ -551,7 +551,7 @@ export default function SellerBusinessInfo() {
             <View style={{ flexDirection: "row", gap: 12 }}>
               <CategoryCard
                 title="B2C"
-                desc="Sell directly to end customers"
+                desc="Sell directly to customers"
                 badge="Consumer"
                 selected={businessCategory === "B2C"}
                 onPress={() => { setBusinessCategory("B2C"); setHasGST(false); clearFieldError("businessCategory"); }}
@@ -813,15 +813,15 @@ const s = StyleSheet.create({
   // Header
   topHeader:    { paddingHorizontal: 20, height: 200 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
-  backBtnHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
+  // backBtnHeader: {
+  //   width: 40,
+  //   height: 40,
+  //   borderRadius: 20,
+  //   backgroundColor: "rgba(255,255,255,0.15)",
+  //   alignItems: "center",
+  //   justifyContent: "center",
+  //   marginTop: 18,
+  // },
   backBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", marginTop: 2 },
   backArrow: { color: T.white, fontSize: 18, fontWeight: "600" },
   headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
