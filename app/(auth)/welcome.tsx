@@ -38,7 +38,7 @@ export default function WelcomeScreen() {
           resizeMode="cover"
         />
         <Image
-          source={require("../../assets/images/bg.png")}
+          source={require("../../assets/images/wel2.png")}
           style={styles.chair}
           resizeMode="contain"
         />
