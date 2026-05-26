@@ -13,9 +13,9 @@ import {
   ActivityIndicator,
   Dimensions,
 } from "react-native";
-import { AppHeader } from "@/components/common/AppHeader";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import { useNavigation } from "@react-navigation/native";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -190,6 +190,8 @@ const stepCardStyles = StyleSheet.create({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function BulkUpload() {
+  const navigation = useNavigation();
+
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     size?: number | undefined;
@@ -201,6 +203,14 @@ export default function BulkUpload() {
     message: "",
     type: "success",
   });
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.history.back();
+    }
+  };
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ visible: true, message, type });
@@ -271,8 +281,22 @@ export default function BulkUpload() {
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
-      
-      <AppHeader title="Bulk Import Products" subtitle="Upload products in bulk using ZIP templates" showBackButton />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Feather name="arrow-left" size={20} color={T.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Bulk Import Products</Text>
+        </View>
+        <Text style={styles.headerSub}>Upload products in bulk using ZIP templates</Text>
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -290,7 +314,8 @@ export default function BulkUpload() {
             icon={<Feather name="download" size={20} color={T.orange} />}
             description={
               <Text style={styles.stepDescriptionText}>
-                Download the ZIP template which contains a formatted <Code>products.csv</Code> file and an empty <Code>images/</Code> folder.
+                Download the ZIP template which contains a formatted <Code>products.csv</Code> file
+                and an empty <Code>images/</Code> folder.
               </Text>
             }
             action={
@@ -310,7 +335,9 @@ export default function BulkUpload() {
             icon={<Feather name="edit-3" size={20} color={T.orange} />}
             description={
               <Text style={styles.stepDescriptionText}>
-                Fill out <Code>products.csv</Code>. Use the same <Code>Product Handle</Code> for rows that are variants of the same product. Place all your images inside the <Code>images/</Code> folder.
+                Fill out <Code>products.csv</Code>. Use the same <Code>Product Handle</Code> for
+                rows that are variants of the same product. Place all your images inside the{" "}
+                <Code>images/</Code> folder.
               </Text>
             }
           />
@@ -320,7 +347,8 @@ export default function BulkUpload() {
             icon={<MaterialCommunityIcons name="folder-zip-outline" size={20} color={T.orange} />}
             description={
               <Text style={styles.stepDescriptionText}>
-                Compress the folder back into a <Code>.zip</Code> file and upload it below. Our system will auto-calculate taxes, commissions, and delivery slabs.
+                Compress the folder back into a <Code>.zip</Code> file and upload it below. Our
+                system will auto-calculate taxes, commissions, and delivery slabs.
               </Text>
             }
           />
@@ -417,15 +445,23 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     marginTop: 30,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  backButton: {
+    marginRight: 10,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: T.white,
-    marginBottom: 4,
   },
   headerSub: {
     fontSize: 13,
     color: T.textLight,
+    marginLeft: 30,
   },
   scroll: {
     flex: 1,
