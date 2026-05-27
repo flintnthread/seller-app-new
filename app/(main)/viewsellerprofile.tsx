@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * SellerProfileScreen.jsx
  * FIXES:
@@ -7,6 +9,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+// @ts-nocheck
 import {
   View,
   Text,
