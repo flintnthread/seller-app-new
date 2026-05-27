@@ -20,6 +20,7 @@ import { Colors, palette } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontFamilies } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { setSellerId } from "@/lib/api/sellerSession";
 
 export default function SellerLogin() {
   const router = useRouter();
@@ -163,6 +164,10 @@ export default function SellerLogin() {
   const handleLogin = () => {
     if (!validate()) return;
     setLoading(true);
+    const devSellerId = Number(process.env.EXPO_PUBLIC_DEV_SELLER_ID ?? "114");
+    if (Number.isFinite(devSellerId) && devSellerId > 0) {
+      void setSellerId(devSellerId);
+    }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
         window.localStorage.setItem('isProfileCompleted', 'false');

@@ -21,6 +21,11 @@ import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
+import { ApiError } from "@/lib/api/client";
+import { setSellerId } from "@/lib/api/sellerSession";
+import { loginSeller } from "@/services/authApi";
 
 const C = {
   navy: "#1E3A6E",
@@ -90,6 +95,8 @@ export default function SellerLogin() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
+  const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
+  const { setIsProfileCompleted } = useProfileStatus();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -148,26 +155,6 @@ export default function SellerLogin() {
     return emailRegex.test(emailVal);
   };
 
-  const validatePassword = (passwordVal: string) => {
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(passwordVal);
-    const hasLowerCase = /[a-z]/.test(passwordVal);
-    const hasNumbers = /\d/.test(passwordVal);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(passwordVal);
-
-    const errors: string[] = [];
-
-    if (passwordVal.length < minLength) {
-      errors.push(`at least ${minLength} characters`);
-    }
-    if (!hasUpperCase) errors.push("one uppercase letter");
-    if (!hasLowerCase) errors.push("one lowercase letter");
-    if (!hasNumbers) errors.push("one number");
-    if (!hasSpecialChar) errors.push("one special character (!@#$%^&*)");
-
-    return { isValid: errors.length === 0, errors };
-  };
-
   const validate = () => {
     setEmailError(false);
     setPasswordError(false);
@@ -217,30 +204,33 @@ export default function SellerLogin() {
       }
     }
 
-    if (password.trim()) {
-      const passwordValidation = validatePassword(password);
-      if (!passwordValidation.isValid) {
-        setPasswordError(true);
-        setPasswordErrors(passwordValidation.errors);
-        hasError = true;
-      }
-    }
-
     return !hasError;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validate()) return;
     setLoading(true);
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('isProfileCompleted', 'false');
-      } catch (e) {}
-    }
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const result = await loginSeller(email.trim(), password);
+      await setSellerId(result.sellerId);
+      setIsProfileCompleted(result.profileCompleted);
+      showSuccess(`Welcome back${result.firstName ? `, ${result.firstName}` : ""}!`, "Login successful");
       router.replace("/(main)/dashboard");
-    }, 1200);
+    } catch (e) {
+      const message =
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Login failed. Please try again.";
+      if (e instanceof ApiError && e.status === 403) {
+        showWarning(message, "Cannot log in");
+      } else {
+        showError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEmailChange = (text: string) => {
@@ -397,7 +387,7 @@ export default function SellerLogin() {
         </Pressable>
 
         <Pressable
-          onPress={handleLogin}
+          onPress={() => void handleLogin()}
           disabled={loading}
           style={({ pressed }) => [
             isDesktop ? styles.loginBtnPressDesktop : styles.loginBtn,
@@ -436,6 +426,7 @@ export default function SellerLogin() {
   );
 
   return (
+    <>
     <View style={styles.container}>
       {isDesktop ? (
         <LinearGradient
@@ -524,6 +515,8 @@ export default function SellerLogin() {
         )}
       </View>
     </View>
+    <SweetAlertHost />
+    </>
   );
 }
 

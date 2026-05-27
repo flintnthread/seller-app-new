@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileStatus } from '@/hooks/useProfileStatus';
+import { clearSellerId } from '@/lib/api/sellerSession';
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
@@ -100,12 +101,20 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                         if (Platform.OS === 'web') {
                           const confirmLogout = window.confirm("Are you sure you want to logout?");
                           if (confirmLogout) {
+                            void clearSellerId();
                             router.replace("/(auth)/login");
                           }
                         } else {
                           Alert.alert("Logout", "Are you sure you want to logout?", [
                             { text: "Cancel", style: "cancel" },
-                            { text: "Logout", style: "destructive", onPress: () => router.replace("/(auth)/login") },
+                            {
+                              text: "Logout",
+                              style: "destructive",
+                              onPress: () => {
+                                void clearSellerId();
+                                router.replace("/(auth)/login");
+                              },
+                            },
                           ]);
                         }
                       } else if (item.name === 'Complete Profile') {

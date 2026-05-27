@@ -3,5 +3,5 @@ import { CatalogAttributeScreen } from "@/components/catalog/CatalogAttributeScr
 import { SIZE_PAGE_CONFIG } from "@/components/catalog/catalogConfig";
 
 export default function SizesPage() {
-    return <CatalogAttributeScreen config={SIZE_PAGE_CONFIG} />;
+    return <CatalogAttributeScreen config={SIZE_PAGE_CONFIG} initialSizes={[]} />;
 }
