@@ -557,6 +557,7 @@ const PRODUCT_ACTIONS = [
     { icon: "eye-outline",        label: "View Product",    color: C.blue,   bg: C.bluePale   },
     { icon: "pencil-outline",     label: "Edit Product",    color: C.purple, bg: C.purplePale },
     { icon: "map-marker-outline", label: "Update Location", color: C.teal,   bg: "#F0FDFA"    },
+    { icon: "star-outline",       label: "Reviews",         color: C.yellow, bg: C.yellowPale },
     { icon: "trash-can-outline",  label: "Delete Product",  color: C.red,    bg: C.redPale    },
 ];
 
@@ -573,6 +574,7 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
         } else if (label === "View Product") { onClose(); router.push("/(main)/Productdetail");
         } else if (label === "Edit Product") { onClose(); router.push("/(main)/Editproduct");
         } else if (label === "Update Location") { onClose(); setTimeout(() => onUpdateLocation(product.id), 200);
+        } else if (label === "Reviews") { onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } });
         } else { onClose(); }
     };
 
@@ -640,6 +642,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
         } else if (label === "View Product")    { onClose(); router.push("/(main)/Productdetail"); }
         else if (label === "Edit Product")      { onClose(); router.push("/(main)/Editproduct"); }
         else if (label === "Update Location")   { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
+        else if (label === "Reviews")           { onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } }); }
         else                                    { onClose(); }
     };
 

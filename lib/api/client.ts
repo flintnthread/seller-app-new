@@ -1,0 +1,65 @@
+import { Platform } from "react-native";
+import { resolveApiBaseUrl } from "./config";
+import { ensureSellerId } from "./sellerSession";
+
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public readonly status?: number
+    ) {
+        super(message);
+        this.name = "ApiError";
+    }
+}
+
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError("Seller not logged in. Please log in again.");
+    }
+
+    const baseUrl = resolveApiBaseUrl();
+    const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+
+    let res: Response;
+    try {
+        res = await fetch(url, {
+            ...init,
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "X-Seller-Id": String(sellerId),
+                ...(init?.headers ?? {}),
+            },
+        });
+    } catch {
+        const emulatorHint =
+            Platform.OS === "android"
+                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true in .env, or use http://10.0.2.2:8080"
+                : "";
+        const phoneHint =
+            Platform.OS !== "web"
+                ? "\n• Physical device: set EXPO_PUBLIC_API_BASE_URL to your PC IP in .env (ipconfig)"
+                : "";
+        throw new ApiError(
+            `Cannot reach API at ${baseUrl}.${phoneHint}${emulatorHint}\n• Ensure backend is running: cd seller-backend && .\\mvnw.cmd spring-boot:run`
+        );
+    }
+
+    if (!res.ok) {
+        let message = `Request failed (${res.status})`;
+        try {
+            const body = await res.json();
+            if (body?.message) message = body.message;
+        } catch {
+            // ignore
+        }
+        throw new ApiError(message, res.status);
+    }
+
+    if (res.status === 204) {
+        return undefined as T;
+    }
+
+    return res.json() as Promise<T>;
+}

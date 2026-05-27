@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -6,14 +6,14 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    Image,
     SafeAreaView,
     StatusBar,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
     useFonts,
     Outfit_400Regular,
@@ -23,6 +23,10 @@ import {
 } from "@expo-google-fonts/outfit";
 import { useResponsive } from "@/hooks/useResponsive";
 import { ORANGE_BRAND } from "./catalogConfig";
+import {
+    createCategoryRequest,
+    fetchCategoryRequests,
+} from "@/services/categoryRequestApi";
 
 export type CategoryRequestStatus = "Pending" | "Approved" | "Rejected";
 
@@ -42,35 +46,6 @@ const GUIDELINES = [
     "Review time: 2-3 business days",
 ];
 
-const INITIAL_REQUESTS: CategoryRequestRecord[] = [
-    {
-        id: "1",
-        categoryName: "Smart Home Devices",
-        description: "IoT devices, smart speakers, and home automation products.",
-        reason: "Expanding our electronics line to include connected home products.",
-        status: "Approved",
-        submittedAt: "18 Apr 2024",
-    },
-    {
-        id: "2",
-        categoryName: "Organic Foods",
-        description: "Certified organic groceries and packaged foods.",
-        reason: "Customer demand for organic and health-focused products.",
-        status: "Pending",
-        submittedAt: "02 May 2024",
-    },
-    {
-        id: "3",
-        categoryName: "Vintage Collectibles",
-        description: "Rare vintage items and collectible memorabilia.",
-        reason: "Niche category for our antique seller segment.",
-        status: "Rejected",
-        submittedAt: "28 Mar 2024",
-    },
-];
-
-const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
 const statusStyle = (status: CategoryRequestStatus) => {
     if (status === "Approved") return { bg: "#DCFCE7", color: "#16A34A" };
     if (status === "Rejected") return { bg: "#FEE2E2", color: "#DC2626" };
@@ -78,13 +53,17 @@ const statusStyle = (status: CategoryRequestStatus) => {
 };
 
 export function CategoryRequestScreen() {
-    const router = useRouter();
     const { isWeb, isDesktop } = useResponsive();
+    const { showSuccess, showError, showWarning, confirmAction, SweetAlertHost } = useSweetAlert();
+
     const [categoryName, setCategoryName] = useState("");
     const [description, setDescription] = useState("");
     const [reason, setReason] = useState("");
     const [nameError, setNameError] = useState("");
-    const [requests, setRequests] = useState<CategoryRequestRecord[]>(INITIAL_REQUESTS);
+    const [requests, setRequests] = useState<CategoryRequestRecord[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     const [fontsLoaded] = useFonts({
         Outfit_400Regular,
@@ -93,6 +72,30 @@ export function CategoryRequestScreen() {
         Outfit_700Bold,
     });
 
+    const loadRequests = useCallback(async () => {
+        setLoading(true);
+        setLoadError("");
+        try {
+            const rows = await fetchCategoryRequests();
+            setRequests(rows);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Could not load your requests.";
+            setLoadError(msg);
+            showError(msg);
+        } finally {
+            setLoading(false);
+        }
+    }, [showError]);
+
+    useEffect(() => {
+        void loadRequests();
+    }, [loadRequests]);
+
+    const isFormDirty =
+        categoryName.trim().length > 0 ||
+        description.trim().length > 0 ||
+        reason.trim().length > 0;
+
     const resetForm = () => {
         setCategoryName("");
         setDescription("");
@@ -100,29 +103,50 @@ export function CategoryRequestScreen() {
         setNameError("");
     };
 
-    const handleSubmit = () => {
+    const handleReset = async () => {
+        if (!isFormDirty) return;
+        const confirmed = await confirmAction(
+            "Reset form?",
+            "Clear all fields? Your entered text will be lost.",
+            "Reset"
+        );
+        if (confirmed) resetForm();
+    };
+
+    const handleSubmit = async () => {
         const name = categoryName.trim();
         if (!name) {
             setNameError("Category name is required");
+            showWarning("Please enter a category name.", "Required field");
             return;
         }
         setNameError("");
-        setRequests((prev) => [
-            {
-                id: genId(),
+
+        const confirmed = await confirmAction(
+            "Submit request?",
+            `Submit a category request for "${name}"? Our team will review it within 2–3 business days.`,
+            "Submit"
+        );
+        if (!confirmed) return;
+
+        setSubmitting(true);
+        try {
+            const created = await createCategoryRequest({
                 categoryName: name,
                 description: description.trim(),
                 reason: reason.trim(),
-                status: "Pending",
-                submittedAt: new Date().toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                }),
-            },
-            ...prev,
-        ]);
-        resetForm();
+            });
+            setRequests((prev) => [created, ...prev]);
+            resetForm();
+            showSuccess(
+                "Your category request has been submitted. You will be notified once it is reviewed.",
+                "Request submitted!"
+            );
+        } catch (e) {
+            showError(e instanceof Error ? e.message : "Could not submit your request.");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     if (!fontsLoaded) return null;
@@ -144,11 +168,14 @@ export function CategoryRequestScreen() {
                         setCategoryName(t);
                         if (nameError) setNameError("");
                     }}
+                    editable={!submitting}
                 />
                 {nameError ? (
                     <Text style={pg.errorTxt}>{nameError}</Text>
                 ) : (
-                    <Text style={pg.helper}>Enter the name of the main category you&apos;d like to request</Text>
+                    <Text style={pg.helper}>
+                        Enter the name of the main category you&apos;d like to request
+                    </Text>
                 )}
             </View>
 
@@ -163,6 +190,7 @@ export function CategoryRequestScreen() {
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
+                    editable={!submitting}
                 />
             </View>
 
@@ -177,15 +205,30 @@ export function CategoryRequestScreen() {
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
+                    editable={!submitting}
                 />
             </View>
 
             <View style={pg.formActions}>
-                <TouchableOpacity style={pg.resetBtn} onPress={resetForm} activeOpacity={0.8}>
+                <TouchableOpacity
+                    style={[pg.resetBtn, submitting && pg.btnDisabled]}
+                    onPress={() => void handleReset()}
+                    activeOpacity={0.8}
+                    disabled={submitting}
+                >
                     <Text style={pg.resetBtnTxt}>Reset</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={pg.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
-                    <Text style={pg.submitBtnTxt}>Submit Request</Text>
+                <TouchableOpacity
+                    style={[pg.submitBtn, submitting && pg.btnDisabled]}
+                    onPress={() => void handleSubmit()}
+                    activeOpacity={0.85}
+                    disabled={submitting}
+                >
+                    {submitting ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                        <Text style={pg.submitBtnTxt}>Submit Request</Text>
+                    )}
                 </TouchableOpacity>
             </View>
         </View>
@@ -208,38 +251,73 @@ export function CategoryRequestScreen() {
         </View>
     );
 
+    const requestRow = (row: CategoryRequestRecord, idx: number) => {
+        const st = statusStyle(row.status);
+        return (
+            <View key={row.id} style={[pg.tr, idx % 2 === 1 && pg.trAlt]}>
+                <Text style={[pg.td, pg.colName]} numberOfLines={2}>
+                    {row.categoryName}
+                </Text>
+                <Text style={[pg.tdLight, pg.colDate]}>{row.submittedAt}</Text>
+                <View style={pg.colStatus}>
+                    <View style={[pg.badge, { backgroundColor: st.bg }]}>
+                        <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
+                    </View>
+                </View>
+            </View>
+        );
+    };
+
+    const requestCard = (row: CategoryRequestRecord) => {
+        const st = statusStyle(row.status);
+        return (
+            <View key={row.id} style={pg.mobileRequestCard}>
+                <View style={pg.mobileCardTop}>
+                    <Text style={pg.mobileCardName} numberOfLines={2}>
+                        {row.categoryName}
+                    </Text>
+                    <View style={[pg.badge, { backgroundColor: st.bg }]}>
+                        <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
+                    </View>
+                </View>
+                <Text style={pg.mobileCardDate}>Submitted: {row.submittedAt}</Text>
+            </View>
+        );
+    };
+
     const previousSection = (
         <View style={pg.previousSection}>
-            <Text style={pg.sectionTitle}>Your Previous Requests</Text>
+            <View style={pg.sectionHeadRow}>
+                <Text style={pg.sectionTitle}>Your Previous Requests</Text>
+                {!loading && loadError ? (
+                    <TouchableOpacity onPress={() => void loadRequests()} activeOpacity={0.8}>
+                        <Text style={pg.retryTxt}>Retry</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
             <View style={pg.tableCard}>
-                <View style={pg.tableHead}>
-                    <Text style={[pg.th, pg.colName]}>Category Name</Text>
-                    <Text style={[pg.th, pg.colDate]}>Submitted</Text>
-                    <Text style={[pg.th, pg.colStatus]}>Status</Text>
-                </View>
-                {requests.length === 0 ? (
+                {loading ? (
+                    <View style={pg.empty}>
+                        <ActivityIndicator size="large" color={ORANGE_BRAND} />
+                        <Text style={pg.emptySub}>Loading your requests…</Text>
+                    </View>
+                ) : requests.length === 0 ? (
                     <View style={pg.empty}>
                         <MaterialCommunityIcons name="folder-open-outline" size={40} color="#D1D5DB" />
                         <Text style={pg.emptyTitle}>No requests yet</Text>
                         <Text style={pg.emptySub}>Submit your first category request above.</Text>
                     </View>
+                ) : isDesktop ? (
+                    <>
+                        <View style={pg.tableHead}>
+                            <Text style={[pg.th, pg.colName]}>Category Name</Text>
+                            <Text style={[pg.th, pg.colDate]}>Submitted</Text>
+                            <Text style={[pg.th, pg.colStatus]}>Status</Text>
+                        </View>
+                        {requests.map(requestRow)}
+                    </>
                 ) : (
-                    requests.map((row, idx) => {
-                        const st = statusStyle(row.status);
-                        return (
-                            <View key={row.id} style={[pg.tr, idx % 2 === 1 && pg.trAlt]}>
-                                <Text style={[pg.td, pg.colName]} numberOfLines={2}>
-                                    {row.categoryName}
-                                </Text>
-                                <Text style={[pg.tdLight, pg.colDate]}>{row.submittedAt}</Text>
-                                <View style={pg.colStatus}>
-                                    <View style={[pg.badge, { backgroundColor: st.bg }]}>
-                                        <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
-                                    </View>
-                                </View>
-                            </View>
-                        );
-                    })
+                    <View style={pg.mobileList}>{requests.map(requestCard)}</View>
                 )}
             </View>
         </View>
@@ -250,7 +328,8 @@ export function CategoryRequestScreen() {
             <View style={pg.pageHeader}>
                 <Text style={pg.pageTitle}>Category Request</Text>
                 <Text style={pg.pageSub}>
-                    Request a new product category for your catalog. Our team will review your submission within 2–3 business days.
+                    Request a new product category for your catalog. Our team will review your
+                    submission within 2–3 business days.
                 </Text>
             </View>
 
@@ -263,16 +342,27 @@ export function CategoryRequestScreen() {
         </View>
     );
 
+    const content = (
+        <>
+            {pageBody}
+            <SweetAlertHost />
+        </>
+    );
+
     if (isWeb) {
-        return <ScrollView showsVerticalScrollIndicator={isDesktop}>{pageBody}</ScrollView>;
+        return <ScrollView showsVerticalScrollIndicator={isDesktop}>{content}</ScrollView>;
     }
 
     return (
         <SafeAreaView style={pg.mobileRoot}>
             <StatusBar barStyle="light-content" backgroundColor="#151D4F" />
-            <AppHeader title="Categories" subtitle="Browse product categories" showBackButton />
+            <AppHeader
+                title="Category Request"
+                subtitle="Request a new product category"
+                showBackButton
+            />
             <ScrollView contentContainerStyle={pg.mobileScroll} showsVerticalScrollIndicator={false}>
-                {pageBody}
+                {content}
             </ScrollView>
         </SafeAreaView>
     );
@@ -280,50 +370,6 @@ export function CategoryRequestScreen() {
 
 const pg = StyleSheet.create({
     mobileRoot: { flex: 1, backgroundColor: "#F7F8FC" },
-    mobileHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#151D4F",
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        height: 60,
-    },
-    headerLogoBtn: {},
-    headerLogoCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: "#FFFFFF",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    headerTitleBlock: {
-        flex: 1,
-        marginHorizontal: 12,
-    },
-    mobileHeaderTitle: {
-        fontFamily: "Outfit_700Bold",
-        fontSize: 16,
-        color: "#FFFFFF",
-    },
-    mobileHeaderSub: {
-        fontFamily: "Outfit_400Regular",
-        fontSize: 12,
-        color: "rgba(255,255,255,0.7)",
-    },
-    headerActions: {
-        flexDirection: "row",
-        gap: 4,
-    },
-    headerIconBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "rgba(255,255,255,0.12)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
     wrapWeb: { paddingHorizontal: 0, paddingTop: 0, maxWidth: 1100, width: "100%", alignSelf: "center" },
@@ -414,6 +460,8 @@ const pg = StyleSheet.create({
         backgroundColor: "#F3F4F6",
         borderWidth: 1,
         borderColor: "#E5E7EB",
+        minWidth: 88,
+        alignItems: "center",
     },
     resetBtnTxt: {
         fontFamily: "Outfit_600SemiBold",
@@ -425,12 +473,16 @@ const pg = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 8,
         backgroundColor: ORANGE_BRAND,
+        minWidth: 140,
+        alignItems: "center",
+        justifyContent: "center",
     },
     submitBtnTxt: {
         fontFamily: "Outfit_700Bold",
         fontSize: 14,
         color: "#FFFFFF",
     },
+    btnDisabled: { opacity: 0.65 },
     guidelinesTitle: {
         fontFamily: "Outfit_700Bold",
         fontSize: 16,
@@ -472,11 +524,21 @@ const pg = StyleSheet.create({
         lineHeight: 19,
     },
     previousSection: { marginTop: 4 },
+    sectionHeadRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 14,
+    },
     sectionTitle: {
         fontFamily: "Outfit_700Bold",
         fontSize: 18,
         color: "#111827",
-        marginBottom: 14,
+    },
+    retryTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 14,
+        color: ORANGE_BRAND,
     },
     tableCard: {
         backgroundColor: "#FFFFFF",
@@ -520,6 +582,32 @@ const pg = StyleSheet.create({
         borderRadius: 20,
     },
     badgeTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12 },
+    mobileList: { padding: 12, gap: 10 },
+    mobileRequestCard: {
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: 10,
+        padding: 14,
+        backgroundColor: "#FAFAFA",
+    },
+    mobileCardTop: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 10,
+        marginBottom: 8,
+    },
+    mobileCardName: {
+        flex: 1,
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 15,
+        color: "#111827",
+    },
+    mobileCardDate: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 12,
+        color: "#6B7280",
+    },
     empty: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 24 },
     emptyTitle: {
         fontFamily: "Outfit_600SemiBold",

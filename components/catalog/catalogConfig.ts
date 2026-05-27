@@ -7,6 +7,8 @@ export type ColorRecord = {
     hex: string;
     status: CatalogStatus;
     createdAt: string;
+    /** True only when created by the logged-in seller (can edit/delete). */
+    owned?: boolean;
 };
 
 export type SizeRecord = {
@@ -15,7 +17,14 @@ export type SizeRecord = {
     code: string;
     status: CatalogStatus;
     createdAt: string;
+    /** True only when created by the logged-in seller (can edit/delete). */
+    owned?: boolean;
 };
+
+/** Shared catalog rows (seller_id null) are view-only. */
+export function isOwnedCatalogItem(item: { owned?: boolean }): boolean {
+    return item.owned === true;
+}
 
 export const ORANGE_BRAND = "#F28520";
 export const ORANGE_BRAND_DARK = "#E07510";
@@ -58,7 +67,7 @@ export type CatalogPageConfig = {
 export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
     kind: "color",
     pageTitle: "Colors",
-    pageSubtitle: "Manage product colors for your catalog. Colors cannot be edited after creation.",
+    pageSubtitle: "Manage your colors. You can edit or delete only colors you added; shared catalog colors are view only.",
     addModalTitle: "Add New Color",
     saveButtonLabel: "Save Color",
     entityLabel: "color",
@@ -72,7 +81,7 @@ export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
 export const SIZE_PAGE_CONFIG: CatalogPageConfig = {
     kind: "size",
     pageTitle: "Sizes",
-    pageSubtitle: "Manage product sizes for your catalog. Sizes cannot be edited after creation.",
+    pageSubtitle: "Manage your sizes. You can edit or delete only sizes you added; shared catalog sizes are view only.",
     addModalTitle: "Add New Size",
     saveButtonLabel: "Save Size",
     entityLabel: "size",

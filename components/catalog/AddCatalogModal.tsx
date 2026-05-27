@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -9,11 +9,9 @@ import {
     ScrollView,
     Platform,
     Alert,
-    Animated,
-    Dimensions,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import type { CatalogPageConfig, CatalogStatus } from "./catalogConfig";
+import type { CatalogPageConfig, CatalogStatus, ColorRecord, SizeRecord } from "./catalogConfig";
 import {
     ORANGE_BRAND,
     STATUS_OPTIONS,
@@ -22,192 +20,26 @@ import {
 } from "./catalogConfig";
 import { useResponsive } from "@/hooks/useResponsive";
 
-// ─── Sweet Alert Toast ───────────────────────────────────────────────────────
-
-type SweetAlertToastProps = {
-    visible: boolean;
-    message: string;
-    onHide: () => void;
-};
-
-function SweetAlertToast({ visible, message, onHide }: SweetAlertToastProps) {
-    const translateX = useRef(new Animated.Value(400)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
-    const progressWidth = useRef(new Animated.Value(100)).current;
-
-    useEffect(() => {
-        if (visible) {
-            // Reset
-            translateX.setValue(400);
-            opacity.setValue(0);
-            progressWidth.setValue(100);
-
-            // Slide in from right to left + fade in
-            Animated.parallel([
-                Animated.spring(translateX, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    tension: 60,
-                    friction: 10,
-                }),
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration: 300,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-
-            // Progress bar drains over 4 seconds
-            Animated.timing(progressWidth, {
-                toValue: 0,
-                duration: 4000,
-                useNativeDriver: false,
-            }).start();
-
-            // After 4s, slide out to left
-            const timer = setTimeout(() => {
-                Animated.parallel([
-                    Animated.timing(translateX, {
-                        toValue: -400,
-                        duration: 350,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(opacity, {
-                        toValue: 0,
-                        duration: 350,
-                        useNativeDriver: true,
-                    }),
-                ]).start(() => onHide());
-            }, 4000);
-
-            return () => clearTimeout(timer);
-        }
-    }, [visible]);
-
-    if (!visible) return null;
-
-    const progressInterpolate = progressWidth.interpolate({
-        inputRange: [0, 100],
-        outputRange: ["0%", "100%"],
-    });
-
-    return (
-        <View style={toast.wrapper} pointerEvents="none">
-            <Animated.View
-                style={[
-                    toast.container,
-                    {
-                        opacity,
-                        transform: [{ translateX }],
-                    },
-                ]}
-            >
-                {/* Icon circle */}
-                <View style={toast.iconCircle}>
-                    <View style={toast.checkOuter}>
-                        <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    </View>
-                </View>
-
-                {/* Text content */}
-                <View style={toast.textBlock}>
-                    <Text style={toast.title}>Success!</Text>
-                    <Text style={toast.message}>{message}</Text>
-                </View>
-
-                {/* Progress bar */}
-                <Animated.View
-                    style={[
-                        toast.progressBar,
-                        { width: progressInterpolate },
-                    ]}
-                />
-            </Animated.View>
-        </View>
-    );
-}
-
-const toast = StyleSheet.create({
-    wrapper: {
-        position: "absolute",
-        top: 56,
-        right: 16,
-        left: 16,
-        zIndex: 9999,
-        alignItems: "flex-end",
-        pointerEvents: "none",
-    },
-    container: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 14,
-        borderLeftWidth: 5,
-        borderLeftColor: "#16A34A",
-        paddingHorizontal: 16,
-        paddingTop: 14,
-        paddingBottom: 18,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        maxWidth: 340,
-        width: "100%",
-        // Shadow
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.18,
-        shadowRadius: 16,
-        elevation: 12,
-        overflow: "hidden",
-    },
-    iconCircle: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: "#DCFCE7",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-    },
-    checkOuter: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: "#16A34A",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    textBlock: {
-        flex: 1,
-    },
-    title: {
-        fontFamily: "Outfit_700Bold",
-        fontSize: 14,
-        color: "#15803D",
-        marginBottom: 2,
-    },
-    message: {
-        fontFamily: "Outfit_400Regular",
-        fontSize: 13,
-        color: "#374151",
-        lineHeight: 18,
-    },
-    progressBar: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        height: 4,
-        backgroundColor: "#16A34A",
-        borderBottomLeftRadius: 14,
-    },
-});
-
 // ─── Warning bullets ─────────────────────────────────────────────────────────
 
 type AddCatalogModalProps = {
     visible: boolean;
     config: CatalogPageConfig;
     onClose: () => void;
-    onSaveColor: (payload: { name: string; hex: string; status: CatalogStatus }) => void;
-    onSaveSize: (payload: { name: string; code: string; status: CatalogStatus }) => void;
+    onSaveColor: (payload: { name: string; hex: string; status: CatalogStatus }) => Promise<boolean> | boolean;
+    onSaveSize: (payload: { name: string; code: string; status: CatalogStatus }) => Promise<boolean> | boolean;
+    editingSize?: SizeRecord | null;
+    editingColor?: ColorRecord | null;
+    onUpdateSize?: (
+        id: string,
+        payload: { name: string; code: string; status: CatalogStatus }
+    ) => Promise<boolean> | boolean;
+    onUpdateColor?: (
+        id: string,
+        payload: { name: string; hex: string; status: CatalogStatus }
+    ) => Promise<boolean> | boolean;
+    onNotifySuccess?: (message: string) => void;
+    onNotifyError?: (message: string) => void;
 };
 
 const WARNING_BULLETS = (entity: string) => [
@@ -225,6 +57,12 @@ export function AddCatalogModal({
     onClose,
     onSaveColor,
     onSaveSize,
+    editingSize = null,
+    editingColor = null,
+    onUpdateSize,
+    onUpdateColor,
+    onNotifySuccess,
+    onNotifyError,
 }: AddCatalogModalProps) {
     const { isDesktop } = useResponsive();
     const [name, setName] = useState("");
@@ -233,13 +71,18 @@ export function AddCatalogModal({
     const [status, setStatus] = useState<CatalogStatus>("Active");
     const [statusOpen, setStatusOpen] = useState(false);
 
-    // Sweet alert state
-    const [toastVisible, setToastVisible] = useState(false);
-    const [toastMessage, setToastMessage] = useState("");
+    const notifySuccess = (msg: string) => {
+        if (onNotifySuccess) {
+            setTimeout(() => onNotifySuccess(msg), 100);
+        }
+    };
 
-    const showToast = (msg: string) => {
-        setToastMessage(msg);
-        setToastVisible(true);
+    const notifyValidation = (title: string, message: string) => {
+        if (onNotifyError) {
+            onNotifyError(message);
+        } else {
+            Alert.alert(title, message);
+        }
     };
 
     const reset = () => {
@@ -250,69 +93,94 @@ export function AddCatalogModal({
         setStatusOpen(false);
     };
 
-    useEffect(() => {
-        if (!visible) reset();
-    }, [visible]);
+    const isEditSize = config.kind === "size" && editingSize != null;
+    const isEditColor = config.kind === "color" && editingColor != null;
 
-    const handleSave = () => {
+    useEffect(() => {
+        if (!visible) {
+            reset();
+            return;
+        }
+        if (isEditSize && editingSize) {
+            setName(editingSize.name);
+            setCode(editingSize.code);
+            setStatus(editingSize.status);
+        } else if (isEditColor && editingColor) {
+            setName(editingColor.name);
+            setHex(editingColor.hex);
+            setStatus(editingColor.status);
+        }
+    }, [visible, isEditSize, isEditColor, editingSize, editingColor]);
+
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
         const trimmedName = name.trim();
         if (!trimmedName) {
-            Alert.alert("Required", `Please enter a ${config.entityLabel} name.`);
+            notifyValidation("Required", `Please enter a ${config.entityLabel} name.`);
             return;
         }
         if (config.kind === "color") {
             const normalized = normalizeHex(hex);
             if (!isValidHex(normalized)) {
-                Alert.alert("Invalid color", "Enter a valid hex code (e.g., #FF5733).");
+                notifyValidation("Invalid color", "Enter a valid hex code (e.g., #FF5733).");
                 return;
             }
             onSaveColor({ name: trimmedName, hex: normalized, status });
             reset();
             onClose();
-            // Show toast after modal closes (brief delay so it layers above)
-            setTimeout(() => showToast("Your color has been added successfully."), 100);
-        } else {
-            const trimmedCode = code.trim();
-            if (!trimmedCode) {
-                Alert.alert("Required", "Please enter a size code.");
-                return;
+            notifySuccess("Your color has been added successfully.");
+            return;
+        }
+
+        const trimmedCode = code.trim();
+        if (!trimmedCode) {
+            notifyValidation("Required", "Please enter a size code.");
+            return;
+        }
+        const payload = { name: trimmedName, code: trimmedCode.toUpperCase(), status };
+
+        setSaving(true);
+        try {
+            let ok = false;
+            if (isEditSize && editingSize && onUpdateSize) {
+                ok = (await onUpdateSize(editingSize.id, payload)) !== false;
+                if (ok) {
+                    reset();
+                    onClose();
+                    notifySuccess("Your size has been updated successfully.");
+                }
+            } else {
+                ok = (await onSaveSize(payload)) !== false;
+                if (ok) {
+                    reset();
+                    onClose();
+                    notifySuccess("Your size has been added successfully.");
+                }
             }
-            onSaveSize({ name: trimmedName, code: trimmedCode.toUpperCase(), status });
-            reset();
-            onClose();
-            setTimeout(() => showToast("Your size has been added successfully."), 100);
+        } finally {
+            setSaving(false);
         }
     };
+
+    const isEdit = isEditSize || isEditColor;
+    const modalTitle = isEdit ? `Edit ${config.entityLabel}` : config.addModalTitle;
+    const saveLabel = isEdit ? `Update ${config.entityLabel}` : config.saveButtonLabel;
 
     const displayHex = isValidHex(hex) ? normalizeHex(hex) : "#CCCCCC";
 
     return (
-        <>
-            {/* ── Sweet Alert Toast (rendered outside Modal so it's always on top) ── */}
-            <SweetAlertToast
-                visible={toastVisible}
-                message={toastMessage}
-                onHide={() => setToastVisible(false)}
-            />
-
-            <Modal
-                visible={visible}
-                transparent
-                animationType={isDesktop ? "fade" : "slide"}
-                onRequestClose={onClose}
-            >
-                {/* Toast also inside Modal so it shows when modal is open */}
-                <SweetAlertToast
-                    visible={toastVisible}
-                    message={toastMessage}
-                    onHide={() => setToastVisible(false)}
-                />
-
-                <View style={[m.overlay, isDesktop && m.overlayCenter]}>
+        <Modal
+            visible={visible}
+            transparent
+            animationType={isDesktop ? "fade" : "slide"}
+            onRequestClose={onClose}
+        >
+            <View style={[m.overlay, isDesktop && m.overlayCenter]}>
                     <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
                     <View style={[m.sheet, isDesktop && m.sheetDesktop]}>
                         <View style={m.header}>
-                            <Text style={m.headerTitle}>{config.addModalTitle}</Text>
+                            <Text style={m.headerTitle}>{modalTitle}</Text>
                             <TouchableOpacity
                                 onPress={onClose}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -441,22 +309,24 @@ export function AddCatalogModal({
                                 </View>
                             )}
 
-                            <View style={m.warningBox}>
-                                <View style={m.warningTitleRow}>
-                                    <MaterialCommunityIcons
-                                        name="alert"
-                                        size={16}
-                                        color="#DC2626"
-                                    />
-                                    <Text style={m.warningTitle}>CRITICAL WARNING:</Text>
-                                </View>
-                                {WARNING_BULLETS(config.warningEntity).map((line) => (
-                                    <View key={line} style={m.warningBulletRow}>
-                                        <Text style={m.warningBullet}>•</Text>
-                                        <Text style={m.warningTxt}>{line}</Text>
+                            {config.kind === "color" && !isEditColor && (
+                                <View style={m.warningBox}>
+                                    <View style={m.warningTitleRow}>
+                                        <MaterialCommunityIcons
+                                            name="alert"
+                                            size={16}
+                                            color="#DC2626"
+                                        />
+                                        <Text style={m.warningTitle}>CRITICAL WARNING:</Text>
                                     </View>
-                                ))}
-                            </View>
+                                    {WARNING_BULLETS(config.warningEntity).map((line) => (
+                                        <View key={line} style={m.warningBulletRow}>
+                                            <Text style={m.warningBullet}>•</Text>
+                                            <Text style={m.warningTxt}>{line}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
                         </ScrollView>
 
                         <View style={m.footer}>
@@ -469,22 +339,22 @@ export function AddCatalogModal({
                                 <Text style={m.cancelBtnTxt}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={m.saveBtn}
+                                style={[m.saveBtn, saving && m.saveBtnDisabled]}
                                 onPress={handleSave}
                                 activeOpacity={0.85}
+                                disabled={saving}
                             >
                                 <MaterialCommunityIcons
                                     name="content-save"
                                     size={18}
                                     color="#FFFFFF"
                                 />
-                                <Text style={m.saveBtnTxt}>{config.saveButtonLabel}</Text>
+                                <Text style={m.saveBtnTxt}>{saveLabel}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
-            </Modal>
-        </>
+        </Modal>
     );
 }
 
@@ -691,6 +561,7 @@ const m = StyleSheet.create({
         borderRadius: 10,
         paddingVertical: 14,
     },
+    saveBtnDisabled: { opacity: 0.6 },
     saveBtnTxt: {
         fontFamily: "Outfit_700Bold",
         fontSize: 15,

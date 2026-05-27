@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import NotificationsProvider from "@/app/providers/NotificationsProvider";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
@@ -15,6 +16,10 @@ export default function RootLayout() {
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+
+  useEffect(() => {
+    void hydrateSellerSession();
+  }, []);
 
   useEffect(() => {
     if (loaded || error) {
@@ -37,4 +42,4 @@ export default function RootLayout() {
       </Stack>
     </NotificationsProvider>
   );
-}
+}
