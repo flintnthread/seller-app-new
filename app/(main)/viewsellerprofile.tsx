@@ -1,11 +1,12 @@
 /**
  * SellerProfileScreen.jsx
- * - All emoji icons replaced with Bootstrap Icons (via @expo/vector-icons or web font)
- * - Desktop: card pairs (Personal+Business) and (Address+Bank) are equal height
- * - Mobile layout: UNCHANGED
+ * FIXES:
+ * 1. Mobile photo upload uses expo-image-picker (no react-native-image-picker needed)
+ * 2. Bootstrap Icons rendered via @expo/vector-icons (Ionicons + MaterialIcons) on native
+ *    and via Bootstrap Icons web font on web — pixel-perfect match on both platforms
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,11 +19,8 @@ import {
   useWindowDimensions,
   Alert,
 } from 'react-native';
-import { AppHeader } from '@/components/common/AppHeader';
 
-// ─── Bootstrap Icons via web font (desktop/web) ───────────────────────────────
-// On native, falls back to a simple text character via BI component below.
-// Inject the Bootstrap Icons stylesheet once on web.
+// ─── Bootstrap Icons via web font (web only) ──────────────────────────────────
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   if (!document.getElementById('bi-font')) {
     const link = document.createElement('link');
@@ -33,12 +31,59 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-/**
- * BI — Bootstrap Icon component
- * On web  : renders <i class="bi bi-{name}"> via a Text with dangerouslySetInnerHTML trick
- * On native: renders a fallback Text symbol
- */
-const NATIVE_FALLBACKS = {
+// ─── Expo Image Picker (mobile) ───────────────────────────────────────────────
+let ExpoImagePicker = null;
+try {
+  ExpoImagePicker = require('expo-image-picker');
+} catch (_) {}
+
+// ─── @expo/vector-icons for native ───────────────────────────────────────────
+let Ionicons = null;
+let MaterialIcons = null;
+let MaterialCommunityIcons = null;
+try {
+  const vectorIcons = require('@expo/vector-icons');
+  Ionicons = vectorIcons.Ionicons;
+  MaterialIcons = vectorIcons.MaterialIcons;
+  MaterialCommunityIcons = vectorIcons.MaterialCommunityIcons;
+} catch (_) {}
+
+// ─── Icon mapping: bi-name → @expo/vector-icons ───────────────────────────────
+// Each entry: { lib: 'Ionicons'|'MaterialIcons'|'MaterialCommunityIcons', name: '...' }
+const BI_TO_VECTOR = {
+  'person-circle'        : { lib: 'Ionicons',                 name: 'person-circle-outline'    },
+  'building'             : { lib: 'MaterialCommunityIcons',   name: 'office-building-outline'  },
+  'geo-alt'              : { lib: 'Ionicons',                 name: 'location-outline'          },
+  'bank'                 : { lib: 'MaterialIcons',            name: 'account-balance'           },
+  'shield-check'         : { lib: 'MaterialCommunityIcons',   name: 'shield-check-outline'     },
+  'house-door'           : { lib: 'Ionicons',                 name: 'home-outline'             },
+  'box-seam'             : { lib: 'MaterialCommunityIcons',   name: 'package-variant-closed'   },
+  'receipt'              : { lib: 'MaterialIcons',            name: 'receipt-long'             },
+  'folder'               : { lib: 'Ionicons',                 name: 'folder-outline'           },
+  'palette'              : { lib: 'Ionicons',                 name: 'color-palette-outline'    },
+  'rulers'               : { lib: 'MaterialCommunityIcons',   name: 'ruler'                    },
+  'tag'                  : { lib: 'Ionicons',                 name: 'pricetag-outline'         },
+  'headset'              : { lib: 'MaterialIcons',            name: 'headset-mic'              },
+  'search'               : { lib: 'Ionicons',                 name: 'search-outline'           },
+  'moon'                 : { lib: 'Ionicons',                 name: 'moon-outline'             },
+  'bell'                 : { lib: 'Ionicons',                 name: 'notifications-outline'    },
+  'gear'                 : { lib: 'Ionicons',                 name: 'settings-outline'         },
+  'person'               : { lib: 'Ionicons',                 name: 'person-outline'           },
+  'upload'               : { lib: 'Ionicons',                 name: 'cloud-upload-outline'     },
+  'pencil-square'        : { lib: 'MaterialIcons',            name: 'edit'                     },
+  'check-lg'             : { lib: 'MaterialIcons',            name: 'check'                    },
+  'x-lg'                 : { lib: 'MaterialIcons',            name: 'close'                    },
+  'wallet2'              : { lib: 'MaterialIcons',            name: 'account-balance-wallet'   },
+  'calendar-event'       : { lib: 'MaterialIcons',            name: 'event'                    },
+  'building-check'       : { lib: 'MaterialCommunityIcons',   name: 'office-building-marker'   },
+  'clock-history'        : { lib: 'MaterialIcons',            name: 'history'                  },
+  'patch-check'          : { lib: 'MaterialCommunityIcons',   name: 'check-decagram-outline'   },
+  'exclamation-triangle' : { lib: 'MaterialIcons',            name: 'warning-amber'            },
+  'info-circle'          : { lib: 'Ionicons',                 name: 'information-circle-outline'},
+};
+
+// ─── Emoji fallbacks (when @expo/vector-icons also not available) ─────────────
+const EMOJI_FALLBACKS = {
   'person-circle'        : '👤',
   'building'             : '🏢',
   'geo-alt'              : '📍',
@@ -50,71 +95,60 @@ const NATIVE_FALLBACKS = {
   'folder'               : '📁',
   'palette'              : '🎨',
   'rulers'               : '📏',
-  'tag'                  : '📝',
-  'headset'              : '💬',
+  'tag'                  : '🏷',
+  'headset'              : '🎧',
   'search'               : '🔍',
   'moon'                 : '🌙',
   'bell'                 : '🔔',
   'gear'                 : '⚙️',
-  'person'               : 'P',
+  'person'               : '👤',
   'upload'               : '⬆',
-  'pencil-square'        : '✏',
+  'pencil-square'        : '✏️',
   'check-lg'             : '✓',
   'x-lg'                 : '✕',
   'wallet2'              : '💳',
   'calendar-event'       : '📅',
   'building-check'       : '🏭',
   'clock-history'        : '⏳',
-  'patch-check'          : '✓',
-  'exclamation-triangle' : '⚠',
-  'info-circle'          : 'ℹ',
+  'patch-check'          : '✅',
+  'exclamation-triangle' : '⚠️',
+  'info-circle'          : 'ℹ️',
 };
 
-function BI({ name, size = 16, color = '#2D3748', style }) {
-  if (Platform.OS === 'web') {
-    return (
-      <Text
-        style={[{ fontSize: size, color, lineHeight: size + 4, fontFamily: 'bootstrap-icons' }, style]}
-        // Bootstrap Icons font renders via CSS class on web
-      >
-        {/* We use a span trick: render as HTML element */}
-        {null}
-      </Text>
-    );
-  }
-  return (
-    <Text style={[{ fontSize: size, color }, style]}>
-      {NATIVE_FALLBACKS[name] || '•'}
-    </Text>
-  );
-}
-
-// On web we use a real <i> tag via a wrapper component
+// ─── Universal Icon component ──────────────────────────────────────────────────
 function Icon({ name, size = 16, color = '#2D3748', style }) {
+  // WEB: use Bootstrap Icons CSS font via <i> tag
   if (Platform.OS === 'web') {
     return (
       <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
-        {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Text
-          style={{ fontSize: size, color, lineHeight: size }}
-          // @ts-ignore – web only
-          dangerouslySetInnerHTML={undefined}
-        >
+        <Text style={{ fontSize: size, color, lineHeight: size }}>
           <i className={`bi bi-${name}`} style={{ fontSize: size, color }} />
         </Text>
       </View>
     );
   }
+
+  // NATIVE: use @expo/vector-icons if available
+  const mapping = BI_TO_VECTOR[name];
+  if (mapping) {
+    if (mapping.lib === 'Ionicons' && Ionicons) {
+      return <Ionicons name={mapping.name} size={size} color={color} style={style} />;
+    }
+    if (mapping.lib === 'MaterialIcons' && MaterialIcons) {
+      return <MaterialIcons name={mapping.name} size={size} color={color} style={style} />;
+    }
+    if (mapping.lib === 'MaterialCommunityIcons' && MaterialCommunityIcons) {
+      return <MaterialCommunityIcons name={mapping.name} size={size} color={color} style={style} />;
+    }
+  }
+
+  // FALLBACK: emoji
   return (
     <Text style={[{ fontSize: size, color }, style]}>
-      {NATIVE_FALLBACKS[name] || '•'}
+      {EMOJI_FALLBACKS[name] || '•'}
     </Text>
   );
 }
-
-// ─── Optional native image picker ─────────────────────────────────────────────
-let ImagePicker = null;
-try { ImagePicker = require('react-native-image-picker'); } catch (_) {}
 
 // ─── Breakpoint ───────────────────────────────────────────────────────────────
 const DESKTOP_BREAKPOINT = 1024;
@@ -272,43 +306,85 @@ function EditableField({ label, value, onSave, pending = false, multiline = fals
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Profile Photo Upload
+//  Profile Photo Upload — FIXED for mobile
 // ═══════════════════════════════════════════════════════════════
 function ProfilePhotoSection({ photoUri, onPhotoChange }) {
   const fileInputRef = useRef(null);
 
+  // ── Web upload ───────────────────────────────────────────────
   const handleWebUpload = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const allowed = ['image/jpeg','image/png','image/gif','image/webp'];
-    if (!allowed.includes(file.type)) { alert('Only JPG, PNG, GIF, or WebP files are allowed.'); return; }
-    if (file.size > 2 * 1024 * 1024) { alert('File size must be 2 MB or less.'); return; }
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      alert('Only JPG, PNG, GIF, or WebP files are allowed.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File size must be 2 MB or less.');
+      return;
+    }
     onPhotoChange(URL.createObjectURL(file));
   };
 
-  const handleNativeUpload = () => {
-    if (!ImagePicker) { Alert.alert('Not available','react-native-image-picker is not installed.'); return; }
-    ImagePicker.launchImageLibrary({ mediaType:'photo', quality:0.8, selectionLimit:1 }, (res) => {
-      if (res.didCancel || res.errorCode) return;
-      const asset = res.assets && res.assets[0];
-      if (asset) onPhotoChange(asset.uri);
-    });
+  // ── Native upload via expo-image-picker ──────────────────────
+  const handleNativeUpload = async () => {
+    if (!ExpoImagePicker) {
+      Alert.alert(
+        'Not available',
+        'expo-image-picker is not installed. Run: npx expo install expo-image-picker'
+      );
+      return;
+    }
+
+    try {
+      // Request permission
+      const { status } = await ExpoImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library in Settings to upload a profile picture.'
+        );
+        return;
+      }
+
+      // Launch picker
+      const result = await ExpoImagePicker.launchImageLibraryAsync({
+        mediaTypes: ExpoImagePicker.MediaTypeOptions
+          ? ExpoImagePicker.MediaTypeOptions.Images
+          : ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        onPhotoChange(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to open image picker. Please try again.');
+      console.error('ImagePicker error:', err);
+    }
   };
 
   const handleUploadPress = () => {
-    if (Platform.OS === 'web') fileInputRef.current && fileInputRef.current.click();
-    else handleNativeUpload();
+    if (Platform.OS === 'web') {
+      fileInputRef.current && fileInputRef.current.click();
+    } else {
+      handleNativeUpload();
+    }
   };
 
   return (
     <View style={s.profilePicRow}>
       <View style={s.profilePicWrap}>
-        {photoUri
-          ? <Image source={{ uri: photoUri }} style={s.profilePicImage} />
-          : <View style={s.profilePicPlaceholder}>
-              <Icon name="person-circle" size={36} color={C.orange} />
-            </View>
-        }
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={s.profilePicImage} />
+        ) : (
+          <View style={s.profilePicPlaceholder}>
+            <Icon name="person-circle" size={36} color={C.orange} />
+          </View>
+        )}
       </View>
       <View style={s.profilePicInfo}>
         <Text style={s.infoLabel}>PROFILE PICTURE</Text>
@@ -413,17 +489,14 @@ export default function SellerProfileScreen() {
 
   if (!isDesktop) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
-        <AppHeader title="Profile" subtitle="View and edit your seller details" showBackButton />
-        <ScrollView style={s.mobileContainer}>
-          <MobileProfileContent
-            photoUri={photoUri}   onPhotoChange={setPhotoUri}
-            address={address}     onAddressSave={setAddress}
-            road={road}           onRoadSave={setRoad}
-            landmark={landmark}   onLandmarkSave={setLandmark}
-          />
-        </ScrollView>
-      </View>
+      <ScrollView style={s.mobileContainer}>
+        <MobileProfileContent
+          photoUri={photoUri}   onPhotoChange={setPhotoUri}
+          address={address}     onAddressSave={setAddress}
+          road={road}           onRoadSave={setRoad}
+          landmark={landmark}   onLandmarkSave={setLandmark}
+        />
+      </ScrollView>
     );
   }
 
@@ -602,16 +675,140 @@ export default function SellerProfileScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Mobile content (wire your existing JSX here)
+//  Mobile content
 // ═══════════════════════════════════════════════════════════════
-function MobileProfileContent({ photoUri, onPhotoChange, address, onAddressSave, road, onRoadSave, landmark, onLandmarkSave }) {
+function MobileProfileContent({
+  photoUri, onPhotoChange,
+  address, onAddressSave,
+  road, onRoadSave,
+  landmark, onLandmarkSave,
+}) {
   return (
-    <View style={s.mobilePlaceholder}>
-      <ProfilePhotoSection photoUri={photoUri} onPhotoChange={onPhotoChange} />
-      <EditableField label="ADDRESS"        value={address}  onSave={onAddressSave}  pending multiline />
-      <EditableField label="ROAD / STREET"  value={road}     onSave={onRoadSave}     pending />
-      <EditableField label="LANDMARK"       value={landmark} onSave={onLandmarkSave} pending />
-      <Text style={s.mobilePlaceholderText}>Mobile Profile UI — paste your existing JSX here</Text>
+    <View style={{ gap: 12, paddingBottom: 24 }}>
+
+      {/* Personal Info */}
+      <SectionCard headerColor={C.orangeHeader} iconName="person-circle" title="Personal Information">
+        <ProfilePhotoSection photoUri={photoUri} onPhotoChange={onPhotoChange} />
+        <View style={s.divider} />
+        <InfoGrid
+          left={{ label: 'FIRST NAME', value: 'Pickcell' }}
+          right={{ label: 'LAST NAME', value: 'Pickcell' }}
+        />
+        <InfoGrid
+          left={{ label: 'MOBILE', value: '+919321502225' }}
+          right={{ label: 'EMAIL', value: 'pickcellonlines@gmail.com' }}
+        />
+        <View style={s.infoRow}>
+          <Text style={s.infoLabel}>STATUS</Text>
+          <View style={[s.badge, { backgroundColor: '#C6F6D5', alignSelf: 'flex-start' }]}>
+            <Text style={[s.badgeText, { color: '#276749' }]}>Active</Text>
+          </View>
+        </View>
+        <View style={s.infoRow}>
+          <Text style={s.infoLabel}>MEMBER SINCE</Text>
+          <View style={s.iconValueRow}>
+            <Icon name="calendar-event" size={13} color={C.textSecondary} style={{ marginRight: 5 }} />
+            <Text style={s.infoValue}>15 Nov, 2025</Text>
+          </View>
+        </View>
+      </SectionCard>
+
+      {/* Business Info */}
+      <SectionCard headerColor={C.brownHeader} iconName="building" title="Business Information">
+        <InfoRow label="BUSINESS NAME" value="PICKCELL" />
+        <InfoGrid
+          left={{ label: 'BUSINESS TYPE', value: 'Sole Proprietorship' }}
+          right={{ label: 'GST NUMBER', value: '27AWMPS1214Q1ZX' }}
+        />
+        <InfoGrid
+          left={{ label: 'PAN NUMBER', value: 'AWMPS1214Q' }}
+          right={{ label: 'AADHAAR NUMBER', value: '****7423' }}
+        />
+        <View style={s.walletRow}>
+          <Text style={s.infoLabel}>WALLET BALANCE</Text>
+          <View style={s.iconValueRow}>
+            <Icon name="wallet2" size={18} color={C.walletOrange} style={{ marginRight: 6 }} />
+            <Text style={s.walletAmount}>₹465.00</Text>
+          </View>
+        </View>
+      </SectionCard>
+
+      {/* Address Info */}
+      <SectionCard headerColor={C.navyHeader} iconName="geo-alt" title="Address Information">
+        <EditableField label="ADDRESS" value={address} onSave={onAddressSave} pending multiline />
+        <InfoGrid
+          left={{ label: 'CITY', value: 'Mumbai' }}
+          right={{ label: 'STATE', value: 'Maharashtra' }}
+        />
+        <EditableField label="ROAD / STREET NUMBER" value={road} onSave={onRoadSave} pending />
+        <EditableField label="LANDMARK" value={landmark} onSave={onLandmarkSave} pending />
+        <InfoGrid
+          left={{ label: 'PINCODE', value: '400063' }}
+          right={{ label: 'COUNTRY', value: 'India' }}
+        />
+        <View style={s.divider} />
+        <View style={s.warehouseHeader}>
+          <Icon name="building-check" size={16} color={C.textPrimary} style={{ marginRight: 6 }} />
+          <Text style={s.warehouseTitle}>Warehouse Address</Text>
+        </View>
+        <InfoRow label="WAREHOUSE ADDRESS" value="B-706,Radha Vallabh, Near Dmart, 150 Feet Road, City Bhayndar West" />
+        <InfoGrid
+          left={{ label: 'WAREHOUSE AREA', value: 'Thane' }}
+          right={{ label: 'WAREHOUSE CITY', value: 'Mumbai' }}
+        />
+        <InfoGrid
+          left={{ label: 'WAREHOUSE STATE', value: 'Maharashtra' }}
+          right={{ label: 'WAREHOUSE COUNTRY', value: 'India' }}
+        />
+      </SectionCard>
+
+      {/* Bank Info */}
+      <SectionCard headerColor={C.greenHeader} iconName="bank" title="Bank Information">
+        <InfoRow label="BANK NAME" value="Indusind Bank" />
+        <InfoGrid
+          left={{ label: 'ACCOUNT NUMBER', value: '****6666' }}
+          right={{ label: 'IFSC CODE', value: 'INDB0000862' }}
+        />
+        <InfoRow label="ACCOUNT HOLDER NAME" value="PICKCELL" />
+      </SectionCard>
+
+      {/* KYC */}
+      <View style={[s.card, { marginHorizontal: 0 }]}>
+        <View style={[s.cardHeader, { backgroundColor: C.purpleHeader }]}>
+          <Icon name="shield-check" size={16} color={C.white} style={s.cardHeaderIcon} />
+          <Text style={s.cardHeaderText}>KYC &amp; Verification Status</Text>
+        </View>
+        <View style={s.cardBody}>
+          <View style={s.kycGrid}>
+            {KYC_ITEMS.map((item) => (
+              <View key={item.label} style={s.kycItem}>
+                <Text style={s.infoLabel}>{item.label}</Text>
+                <View style={[s.statusBadge, { backgroundColor: item.bg }]}>
+                  <Icon name={item.icon} size={12} color={item.fg} style={{ marginRight: 5 }} />
+                  <Text style={[s.statusBadgeText, { color: item.fg }]}>{item.text}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+          <View style={s.infoRow}>
+            <Text style={s.infoLabel}>KYC VERIFIED AT</Text>
+            <View style={s.iconValueRow}>
+              <Icon name="calendar-event" size={13} color={C.textSecondary} style={{ marginRight: 5 }} />
+              <Text style={s.infoValue}>18 Nov, 2025 05:27</Text>
+            </View>
+          </View>
+          <View style={s.kycRemarksBox}>
+            <Text style={s.infoLabel}>KYC REMARKS</Text>
+            <View style={s.kycRemarksCard}>
+              <View style={s.kycRemarksAccent} />
+              <Text style={s.kycRemarksText}>
+                you need to upload business proof and you need to show all documents in vkyc
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
     </View>
   );
 }
@@ -627,16 +824,12 @@ const s = StyleSheet.create({
 
   // ── Desktop root ───────────────────────────────────────────────
   desktopRoot: {
-  flex: 1,
-  flexDirection: 'row',
-  backgroundColor: C.offWhite,
-  width: '100%',
-  height: '100vh',
-},
-  // desktopRoot: {
-  //   flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
-  //   ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
-  // },
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: C.offWhite,
+    width: '100%',
+    height: '100vh',
+  },
 
   // ── Sidebar ────────────────────────────────────────────────────
   desktopSidebar: {
@@ -672,27 +865,26 @@ const s = StyleSheet.create({
 
   // ── Scroll area ────────────────────────────────────────────────
   desktopMain: {
-  flex: 1,
-  width: '100%',
-  flexDirection: 'column',
-  overflow: 'hidden',
-},
+    flex: 1,
+    width: '100%',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
   desktopScrollArea:    { flex: 1 },
   desktopScrollContent: {
-  width: '100%',
-  paddingHorizontal: 24,
-  paddingBottom: 0,
-  gap: 20,
-},
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingBottom: 0,
+    gap: 20,
+  },
 
-
-  // ── Rows — alignItems:'stretch' gives equal height to children ─
-desktopRow: {
-  width: '100%',
-  flexDirection: 'row',
-  gap: 20,
-  alignItems: 'stretch',
-},
+  // ── Rows ───────────────────────────────────────────────────────
+  desktopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 20,
+    alignItems: 'stretch',
+  },
   desktopFullRow: { flexDirection: 'row' },
 
   // ── Card ───────────────────────────────────────────────────────
@@ -701,8 +893,7 @@ desktopRow: {
     borderWidth: 1, borderColor: C.border,
   },
   desktopCard: {
-    flex: 1,                                    // equal width
-    // height is driven by alignItems:'stretch' on the row
+    flex: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
@@ -761,8 +952,8 @@ desktopRow: {
   warehouseTitle:  { fontSize: 14, fontWeight: '700', color: C.textPrimary },
 
   // ── KYC ────────────────────────────────────────────────────────
-  kycGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 24,justifyContent: 'space-between', marginBottom: 8 },
-  kycItem:         { gap: 6, minWidth: 180,flex: 1},
+  kycGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 24, justifyContent: 'space-between', marginBottom: 8 },
+  kycItem:         { gap: 6, minWidth: 180, flex: 1 },
   statusBadge:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, alignSelf: 'flex-start' },
   statusBadgeText: { fontSize: 12, fontWeight: '700' },
   kycRemarksBox:   { gap: 8, marginTop: 4 },

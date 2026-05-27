@@ -39,8 +39,97 @@ export default function SellerProfileScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 1024;
 
+  // ─── CAMERA HANDLER (Desktop web uses getUserMedia; mobile uses expo-image-picker) ───
   const handleSelectCamera = async () => {
     try {
+      // ── DESKTOP WEB: use browser getUserMedia ──
+      if (Platform.OS === 'web') {
+        setModalVisible(false);
+
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (permErr) {
+          alert('Camera access was denied. Please allow camera permission in your browser settings and try again.');
+          return;
+        }
+
+        // Build overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+          position:fixed; inset:0; background:rgba(0,0,0,0.88);
+          display:flex; flex-direction:column; align-items:center;
+          justify-content:center; z-index:99999; gap:20px;
+        `;
+
+        const label = document.createElement('p');
+        label.innerText = 'Live Camera Preview';
+        label.style.cssText = `
+          color:#FF6B35; font-size:18px; font-weight:700;
+          margin:0; letter-spacing:0.5px;
+        `;
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.muted = true;
+        video.style.cssText = `
+          width:480px; max-width:90vw; border-radius:16px;
+          border:3px solid #FF6B35; background:#000;
+        `;
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = `display:flex; gap:16px;`;
+
+        const captureBtn = document.createElement('button');
+        captureBtn.innerText = '📸  Capture Photo';
+        captureBtn.style.cssText = `
+          padding:13px 36px; background:#FF6B35; color:#fff;
+          border:none; border-radius:12px; font-size:16px;
+          font-weight:700; cursor:pointer; letter-spacing:0.3px;
+        `;
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.innerText = '✕  Cancel';
+        cancelBtn.style.cssText = `
+          padding:13px 28px; background:rgba(255,255,255,0.12); color:#fff;
+          border:2px solid rgba(255,255,255,0.3); border-radius:12px;
+          font-size:16px; font-weight:600; cursor:pointer;
+        `;
+
+        btnRow.appendChild(captureBtn);
+        btnRow.appendChild(cancelBtn);
+        overlay.appendChild(label);
+        overlay.appendChild(video);
+        overlay.appendChild(btnRow);
+        document.body.appendChild(overlay);
+
+        const cleanup = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          if (document.body.contains(overlay)) {
+            document.body.removeChild(overlay);
+          }
+        };
+
+        captureBtn.onclick = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            setProfileImage(dataUrl);
+          }
+          cleanup();
+        };
+
+        cancelBtn.onclick = cleanup;
+        return;
+      }
+
+      // ── MOBILE: existing expo-image-picker logic (untouched) ──
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission denied', 'Camera permission is required to take photos.');
@@ -57,9 +146,10 @@ export default function SellerProfileScreen() {
         setProfileImage(result.assets[0].uri);
       }
       setModalVisible(false);
-    } catch (error) {
+
+    } catch (error: any) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      Alert.alert('Error', 'Failed to open camera. Please try again.');
       setModalVisible(false);
     }
   };
@@ -93,20 +183,6 @@ export default function SellerProfileScreen() {
   if (isDesktop) {
     return (
       <View style={desktopStyles.root}>
-        {/* Top Nav Bar */}
-        {/* <View style={desktopStyles.topNav}>
-          <AppText style={desktopStyles.topNavBrand}>🛒 SellerHub</AppText>
-          <View style={desktopStyles.topNavRight}>
-            <AppText style={desktopStyles.topNavItem}>Dashboard</AppText>
-            <AppText style={desktopStyles.topNavItem}>Products</AppText>
-            <AppText style={desktopStyles.topNavItem}>Orders</AppText>
-            <TouchableOpacity style={desktopStyles.topNavLogout}>
-              <AntDesign name="logout" size={16} color="#FF6B35" />
-              <AppText style={desktopStyles.topNavLogoutText}>Logout</AppText>
-            </TouchableOpacity>
-          </View>
-        </View> */}
-
         {/* Page Body */}
         <View style={desktopStyles.body}>
 
@@ -126,10 +202,6 @@ export default function SellerProfileScreen() {
                 </TouchableOpacity>
               </View>
               <AppText style={desktopStyles.sidebarName}>Priya Sharma</AppText>
-              {/* <View style={desktopStyles.sidebarBadge}>
-                <Ionicons name="star" size={13} color="#c28b00" />
-                <AppText style={desktopStyles.sidebarBadgeText}>Gold Seller</AppText>
-              </View> */}
               <View style={desktopStyles.sidebarInfoBlock}>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <Feather name="phone" size={13} color="#888" />
@@ -144,27 +216,26 @@ export default function SellerProfileScreen() {
                   <AppText style={desktopStyles.sidebarInfoText}>priyasharma@gmail.com</AppText>
                 </View>
               </View>
-             <TouchableOpacity
-     style={desktopStyles.sidebarEditBtn}
-    onPress={() => router.push('/viewsellerprofile')}
-    >
-     <Ionicons name="create-outline" size={16} color="#FF6B35" />
-    <AppText style={desktopStyles.sidebarEditBtnText}>
-    View Profile
-    </AppText>
-   </TouchableOpacity>
+              <TouchableOpacity
+                style={desktopStyles.sidebarEditBtn}
+                onPress={() => router.push('/viewsellerprofile')}
+              >
+                <Ionicons name="create-outline" size={16} color="#FF6B35" />
+                <AppText style={desktopStyles.sidebarEditBtnText}>
+                  View Profile
+                </AppText>
+              </TouchableOpacity>
             </View>
 
-          {/* Sidebar Nav */}
-        <View style={desktopStyles.sidebarNav}>
-          {/* Seller Hub Heading */}
-  <View style={modalStyles.desktopSellerHubHeader}>
-    <AppText style={modalStyles.desktopSellerHubTitle}>
-      Seller Hub
-    </AppText>
-
-    <View style={modalStyles.desktopSellerHubUnderline} />
-  </View>
+            {/* Sidebar Nav */}
+            <View style={desktopStyles.sidebarNav}>
+              {/* Seller Hub Heading */}
+              <View style={modalStyles.desktopSellerHubHeader}>
+                <AppText style={modalStyles.desktopSellerHubTitle}>
+                  Seller Hub
+                </AppText>
+                <View style={modalStyles.desktopSellerHubUnderline} />
+              </View>
               {[
                 { icon: 'shopping-bag', color: '#ff4d79', label: 'My Store' },
                 { icon: 'box', color: '#4caf50', label: 'Products' },
@@ -188,13 +259,14 @@ export default function SellerProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
             {/* Desktop Logout Button */}
-   <TouchableOpacity style={desktopStyles.desktopLogoutBtn}>
-  <AntDesign name="logout" size={18} color="#FF6B35" />
-  <AppText style={desktopStyles.desktopLogoutText}>
-    Logout
-  </AppText>
-   </TouchableOpacity>
+            <TouchableOpacity style={desktopStyles.desktopLogoutBtn}>
+              <AntDesign name="logout" size={18} color="#FF6B35" />
+              <AppText style={desktopStyles.desktopLogoutText}>
+                Logout
+              </AppText>
+            </TouchableOpacity>
           </View>
 
           {/* MAIN CONTENT */}
@@ -263,26 +335,6 @@ export default function SellerProfileScreen() {
                   ))}
                 </View>
 
-                {/* Growth & Marketing */}
-                 {/* <View style={desktopStyles.desktopCard}>
-                  <DesktopSectionHeader title="Growth & Marketing" icon="trending-up" />
-                  {[
-                    { icon: 'tag', color: '#ff4d79', title: 'Promotions & Discounts' },
-                    { icon: 'speaker', color: '#2196f3', title: 'Seller Advertising' },
-                    { icon: 'trending-up', color: '#f5a623', title: 'Boost Products' },
-                    { icon: 'star', color: '#4caf50', title: 'Customer Reviews' },
-                  ].map((item) => (
-                    <DesktopListItem
-                      key={item.title}
-                      icon={item.icon}
-                      color={item.color}
-                      title={item.title}
-                      selectedItem={selectedItem}
-                      setSelectedItem={setSelectedItem}
-                    />
-                  ))}
-                </View>  */}
-
                 {/* Support & Help */}
                 <View style={desktopStyles.desktopCard}>
                   <DesktopSectionHeader title="Support & Help" icon="headphones" />
@@ -304,52 +356,50 @@ export default function SellerProfileScreen() {
 
               </View>
 
-              {/* <View style={{ height: 40 }} /> */}
             </View>
           </ScrollView>
-        </View>      
-<Modal
-  visible={modalVisible}
-  transparent
-  animationType="fade"
-  onRequestClose={() => setModalVisible(false)}
->
-  <View style={modalStyles.overlay}>
-    <View
-      style={[
-        modalStyles.modalContainer,
-        Platform.OS === 'web' && modalStyles.desktopModalContainer,
-      ]}
-    >
+        </View>
 
-      <TouchableOpacity
-        style={modalStyles.closeBtn}
-        onPress={() => setModalVisible(false)}
-      >
-        <Ionicons name="close" size={24} color="#000" />
-      </TouchableOpacity>
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={modalStyles.overlay}>
+            <View
+              style={[
+                modalStyles.modalContainer,
+                Platform.OS === 'web' && modalStyles.desktopModalContainer,
+              ]}
+            >
+              <TouchableOpacity
+                style={modalStyles.closeBtn}
+                onPress={() => setModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#000" />
+              </TouchableOpacity>
 
-      <Text style={modalStyles.title}>Update Profile Photo</Text>
+              <Text style={modalStyles.title}>Update Profile Photo</Text>
 
-      <TouchableOpacity
-        style={modalStyles.optionBtn}
-        onPress={handleSelectCamera}
-      >
-        <Feather name="camera" size={20} color="#FF6B35" />
-        <Text style={modalStyles.optionText}>Take Photo</Text>
-      </TouchableOpacity>
+              <TouchableOpacity
+                style={modalStyles.optionBtn}
+                onPress={handleSelectCamera}
+              >
+                <Feather name="camera" size={20} color="#FF6B35" />
+                <Text style={modalStyles.optionText}>Take Photo</Text>
+              </TouchableOpacity>
 
-      <TouchableOpacity
-        style={modalStyles.optionBtn}
-        onPress={handleSelectGallery}
-      >
-        <Feather name="image" size={20} color="#FF6B35" />
-        <Text style={modalStyles.optionText}>Choose From Gallery</Text>
-      </TouchableOpacity>
-
-    </View>
-  </View>
-</Modal>
+              <TouchableOpacity
+                style={modalStyles.optionBtn}
+                onPress={handleSelectGallery}
+              >
+                <Feather name="image" size={20} color="#FF6B35" />
+                <Text style={modalStyles.optionText}>Choose From Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
       </View>
     );
@@ -381,10 +431,6 @@ export default function SellerProfileScreen() {
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
                 <AppText style={styles.name}>Priya Sharma</AppText>
-                {/* <View style={styles.badge}>
-                  <Ionicons name="star" size={16} color="#c28b00" />
-                  <AppText style={styles.badgeText}>Gold Seller</AppText>
-                </View> */}
               </View>
 
               <View style={styles.infoRow}>
@@ -404,10 +450,10 @@ export default function SellerProfileScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.editBtn}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/viewsellerprofile')}      >
             <View style={styles.editBtnHighlight}>
               <Ionicons name="create-outline" size={20} color="#FF6B35" />
-              <AppText style={styles.editBtnText}>Edit Seller Profile</AppText>
+              <AppText style={styles.editBtnText}>View Profile</AppText>
             </View>
           </TouchableOpacity>
         </View>
@@ -444,15 +490,6 @@ export default function SellerProfileScreen() {
           <ListItem icon="home" color="#2196f3" title="Payout Settings" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
         </View>
 
-        {/* GROWTH */}
-        {/* <SectionTitle title="Growth & Marketing" />
-        <View style={styles.card}>
-          <ListItem icon="tag" color="#ff4d79" title="Promotions & Discounts" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="speaker" color="#2196f3" title="Seller Advertising" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="trending-up" color="#f5a623" title="Boost Products" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="star" color="#4caf50" title="Customer Reviews" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-        </View> */}
-
         {/* SUPPORT */}
         <SectionTitle title="Support & Help" />
         <View style={styles.card}>
@@ -479,19 +516,19 @@ export default function SellerProfileScreen() {
             { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
             { icon: "account-outline", iconActive: "account", label: "Profile", active: true, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
           ].map((tab, i) => (
-            <TouchableOpacity 
-              key={i} 
-              style={styles.bottomItem} 
-              activeOpacity={0.7} 
+            <TouchableOpacity
+              key={i}
+              style={styles.bottomItem}
+              activeOpacity={0.7}
               onPress={() => {
                 if (!tab.active) router.push(tab.route as any);
               }}
             >
               <View style={{ position: "relative" }}>
-                <MaterialCommunityIcons 
-                  name={(tab.active ? tab.iconActive : tab.icon) as any} 
-                  size={24} 
-                  color={tab.active ? tab.color : tab.colorMuted} 
+                <MaterialCommunityIcons
+                  name={(tab.active ? tab.iconActive : tab.icon) as any}
+                  size={24}
+                  color={tab.active ? tab.color : tab.colorMuted}
                 />
                 {tab.badge && (
                   <View style={{
@@ -523,56 +560,47 @@ export default function SellerProfileScreen() {
         </View>
       )}
 
-      {/* <ProfileImageModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSelectCamera={handleSelectCamera}
-        onSelectGallery={handleSelectGallery}
-      /> */}
-
       <Modal
-  visible={modalVisible}
-  transparent
-  animationType="fade"
-  onRequestClose={() => setModalVisible(false)}
->
-  <View style={modalStyles.overlay}>
-    <View style={modalStyles.modalContainer}>
-
-      <TouchableOpacity
-        style={modalStyles.closeBtn}
-        onPress={() => setModalVisible(false)}
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
       >
-        <Ionicons name="close" size={24} color="#000" />
-      </TouchableOpacity>
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.modalContainer}>
+            <TouchableOpacity
+              style={modalStyles.closeBtn}
+              onPress={() => setModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#000" />
+            </TouchableOpacity>
 
-      <Text style={modalStyles.title}>
-        Update Profile Photo
-      </Text>
+            <Text style={modalStyles.title}>
+              Update Profile Photo
+            </Text>
 
-      <TouchableOpacity
-        style={modalStyles.optionBtn}
-        onPress={handleSelectCamera}
-      >
-        <Feather name="camera" size={20} color="#FF6B35" />
-        <Text style={modalStyles.optionText}>
-          Take Photo
-        </Text>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={modalStyles.optionBtn}
+              onPress={handleSelectCamera}
+            >
+              <Feather name="camera" size={20} color="#FF6B35" />
+              <Text style={modalStyles.optionText}>
+                Take Photo
+              </Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity
-        style={modalStyles.optionBtn}
-        onPress={handleSelectGallery}
-      >
-        <Feather name="image" size={20} color="#FF6B35" />
-        <Text style={modalStyles.optionText}>
-          Choose From Gallery
-        </Text>
-      </TouchableOpacity>
-
-    </View>
-  </View>
-</Modal>
+            <TouchableOpacity
+              style={modalStyles.optionBtn}
+              onPress={handleSelectGallery}
+            >
+              <Feather name="image" size={20} color="#FF6B35" />
+              <Text style={modalStyles.optionText}>
+                Choose From Gallery
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -716,32 +744,28 @@ const desktopStyles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
   },
 
-  // Body layout
-  //  body: {
+  // body: {
   //   flex: 1,
-  //    flexDirection: 'row',
-  //   max Width: 1280,
-  //    width: '100%' ,
-  // height: '100%',
-  //    alignSelf: 'center',
-  //    paddingHorizontal: 24,
-  //    paddingTop: 28,
-  //   paddingBottom: 32,
+  //   flexDirection: 'row',
+  //   width: '100%',
+  //   height: '100%',
   //   gap: 24,
-  //  },
-   body: {
-   flex: 1,
+  //   paddingTop: 0,
+  //   marginTop: 0,
+  // },
+  body: {
+  flex: 1,
   flexDirection: 'row',
   width: '100%',
   height: '100%',
+  paddingHorizontal: 24,
+  paddingVertical: 20,
   gap: 24,
-   paddingTop: 0,
-  marginTop: 0,
- },
+},
 
   // Sidebar
   sidebar: {
-    width: 260,
+    width: 290,
     flexShrink: 0,
     gap: 16,
   },
@@ -873,11 +897,13 @@ const desktopStyles = StyleSheet.create({
   // Main scroll area
   mainScroll: {
     flex: 1,
+      width: '100%',
   },
   main: {
     flex: 1,
     gap: 24,
-  },
+    paddingRight: 10,
+   },
 
   // Stats row
   statsRow: {
@@ -990,32 +1016,31 @@ const desktopStyles = StyleSheet.create({
   },
 
   desktopLogoutBtn: {
-  marginTop: 18,
-  backgroundColor: '#FFF3ED',
-  borderWidth: 1,
-  //borderColor: '#FFE0D2',
-  borderRadius: 14,
-  height: 52,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 10,
-  shadowColor: '#FF6B35',
-   borderColor: '#FF6B35', // orange outline
-  shadowOffset: {
-    width: 0,
-    height: 4,
+    marginTop: 18,
+    backgroundColor: '#FFF3ED',
+    borderWidth: 1,
+    borderRadius: 14,
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: '#FF6B35',
+    borderColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 3,
-},
 
-desktopLogoutText: {
-  color: '#FF6B35',
-  fontSize: 15,
-  fontFamily: fontFamilies.bold,
-},
+  desktopLogoutText: {
+    color: '#FF6B35',
+    fontSize: 15,
+    fontFamily: fontFamilies.bold,
+  },
 });
 
 const modalStyles = StyleSheet.create({
@@ -1072,18 +1097,19 @@ const modalStyles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
-  desktopSellerHubHeader: {
-  width: '100%',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingTop: 18,
-  paddingBottom: 14,
-  borderBottomWidth: 1,
-  borderBottomColor: '#F3F4F8',
-},
 
-desktopSellerHubTitle: {
-  fontSize: 18,
+  desktopSellerHubHeader: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F8',
+  },
+
+  desktopSellerHubTitle: {
+    fontSize: 18,
     fontFamily: fontFamilies.bold,
     color: "#1D3B6F",
     marginBottom: 8,
@@ -1093,22 +1119,20 @@ desktopSellerHubTitle: {
     textShadowColor: "rgba(0,0,0,0.1)",
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
-},
+  },
 
-desktopSellerHubUnderline: {
-  width: 70,
-  height: 5,
-  backgroundColor: '#F97316',
-  borderRadius: 4,
-  marginTop: 6,
-  shadowColor: '#F97316',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.25,
-  shadowRadius: 4,
-},
-
+  desktopSellerHubUnderline: {
+    width: 70,
+    height: 5,
+    backgroundColor: '#F97316',
+    borderRadius: 4,
+    marginTop: 6,
+    shadowColor: '#F97316',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
 });
-
 
 
 // ─── ORIGINAL MOBILE STYLES (untouched) ─────────────────────────────────────
