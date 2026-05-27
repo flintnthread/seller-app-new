@@ -1588,7 +1588,7 @@ export default function OrdersScreen() {
             }}
           >
             <Text style={styles.overviewTitle}>Orders Overview</Text>
-            <TouchableOpacity>
+            {/* <TouchableOpacity>
               <Text
                 style={{
                   color: C.navy,
@@ -1599,7 +1599,7 @@ export default function OrdersScreen() {
               >
                 View Analytics
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
           <ScrollView
             horizontal
