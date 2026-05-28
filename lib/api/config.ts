@@ -14,19 +14,6 @@ function getExtra(): ExpoExtra {
     return (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
 }
 
-/** Metro / Expo dev server host (e.g. 192.168.0.29:8081 → 192.168.0.29). */
-function getMetroHost(): string | null {
-    const raw =
-        Constants.expoConfig?.hostUri ??
-        Constants.expoGoConfig?.debuggerHost ??
-        (Constants.manifest2 as { extra?: { expoClient?: { hostUri?: string } } } | null)?.extra
-            ?.expoClient?.hostUri;
-
-    if (!raw) return null;
-    const host = raw.split(":")[0]?.trim();
-    return host || null;
-}
-
 function isAndroidEmulator(): boolean {
     if (Platform.OS !== "android") return false;
     if (getExtra().androidEmulatorApi) return true;
@@ -35,14 +22,13 @@ function isAndroidEmulator(): boolean {
 
 /**
  * API base URL (no trailing slash).
- * Priority: EXPO_PUBLIC_API_BASE_URL → platform defaults → Metro host.
+ * Physical device: always use .env value from app.config extra (never guess from Metro).
  */
 export function resolveApiBaseUrl(): string {
-    const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
     const fromExtra = getExtra().apiBaseUrl?.trim().replace(/\/$/, "");
-    const configured = fromEnv || fromExtra;
+    const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
+    const configured = fromExtra || fromEnv;
 
-    // Web browser on the same PC must hit localhost — .env LAN IP is for phones only.
     if (Platform.OS === "web") {
         const webOverride = process.env.EXPO_PUBLIC_API_WEB_BASE_URL?.trim().replace(/\/$/, "");
         if (webOverride) return webOverride;
@@ -55,11 +41,6 @@ export function resolveApiBaseUrl(): string {
 
     if (configured) {
         return configured;
-    }
-
-    const metroHost = getMetroHost();
-    if (metroHost && metroHost !== "localhost" && metroHost !== "127.0.0.1") {
-        return `http://${metroHost}:${API_PORT}`;
     }
 
     if (Platform.OS === "android") {

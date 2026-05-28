@@ -1,98 +1,4 @@
-﻿const BASE_URL = "http://localhost:8080/api/auth";
-
-async function request<T>(endpoint: string, body: object): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || "Something went wrong");
-    }
-
-    return data as T;
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-
-    if (err.name === "AbortError") {
-      throw new Error("Request timed out. Server may be slow or unreachable.");
-    }
-
-    if (err.message && !err.message.includes("Something went wrong")) {
-      if (
-        err.message.includes("Failed to fetch") ||
-        err.message.includes("Network request failed") ||
-        err.message.includes("fetch")
-      ) {
-        throw new Error(
-          "Unable to connect to server. Make sure backend is running on port 8080."
-        );
-      }
-    }
-
-    throw err;
-  }
-}
-
-export interface AuthResponse {
-  token: string;
-  message: string;
-  sellerId: number;
-  sellerCode: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  status: string;
-}
-
-export interface ApiResponse {
-  success: boolean;
-  message: string;
-}
-
-export const authApi = {
-  signup(fullName: string, mobile: string, email: string, password: string) {
-    return request<AuthResponse>("/signup", { fullName, mobile, email, password });
-  },
-
-  login(emailOrMobile: string, password: string) {
-    return request<AuthResponse>("/login", { emailOrMobile, password });
-  },
-
-  sendOtp(mobile: string) {
-    return request<ApiResponse>("/send-otp", { mobile });
-  },
-
-  verifyOtp(mobile: string, otp: string) {
-    return request<ApiResponse>("/verify-otp", { mobile, otp });
-  },
-
-  forgotPasswordSendOtp(contact: string) {
-    return request<ApiResponse>("/forgot-password/send-otp", { contact });
-  },
-
-  forgotPasswordVerifyOtp(contact: string, otp: string) {
-    return request<ApiResponse>("/forgot-password/verify-otp", { contact, otp });
-  },
-
-  resetPassword(contact: string, otp: string, newPassword: string) {
-    return request<ApiResponse>("/forgot-password/reset", { contact, otp, newPassword });
-  },
-};
-import { Platform } from "react-native";
+﻿import { Platform } from "react-native";
 import { resolveApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/client";
 
@@ -111,18 +17,19 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
             },
         });
     } catch (err) {
+        const pcIp = baseUrl.replace(/^https?:\/\//, "").split(":")[0];
         const emulatorHint =
             Platform.OS === "android"
-                ? "\nâ€¢ Android emulator: use http://10.0.2.2:8080 or set EXPO_PUBLIC_API_BASE_URL"
+                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true and use http://10.0.2.2:8080"
                 : "";
         const phoneHint =
             Platform.OS !== "web"
-                ? "\nâ€¢ Physical device: set EXPO_PUBLIC_API_BASE_URL to your PC IP in .env"
-                : "\nâ€¢ Web uses http://localhost:8080 â€” start backend: cd seller-backend && .\\mvnw.cmd spring-boot:run";
+                ? `\n• Physical device: set EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:8080 in seller-app-new/.env (run ipconfig), then restart: npx expo start --clear`
+                : "\n• Web: start backend on localhost:8080";
         const detail =
             err instanceof Error && err.message ? ` (${err.message})` : "";
         throw new ApiError(
-            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\nâ€¢ Ensure backend is running on port 8080.`
+            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Ensure backend is running: cd seller-backend && .\\mvnw.cmd spring-boot:run\n• Phone and PC must be on the same Wi‑Fi. PC IP in .env: ${pcIp}`
         );
     }
 
