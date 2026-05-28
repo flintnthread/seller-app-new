@@ -267,6 +267,9 @@ export interface OrderDetail {
   gstInfo?: string;
   billing?: CustomerInfo;
   shiprocket?: ShiprocketInfo;
+  invoiceNumber?: string;
+  invoicePath?: string;
+  invoiceUrl?: string;
   /** Label shown on the primary (filled) action button */
   primaryActionLabel: string;
   /** Label shown on the secondary (outline) action button */

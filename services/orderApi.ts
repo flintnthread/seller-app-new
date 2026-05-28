@@ -18,7 +18,8 @@ import type {
     PaymentInfo,
     PricingBreakdown,
     ShiprocketInfo,
-} from "@/app/(main)/ordersData";
+} from "@/app/(main)/_ordersData";
+import type { SellerOrderStats } from "@/app/(main)/_ordersStore";
 
 type ApiOrderStep = {
     key: string;
@@ -260,6 +261,9 @@ type ApiOrderDetail = {
     shiprocketStatus?: string;
     shiprocketTrackingUrl?: string;
     shiprocketSyncedAt?: string;
+    invoiceNumber?: string;
+    invoicePath?: string;
+    invoiceUrl?: string;
     statusHistory?: ApiStatusHistoryEntry[];
     emailLogs?: ApiEmailLog[];
     gstRecords?: ApiGstRecord[];
@@ -321,7 +325,7 @@ function toCustomDetail(detail: ApiCustomDetail): OrderItemCustomDetail {
 function toOrderItem(line: ApiOrderLine): OrderItem {
     const uiStatus = line.uiStatus ? toOrderStatus(line.uiStatus) : undefined;
     return {
-        lineItemId: line.lineItemId,
+        ...(line.lineItemId != null ? { lineItemId: line.lineItemId } : {}),
         ...(line.productId != null ? { productId: line.productId } : {}),
         ...(line.variantId != null ? { variantId: line.variantId } : {}),
         ...(line.sellerId != null ? { sellerId: line.sellerId } : {}),
@@ -495,9 +499,34 @@ export function mapDetail(detail: ApiOrderDetail): OrderDetail {
         ...(detail.gstNumber ? { gstNumber: detail.gstNumber } : {}),
         ...(detail.gstInfo ? { gstInfo: detail.gstInfo } : {}),
         ...(shiprocket ? { shiprocket } : {}),
+        ...(detail.invoiceNumber ? { invoiceNumber: detail.invoiceNumber } : {}),
+        ...(detail.invoicePath ? { invoicePath: detail.invoicePath } : {}),
+        ...(detail.invoiceUrl ? { invoiceUrl: detail.invoiceUrl } : {}),
         primaryActionLabel: detail.primaryActionLabel,
         secondaryActionLabel: detail.secondaryActionLabel,
         ...(detail.extraNote ? { extraNote: detail.extraNote } : {}),
+    };
+}
+
+export type InvoiceScanResult = {
+    found: boolean;
+    invoiceId?: number;
+    orderId?: number;
+    invoiceNumber?: string;
+    invoicePath?: string;
+    invoiceUrl?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    message?: string;
+};
+
+function mergeInvoiceFromScan(order: OrderDetail, scan: InvoiceScanResult | null | undefined): OrderDetail {
+    if (!scan?.found) return order;
+    return {
+        ...order,
+        ...(order.invoiceNumber ? {} : scan.invoiceNumber ? { invoiceNumber: scan.invoiceNumber } : {}),
+        ...(order.invoicePath ? {} : scan.invoicePath ? { invoicePath: scan.invoicePath } : {}),
+        ...(order.invoiceUrl ? {} : scan.invoiceUrl ? { invoiceUrl: scan.invoiceUrl } : {}),
     };
 }
 
@@ -530,7 +559,7 @@ type ApiOrderStats = {
     totalSale: number;
 };
 
-export async function fetchSellerOrderStats(): Promise<import("@/app/(main)/ordersStore").SellerOrderStats> {
+export async function fetchSellerOrderStats(): Promise<SellerOrderStats> {
     const stats = await apiRequest<ApiOrderStats>("/api/orders/stats");
     return {
         totalLineItems: stats.totalLineItems,
@@ -560,7 +589,32 @@ export async function fetchSellerOrderDetails(): Promise<OrderDetail[]> {
 
 export async function fetchSellerOrderDetail(orderKey: string): Promise<OrderDetail> {
     const detail = await apiRequest<ApiOrderDetail>(`/api/orders/${encodeURIComponent(orderKey)}`);
-    return mapDetail(detail);
+    let mapped = mapDetail(detail);
+    if (mapped.invoiceUrl || mapped.invoicePath || mapped.invoiceNumber) {
+        return mapped;
+    }
+
+    // Integration: call GET invoice scan API to auto-resolve invoice for this order.
+    const scanCodes = [
+        mapped.orderNumber,
+        String(mapped.orderId ?? ""),
+        orderKey,
+    ]
+        .map((v) => (v ?? "").trim())
+        .filter((v, i, arr) => v.length > 0 && arr.indexOf(v) === i);
+
+    for (const code of scanCodes) {
+        try {
+            const scanned = await scanSellerInvoice(code);
+            mapped = mergeInvoiceFromScan(mapped, scanned);
+            if (mapped.invoiceUrl || mapped.invoicePath || mapped.invoiceNumber) {
+                break;
+            }
+        } catch {
+            // keep order details usable even if scan API fails
+        }
+    }
+    return mapped;
 }
 
 export async function updateSellerOrderStatus(
@@ -576,4 +630,12 @@ export async function updateSellerOrderStatus(
         }),
     });
     return mapDetail(detail);
+}
+
+export async function scanSellerInvoice(code: string): Promise<InvoiceScanResult> {
+    const normalized = code.trim();
+    if (!normalized) {
+        throw new Error("Scan code is required");
+    }
+    return apiRequest<InvoiceScanResult>(`/api/orders/invoices/scan?code=${encodeURIComponent(normalized)}`);
 }

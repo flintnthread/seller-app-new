@@ -315,6 +315,8 @@ function computeStats(): Array<{ label: TabKey; count: number }> {
 }
 
 const parsePrice = (price: string) => Number(price.replace(/[₹,]/g, ""));
+const isAuthSessionError = (message: string | null) =>
+  (message ?? "").toLowerCase().includes("seller not logged in");
 
 function parseOrderDate(dateStr: string): Date {
   return new Date(dateStr.replace(",", ""));
@@ -867,7 +869,7 @@ const DesktopFilterModal: React.FC<{
 export default function OrdersScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= DESKTOP_BREAKPOINT;
+  const isDesktop = Platform.OS === "web" || width >= DESKTOP_BREAKPOINT;
 
   const [activeTab, setActiveTab] = useState<TabKey>("All Orders");
   const [search, setSearch] = useState("");
@@ -1560,6 +1562,14 @@ export default function OrdersScreen() {
               <TouchableOpacity style={styles.emptyResetBtn} onPress={onRefresh}>
                 <Text style={styles.emptyResetText}>Retry</Text>
               </TouchableOpacity>
+              {isAuthSessionError(ordersError) && (
+                <TouchableOpacity
+                  style={[styles.emptyResetBtn, { marginTop: 10 }]}
+                  onPress={() => router.replace("/(auth)/login")}
+                >
+                  <Text style={styles.emptyResetText}>Go to Login</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : sortedOrders.length > 0 ? (
             viewMode === "grid" ? (
@@ -1977,6 +1987,14 @@ export default function OrdersScreen() {
               <TouchableOpacity style={styles.emptyResetBtn} onPress={onRefresh}>
                 <Text style={styles.emptyResetText}>Retry</Text>
               </TouchableOpacity>
+              {isAuthSessionError(ordersError) && (
+                <TouchableOpacity
+                  style={[styles.emptyResetBtn, { marginTop: 10 }]}
+                  onPress={() => router.replace("/(auth)/login")}
+                >
+                  <Text style={styles.emptyResetText}>Go to Login</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : sortedOrders.length > 0 ? (
             sortedOrders.map((order) => (

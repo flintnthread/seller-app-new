@@ -84,5 +84,17 @@ export function ensureSellerId(): number | null {
     if (memorySellerId != null && memorySellerId > 0) {
         return memorySellerId;
     }
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+        try {
+            const raw = window.localStorage.getItem(SELLER_ID_STORAGE_KEY);
+            const id = Number(raw);
+            if (Number.isFinite(id) && id > 0) {
+                memorySellerId = id;
+                return id;
+            }
+        } catch {
+            // ignore
+        }
+    }
     return null;
 }

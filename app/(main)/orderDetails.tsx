@@ -20,6 +20,7 @@
  */
 
 import { router, useLocalSearchParams } from "expo-router";
+import * as ExpoLinking from "expo-linking";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -40,6 +41,7 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import QRCode from "react-native-qrcode-svg";
 
 import type { OrderDetail, OrderItem, OrderStep } from "./_ordersData";
 import { fetchSellerOrderDetail } from "@/services/orderApi";
@@ -523,7 +525,11 @@ const WebEmailLogsCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
   );
 };
 
-const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }) => (
+const WebDocumentsCard: React.FC<{
+  onOpenLabel: () => void;
+  onOpenInvoice?: () => void;
+  invoiceLabel?: string;
+}> = ({ onOpenLabel, onOpenInvoice, invoiceLabel }) => (
   <View style={wc.card}>
     <SectionHeader iconLib="MCIcons" iconName="file-document-multiple-outline" title="Documents" />
     <TouchableOpacity style={{ flexDirection:"row", alignItems:"center", gap:12, paddingVertical:6 }} onPress={onOpenLabel} activeOpacity={0.85}>
@@ -539,6 +545,21 @@ const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }
         <Text style={{ fontSize:11, fontWeight:"600", color:C.navy }}>Preview</Text>
       </View>
     </TouchableOpacity>
+    {!!onOpenInvoice && (
+      <TouchableOpacity style={{ flexDirection:"row", alignItems:"center", gap:12, paddingVertical:6 }} onPress={onOpenInvoice} activeOpacity={0.85}>
+        <View style={{ width:44, height:44, borderRadius:12, backgroundColor:C.bluePale, alignItems:"center", justifyContent:"center" }}>
+          <MaterialCommunityIcons name="file-document-outline" size={22} color={C.blue} />
+        </View>
+        <View style={{ flex:1 }}>
+          <Text style={{ fontSize:13, fontWeight:"700", color:C.textDark }}>Invoice</Text>
+          <Text style={{ fontSize:10, color:C.textLight, marginTop:2 }}>{invoiceLabel ?? "Open invoice document"}</Text>
+        </View>
+        <View style={{ flexDirection:"row", alignItems:"center", paddingHorizontal:10, paddingVertical:5, borderRadius:10, borderWidth:1, borderColor:C.border }}>
+          <Ionicons name="open-outline" size={13} color={C.navy} style={{ marginRight:4 }} />
+          <Text style={{ fontSize:11, fontWeight:"600", color:C.navy }}>Open</Text>
+        </View>
+      </TouchableOpacity>
+    )}
   </View>
 );
 
@@ -625,8 +646,24 @@ interface ShippingLabelModalProps {
 const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order, onClose, onPrint }) => {
   const srData    = buildShiprocketData(order);
   const gstNumber = order.gstNumber || order.gstRecords?.[0]?.gstNumber || "—";
-  const invoiceNo = order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
+  const invoiceNo = order.invoiceNumber || order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
   const totalTax  = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
+  const qrOrderKey = String(order.orderId ?? order.orderNumber ?? order.id).replace(/^#/, "");
+  const scanPayload = ExpoLinking.createURL("/invoiceinfo", {
+    queryParams: {
+      orderId: qrOrderKey,
+      orderNumber: order.orderNumber ?? "",
+      invoiceNumber: invoiceNo,
+      awb: srData.awb,
+      orderDate: order.date,
+      payment: order.payment.method,
+      total: order.pricing.total,
+      invoiceUrl: order.invoiceUrl ?? "",
+    },
+  });
+  const barcodeImageUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(
+    scanPayload
+  )}&code=Code128&translate-esc=false&dpi=96`;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -646,23 +683,13 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
               <View style={lStyles.barcodeLeft}>
                 <Text style={lStyles.awbLabel}>AWB NUMBER</Text>
                 <View style={lStyles.barcodeWrap}>
-                  {Array.from({length:52}).map((_,i) => (
-                    <View key={i} style={[lStyles.bar,{width:i%7===0?3:i%4===0?2:1,height:i%11===0?56:48,backgroundColor:"#111"}]} />
-                  ))}
+                  <Image source={{ uri: barcodeImageUrl }} style={lStyles.barcodeImage} resizeMode="contain" />
                 </View>
                 <Text style={lStyles.awbNumber}>{srData.awb}</Text>
               </View>
               <View style={lStyles.qrBox}>
                 <View style={lStyles.qrInner}>
-                  {Array.from({length:7}).map((_,row) => (
-                    <View key={row} style={{flexDirection:"row"}}>
-                      {Array.from({length:7}).map((_,col) => {
-                        const corner=(row<2&&col<2)||(row<2&&col>4)||(row>4&&col<2);
-                        const filled=corner||(row===3&&col%2===0)||(col===3&&row%2===1)||((row+col)%3===0);
-                        return <View key={col} style={{width:8,height:8,backgroundColor:filled?"#111":"#fff",margin:0.5}} />;
-                      })}
-                    </View>
-                  ))}
+                  <QRCode value={scanPayload} size={58} />
                 </View>
               </View>
             </View>
@@ -763,7 +790,7 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
 // ─── WEB LAYOUT ───────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ order, onOpenLabel }) => {
+const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void; onOpenInvoice?: () => void }> = ({ order, onOpenLabel, onOpenInvoice }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= BP_DESKTOP;
   const cfg       = PAYMENT_STATUS_CONFIG[order.payment.status];
@@ -845,7 +872,11 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
         </View>
         {/* Right / Sidebar column */}
         <View style={[{ gap:16 }, isDesktop ? { flex:1, minWidth:300, maxWidth:400 } : { marginTop:16 }]}>
-          <WebDocumentsCard onOpenLabel={onOpenLabel} />
+          <WebDocumentsCard
+            onOpenLabel={onOpenLabel}
+            onOpenInvoice={onOpenInvoice}
+            invoiceLabel={order.invoiceNumber ?? "Open invoice document"}
+          />
           <WebTrackingCard  order={order} />
         </View>
       </ScrollView>
@@ -1158,6 +1189,13 @@ const MobileLayout: React.FC<{
             <View style={{flex:1}}><Text style={styles.docBtnTitle}>Shipping Label</Text><Text style={styles.docBtnSub}>Preview & print</Text></View>
             <View style={styles.docBtnAction}><Ionicons name="eye-outline" size={13} color={C.navy} style={{marginRight:4}}/><Text style={styles.docBtnActionText}>Preview</Text></View>
           </TouchableOpacity>
+          {!!order.invoiceUrl && (
+            <TouchableOpacity style={styles.docBtnFull} onPress={()=>Linking.openURL(order.invoiceUrl!)} activeOpacity={0.85}>
+              <View style={[styles.docBtnIcon,{backgroundColor:C.bluePale}]}><MaterialCommunityIcons name="file-document-outline" size={24} color={C.blue}/></View>
+              <View style={{flex:1}}><Text style={styles.docBtnTitle}>Invoice</Text><Text style={styles.docBtnSub}>{order.invoiceNumber || "Open invoice document"}</Text></View>
+              <View style={styles.docBtnAction}><Ionicons name="open-outline" size={13} color={C.navy} style={{marginRight:4}}/><Text style={styles.docBtnActionText}>Open</Text></View>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
       <MobileTrackingModal />
@@ -1174,8 +1212,8 @@ export default function OrderDetailsScreen() {
   const { orderId, openLabel } = useLocalSearchParams<{ orderId: string; openLabel?: string }>();
   const { width } = useWindowDimensions();
 
-  // Web layout only when running on web platform AND screen is wide enough
-  const isWebWide = Platform.OS === "web" && width >= BP_TABLET;
+  // Always use web layout on web platform.
+  const isWebWide = Platform.OS === "web";
 
   const [order, setOrder] = useState<OrderDetail | undefined>(() =>
     orderId ? getLiveOrder(orderId) : undefined,
@@ -1218,6 +1256,13 @@ export default function OrderDetailsScreen() {
 
   const handlePrintLabel = () =>
     Alert.alert("Label Downloaded", `Shipping label for ${orderId} has been saved.`);
+  const handleOpenInvoice = () => {
+    if (!order?.invoiceUrl) {
+      Alert.alert("Invoice", "Invoice file is not available for this order.");
+      return;
+    }
+    Linking.openURL(order.invoiceUrl);
+  };
 
   // Not found fallback (same for both platforms)
   if (!order) {
@@ -1245,7 +1290,11 @@ export default function OrderDetailsScreen() {
   if (isWebWide) {
     return (
       <>
-        <WebLayout order={order} onOpenLabel={()=>setLabelModalVisible(true)} />
+        <WebLayout
+          order={order}
+          onOpenLabel={()=>setLabelModalVisible(true)}
+          onOpenInvoice={order.invoiceUrl ? handleOpenInvoice : undefined}
+        />
         <ShippingLabelModal visible={labelModalVisible} order={order} onClose={()=>setLabelModalVisible(false)} onPrint={handlePrintLabel} />
       </>
     );
@@ -1484,7 +1533,8 @@ const lStyles = StyleSheet.create({
   barcodeSection: { flexDirection:"row", alignItems:"center", paddingHorizontal:14, paddingVertical:12, borderBottomWidth:1, borderBottomColor:C.border, gap:10 },
   barcodeLeft: { flex:1, alignItems:"center" },
   awbLabel: { fontSize:8, fontWeight:"600", color:C.textLight, letterSpacing:1, marginBottom:5 },
-  barcodeWrap: { flexDirection:"row", alignItems:"flex-end", height:52, gap:1 },
+  barcodeWrap: { flexDirection:"row", alignItems:"center", justifyContent:"center", height:52, width:"100%" },
+  barcodeImage: { width:"100%", height:52 },
   bar: { borderRadius:0.5 },
   awbNumber: { fontSize:10, color:C.textMid, letterSpacing:1.4, marginTop:5, fontWeight:"600" },
   qrBox: { width:72, height:72, borderWidth:1, borderColor:C.border, padding:3, backgroundColor:C.white },
