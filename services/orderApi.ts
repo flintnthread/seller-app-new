@@ -1,4 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
+import { ensureSellerId } from "@/lib/api/sellerSession";
+import { Platform } from "react-native";
 import type {
     CustomerInfo,
     Order,
@@ -530,8 +532,16 @@ type ApiOrderStats = {
     totalSale: number;
 };
 
+function withSellerId(path: string): string {
+    if (Platform.OS !== "web") return path;
+    const sellerId = ensureSellerId();
+    if (!sellerId) return path;
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}sellerId=${encodeURIComponent(String(sellerId))}`;
+}
+
 export async function fetchSellerOrderStats(): Promise<import("@/app/(main)/ordersStore").SellerOrderStats> {
-    const stats = await apiRequest<ApiOrderStats>("/api/orders/stats");
+    const stats = await apiRequest<ApiOrderStats>(withSellerId("/api/orders/stats"));
     return {
         totalLineItems: stats.totalLineItems,
         totalOrders: stats.totalOrders,
@@ -549,17 +559,19 @@ export async function fetchSellerOrderStats(): Promise<import("@/app/(main)/orde
 }
 
 export async function fetchSellerOrderSummaries(): Promise<Order[]> {
-    const rows = await apiRequest<ApiOrderSummary[]>("/api/orders");
+    const rows = await apiRequest<ApiOrderSummary[]>(withSellerId("/api/orders"));
     return rows.map(mapSummary);
 }
 
 export async function fetchSellerOrderDetails(): Promise<OrderDetail[]> {
-    const details = await apiRequest<ApiOrderDetail[]>("/api/orders/details");
+    const details = await apiRequest<ApiOrderDetail[]>(withSellerId("/api/orders/details"));
     return details.map(mapDetail);
 }
 
 export async function fetchSellerOrderDetail(orderKey: string): Promise<OrderDetail> {
-    const detail = await apiRequest<ApiOrderDetail>(`/api/orders/${encodeURIComponent(orderKey)}`);
+    const detail = await apiRequest<ApiOrderDetail>(
+        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}`)
+    );
     return mapDetail(detail);
 }
 
@@ -568,12 +580,15 @@ export async function updateSellerOrderStatus(
     status: OrderStatus,
     comment?: string
 ): Promise<OrderDetail> {
-    const detail = await apiRequest<ApiOrderDetail>(`/api/orders/${encodeURIComponent(orderKey)}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({
-            status,
-            ...(comment?.trim() ? { comment: comment.trim() } : {}),
-        }),
-    });
+    const detail = await apiRequest<ApiOrderDetail>(
+        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}/status`),
+        {
+            method: "PATCH",
+            body: JSON.stringify({
+                status,
+                ...(comment?.trim() ? { comment: comment.trim() } : {}),
+            }),
+        }
+    );
     return mapDetail(detail);
 }
