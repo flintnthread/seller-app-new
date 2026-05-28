@@ -12,6 +12,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Modal,
@@ -32,9 +33,14 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
 import type { Order, OrderStatus } from "./ordersData";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import {
   getLiveOrder,
   getLiveOrders,
+  getOrderStats,
+  getOrderTabCount,
+  loadOrdersFromApi,
+  refreshOrdersFromApi,
   subscribeToOrderChanges,
 } from "./ordersStore";
 
@@ -230,38 +236,82 @@ const StatIcon: React.FC<{ cfg: StatIconCfg; size?: number }> = ({
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
 // ─────────────────────────────────────────────────────────────────────────────
-function deriveFlatOrders(): Order[] {
+/** Map status tab to order status (null = all orders). */
+function tabKeyToOrderStatus(tab: TabKey): OrderStatus | null {
+  if (tab === "All Orders") return null;
+  if (tab === "Returns") return "Returned";
+  return tab;
+}
+
+function resolveLineStatus(
+  item: { uiStatus?: OrderStatus; status?: string },
+  orderStatus: OrderStatus,
+): OrderStatus {
+  if (item.uiStatus) return item.uiStatus;
+  if (item.status) {
+    const normalized = item.status.trim();
+    const allowed: OrderStatus[] = [
+      "Pending",
+      "Processing",
+      "Shipped",
+      "Delivered",
+      "Returned",
+      "Cancelled",
+    ];
+    const match = allowed.find((s) => s.toLowerCase() === normalized.toLowerCase());
+    if (match) return match;
+  }
+  return orderStatus;
+}
+
+function orderMatchesTab(orderStatus: OrderStatus, tab: TabKey): boolean {
+  const target = tabKeyToOrderStatus(tab);
+  if (target === null) return true;
+  return orderStatus === target;
+}
+
+/** One list row per order_items row for this seller (matches DB order_items count). */
+function deriveLineItemRows(): Order[] {
   return getLiveOrders().flatMap((d) => {
-    const item = d.items[0];
-    if (!item) return [];
-    return [
-      {
+    if (!d.items.length) return [];
+    return d.items.map((item, idx) => {
+      const lineKey = `${d.id}-${item.lineItemId ?? item.sku ?? idx}`;
+      return {
+        listKey: lineKey,
         id: d.id,
         date: d.date,
         product: item.name,
         variant: item.variant,
         qty: item.qty,
         price: item.price,
-        status: d.status,
+        status: resolveLineStatus(item, d.status),
         customer: d.customer.name,
         image: item.image,
-        ...(d.extraNote !== undefined ? { extra: d.extraNote } : {}),
-      } as Order,
-    ];
+        ...(idx === 0 && d.extraNote !== undefined ? { extra: d.extraNote } : {}),
+      } as Order;
+    });
   });
 }
 
-function computeStats(orders: Order[]) {
-  const counts = {
-    "All Orders": orders.length,
-    Pending: orders.filter((o) => o.status === "Pending").length,
-    Processing: orders.filter((o) => o.status === "Processing").length,
-    Shipped: orders.filter((o) => o.status === "Shipped").length,
-    Delivered: orders.filter((o) => o.status === "Delivered").length,
-    Returns: orders.filter((o) => o.status === "Returned").length,
-    Cancelled: orders.filter((o) => o.status === "Cancelled").length,
-  };
-  return Object.entries(counts).map(([label, count]) => ({ label, count }));
+function deriveFlatOrders(): Order[] {
+  return deriveLineItemRows();
+}
+
+function computeStats(): Array<{ label: TabKey; count: number }> {
+  return TABS.map((tab) => {
+    const fromApi = getOrderTabCount(tab.label);
+    if (fromApi != null) {
+      return { label: tab.label, count: fromApi };
+    }
+    const rows = deriveLineItemRows();
+    return {
+      label: tab.label,
+      count:
+        tab.label === "All Orders"
+          ? rows.length
+          : rows.filter((row) => orderMatchesTab(row.status, tab.label)).length,
+    };
+  });
 }
 
 const parsePrice = (price: string) => Number(price.replace(/[₹,]/g, ""));
@@ -831,24 +881,59 @@ export default function OrdersScreen() {
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
-  const [liveOrders, setLiveOrders] = useState<Order[]>(deriveFlatOrders);
+  const [liveOrders, setLiveOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const onRefresh = () => {
-    setRefreshing(true);
+  const syncOrdersFromStore = () => {
     setLiveOrders(deriveFlatOrders());
-    setTimeout(() => setRefreshing(false), 800);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setOrdersError(null);
+    try {
+      await refreshOrdersFromApi();
+      syncOrdersFromStore();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to refresh orders.";
+      setOrdersError(message);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    const unsub = subscribeToOrderChanges(() =>
-      setLiveOrders(deriveFlatOrders()),
-    );
-    return unsub;
+    let cancelled = false;
+    (async () => {
+      setOrdersLoading(true);
+      setOrdersError(null);
+      try {
+        await hydrateSellerSession();
+        await loadOrdersFromApi();
+        if (!cancelled) syncOrdersFromStore();
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : "Failed to load orders.";
+          setOrdersError(message);
+        }
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    })();
+
+    const unsub = subscribeToOrderChanges(() => syncOrdersFromStore());
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
-  const stats = computeStats(liveOrders);
+  const stats = computeStats();
+  const orderStats = getOrderStats();
+  const statCountByTab = Object.fromEntries(stats.map((s) => [s.label, s.count])) as Record<TabKey, number>;
 
   // ── Sort sheet animation (mobile only) ────────────────────────────────────
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
@@ -1052,10 +1137,7 @@ export default function OrdersScreen() {
       order.product.toLowerCase().includes(query) ||
       order.status.toLowerCase().includes(query);
 
-    const matchesTab =
-      activeTab === "All Orders" ||
-      (activeTab === "Returns" && order.status === "Returned") ||
-      order.status === activeTab;
+    const matchesTab = orderMatchesTab(order.status, activeTab);
 
     const fullOrder = getLiveOrder(order.id);
     const payMethod = fullOrder?.payment.method.toLowerCase() ?? "";
@@ -1144,6 +1226,7 @@ export default function OrdersScreen() {
                 ]}
               >
                 {tab.label}
+                {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1168,6 +1251,7 @@ export default function OrdersScreen() {
                 ]}
               >
                 {tab.label}
+                {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1246,8 +1330,8 @@ export default function OrdersScreen() {
               <MaterialCommunityIcons name="clipboard-list-outline" size={18} color={C.navy} />
             </View>
             <View>
-              <Text style={deskStyles.inlineStatLabel}>Total Orders</Text>
-              <Text style={deskStyles.inlineStatValue}>{liveOrders.length}</Text>
+              <Text style={deskStyles.inlineStatLabel}>Order Products</Text>
+              <Text style={deskStyles.inlineStatValue}>{orderStats.totalLineItems}</Text>
             </View>
           </View>
 
@@ -1259,7 +1343,7 @@ export default function OrdersScreen() {
             <View>
               <Text style={deskStyles.inlineStatLabel}>Total Sale</Text>
               <Text style={[deskStyles.inlineStatValue, { color: C.navy }]}>
-                ₹{liveOrders.reduce((sum, o) => sum + parsePrice(o.price), 0).toLocaleString("en-IN")}
+                ₹{orderStats.totalSale.toLocaleString("en-IN")}
               </Text>
             </View>
           </View>
@@ -1313,8 +1397,8 @@ export default function OrdersScreen() {
                 <MaterialCommunityIcons name="clipboard-list-outline" size={22} color={C.navy} />
               </View>
               <View style={styles.totalCardText}>
-                <Text style={styles.totalCardLabel}>Total Orders</Text>
-                <Text style={styles.totalCardValue}>{liveOrders.length}</Text>
+                <Text style={styles.totalCardLabel}>Order Products</Text>
+                <Text style={styles.totalCardValue}>{orderStats.totalLineItems}</Text>
               </View>
             </View>
             <View style={styles.totalVerticalDivider} />
@@ -1325,7 +1409,7 @@ export default function OrdersScreen() {
               <View style={styles.totalCardText}>
                 <Text style={styles.totalCardLabel}>Total Sale</Text>
                 <Text style={[styles.totalCardValue, { color: C.navy }]}>
-                  ₹{liveOrders.reduce((sum, o) => sum + parsePrice(o.price), 0).toLocaleString("en-IN")}
+                  ₹{orderStats.totalSale.toLocaleString("en-IN")}
                 </Text>
               </View>
             </View>
@@ -1464,11 +1548,24 @@ export default function OrdersScreen() {
           {renderToolbar()}
 
           {/* Orders Grid or List — desktop only */}
-          {sortedOrders.length > 0 ? (
+          {ordersLoading ? (
+            <View style={[styles.emptyState, deskStyles.desktopEmptyState]}>
+              <ActivityIndicator size="large" color={C.navy} />
+              <Text style={styles.emptyStateTitle}>Loading orders…</Text>
+            </View>
+          ) : ordersError ? (
+            <View style={[styles.emptyState, deskStyles.desktopEmptyState]}>
+              <Ionicons name="cloud-offline-outline" size={40} color={C.red} />
+              <Text style={styles.emptyStateTitle}>{ordersError}</Text>
+              <TouchableOpacity style={styles.emptyResetBtn} onPress={onRefresh}>
+                <Text style={styles.emptyResetText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : sortedOrders.length > 0 ? (
             viewMode === "grid" ? (
               <View style={deskStyles.desktopGrid}>
                 {sortedOrders.map((order) => (
-                  <View key={order.id} style={deskStyles.desktopGridItem}>
+                  <View key={order.listKey} style={deskStyles.desktopGridItem}>
                     <OrderCard order={order} />
                   </View>
                 ))}
@@ -1489,7 +1586,7 @@ export default function OrdersScreen() {
                 {/* Table rows */}
                 {sortedOrders.map((order, idx) => (
                   <DesktopListRow
-                    key={order.id}
+                    key={order.listKey}
                     order={order}
                     isLast={idx === sortedOrders.length - 1}
                   />
@@ -1667,6 +1764,7 @@ export default function OrdersScreen() {
                 ]}
               >
                 {tab.label}
+                {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1739,8 +1837,8 @@ export default function OrdersScreen() {
               />
             </View>
             <View style={styles.totalCardText}>
-              <Text style={styles.totalCardLabel}>Total Orders</Text>
-              <Text style={styles.totalCardValue}>{liveOrders.length}</Text>
+              <Text style={styles.totalCardLabel}>Order Products</Text>
+              <Text style={styles.totalCardValue}>{orderStats.totalLineItems}</Text>
             </View>
           </View>
           <View style={styles.totalVerticalDivider} />
@@ -1758,9 +1856,7 @@ export default function OrdersScreen() {
               <Text style={styles.totalCardLabel}>Total Sale</Text>
               <Text style={[styles.totalCardValue, { color: C.navy }]}>
                 ₹
-                {liveOrders
-                  .reduce((sum, o) => sum + parsePrice(o.price), 0)
-                  .toLocaleString("en-IN")}
+                {orderStats.totalSale.toLocaleString("en-IN")}
               </Text>
             </View>
           </View>
@@ -1869,9 +1965,22 @@ export default function OrdersScreen() {
 
         {/* Orders List */}
         <View style={styles.ordersListContainer}>
-          {sortedOrders.length > 0 ? (
+          {ordersLoading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color={C.navy} />
+              <Text style={styles.emptyStateTitle}>Loading orders…</Text>
+            </View>
+          ) : ordersError ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={40} color={C.red} />
+              <Text style={styles.emptyStateTitle}>{ordersError}</Text>
+              <TouchableOpacity style={styles.emptyResetBtn} onPress={onRefresh}>
+                <Text style={styles.emptyResetText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : sortedOrders.length > 0 ? (
             sortedOrders.map((order) => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard key={order.listKey} order={order} />
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -1896,7 +2005,7 @@ export default function OrdersScreen() {
           {[
             { icon: "home-outline", iconActive: "home", label: "Home", active: false, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
             { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: false, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
-            { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: true, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+            { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: true, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: orderStats.totalLineItems > 0 ? orderStats.totalLineItems : undefined },
             { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
           ].map((tab, i) => (
             <TouchableOpacity 
