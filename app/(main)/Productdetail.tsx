@@ -1,15 +1,24 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, Dimensions, StatusBar, SafeAreaView, Platform,
-  Modal, TextInput, Alert,
+  Modal, TextInput, Alert, ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import {
   useFonts, Outfit_400Regular, Outfit_500Medium,
   Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+    deleteProductVariant,
+    fetchProductDetail,
+    updateProductVariant,
+    type ProductDetail,
+    type ProductDetailVariant,
+} from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
+import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -34,28 +43,7 @@ type VariantViewMode = "grid" | "list" | "table";
 interface Spec { label: string; value: string; }
 interface DeliveryCharge { zone: string; standard: string; express: string; }
 
-interface Variant {
-  id: string;
-  color: string;
-  colorHex: string;
-  size: string;
-  sku: string;
-  stock: number;
-  mrp: number;
-  discount: number;
-  sellingPriceExGst: number;
-  gstPercent: number;
-  gstAmount: number;
-  sellingPriceWithGst: number;
-  commissionPercent: number;
-  commissionAmount: number;
-  intraCityDelivery: number;
-  metroMetroDelivery: number;
-  totalIntraCity: number;
-  totalMetroMetro: number;
-  imageUri?: string | undefined;
-  videoUri?: string | undefined;
-}
+type Variant = ProductDetailVariant;
 
 interface SizeChartEntry {
   size: string;
@@ -65,78 +53,7 @@ interface SizeChartEntry {
   length: string;
 }
 
-interface Product {
-  id: string; name: string; sku: string; price: number; mrp: number; discount: number;
-  images: string[]; status: string; stock: number; updated: string;
-  category: string; subcategory: string; color: string; size: string;
-  hsnCode: string; gst: string; createdAt: string; approvedAt: string;
-  description: string; material: string; weight: string; dimensions: string;
-  returnPolicy: string; warranty: string; adminNotes: string;
-  specifications: Spec[]; features: string[];
-  delivery: { estimated: string; freeAbove: string; expressAvailable: boolean; expressCharge: string; cod: boolean; codCharge: string; locations: string; };
-  packaging: { boxDimensions: string; grossWeight: string; packagingType: string; fragile: boolean; };
-  deliveryCharges: DeliveryCharge[];
-  returnDetails: { window: string; conditions: string[]; process: string; refundMode: string; };
-  variants: Variant[];
-  sizeChart: SizeChartEntry[];
-}
-
-const INITIAL_VARIANTS: Variant[] = [
-  { id: "1", color: "Blue",   colorHex: "#3B82F6", size: "40", sku: "PEN-BLST-7862", stock: 15, mrp: 2190, discount: 25, sellingPriceExGst: 1642.50, gstPercent: 5,  gstAmount: 82.13,  sellingPriceWithGst: 1724.63, commissionPercent: 15, commissionAmount: 258.69, intraCityDelivery: 175, metroMetroDelivery: 205, totalIntraCity: 2158.32, totalMetroMetro: 2188.32 },
-  { id: "2", color: "Green",  colorHex: "#22C55E", size: "41", sku: "PEN-GRST-2606", stock: 15, mrp: 2190, discount: 25, sellingPriceExGst: 1642.50, gstPercent: 5,  gstAmount: 82.13,  sellingPriceWithGst: 1724.63, commissionPercent: 15, commissionAmount: 258.69, intraCityDelivery: 175, metroMetroDelivery: 205, totalIntraCity: 2158.32, totalMetroMetro: 2188.32 },
-  { id: "3", color: "Red",    colorHex: "#EF4444", size: "42", sku: "PEN-REST-2358", stock: 15, mrp: 2190, discount: 25, sellingPriceExGst: 1642.50, gstPercent: 5,  gstAmount: 82.13,  sellingPriceWithGst: 1724.63, commissionPercent: 15, commissionAmount: 258.69, intraCityDelivery: 175, metroMetroDelivery: 205, totalIntraCity: 2158.32, totalMetroMetro: 2188.32 },
-  { id: "4", color: "Yellow", colorHex: "#F59E0B", size: "43", sku: "PEN-YEST-4683", stock: 15, mrp: 2190, discount: 25, sellingPriceExGst: 1642.50, gstPercent: 5,  gstAmount: 82.13,  sellingPriceWithGst: 1724.63, commissionPercent: 15, commissionAmount: 258.69, intraCityDelivery: 175, metroMetroDelivery: 205, totalIntraCity: 2158.32, totalMetroMetro: 2188.32 },
-];
-
-const SIZE_CHART_DATA: SizeChartEntry[] = [
-  { size: "XS", chest: "32–34", waist: "24–26", hip: "34–36", length: "26" },
-  { size: "S",  chest: "34–36", waist: "26–28", hip: "36–38", length: "27" },
-  { size: "M",  chest: "36–38", waist: "28–30", hip: "38–40", length: "28" },
-  { size: "L",  chest: "38–40", waist: "30–32", hip: "40–42", length: "29" },
-  { size: "XL", chest: "40–42", waist: "32–34", hip: "42–44", length: "30" },
-  { size: "XXL",chest: "42–44", waist: "34–36", hip: "44–46", length: "31" },
-];
-
-const PRODUCT: Product = {
-  id: "1", name: "Running Sports Shoes", sku: "SHOES001", price: 1999, mrp: 2999, discount: 33,
-  images: ["https://picsum.photos/seed/shoes1/600/600","https://picsum.photos/seed/shoes2/600/600","https://picsum.photos/seed/shoes3/600/600","https://picsum.photos/seed/shoes4/600/600"],
-  status: "Active", stock: 50, updated: "20 May 2024", category: "Footwear", subcategory: "Sneakers",
-  color: "Red", size: "42", hsnCode: "64041190", gst: "18%", createdAt: "12 Jan 2024", approvedAt: "14 Jan 2024",
-  description: "High-performance running shoes engineered for serious athletes and everyday fitness enthusiasts. Features an advanced cushioning system with dual-density foam midsole that absorbs impact and returns energy with every stride. The breathable engineered mesh upper provides excellent ventilation while maintaining a snug, supportive fit.",
-  material: "Mesh & Rubber", weight: "0.5 kg (per pair)", dimensions: "30 × 15 × 12 cm",
-  returnPolicy: "30 Days Return", warranty: "6 Months",
-  adminNotes: "Bulk approved by admin - 2024-01-14 10:22:00 · Auto-moved to active · Stock synced 2024-05-20",
-  specifications: [
-    { label: "Upper Material", value: "Engineered Mesh" }, { label: "Sole Material", value: "High-density Rubber" },
-    { label: "Midsole", value: "Dual-density EVA Foam" }, { label: "Closure", value: "Lace-up" },
-    { label: "Toe Type", value: "Rounded Wide Toe" }, { label: "Ideal For", value: "Running, Gym, Casual" },
-    { label: "Waterproof", value: "No" }, { label: "Arch Support", value: "Yes" },
-  ],
-  features: [
-    "Advanced dual-density cushioning for impact absorption",
-    "Breathable engineered mesh upper with 3D ventilation zones",
-    "Anti-slip high-traction rubber outsole pattern",
-    "Reflective safety strips for low-light visibility",
-    "Removable orthopaedic insole",
-    "RFID-free, eco-dyed materials",
-  ],
-  delivery: { estimated: "2–5 Business Days", freeAbove: "₹999", expressAvailable: true, expressCharge: "₹79", cod: true, codCharge: "₹49", locations: "Pan India" },
-  packaging: { boxDimensions: "33 × 18 × 14 cm", grossWeight: "0.85 kg", packagingType: "Double-wall Corrugated Box", fragile: false },
-  deliveryCharges: [
-    { zone: "Metro Cities",   standard: "₹49",  express: "₹99"  },
-    { zone: "Tier 2 Cities",  standard: "₹69",  express: "₹129" },
-    { zone: "Rural / Remote", standard: "₹89",  express: "₹149" },
-    { zone: "Free Above",     standard: "₹999", express: "N/A"  },
-  ],
-  returnDetails: {
-    window: "30 Days",
-    conditions: ["Item must be unused and in original packaging","Tags and labels must be intact","Proof of purchase required","Worn or washed items not eligible"],
-    process: "Raise return request → Schedule pickup → Refund within 5–7 business days",
-    refundMode: "Original Payment Method / Wallet Credit",
-  },
-  variants: INITIAL_VARIANTS,
-  sizeChart: SIZE_CHART_DATA,
-};
+type Product = ProductDetail;
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "overview",        label: "Overview",       icon: "information-outline"    },
@@ -382,14 +299,21 @@ const EditVariantModal: React.FC<{
       return;
     }
     if (!variant) return;
+    const mrpVal = parseFloat(mrp);
+    const exGst = parseFloat(sellingPriceExGst.toFixed(2));
+    const withGst = parseFloat(sellingWithGst.toFixed(2));
     onSave({
       ...variant,
       color, colorHex: COLOR_HEX[color] ?? variant.colorHex,
       size, stock: parseInt(stock),
-      mrp: parseFloat(mrp), discount: parseFloat(discount),
-      sellingPriceExGst: parseFloat(sellingPriceExGst.toFixed(2)),
+      mrpExclGst: mrpVal,
+      mrp: mrpVal,
+      discount: parseFloat(discount),
+      sellingPrice: exGst,
+      sellingPriceExGst: exGst,
+      finalPrice: withGst,
+      sellingPriceWithGst: withGst,
       gstPercent: parseFloat(gst), gstAmount: parseFloat(gstAmount.toFixed(2)),
-      sellingPriceWithGst: parseFloat(sellingWithGst.toFixed(2)),
       commissionAmount: parseFloat(commission.toFixed(2)),
       totalIntraCity: parseFloat(intraCity.toFixed(2)),
       totalMetroMetro: parseFloat(metroMetro.toFixed(2)),
@@ -549,19 +473,51 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
       return;
     }
     const sku = `${color.substring(0, 3).toUpperCase()}-${size.substring(0, 2).toUpperCase()}ST-${Math.floor(1000 + Math.random() * 9000)}`;
+    const mrpVal = parseFloat(mrp);
+    const disc = parseFloat(discount);
+    const exGst = parseFloat(sellingPriceExGst.toFixed(2));
+    const withGst = parseFloat(sellingWithGst.toFixed(2));
     onAdd({
-      id: Date.now().toString(), color, colorHex: COLOR_HEX[color] ?? "#9CA3AF",
-      size, sku, stock: parseInt(stock),
-      mrp: parseFloat(mrp), discount: parseFloat(discount),
-      sellingPriceExGst: parseFloat(sellingPriceExGst.toFixed(2)),
-      gstPercent: parseFloat(gst), gstAmount: parseFloat(gstAmount.toFixed(2)),
-      sellingPriceWithGst: parseFloat(sellingWithGst.toFixed(2)),
-      commissionPercent: 15, commissionAmount: parseFloat(commission.toFixed(2)),
-      intraCityDelivery: 175, metroMetroDelivery: 205,
+      id: Date.now().toString(),
+      productId: "",
+      color,
+      colorHex: COLOR_HEX[color] ?? "#9CA3AF",
+      size,
+      sku,
+      stock: parseInt(stock),
+      basePrice: mrpVal,
+      mrpExclGst: mrpVal,
+      mrpPrice: withGst,
+      discountPercentage: disc,
+      discountAmount: parseFloat((mrpVal - exGst).toFixed(2)),
+      sellingPrice: exGst,
+      taxPercentage: parseFloat(gst),
+      taxAmount: parseFloat(gstAmount.toFixed(2)),
+      finalPrice: withGst,
+      mrpInclGst: withGst,
+      intraCityDeliveryCharge: 175,
+      metroMetroDeliveryCharge: 205,
+      totalPriceIntraCity: parseFloat(intraCity.toFixed(2)),
+      totalPriceMetroMetro: parseFloat(metroMetro.toFixed(2)),
+      commissionPercentage: 15,
+      commissionAmount: parseFloat(commission.toFixed(2)),
+      videoPath: "",
+      weight: 0,
+      createdAt: "—",
+      updatedAt: "—",
+      mrp: mrpVal,
+      discount: disc,
+      sellingPriceExGst: exGst,
+      gstPercent: parseFloat(gst),
+      gstAmount: parseFloat(gstAmount.toFixed(2)),
+      sellingPriceWithGst: withGst,
+      commissionPercent: 15,
+      intraCityDelivery: 175,
+      metroMetroDelivery: 205,
       totalIntraCity: parseFloat(intraCity.toFixed(2)),
       totalMetroMetro: parseFloat(metroMetro.toFixed(2)),
-      imageUri: imageUri || undefined,
-      videoUri: videoUri || undefined,
+      ...(imageUri ? { imageUri } : {}),
+      ...(videoUri ? { videoUri } : {}),
     });
     setColor(""); setSize(""); setStock(""); setMrp(""); setDiscount(""); setGst("5");
     setImageUri(""); setVideoUri("");
@@ -829,7 +785,7 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
         <Text style={vr.gridSku}>{v.sku}</Text>
         {/* FIX: navy color for selling price */}
         <Text style={[vr.gridPrice, { color: C.navy }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text>
-        <Text style={vr.gridMrp}>MRP ₹{v.mrp.toFixed(2)}</Text>
+        <Text style={vr.gridMrp}>MRP Excl. GST ₹{v.mrpExclGst.toFixed(2)}</Text>
         <View style={vr.gridDivider} />
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Stock</Text><Text style={vr.gridRowVal}>{v.stock} units</Text></View>
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>GST</Text><Text style={[vr.gridRowVal, { color: C.orange }]}>₹{v.gstAmount.toFixed(2)} ({v.gstPercent}%)</Text></View>
@@ -892,7 +848,7 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
           </TouchableOpacity>
         </View>
         <View style={vr.listPriceRow}>
-          <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>MRP</Text><Text style={[vr.listPriceVal, { color: C.red }]}>₹{v.mrp.toFixed(2)}</Text></View>
+          <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>MRP Excl. GST</Text><Text style={[vr.listPriceVal, { color: C.red }]}>₹{v.mrpExclGst.toFixed(2)}</Text></View>
           <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>Excl. GST</Text><Text style={vr.listPriceVal}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
           <View style={vr.listPriceTile}><Text style={vr.listPriceLabel}>GST {v.gstPercent}%</Text><Text style={[vr.listPriceVal, { color: C.orange }]}>+₹{v.gstAmount.toFixed(2)}</Text></View>
           {/* FIX: navy instead of blue for selling price with GST */}
@@ -942,7 +898,7 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
           <View style={[vr.cell, { width: 80 }]}><View style={vr.sizePill}><Text style={vr.sizePillTxt}>{v.size}</Text></View></View>
           <View style={[vr.cell, { width: 110 }]}><Text style={[vr.cellTxt, { fontSize: 10.5, color: C.textLight }]}>{v.sku}</Text></View>
           <View style={[vr.cell, { width: 70 }]}><View style={vr.stockPill}><Text style={vr.stockPillTxt}>{v.stock} units</Text></View></View>
-          <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.red, fontFamily: "Outfit_700Bold" }]}>₹{v.mrp.toFixed(2)}</Text></View>
+          <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.red, fontFamily: "Outfit_700Bold" }]}>₹{v.mrpExclGst.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100 }]}><View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount.toFixed(2)}% OFF</Text></View></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={vr.cellTxt}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
           <View style={[vr.cell, { width: 100 }]}><Text style={[vr.cellTxt, { color: C.orange }]}>+ ₹{v.gstAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.gstPercent}%)</Text></View>
@@ -1135,11 +1091,16 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
           <InfoRow label="Size"        value={p.size}        />
           <InfoRow label="HSN Code"    value={p.hsnCode}     />
           <InfoRow label="GST"         value={p.gst} valueColor={C.orange} />
+          <InfoRow label="Material"    value={p.material}    />
+          <InfoRow label="Return"      value={p.returnPolicy} />
+          <InfoRow label="Warranty"    value={p.warranty}    />
+          {p.careInstructions !== "—" ? <InfoRow label="Care" value={p.careInstructions} /> : null}
         </View>
         <View style={wt.halfCard}>
           <SectionHeader icon="warehouse" title="Inventory" />
           <InfoRow label="Stock Quantity" value={`${p.stock} units`} valueColor={C.green} />
           <InfoRow label="Status"         value={p.status}           valueColor={getStatusStyle(p.status).color} />
+          {p.rawStatus ? <InfoRow label="DB Status" value={p.rawStatus} /> : null}
           <InfoRow label="Last Updated"   value={p.updated}          />
           <InfoRow label="Created At"     value={p.createdAt}        />
           <InfoRow label="Approved At"    value={p.approvedAt}       />
@@ -1383,12 +1344,15 @@ const WebHeroSection: React.FC<{
   const st = getStatusStyle(p.status);
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
+  const galleryImages = p.images.filter(img => img && img.trim().length > 0);
+  const heroImages = galleryImages.length > 0 ? galleryImages : [""];
+  const safeActiveImg = Math.min(activeImg, heroImages.length - 1);
 
   return (
     <View style={wh.container}>
       <View style={wh.imageSection}>
         <View style={wh.heroImageWrap}>
-          <Image source={{ uri: p.images[activeImg] }} style={wh.heroImage} resizeMode="cover" />
+          <Image source={{ uri: heroImages[safeActiveImg] }} style={wh.heroImage} resizeMode="cover" />
           <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
@@ -1396,8 +1360,8 @@ const WebHeroSection: React.FC<{
           </View>
         </View>
         <View style={wh.thumbRow}>
-          {p.images.map((img, i) => (
-            <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[wh.thumb, i === activeImg && wh.thumbActive]}>
+          {heroImages.filter(Boolean).map((img, i) => (
+            <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
               <Image source={{ uri: img }} style={wh.thumbImg} resizeMode="cover" />
             </TouchableOpacity>
           ))}
@@ -1419,10 +1383,18 @@ const WebHeroSection: React.FC<{
 
           <View style={wh.priceRow}>
             <Text style={wh.price}>₹{p.price.toLocaleString()}</Text>
-            <Text style={wh.mrp}>₹{p.mrp.toLocaleString()}</Text>
-            <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            {p.mrpExclGst > p.price ? (
+              <Text style={wh.mrp}>₹{p.mrpExclGst.toLocaleString()}</Text>
+            ) : null}
+            {p.discount > 0 ? (
+              <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            ) : null}
           </View>
-          <Text style={wh.priceNote}>Metro City Price · Incl. GST ({p.gst})</Text>
+          <Text style={wh.priceNote}>
+            MRP Excl. GST ₹{p.mrpExclGst.toLocaleString()}
+            {p.mrpInclGst > 0 ? ` · MRP Incl. GST ₹${p.mrpInclGst.toLocaleString()}` : ""}
+            {" · "}Selling Incl. GST ({p.gst})
+          </Text>
 
           <View style={wh.divider} />
 
@@ -1487,39 +1459,124 @@ const WebHeroSection: React.FC<{
 // ─── MAIN SCREEN ──────────────────────────────────────────────
 const ProductDetailScreen: React.FC = () => {
   const router = useRouter();
-  const p = PRODUCT;
+  const { id } = useLocalSearchParams<{ id?: string }>();
 
+  const [p, setP] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeImg,      setActiveImg]      = useState(0);
   const [activeTab,      setActiveTab]      = useState<TabId>("overview");
-  const [variants,       setVariants]       = useState<Variant[]>(INITIAL_VARIANTS);
+  const [variants,       setVariants]       = useState<Variant[]>([]);
   const [showAddVariant, setShowAddVariant] = useState(false);
   const [showSizeChart,  setShowSizeChart]  = useState(false);
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
 
   const [fontsLoaded] = useFonts({ Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold });
-  if (!fontsLoaded) return null;
-
-  const st = getStatusStyle(p.status);
 
   const goToProductManagement = () => {
     router.push("/(main)/productmanagement" as any);
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!id) {
+        setError("Product id is missing.");
+        setLoading(false);
+        return;
+      }
+      await hydrateSellerSession();
+      if (!ensureSellerId()) {
+        if (!cancelled) {
+          setError("Seller not logged in. Please log in again.");
+          setLoading(false);
+        }
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const detail = await fetchProductDetail(String(id));
+        if (!cancelled) {
+          setP(detail);
+          setVariants(detail.variants);
+          setActiveImg(0);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load product details.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
   const handleAddVariant = useCallback((v: Variant) => {
     setVariants(prev => [...prev, v]);
   }, []);
 
-  const handleDeleteVariant = useCallback((id: string) => {
-    setVariants(prev => prev.filter(v => v.id !== id));
-  }, []);
+  const handleDeleteVariant = useCallback(async (variantId: string) => {
+    if (!id) return;
+    try {
+      await deleteProductVariant(String(id), variantId);
+      setVariants((prev) => prev.filter((v) => v.id !== variantId));
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Failed to delete variant.";
+      Alert.alert("Error", msg);
+    }
+  }, [id]);
 
   const handleEditVariant = useCallback((v: Variant) => {
     setEditingVariant(v);
   }, []);
 
-  const handleSaveVariant = useCallback((updated: Variant) => {
-    setVariants(prev => prev.map(v => v.id === updated.id ? updated : v));
-  }, []);
+  const handleSaveVariant = useCallback(async (updated: Variant) => {
+    if (!id) return;
+    try {
+      await updateProductVariant(String(id), updated.id, {
+        color: updated.color,
+        size: updated.size,
+        stock: updated.stock,
+        mrp: updated.mrpExclGst || updated.mrp,
+        sellingPrice: updated.sellingPriceExGst || updated.sellingPrice,
+        discount: updated.discount,
+      });
+      setVariants((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Failed to update variant.";
+      Alert.alert("Error", msg);
+    }
+  }, [id]);
+
+  if (!fontsLoaded) return null;
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
+        <ActivityIndicator size="large" color={C.navy} />
+        <Text style={{ marginTop: 12, fontFamily: "Outfit_500Medium", color: C.textMid }}>Loading product…</Text>
+      </View>
+    );
+  }
+
+  if (error || !p) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg, padding: 24 }}>
+        <MaterialCommunityIcons name="alert-circle-outline" size={40} color={C.red} />
+        <Text style={{ marginTop: 12, fontFamily: "Outfit_600SemiBold", color: C.textDark, textAlign: "center" }}>{error ?? "Product not found"}</Text>
+        <TouchableOpacity onPress={goToProductManagement} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.navy, borderRadius: 8 }}>
+          <Text style={{ fontFamily: "Outfit_600SemiBold", color: C.white }}>Back to Products</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const displayImages = p.images.filter(img => img && img.trim().length > 0);
+  const heroImages = displayImages.length > 0 ? displayImages : [""];
+
+  const st = getStatusStyle(p.status);
 
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
@@ -1543,7 +1600,7 @@ const ProductDetailScreen: React.FC = () => {
                 <MaterialCommunityIcons name="plus-circle-outline" size={15} color={C.white} />
                 <Text style={sw.addVariantBtnText}>Add Variant</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={sw.editBtn} onPress={() => router.push("/(main)/Editproduct" as any)} activeOpacity={0.85}>
+              <TouchableOpacity style={sw.editBtn} onPress={() => router.push({ pathname: "/(main)/Editproduct", params: { id: p.id } } as any)} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="pencil-outline" size={15} color={C.white} />
                 <Text style={sw.editBtnText}>Edit Product</Text>
               </TouchableOpacity>
@@ -1630,7 +1687,7 @@ const ProductDetailScreen: React.FC = () => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
         <View style={s.galleryContainer}>
-          <Image source={{ uri: p.images[activeImg] }} style={s.heroImage} resizeMode="cover" />
+          <Image source={{ uri: heroImages[Math.min(activeImg, heroImages.length - 1)] }} style={s.heroImage} resizeMode="cover" />
           <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
@@ -1639,7 +1696,7 @@ const ProductDetailScreen: React.FC = () => {
         </View>
 
         <View style={s.thumbRow}>
-          {p.images.map((img, i) => (
+          {heroImages.filter(Boolean).map((img, i) => (
             <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[s.thumb, i === activeImg && s.thumbActive]}>
               <Image source={{ uri: img }} style={s.thumbImg} resizeMode="cover" />
             </TouchableOpacity>
@@ -1652,10 +1709,18 @@ const ProductDetailScreen: React.FC = () => {
           <Text style={s.skuText}>SKU: {p.sku}</Text>
           <View style={s.priceRow}>
             <Text style={s.price}>₹{p.price.toLocaleString()}</Text>
-            <Text style={s.mrp}>₹{p.mrp.toLocaleString()}</Text>
-            <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            {p.mrpExclGst > p.price ? (
+              <Text style={s.mrp}>₹{p.mrpExclGst.toLocaleString()}</Text>
+            ) : null}
+            {p.discount > 0 ? (
+              <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            ) : null}
           </View>
-          <Text style={s.priceNote}>Metro City Price · Incl. GST ({p.gst})</Text>
+          <Text style={s.priceNote}>
+            MRP Excl. GST ₹{p.mrpExclGst.toLocaleString()}
+            {p.mrpInclGst > 0 ? ` · Incl. GST MRP ₹${p.mrpInclGst.toLocaleString()}` : ""}
+            {" · "}Selling Incl. GST ({p.gst})
+          </Text>
 
           {uniqueColors.length > 0 && (
             <View style={s.colorsSection}>
@@ -1743,7 +1808,7 @@ const ProductDetailScreen: React.FC = () => {
           <MaterialCommunityIcons name="plus-circle-outline" size={17} color={C.white} />
           <Text style={s.variantActionText}>Add Variant</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.editAction} onPress={() => router.push("/(main)/Editproduct" as any)} activeOpacity={0.85}>
+        <TouchableOpacity style={s.editAction} onPress={() => router.push({ pathname: "/(main)/Editproduct", params: { id: p.id } } as any)} activeOpacity={0.85}>
           <MaterialCommunityIcons name="pencil-outline" size={17} color={C.white} />
           <Text style={s.editActionText}>Edit</Text>
         </TouchableOpacity>
