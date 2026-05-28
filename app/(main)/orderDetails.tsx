@@ -41,8 +41,9 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
-import type { OrderDetail, OrderStep } from "./_ordersData";
-import { getLiveOrder, subscribeToOrderChanges } from "./_ordersStore";
+import type { OrderDetail, OrderItem, OrderStep } from "./_ordersData";
+import { fetchSellerOrderDetail } from "@/services/orderApi";
+import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "./_ordersStore";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
 const BP_TABLET  = 768;   // >= tablet: 2-col layout
@@ -78,6 +79,52 @@ const PAYMENT_STATUS_CONFIG = {
   Failed:   { bg: C.redPale,    color: C.red    },
   Refunded: { bg: C.orangePale, color: C.orange },
 } as const;
+
+const REVIEW_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  Pending:  { bg: C.yellowPale, color: C.yellow },
+  Approved: { bg: C.greenPale,  color: C.green  },
+  Rejected: { bg: C.redPale,    color: C.red    },
+  Shipped:  { bg: C.bluePale,   color: C.blue   },
+  Completed:{ bg: C.greenPale,  color: C.green  },
+};
+
+function reviewStatusStyle(label: string) {
+  return REVIEW_STATUS_COLORS[label] ?? { bg: C.bg, color: C.textMid };
+}
+
+function hasReviewData(order: OrderDetail): boolean {
+  return !!(
+    order.reviewSummary?.hasPendingReview ||
+    order.returns?.length ||
+    order.exchanges?.length ||
+    order.replacements?.length ||
+    order.cancellations?.length
+  );
+}
+
+function formatItemWeight(item: OrderItem): string {
+  const weight = item.chargeableWeight ?? item.packageDeadWeight ?? item.weight;
+  return weight != null ? `${weight} kg` : "—";
+}
+
+function formatItemDimensions(item: OrderItem): string {
+  if (item.lengthCm != null && item.widthCm != null && item.heightCm != null) {
+    return `${item.lengthCm}cm × ${item.widthCm}cm × ${item.heightCm}cm`;
+  }
+  return "—";
+}
+
+function totalItemWeight(order: OrderDetail): string {
+  const total = order.items.reduce((sum, item) => {
+    const weight = item.chargeableWeight ?? item.packageDeadWeight ?? item.weight ?? 0;
+    return sum + weight * item.qty;
+  }, 0);
+  return total > 0 ? `${total.toFixed(2)} kg` : "—";
+}
+
+function primaryItemDimensions(order: OrderDetail): string {
+  return order.items[0] ? formatItemDimensions(order.items[0]) : "—";
+}
 
 // ─── Shiprocket types & mock (identical to original) ─────────────────────────
 interface ShiprocketEvent {
@@ -126,6 +173,24 @@ function getMockShiprocketData(orderId: string, status: string): ShiprocketData 
     trackingUrl:`https://www.bluedart.com/tracking/${awb}`,
     events: baseEvents,
   };
+}
+
+function buildShiprocketData(order: OrderDetail): ShiprocketData {
+  const sr = order.shiprocket;
+  if (sr?.awb || sr?.orderId || sr?.trackingUrl) {
+    const mock = getMockShiprocketData(order.id, order.status);
+    return {
+      shiprocketOrderId: sr.orderId ?? mock.shiprocketOrderId,
+      shipmentId: sr.shipmentId ?? mock.shipmentId,
+      awb: sr.awb ?? mock.awb,
+      courier: sr.courier ?? mock.courier,
+      shipmentStatus: sr.status ?? mock.shipmentStatus,
+      lastSynced: sr.syncedAt ?? mock.lastSynced,
+      trackingUrl: sr.trackingUrl ?? mock.trackingUrl,
+      events: mock.events,
+    };
+  }
+  return getMockShiprocketData(order.id, order.status);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -221,7 +286,10 @@ const WebOrderSummaryCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
             <View style={{ marginTop:8, gap:4 }}>
               <View style={wc.breakRow}><Text style={wc.breakLabel}>Subtotal</Text><Text style={wc.breakVal}>{order.pricing.subtotal}</Text></View>
               <View style={wc.breakRow}><Text style={wc.breakLabel}>Shipping</Text><Text style={wc.breakVal}>{order.pricing.shipping}</Text></View>
+              {order.pricing.tax && <View style={wc.breakRow}><Text style={wc.breakLabel}>Tax</Text><Text style={wc.breakVal}>{order.pricing.tax}</Text></View>}
               {order.pricing.discount && <View style={wc.breakRow}><Text style={wc.breakLabel}>Discount</Text><Text style={[wc.breakVal,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
+              {order.pricing.referralDiscount && <View style={wc.breakRow}><Text style={wc.breakLabel}>Referral Discount</Text><Text style={[wc.breakVal,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
+              {order.pricing.walletDeduction && <View style={wc.breakRow}><Text style={wc.breakLabel}>Wallet</Text><Text style={[wc.breakVal,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
             </View>
           )}
         </View>
@@ -231,10 +299,8 @@ const WebOrderSummaryCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
 };
 
 const WebCustomerCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
-  const lines = order.customer.address.split("\n");
-  const mid   = Math.ceil(lines.length / 2);
-  const ship  = lines.slice(0, mid);
-  const bill  = lines.slice(mid);
+  const shippingAddress = order.customer.address;
+  const billingAddress = order.billing?.address ?? shippingAddress;
   return (
     <View style={wc.card}>
       <SectionHeader iconLib="Ionicons" iconName="person-circle-outline" title="Customer & Addresses" />
@@ -242,7 +308,11 @@ const WebCustomerCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
         <View style={wc.avatar}>
           <Text style={wc.avatarText}>{order.customer.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</Text>
         </View>
-        <Text style={{ fontSize:15, fontWeight:"700", color:C.textDark }}>{order.customer.name}</Text>
+        <View style={{ flex:1 }}>
+          <Text style={{ fontSize:15, fontWeight:"700", color:C.textDark }}>{order.customer.name}</Text>
+          {!!order.customer.phone && <Text style={{ fontSize:12, color:C.textMid, marginTop:2 }}>{order.customer.phone}</Text>}
+          {!!order.customer.email && <Text style={{ fontSize:12, color:C.textLight, marginTop:2 }}>{order.customer.email}</Text>}
+        </View>
       </View>
       <View style={{ flexDirection:"row", gap:0 }}>
         <View style={{ flex:1, paddingRight:14 }}>
@@ -252,7 +322,7 @@ const WebCustomerCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
             </View>
             <Text style={{ fontSize:11, fontWeight:"700", color:C.blue }}>Shipping Address</Text>
           </View>
-          <Text style={{ fontSize:12, color:C.textMid, lineHeight:20 }}>{ship.join("\n")}</Text>
+          <Text style={{ fontSize:12, color:C.textMid, lineHeight:20 }}>{shippingAddress}</Text>
         </View>
         <View style={{ width:1, backgroundColor:C.border }} />
         <View style={{ flex:1, paddingLeft:14 }}>
@@ -262,7 +332,7 @@ const WebCustomerCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
             </View>
             <Text style={{ fontSize:11, fontWeight:"700", color:C.purple }}>Billing Address</Text>
           </View>
-          <Text style={{ fontSize:12, color:C.textMid, lineHeight:20 }}>{bill.length>0?bill.join("\n"):ship.join("\n")}</Text>
+          <Text style={{ fontSize:12, color:C.textMid, lineHeight:20 }}>{billingAddress}</Text>
         </View>
       </View>
     </View>
@@ -283,7 +353,14 @@ const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
             <Text style={{ fontSize:14, fontWeight:"800", color:C.textDark, marginLeft:8 }}>{item.price}</Text>
           </View>
           <Text style={{ fontSize:12, color:C.textLight, marginBottom:3 }}>{item.variant}</Text>
-          <Text style={{ fontSize:11, color:C.textLight, marginBottom:7 }}>SKU: {item.sku}</Text>
+          <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>SKU: {item.sku}</Text>
+          {!!item.hsnCode && <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>HSN: {item.hsnCode}</Text>}
+          {!!item.status && <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>Status: {item.status}</Text>}
+          {item.customDetails?.map((detail) => (
+            <Text key={detail.id} style={{ fontSize:11, color:C.textMid, marginBottom:2 }}>
+              {detail.fieldLabel}: {detail.valueText || detail.valueFile || "—"}
+            </Text>
+          ))}
           <View style={{ alignSelf:"flex-start", backgroundColor:C.bluePale, paddingHorizontal:10, paddingVertical:3, borderRadius:12 }}>
             <Text style={{ fontSize:12, fontWeight:"700", color:C.blue }}>Qty: {item.qty}</Text>
           </View>
@@ -293,7 +370,10 @@ const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
     <View style={{ borderTopWidth:1, borderTopColor:C.border, marginTop:16, paddingTop:12, gap:6 }}>
       <View style={wc.prow}><Text style={wc.plabel}>Subtotal</Text><Text style={wc.pval}>{order.pricing.subtotal}</Text></View>
       <View style={wc.prow}><Text style={wc.plabel}>Shipping Charge</Text><Text style={wc.pval}>{order.pricing.shipping}</Text></View>
+      {order.pricing.tax && <View style={wc.prow}><Text style={wc.plabel}>Tax</Text><Text style={wc.pval}>{order.pricing.tax}</Text></View>}
       {order.pricing.discount && <View style={wc.prow}><Text style={wc.plabel}>Discount</Text><Text style={[wc.pval,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
+      {order.pricing.referralDiscount && <View style={wc.prow}><Text style={wc.plabel}>Referral Discount</Text><Text style={[wc.pval,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
+      {order.pricing.walletDeduction && <View style={wc.prow}><Text style={wc.plabel}>Wallet Deduction</Text><Text style={[wc.pval,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
       <View style={[wc.prow, { borderTopWidth:1, borderTopColor:C.border, paddingTop:8, marginTop:2 }]}>
         <Text style={{ fontSize:14, fontWeight:"700", color:C.textDark }}>Total Amount</Text>
         <Text style={{ fontSize:16, fontWeight:"800", color:C.navy }}>{order.pricing.total}</Text>
@@ -333,8 +413,115 @@ const WebNotesCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
       ? <><Text style={wc.notesLabel}>Customer Note</Text><Text style={wc.notesVal}>{order.customerNote}</Text></>
       : <Text style={{ fontSize:13, color:C.textLight }}>No customer note provided.</Text>}
     {order.sellerNote && <><Text style={[wc.notesLabel,{marginTop:10}]}>Seller Note</Text><Text style={wc.notesVal}>{order.sellerNote}</Text></>}
+    {order.cancelReason && <><Text style={[wc.notesLabel,{marginTop:10}]}>Cancellation Reason</Text><Text style={wc.notesVal}>{order.cancelReason}</Text></>}
   </View>
 );
+
+const WebGstCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
+  if (!order.gstNumber && !order.gstInfo && !order.gstRecords?.length) return null;
+  return (
+    <View style={wc.card}>
+      <SectionHeader iconLib="MCIcons" iconName="file-percent-outline" title="GST Details" />
+      {!!order.gstNumber && <><Text style={wc.label}>GST Number</Text><Text style={wc.val}>{order.gstNumber}</Text></>}
+      {!!order.gstInfo && <><Text style={[wc.label,{marginTop:12}]}>GST Info</Text><Text style={wc.notesVal}>{order.gstInfo}</Text></>}
+      {order.gstRecords?.map((record, idx) => (
+        <View key={record.id ?? idx} style={{ marginTop:12, paddingTop:12, borderTopWidth: idx > 0 || order.gstNumber ? 1 : 0, borderTopColor:C.border }}>
+          {!!record.gstNumber && <Text style={wc.val}>{record.gstNumber}</Text>}
+          {!!record.gstInfo && <Text style={[wc.notesVal,{marginTop:4}]}>{record.gstInfo}</Text>}
+          {!!record.createdAt && <Text style={{ fontSize:10, color:C.textLight, marginTop:4 }}>{record.createdAt}</Text>}
+        </View>
+      ))}
+    </View>
+  );
+};
+
+const WebReviewCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
+  if (!hasReviewData(order)) return null;
+  const summary = order.reviewSummary;
+  const renderRows = (
+    title: string,
+    rows: Array<{ id: number; productName: string; statusLabel: string; reason?: string; description?: string; adminComment?: string; createdAt?: string; solutionLabel?: string }>
+  ) => rows.length ? (
+    <View style={{ marginTop:14 }}>
+      <Text style={{ fontSize:12, fontWeight:"700", color:C.textDark, marginBottom:8 }}>{title}</Text>
+      {rows.map((row) => {
+        const cfg = reviewStatusStyle(row.statusLabel);
+        return (
+          <View key={row.id} style={{ marginBottom:10, padding:12, borderRadius:10, backgroundColor:C.bg, borderWidth:1, borderColor:C.border }}>
+            <View style={{ flexDirection:"row", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+              <Text style={{ fontSize:13, fontWeight:"700", color:C.textDark, flex:1 }}>{row.productName}</Text>
+              <View style={[wc.pill, { backgroundColor:cfg.bg }]}><Text style={[wc.pillText, { color:cfg.color }]}>{row.statusLabel}</Text></View>
+            </View>
+            {!!row.reason && <Text style={{ fontSize:11, color:C.textMid, marginBottom:3 }}>Reason: {row.reason}</Text>}
+            {!!row.description && <Text style={{ fontSize:11, color:C.textMid, marginBottom:3 }}>{row.description}</Text>}
+            {!!row.solutionLabel && <Text style={{ fontSize:11, color:C.textMid, marginBottom:3 }}>Solution: {row.solutionLabel}</Text>}
+            {!!row.adminComment && <Text style={{ fontSize:11, color:C.orange, marginBottom:3 }}>Admin: {row.adminComment}</Text>}
+            {!!row.createdAt && <Text style={{ fontSize:10, color:C.textLight }}>{row.createdAt}</Text>}
+          </View>
+        );
+      })}
+    </View>
+  ) : null;
+
+  return (
+    <View style={wc.card}>
+      <SectionHeader iconLib="MCIcons" iconName="clipboard-check-outline" title="Order Review" />
+      {summary && (
+        <View style={{ flexDirection:"row", flexWrap:"wrap", gap:8, marginBottom:4 }}>
+          {summary.returnCount > 0 && <View style={[wc.pill,{backgroundColor:C.orangePale}]}><Text style={[wc.pillText,{color:C.orange}]}>{summary.returnCount} Return{summary.returnCount>1?"s":""}</Text></View>}
+          {summary.exchangeCount > 0 && <View style={[wc.pill,{backgroundColor:C.bluePale}]}><Text style={[wc.pillText,{color:C.blue}]}>{summary.exchangeCount} Exchange{summary.exchangeCount>1?"s":""}</Text></View>}
+          {summary.replacementCount > 0 && <View style={[wc.pill,{backgroundColor:C.purplePale}]}><Text style={[wc.pillText,{color:C.purple}]}>{summary.replacementCount} Replacement{summary.replacementCount>1?"s":""}</Text></View>}
+          {summary.cancellationCount > 0 && <View style={[wc.pill,{backgroundColor:C.redPale}]}><Text style={[wc.pillText,{color:C.red}]}>{summary.cancellationCount} Cancellation{summary.cancellationCount>1?"s":""}</Text></View>}
+        </View>
+      )}
+      {renderRows("Returns", order.returns ?? [])}
+      {renderRows("Exchanges", order.exchanges ?? [])}
+      {renderRows("Replacements", order.replacements ?? [])}
+      {renderRows("Cancellations", order.cancellations ?? [])}
+    </View>
+  );
+};
+
+const WebStatusHistoryCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
+  if (!order.statusHistory?.length) return null;
+  return (
+    <View style={wc.card}>
+      <SectionHeader iconLib="MCIcons" iconName="history" title="Status History" />
+      {order.statusHistory.map((entry) => (
+        <View key={entry.id} style={{ flexDirection:"row", gap:10, marginBottom:12 }}>
+          <View style={{ width:8, height:8, borderRadius:4, backgroundColor:C.navy, marginTop:5 }} />
+          <View style={{ flex:1 }}>
+            <View style={{ flexDirection:"row", justifyContent:"space-between", gap:8 }}>
+              <Text style={{ fontSize:13, fontWeight:"700", color:C.textDark }}>{entry.statusLabel}</Text>
+              <Text style={{ fontSize:10, color:C.textLight }}>{entry.createdAt}</Text>
+            </View>
+            {!!entry.comment && <Text style={{ fontSize:11, color:C.textMid, marginTop:4 }}>{entry.comment}</Text>}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
+
+const WebEmailLogsCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
+  if (!order.emailLogs?.length) return null;
+  return (
+    <View style={wc.card}>
+      <SectionHeader iconLib="MCIcons" iconName="email-outline" title="Email Logs" />
+      {order.emailLogs.map((log) => (
+        <View key={log.id} style={{ marginBottom:12, paddingBottom:12, borderBottomWidth:1, borderBottomColor:C.border }}>
+          <View style={{ flexDirection:"row", justifyContent:"space-between", gap:8, marginBottom:4 }}>
+            <Text style={{ fontSize:13, fontWeight:"700", color:C.textDark, flex:1 }}>{log.subject || log.emailType}</Text>
+            <Text style={{ fontSize:10, color:C.textLight }}>{log.sentAt}</Text>
+          </View>
+          <Text style={{ fontSize:11, color:C.textMid }}>{log.email}</Text>
+          <Text style={{ fontSize:11, color:C.textLight, marginTop:2 }}>{log.emailType} · {log.status}</Text>
+          {!!log.errorMessage && <Text style={{ fontSize:11, color:C.red, marginTop:4 }}>{log.errorMessage}</Text>}
+        </View>
+      ))}
+    </View>
+  );
+};
 
 const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }) => (
   <View style={wc.card}>
@@ -357,10 +544,10 @@ const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }
 
 const WebTrackingCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
   const [syncing, setSyncing] = useState(false);
-  const [srData, setSrData]   = useState<ShiprocketData>(() => getMockShiprocketData(order.id, order.status));
+  const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
   const handleSync = () => {
     setSyncing(true);
-    setTimeout(() => { setSrData(getMockShiprocketData(order.id, order.status)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed."); }, 1200);
+    setTimeout(() => { setSrData(buildShiprocketData(order)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed."); }, 1200);
   };
   return (
     <View style={wc.card}>
@@ -436,11 +623,10 @@ interface ShippingLabelModalProps {
   visible: boolean; order: OrderDetail; onClose: () => void; onPrint: () => void;
 }
 const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order, onClose, onPrint }) => {
-  const srData    = getMockShiprocketData(order.id, order.status);
-  const item      = order.items[0];
-  const itemPrice = Number((item?.price ?? "₹0").replace(/[₹,]/g, ""));
-  const igstAmt   = Math.round(itemPrice * 0.05);
-  const invoiceNo = `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
+  const srData    = buildShiprocketData(order);
+  const gstNumber = order.gstNumber || order.gstRecords?.[0]?.gstNumber || "—";
+  const invoiceNo = order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
+  const totalTax  = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -454,7 +640,7 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
             </View>
             <View style={lStyles.courierRow}>
               <Text style={lStyles.courierName}>{srData.courier}</Text>
-              <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: 27AWBMPS1214Q1ZX</Text></View>
+              <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: {gstNumber}</Text></View>
             </View>
             <View style={lStyles.barcodeSection}>
               <View style={lStyles.barcodeLeft}>
@@ -492,8 +678,8 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
               <View style={lStyles.metaGrid}>
                 {[
                   {k:"Order #:",v:order.id},{k:"AWB #:",v:srData.awb},{k:"Invoice:",v:invoiceNo},{k:"Date:",v:order.date},
-                  {k:"Payment:",v:`${order.payment.method}  ${order.pricing.total} (YOHO Parcel)`},
-                  {k:"Weight:",v:"0.50 kg"},{k:"Dimensions:",v:"24.0cm × 20.0cm × 1.0cm"},
+                  {k:"Payment:",v:`${order.payment.method}  ${order.pricing.total}`},
+                  {k:"Weight:",v:totalItemWeight(order)},{k:"Dimensions:",v:primaryItemDimensions(order)},
                 ].map((r,i) => (
                   <View key={i} style={lStyles.metaGridRow}>
                     <Text style={lStyles.metaKey}>{r.k}</Text>
@@ -517,16 +703,17 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
               </View>
               {order.items.map((itm,i) => {
                 const p=Number((itm.price??"₹0").replace(/[₹,]/g,""));
-                const igst=Math.round(p*0.05); const base=p-igst;
+                const lineTax = itm.tax ?? Math.round(p * 0.05);
+                const base=p-lineTax;
                 return (
                   <View key={i} style={lStyles.tableRow}>
                     <View style={{flex:2.5}}><Text style={lStyles.tdName}>{itm.name}</Text><Text style={lStyles.tdVariant}>{itm.variant}</Text></View>
-                    <Text style={[lStyles.td,{flex:0.8,textAlign:"center"}]}>620442</Text>
+                    <Text style={[lStyles.td,{flex:0.8,textAlign:"center"}]}>{itm.hsnCode || "—"}</Text>
                     <Text style={[lStyles.td,{flex:0.4,textAlign:"center"}]}>{itm.qty}</Text>
                     <Text style={[lStyles.td,{flex:0.9,textAlign:"right"}]}>₹{base}</Text>
                     <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>—</Text>
                     <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>—</Text>
-                    <Text style={[lStyles.tdOrange,{flex:0.8,textAlign:"right"}]}>5.0%{"\n"}₹{igst}</Text>
+                    <Text style={[lStyles.tdOrange,{flex:0.8,textAlign:"right"}]}>{lineTax > 0 ? `₹${lineTax}` : "—"}</Text>
                     <Text style={[lStyles.tdBold,{flex:0.8,textAlign:"right"}]}>₹{p}</Text>
                   </View>
                 );
@@ -536,8 +723,8 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
                 <Text style={[lStyles.tdBold,{flex:0.9,textAlign:"right"}]}>TOTAL:</Text>
                 <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>₹0.00</Text>
                 <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>₹0.00</Text>
-                <View style={{flex:0.8,alignItems:"flex-end"}}><Text style={lStyles.tdOrange}>₹{igstAmt}.00</Text></View>
-                <Text style={[lStyles.tdBold,{flex:0.8,textAlign:"right"}]}>₹{itemPrice}.00</Text>
+                <View style={{flex:0.8,alignItems:"flex-end"}}><Text style={lStyles.tdOrange}>{totalTax > 0 ? `₹${totalTax}` : "—"}</Text></View>
+                <Text style={[lStyles.tdBold,{flex:0.8,textAlign:"right"}]}>{order.pricing.total}</Text>
               </View>
             </View>
             <View style={[lStyles.divider,{backgroundColor:C.orange}]} />
@@ -545,13 +732,13 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
               <Text style={lStyles.sectionTitle}>RETURN ADDRESS</Text>
               <View style={lStyles.returnInner}>
                 <Text style={lStyles.returnBiz}>PICKCELL</Text>
-                <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: 27AWBMPS1214Q1ZX</Text></View>
+                <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: {gstNumber}</Text></View>
               </View>
               <Text style={lStyles.returnAddr}>B-706, Radha Vallabh, Near Dmart, 150 Feet Road, City Bhayndar West, Thane, Mumbai, Maharashtra, India - 401101</Text>
               <Text style={lStyles.returnPhone}>Ph: +91 93215 02225</Text>
             </View>
             <View style={lStyles.footer}>
-              <Text style={lStyles.footerGst}>GST: IGST ₹{igstAmt}.00</Text>
+              <Text style={lStyles.footerGst}>GST/Tax: {order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</Text>
               <Text style={lStyles.footerNote}>AUTO-GENERATED LABEL — NO SIGNATURE REQUIRED</Text>
               <Text style={lStyles.footerPowered}>Powered By: Flint &amp; Thread</Text>
             </View>
@@ -650,7 +837,11 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
           <WebCustomerCard     order={order} />
           <WebItemsCard        order={order} />
           <WebPaymentCard      order={order} />
+          <WebReviewCard       order={order} />
+          <WebGstCard          order={order} />
+          <WebStatusHistoryCard order={order} />
           <WebNotesCard        order={order} />
+          <WebEmailLogsCard    order={order} />
         </View>
         {/* Right / Sidebar column */}
         <View style={[{ gap:16 }, isDesktop ? { flex:1, minWidth:300, maxWidth:400 } : { marginTop:16 }]}>
@@ -676,18 +867,16 @@ const MobileLayout: React.FC<{
 }> = ({ order, trackingVisible, labelVisible, setTrackingVisible, setLabelVisible, onPrintLabel }) => {
   const [amountExpanded, setAmountExpanded] = useState(false);
   const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment.status];
-  const addressLines = order.customer.address.split("\n");
-  const midpoint = Math.ceil(addressLines.length / 2);
-  const shippingAddressLines = addressLines.slice(0, midpoint);
-  const buildingAddressLines = addressLines.slice(midpoint);
+  const shippingAddress = order.customer.address;
+  const billingAddress = order.billing?.address ?? shippingAddress;
 
   // Mobile tracking modal (identical to original)
   const MobileTrackingModal = () => {
     const [syncing, setSyncing] = useState(false);
-    const [srData, setSrData]   = useState<ShiprocketData>(() => getMockShiprocketData(order.id, order.status));
+    const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
     const handleSync = () => {
       setSyncing(true);
-      setTimeout(() => { setSrData(getMockShiprocketData(order.id, order.status)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed from Shiprocket."); }, 1200);
+      setTimeout(() => { setSrData(buildShiprocketData(order)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed from Shiprocket."); }, 1200);
     };
     const MetaRow = ({ label, value, copyable, isUrl }: { label:string; value:string; copyable?:boolean; isUrl?:boolean }) => (
       <View style={tStyles.metaRow}>
@@ -860,7 +1049,10 @@ const MobileLayout: React.FC<{
                 <View style={styles.amountBreakdown}>
                   <View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Subtotal</Text><Text style={styles.amountBreakdownValue}>{order.pricing.subtotal}</Text></View>
                   <View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Shipping</Text><Text style={styles.amountBreakdownValue}>{order.pricing.shipping}</Text></View>
+                  {order.pricing.tax&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Tax</Text><Text style={styles.amountBreakdownValue}>{order.pricing.tax}</Text></View>}
                   {order.pricing.discount&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Discount</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
+                  {order.pricing.referralDiscount&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Referral Discount</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
+                  {order.pricing.walletDeduction&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Wallet</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
                 </View>
               )}
             </View>
@@ -871,7 +1063,11 @@ const MobileLayout: React.FC<{
           <SectionHeader iconLib="Ionicons" iconName="person-circle-outline" title="Customer & Addresses"/>
           <View style={styles.customerNameRow}>
             <View style={styles.avatarRing}><Text style={styles.initialsText}>{order.customer.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</Text></View>
-            <Text style={styles.customerName}>{order.customer.name}</Text>
+            <View style={{ flex:1 }}>
+              <Text style={styles.customerName}>{order.customer.name}</Text>
+              {!!order.customer.phone && <Text style={styles.itemSku}>{order.customer.phone}</Text>}
+              {!!order.customer.email && <Text style={styles.itemSku}>{order.customer.email}</Text>}
+            </View>
           </View>
           <View style={styles.addressStack}>
             <View style={styles.addressBlockFull}>
@@ -879,7 +1075,7 @@ const MobileLayout: React.FC<{
                 <View style={[styles.addressIconCircle,{backgroundColor:C.bluePale}]}><Ionicons name="location-outline" size={14} color={C.blue}/></View>
                 <Text style={[styles.addressBlockTitle,{color:C.blue}]}>Shipping Address</Text>
               </View>
-              <Text style={styles.addressText}>{shippingAddressLines.join("\n")}</Text>
+              <Text style={styles.addressText}>{shippingAddress}</Text>
             </View>
             <View style={styles.addressRowDivider}/>
             <View style={styles.addressBlockFull}>
@@ -887,7 +1083,7 @@ const MobileLayout: React.FC<{
                 <View style={[styles.addressIconCircle,{backgroundColor:C.purplePale}]}><MaterialCommunityIcons name="office-building-outline" size={14} color={C.purple}/></View>
                 <Text style={[styles.addressBlockTitle,{color:C.purple}]}>Billing Address</Text>
               </View>
-              <Text style={styles.addressText}>{buildingAddressLines.length>0?buildingAddressLines.join("\n"):shippingAddressLines.join("\n")}</Text>
+              <Text style={styles.addressText}>{billingAddress}</Text>
             </View>
           </View>
         </View>
@@ -904,6 +1100,10 @@ const MobileLayout: React.FC<{
                   <View style={styles.itemTopRow}><Text style={styles.itemName}>{item.name}</Text><Text style={styles.itemPrice}>{item.price}</Text></View>
                   <Text style={styles.itemVariant}>{item.variant}</Text>
                   <Text style={styles.itemSku}>SKU: {item.sku}</Text>
+                  {!!item.hsnCode && <Text style={styles.itemSku}>HSN: {item.hsnCode}</Text>}
+                  {item.customDetails?.map((detail) => (
+                    <Text key={detail.id} style={styles.itemSku}>{detail.fieldLabel}: {detail.valueText || detail.valueFile || "—"}</Text>
+                  ))}
                   <View style={styles.qtyBadge}><Text style={styles.qtyBadgeText}>Qty: {item.qty}</Text></View>
                 </View>
               </View>
@@ -912,7 +1112,10 @@ const MobileLayout: React.FC<{
           <View style={styles.pricingBlock}>
             <View style={styles.pricingRow}><Text style={styles.pricingLabel}>Subtotal</Text><Text style={styles.pricingValue}>{order.pricing.subtotal}</Text></View>
             <View style={styles.pricingRow}><Text style={styles.pricingLabel}>Shipping Charge</Text><Text style={styles.pricingValue}>{order.pricing.shipping}</Text></View>
+            {order.pricing.tax&&<View style={styles.pricingRow}><Text style={styles.pricingLabel}>Tax</Text><Text style={styles.pricingValue}>{order.pricing.tax}</Text></View>}
             {order.pricing.discount&&<View style={styles.pricingRow}><Text style={styles.pricingLabel}>Discount</Text><Text style={[styles.pricingValue,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
+            {order.pricing.referralDiscount&&<View style={styles.pricingRow}><Text style={styles.pricingLabel}>Referral Discount</Text><Text style={[styles.pricingValue,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
+            {order.pricing.walletDeduction&&<View style={styles.pricingRow}><Text style={styles.pricingLabel}>Wallet Deduction</Text><Text style={[styles.pricingValue,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
             <View style={styles.pricingDashedDivider}/>
             <View style={styles.pricingRow}><Text style={styles.pricingTotalLabel}>Total Amount</Text><Text style={styles.pricingTotalValue}>{order.pricing.total}</Text></View>
           </View>
@@ -941,7 +1144,12 @@ const MobileLayout: React.FC<{
           <SectionHeader iconLib="MCIcons" iconName="text-box-outline" title="Order Notes"/>
           {order.customerNote?(<><Text style={styles.notesLabel}>Customer Note</Text><Text style={styles.notesValue}>{order.customerNote}</Text></>):(<Text style={styles.notesEmpty}>No customer note provided.</Text>)}
           {order.sellerNote&&(<><Text style={[styles.notesLabel,{marginTop:10}]}>Seller Note</Text><Text style={styles.notesValue}>{order.sellerNote}</Text></>)}
+          {order.cancelReason&&(<><Text style={[styles.notesLabel,{marginTop:10}]}>Cancellation Reason</Text><Text style={styles.notesValue}>{order.cancelReason}</Text></>)}
         </View>
+        {hasReviewData(order) && <WebReviewCard order={order} />}
+        {(order.gstNumber || order.gstInfo || order.gstRecords?.length) && <WebGstCard order={order} />}
+        {!!order.statusHistory?.length && <WebStatusHistoryCard order={order} />}
+        {!!order.emailLogs?.length && <WebEmailLogsCard order={order} />}
         {/* Documents */}
         <View style={styles.docsCard}>
           <SectionHeader iconLib="MCIcons" iconName="file-document-multiple-outline" title="Documents"/>
@@ -976,6 +1184,28 @@ export default function OrderDetailsScreen() {
   const [labelModalVisible,    setLabelModalVisible]    = useState(false);
 
   useEffect(() => {
+    if (!orderId) return;
+
+    const existing = getLiveOrder(orderId);
+    if (existing) {
+      setOrder(existing);
+    } else {
+      (async () => {
+        try {
+          await loadOrdersFromApi();
+          const loaded = getLiveOrder(orderId);
+          if (loaded) {
+            setOrder(loaded);
+            return;
+          }
+          const detail = await fetchSellerOrderDetail(orderId);
+          setOrder(detail);
+        } catch {
+          // keep undefined → not-found UI
+        }
+      })();
+    }
+
     const unsub = subscribeToOrderChanges(() => {
       if (orderId) setOrder(getLiveOrder(orderId));
     });
