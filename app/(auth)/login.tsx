@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -94,7 +94,13 @@ const FloatingBubble: React.FC<{
 
 export default function SellerLogin() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ email?: string; fromSignup?: string }>();
+  const params = useLocalSearchParams<{
+    fromSignup?: string;
+    registered?: string;
+    verified?: string;
+    email?: string;
+    message?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
@@ -111,6 +117,8 @@ export default function SellerLogin() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [isEmailFocused, setEmailFocused] = useState(false);
   const [isPasswordFocused, setPasswordFocused] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [bannerType, setBannerType] = useState<"info" | "success">("info");
 
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 16 : 24)).current;
@@ -141,6 +149,42 @@ export default function SellerLogin() {
       showSubscription?.remove();
       hideSubscription?.remove();
     };
+  }, []);
+
+  useEffect(() => {
+    const emailParam =
+      typeof params.email === "string" ? params.email.trim() : "";
+    const infoMessage =
+      typeof params.message === "string" ? params.message.trim() : "";
+
+    if (params.verified === "1") {
+      setBannerType("success");
+      setBannerMessage(
+        "Email verified successfully. You can log in to your seller account now."
+      );
+      if (emailParam) {
+        setEmail(emailParam);
+      }
+      showSuccess("Email verified", "You can log in now.");
+    } else if (params.registered === "1") {
+      setBannerType("info");
+      setBannerMessage(
+        infoMessage ||
+          (emailParam
+            ? `Verification link sent to ${emailParam}. Verify your email, then log in.`
+            : "Verification link sent to your email. Verify your email, then log in.")
+      );
+      if (emailParam) {
+        setEmail(emailParam);
+      }
+      showSuccess(
+        "Check your email",
+        emailParam
+          ? `We sent a verification link to ${emailParam}.`
+          : "We sent a verification link to your email."
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when opened from signup/verify-email
   }, []);
 
   useEffect(() => {
@@ -294,6 +338,24 @@ export default function SellerLogin() {
       </View>
 
       <View style={[styles.content, isDesktop && styles.contentDesktop]}>
+        {bannerMessage ? (
+          <View
+            style={[
+              styles.banner,
+              bannerType === "success" ? styles.bannerSuccess : styles.bannerInfo,
+            ]}
+          >
+            <AppText
+              style={[
+                styles.bannerText,
+                bannerType === "success" ? styles.bannerTextSuccess : styles.bannerTextInfo,
+              ]}
+            >
+              {bannerMessage}
+            </AppText>
+          </View>
+        ) : null}
+
         <AppText style={styles.label}>Email or Mobile Number</AppText>
         <View
           style={[
@@ -686,6 +748,34 @@ const styles = StyleSheet.create({
     marginTop: 0,
     flex: 0,
     width: "100%",
+  },
+  banner: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  bannerInfo: {
+    backgroundColor: "rgba(55, 97, 151, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(55, 97, 151, 0.25)",
+  },
+  bannerSuccess: {
+    backgroundColor: "rgba(61, 158, 90, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(61, 158, 90, 0.35)",
+  },
+  bannerText: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: fontFamilies.semiBold,
+    textAlign: "center",
+  },
+  bannerTextInfo: {
+    color: C.navy,
+  },
+  bannerTextSuccess: {
+    color: "#3D9E5A",
   },
   label: {
     color: "#94a3b8",

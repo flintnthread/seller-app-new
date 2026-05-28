@@ -37,11 +37,11 @@ import {
   CREAM, PRIMARY, PRIMARY_D, PRIMARY_L, TEXT, TEXT_SEC,
   INPUT_BG, SUCCESS, ERROR, SPACING, BORDER_RADIUS,
   FONT_SIZES,
-} from "./sellerDesignTokens";
+} from "./_sellerDesignTokens";
 import {
   InputField, PrimaryButton, SecondaryButton,
   UploadBox, ProgressBar, SectionTitle,
-} from "./sellerComponents";
+} from "./_sellerComponents";
 
 // ─── Design tokens (shared with Screen 2) ────────────────────
 const T = {

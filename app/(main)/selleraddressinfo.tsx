@@ -21,7 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Icon from "react-native-vector-icons/FontAwesome";
-import { Checkbox } from "./sellerComponents";
+import { Checkbox } from "./_sellerComponents";
 import { fontFamilies } from "@/constants/fonts";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";

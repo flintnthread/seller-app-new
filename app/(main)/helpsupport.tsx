@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,8 +16,11 @@ import {
   Animated,
   KeyboardAvoidingView,
   Modal,
+  ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -32,11 +35,38 @@ import {
   Outfit_700Bold,
   Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import {
+  createTicket as apiCreateTicket,
+  getTickets as apiGetTickets,
+  getTicketById as apiGetTicketById,
+  getMessages as apiGetMessages,
+  sendMessage as apiSendMessage,
+  closeTicket as apiCloseTicket,
+  createTicketWithImage as apiCreateTicketWithImage,
+  sendMessageWithImage as apiSendMessageWithImage,
+  checkServerConnection,
+  getFaqs as apiGetFaqs,
+  getGroupedFaqs as apiGetGroupedFaqs,
+  isSellerFaq,
+  getSupportContactConfig,
+  getLiveChatHistory,
+  sendLiveChatMessage,
+  getSellerId,
+  resolveMediaUrl,
+  type CreateTicketPayload,
+  type TicketResponse,
+  type MessageResponse,
+  type FaqResponse as ApiFaqResponse,
+  type FaqCategoryResponse,
+  type SupportContactConfig,
+  type LiveChatMessageResponse,
+} from "@/features/support/supportApi";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface FAQ {
+  id: number;
   question: string;
   answer: string;
   iconName: string;
@@ -53,15 +83,29 @@ interface HelpTopic {
   faqs: FAQ[];
 }
 
-type TicketStatus = "submitted" | "review" | "processing" | "approved";
+type TicketStatus = "open" | "waiting_seller" | "waiting_admin" | "closed";
+
+interface TicketMessage {
+  id: string;
+  senderType: "seller" | "admin";
+  message: string;
+  attachment?: string | null;
+  createdAt: Date;
+}
 
 interface Ticket {
   id: string;
+  ticketNumber: string;
   title: string;
   description: string;
   status: TicketStatus;
+  category: string;
+  priority: string;
   createdAt: Date;
+  updatedAt?: Date;
+  lastResponseBy?: string;
   adminNote: string;
+  messages?: TicketMessage[];
 }
 
 type ChatMessage = {
@@ -154,24 +198,45 @@ const TICKET_STATUS_CONFIG: Record<
   TicketStatus,
   { label: string; color: string; bgColor: string; icon: string; step: number }
 > = {
-  submitted: { label: "Submitted", color: "#6B7280", bgColor: "#F3F4F6", icon: "paper-plane-outline", step: 1 },
-  review: { label: "In Review", color: "#2563EB", bgColor: "#EFF6FF", icon: "eye-outline", step: 2 },
-  processing: { label: "Processing", color: "#D97706", bgColor: "#FFFBEB", icon: "time-outline", step: 3 },
-  approved: { label: "Approved", color: "#16A34A", bgColor: "#F0FDF4", icon: "checkmark-circle-outline", step: 4 },
+  open: { label: "Open", color: "#6B7280", bgColor: "#F3F4F6", icon: "paper-plane-outline", step: 1 },
+  waiting_admin: { label: "Waiting on Admin", color: "#2563EB", bgColor: "#EFF6FF", icon: "eye-outline", step: 2 },
+  waiting_seller: { label: "Admin Replied", color: "#D97706", bgColor: "#FFFBEB", icon: "time-outline", step: 3 },
+  closed: { label: "Closed", color: "#16A34A", bgColor: "#F0FDF4", icon: "checkmark-circle-outline", step: 4 },
 };
-
-// ── Admin Note Templates ──────────────────────────────────────────────────────
 
 const ADMIN_NOTES: Record<TicketStatus, string> = {
-  submitted:
-    "✅ Your ticket has been received and logged in our system. A support specialist will review it shortly. Reference ID has been assigned — please keep this for future correspondence.",
-  review:
-    "🔍 Our support team is actively reviewing your issue. We may reach out for additional details if required. Expected review completion: 1–2 business days.",
-  processing:
-    "⚙️ Your issue is currently being investigated and actioned by our team. We're working to resolve this as quickly as possible. You'll be notified once a resolution is reached.",
-  approved:
-    "🎉 Great news! Your issue has been resolved and the ticket is now closed. If the problem persists or you have further questions, please raise a new ticket or contact us via live chat.",
+  open:
+    "Your ticket has been received and logged in our system. A support specialist will review it shortly.",
+  waiting_admin:
+    "Your message has been sent. Our support team will review and respond shortly.",
+  waiting_seller:
+    "Our team has replied to your ticket. Please check the message and respond if needed.",
+  closed:
+    "This ticket has been resolved and closed. If the problem persists, please raise a new ticket.",
 };
+
+const normalizeStatus = (status: string): TicketStatus => {
+  const s = status?.toLowerCase() ?? "open";
+  if (s === "open" || s === "waiting_seller" || s === "waiting_admin" || s === "closed") {
+    return s;
+  }
+  if (s.includes("closed")) return "closed";
+  if (s.includes("seller")) return "waiting_seller";
+  if (s.includes("admin")) return "waiting_admin";
+  return "open";
+};
+
+const mapApiMessages = (msgs: MessageResponse[] | null | undefined): TicketMessage[] =>
+  (msgs ?? []).map((m) => ({
+    id: String(m.id),
+    senderType: m.senderType === "admin" ? "admin" : "seller",
+    message: m.message,
+    attachment: resolveMediaUrl(m.attachment) ?? null,
+    createdAt: new Date(m.createdAt),
+  }));
+
+const formatCategoryLabel = (cat: string) =>
+  cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 const VIcon = ({
   lib, name, size, color,
@@ -185,106 +250,98 @@ const VIcon = ({
   return <FontAwesome5 name={name as any} size={size} color={color} />;
 };
 
-// ── Static Data ────────────────────────────────────────────────────────────────
+// ── FAQ mapping (API → UI) ─────────────────────────────────────────────────────
 
-const GENERAL_FAQS: FAQ[] = [
-  {
-    question: "How to add a product?",
-    answer: "Go to your dashboard, tap Products, then tap the + button to add a new listing. Fill in the details and hit Save.",
-    iconName: "add-circle-outline",
-    iconColor: "#854F0B",
-    iconBg: "#FAEEDA",
-  },
-  {
-    question: "How to manage orders?",
-    answer: "Visit the Orders section from the main menu. You can view, process, and update the status of each order from there.",
-    iconName: "bag-handle-outline",
-    iconColor: "#A32D2D",
-    iconBg: "#FCEBEB",
-  },
-  {
-    question: "When will I receive payments?",
-    answer: "Payments are processed within 3–5 business days after order confirmation. Check the Payments tab for a detailed payout schedule.",
-    iconName: "wallet-outline",
-    iconColor: "#0F6E56",
-    iconBg: "#E1F5EE",
-  },
-  {
-    question: "How to update my store details?",
-    answer: "Head to Settings → Store Profile. You can edit your store name, logo, contact details, and business info from there.",
-    iconName: "storefront-outline",
-    iconColor: C.navyLight,
-    iconBg: C.softBlue,
-  },
-  {
-    question: "How do I reset my password?",
-    answer: "On the login screen, tap 'Forgot Password', enter your registered email, and follow the link sent to your inbox.",
-    iconName: "lock-closed-outline",
-    iconColor: "#7C3AED",
-    iconBg: "#F5F3FF",
-  },
+type FaqIconStyle = { iconName: string; iconColor: string; iconBg: string };
+
+const DEFAULT_FAQ_ICON: FaqIconStyle = {
+  iconName: "help-circle-outline",
+  iconColor: "#854F0B",
+  iconBg: "#FAEEDA",
+};
+
+const FAQ_ICON_PALETTE: FaqIconStyle[] = [
+  DEFAULT_FAQ_ICON,
+  { iconName: "bag-handle-outline", iconColor: "#A32D2D", iconBg: "#FCEBEB" },
+  { iconName: "wallet-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
+  { iconName: "storefront-outline", iconColor: C.navyLight, iconBg: C.softBlue },
+  { iconName: "lock-closed-outline", iconColor: "#7C3AED", iconBg: "#F5F3FF" },
+  { iconName: "cube-outline", iconColor: "#D97706", iconBg: "#FFFBEB" },
 ];
 
-const HELP_TOPICS: HelpTopic[] = [
-  {
-    label: "Account Issues",
-    color: C.navyLight,
-    bgColor: C.softBlue,
-    iconLib: "Ionicons",
-    iconName: "person-circle-outline",
-    faqs: [
-      { question: "How do I reset my password?", answer: "On the login screen, tap 'Forgot Password', enter your registered email, and follow the reset link sent to your inbox.", iconName: "lock-closed-outline", iconColor: "#7C3AED", iconBg: "#F5F3FF" },
-      { question: "How do I update my profile information?", answer: "Go to Settings → Profile. You can update your name, phone number, email, and profile picture from there.", iconName: "person-outline", iconColor: C.navyLight, iconBg: C.softBlue },
-      { question: "My account is suspended — what should I do?", answer: "Please contact our support team via Chat or Email. Account suspensions are reviewed within 1–2 business days.", iconName: "warning-outline", iconColor: "#D97706", iconBg: "#FFFBEB" },
-      { question: "How do I delete my account?", answer: "Account deletion requests can be raised by contacting support@flintandthread.in. Note: this action is irreversible.", iconName: "trash-outline", iconColor: "#DC2626", iconBg: "#FEF2F2" },
-      { question: "How do I change my registered email?", answer: "Go to Settings → Account → Change Email. You'll need to verify your new email address via an OTP.", iconName: "mail-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
-    ],
-  },
-  {
-    label: "Payments",
-    color: "#0F6E56",
-    bgColor: "#E1F5EE",
-    iconLib: "Ionicons",
-    iconName: "card-outline",
-    faqs: [
-      { question: "When will I receive my payout?", answer: "Payouts are processed every Monday. Funds are credited to your linked bank account within 2 business days after processing.", iconName: "calendar-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
-      { question: "Why is my payment showing as Pending?", answer: "Payments stay Pending until the order is confirmed as delivered. Once confirmed, the amount moves to your Available Balance.", iconName: "time-outline", iconColor: "#D97706", iconBg: "#FFFBEB" },
-      { question: "How do I add or change my bank account?", answer: "Go to Payments → Bank & Verification → Edit. Enter your new account details and save. Re-verification may be required.", iconName: "card-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
-      { question: "What is platform commission?", answer: "Flint & Thread charges a 5% commission on each completed sale. This is deducted before your net earnings are calculated.", iconName: "pie-chart-outline", iconColor: C.navyLight, iconBg: C.softBlue },
-      { question: "How do I download my payment statement?", answer: "Go to Payments → Reports & Statements → Payment Statement PDF. You can download monthly statements from there.", iconName: "download-outline", iconColor: "#7C3AED", iconBg: "#F5F3FF" },
-      { question: "What happens if a payment fails?", answer: "Failed payments are usually due to bank issues. The amount is refunded to the buyer automatically within 5–7 business days.", iconName: "close-circle-outline", iconColor: "#DC2626", iconBg: "#FEF2F2" },
-    ],
-  },
-  {
-    label: "Orders",
-    color: "#A32D2D",
-    bgColor: "#FCEBEB",
-    iconLib: "Ionicons",
-    iconName: "bag-handle-outline",
-    faqs: [
-      { question: "How do I view my recent orders?", answer: "Tap Orders in the bottom navigation bar. You can filter by All, Pending, Shipped, or Cancelled tabs.", iconName: "list-outline", iconColor: "#A32D2D", iconBg: "#FCEBEB" },
-      { question: "How do I mark an order as shipped?", answer: "Open the order detail page, tap 'Update Status', and select Shipped. You can also add a tracking number.", iconName: "cube-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
-      { question: "A buyer wants to cancel their order — what should I do?", answer: "You can accept the cancellation from the Order Detail page. Once accepted, any payment is refunded to the buyer automatically.", iconName: "close-circle-outline", iconColor: "#DC2626", iconBg: "#FEF2F2" },
-      { question: "How do I handle a return request?", answer: "Go to the relevant order, tap 'Return Request', and follow the steps. Our team will mediate if needed.", iconName: "return-down-back-outline", iconColor: "#D97706", iconBg: "#FFFBEB" },
-      { question: "Why is my order status not updating?", answer: "Try refreshing the Orders screen. If the issue persists, please raise a support ticket with the order ID.", iconName: "refresh-outline", iconColor: C.navyLight, iconBg: C.softBlue },
-    ],
-  },
-  {
-    label: "Products",
-    color: "#854F0B",
-    bgColor: "#FAEEDA",
-    iconLib: "Ionicons",
-    iconName: "storefront-outline",
-    faqs: [
-      { question: "How do I add a new product?", answer: "Tap the + FAB button on the dashboard or go to Products → Add Product. Fill in title, price, photos, and stock count.", iconName: "add-circle-outline", iconColor: "#854F0B", iconBg: "#FAEEDA" },
-      { question: "How do I edit an existing product?", answer: "Go to Products, tap the product you want to edit, then tap the Edit button on the product detail page.", iconName: "create-outline", iconColor: C.navyLight, iconBg: C.softBlue },
-      { question: "How do I mark a product as out of stock?", answer: "Open the product, tap Edit, set the stock count to 0, and save. It will automatically show as Out of Stock to buyers.", iconName: "alert-circle-outline", iconColor: "#DC2626", iconBg: "#FEF2F2" },
-      { question: "Can I list products in multiple categories?", answer: "Currently each product can be assigned one primary category. Multi-category tagging is on our roadmap.", iconName: "grid-outline", iconColor: "#7C3AED", iconBg: "#F5F3FF" },
-      { question: "Why is my product not showing in search?", answer: "Make sure the product is set to Active and has at least one photo. New listings can take up to 30 minutes to appear in search.", iconName: "search-outline", iconColor: "#0F6E56", iconBg: "#E1F5EE" },
-      { question: "How many products can I list?", answer: "Verified sellers can list up to 500 products. Complete your KYC to unlock the full product limit.", iconName: "layers-outline", iconColor: "#854F0B", iconBg: "#FAEEDA" },
-    ],
-  },
+type TopicTheme = Pick<HelpTopic, "color" | "bgColor" | "iconName">;
+
+const DEFAULT_TOPIC_THEME: TopicTheme = {
+  color: C.navyLight,
+  bgColor: C.softBlue,
+  iconName: "information-circle-outline",
+};
+
+const TOPIC_THEMES: TopicTheme[] = [
+  { color: C.navyLight, bgColor: C.softBlue, iconName: "information-circle-outline" },
+  { color: "#7C3AED", bgColor: "#F5F3FF", iconName: "person-circle-outline" },
+  { color: "#A32D2D", bgColor: "#FCEBEB", iconName: "bag-handle-outline" },
+  { color: "#0F6E56", bgColor: "#E1F5EE", iconName: "car-outline" },
+  { color: "#D97706", bgColor: "#FFFBEB", iconName: "card-outline" },
+  { color: "#DC2626", bgColor: "#FEF2F2", iconName: "return-down-back-outline" },
+  { color: "#854F0B", bgColor: "#FAEEDA", iconName: "shirt-outline" },
+  { color: C.orange, bgColor: C.orangePale, iconName: "pricetag-outline" },
 ];
+
+function mapApiFaqToUi(faq: ApiFaqResponse, index: number): FAQ {
+  const p = FAQ_ICON_PALETTE[index % FAQ_ICON_PALETTE.length] ?? DEFAULT_FAQ_ICON;
+  return {
+    id: faq.id,
+    question: faq.question,
+    answer: faq.answer,
+    iconName: p.iconName,
+    iconColor: p.iconColor,
+    iconBg: p.iconBg,
+  };
+}
+
+function resolveTopicIcon(categoryName: string, fallback: string): string {
+  const n = categoryName.toLowerCase();
+  if (n.includes("account") || n.includes("profile")) return "person-circle-outline";
+  if (n.includes("payment") || n.includes("wallet")) return "card-outline";
+  if (n.includes("order") || n.includes("tracking")) return "bag-handle-outline";
+  if (n.includes("shipping") || n.includes("delivery")) return "car-outline";
+  if (n.includes("return") || n.includes("refund")) return "return-down-back-outline";
+  if (n.includes("product") || n.includes("size")) return "shirt-outline";
+  if (n.includes("offer") || n.includes("reward") || n.includes("discount")) return "pricetag-outline";
+  if (n.includes("wishlist") || n.includes("saved")) return "heart-outline";
+  if (n.includes("app") || n.includes("technical")) return "phone-portrait-outline";
+  if (n.includes("about")) return "information-circle-outline";
+  return fallback;
+}
+
+function mapCategoryToHelpTopic(cat: FaqCategoryResponse, index: number): HelpTopic {
+  const theme = TOPIC_THEMES[index % TOPIC_THEMES.length] ?? DEFAULT_TOPIC_THEME;
+  return {
+    label: cat.categoryName.trim(),
+    color: theme.color,
+    bgColor: theme.bgColor,
+    iconLib: "Ionicons",
+    iconName: resolveTopicIcon(cat.categoryName, theme.iconName),
+    faqs: cat.faqs.map((f, i) => mapApiFaqToUi(f, i)),
+  };
+}
+
+/** Opens the device default mail app (Gmail, Outlook, Apple Mail, etc.) */
+async function openSupportEmail(address: string) {
+  const email = address.trim();
+  const subject = encodeURIComponent("Seller Support Request");
+  const body = encodeURIComponent(
+    `Hi Flint & Thread Support,\n\nSeller ID: ${getSellerId()}\n\n`
+  );
+  const url = `mailto:${email}?subject=${subject}&body=${body}`;
+
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert("Email Support", `Could not open your mail app. Please email us at ${email}`);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUCCESS MODAL  (sweet alert)
@@ -413,9 +470,151 @@ const SuccessModal: React.FC<{
 // TICKET STATUS PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TicketStatusPanel: React.FC<{ tickets: Ticket[]; onClose: () => void }> = ({ tickets, onClose }) => {
-  const STEPS: TicketStatus[] = ["submitted", "review", "processing", "approved"];
-  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
+const TicketStatusPanel: React.FC<{
+  tickets: Ticket[];
+  onClose: () => void;
+  isLoadingTickets?: boolean;
+  expandedTicketId?: string | null;
+  onExpandedChange?: (id: string | null) => void;
+  onTicketUpdated?: (ticket: Ticket) => void;
+  onRefresh?: () => void;
+}> = ({
+  tickets,
+  onClose,
+  isLoadingTickets = false,
+  expandedTicketId: expandedProp,
+  onExpandedChange,
+  onTicketUpdated,
+  onRefresh,
+}) => {
+  const STEPS: TicketStatus[] = ["open", "waiting_admin", "waiting_seller", "closed"];
+  const [expandedLocal, setExpandedLocal] = useState<string | null>(null);
+  const expandedId = expandedProp !== undefined ? expandedProp : expandedLocal;
+  const setExpandedId = (id: string | null) => {
+    if (onExpandedChange) onExpandedChange(id);
+    else setExpandedLocal(id);
+  };
+
+  const [messagesMap, setMessagesMap] = useState<Record<string, TicketMessage[]>>({});
+  const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [replyImage, setReplyImage] = useState<Record<string, string | null>>({});
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const loadMessages = async (ticketId: string) => {
+    setLoadingMsgId(ticketId);
+    try {
+      const msgs = await apiGetMessages(Number(ticketId));
+      setMessagesMap((prev) => ({ ...prev, [ticketId]: mapApiMessages(msgs) }));
+    } catch {
+      Alert.alert("Error", "Could not load messages. Please try again.");
+    } finally {
+      setLoadingMsgId(null);
+    }
+  };
+
+  const toggleExpand = async (ticket: Ticket) => {
+    if (expandedId === ticket.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(ticket.id);
+    if (!messagesMap[ticket.id]?.length && !ticket.messages?.length) {
+      await loadMessages(ticket.id);
+    } else if (ticket.messages?.length && !messagesMap[ticket.id]) {
+      setMessagesMap((prev) => ({ ...prev, [ticket.id]: ticket.messages! }));
+    }
+  };
+
+  const handlePickReplyImage = async (ticketId: string) => {
+    if (Platform.OS !== "web") {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permission Required", "Please allow access to your photo library in Settings.");
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    const asset = result.assets?.[0];
+    if (!result.canceled && asset) {
+      setReplyImage((prev) => ({ ...prev, [ticketId]: asset.uri }));
+    }
+  };
+
+  const handleSendReply = async (ticket: Ticket) => {
+    const text = (replyText[ticket.id] ?? "").trim();
+    const imageUri = replyImage[ticket.id] ?? null;
+    if (!text && !imageUri) return;
+
+    setSendingId(ticket.id);
+    try {
+      const sent = imageUri
+        ? await apiSendMessageWithImage(Number(ticket.id), imageUri, text || undefined)
+        : await apiSendMessage(Number(ticket.id), text);
+
+      const newMsg: TicketMessage = {
+        id: String(sent.id),
+        senderType: "seller",
+        message: sent.message,
+        attachment: resolveMediaUrl(sent.attachment) ?? null,
+        createdAt: new Date(sent.createdAt),
+      };
+      setMessagesMap((prev) => ({
+        ...prev,
+        [ticket.id]: [...(prev[ticket.id] ?? []), newMsg],
+      }));
+      setReplyText((prev) => ({ ...prev, [ticket.id]: "" }));
+      setReplyImage((prev) => ({ ...prev, [ticket.id]: null }));
+
+      const detail = await apiGetTicketById(Number(ticket.id));
+      const updated: Ticket = {
+        ...ticket,
+        status: normalizeStatus(detail.status),
+        lastResponseBy: detail.lastResponseBy,
+        updatedAt: new Date(detail.updatedAt),
+        adminNote: ADMIN_NOTES[normalizeStatus(detail.status)],
+        messages: mapApiMessages(detail.messages),
+      };
+      setMessagesMap((prev) => ({ ...prev, [ticket.id]: updated.messages ?? [] }));
+      onTicketUpdated?.(updated);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to send message.");
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const handleCloseTicket = (ticket: Ticket) => {
+    Alert.alert("Close ticket?", "This ticket will be marked as resolved.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Close",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const closed = await apiCloseTicket(Number(ticket.id));
+            const updated: Ticket = {
+              ...ticket,
+              status: "closed",
+              adminNote: ADMIN_NOTES.closed,
+              updatedAt: new Date(closed.updatedAt),
+            };
+            onTicketUpdated?.(updated);
+            onRefresh?.();
+          } catch (err: any) {
+            Alert.alert("Error", err.message || "Could not close ticket.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const getMessagesForTicket = (ticket: Ticket): TicketMessage[] =>
+    messagesMap[ticket.id] ?? ticket.messages ?? [];
 
   return (
     <View style={s.topicPanel}>
@@ -424,100 +623,78 @@ const TicketStatusPanel: React.FC<{ tickets: Ticket[]; onClose: () => void }> = 
           <Ionicons name="ticket-outline" size={18} color={C.navy} />
         </View>
         <Text style={[s.topicPanelTitle, { fontFamily: F.bold }]}>My Ticket Status</Text>
+        <TouchableOpacity onPress={onRefresh} style={s.refreshTicketsBtn} activeOpacity={0.7}>
+          <Ionicons name="refresh-outline" size={18} color={C.navy} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={s.topicPanelClose} activeOpacity={0.7}>
           <Ionicons name="close" size={16} color={C.textMid} />
         </TouchableOpacity>
       </View>
 
-      {tickets.length === 0 ? (
+      {isLoadingTickets ? (
+        <View style={s.card}>
+          <View style={s.emptyTickets}>
+            <ActivityIndicator size="large" color={C.navy} />
+            <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, marginTop: 8 }]}>Loading tickets...</Text>
+          </View>
+        </View>
+      ) : tickets.length === 0 ? (
         <View style={s.card}>
           <View style={s.emptyTickets}>
             <Ionicons name="ticket-outline" size={40} color="#D1D9E6" />
             <Text style={[s.emptyTicketsTitle, { fontFamily: F.semiBold }]}>No tickets yet</Text>
             <Text style={[s.emptyTicketsSub, { fontFamily: F.regular }]}>
-              Tickets you raise will appear here with their latest status.
+              Tickets you raise will appear here with their latest status and messages.
             </Text>
           </View>
         </View>
       ) : (
         tickets.map((ticket) => {
-          const cfg = TICKET_STATUS_CONFIG[ticket.status];
+          const cfg = TICKET_STATUS_CONFIG[ticket.status] ?? TICKET_STATUS_CONFIG.open;
           const currentStep = cfg.step;
-          const noteOpen = openNoteId === ticket.id;
+          const isExpanded = expandedId === ticket.id;
+          const msgs = getMessagesForTicket(ticket);
+          const isClosed = ticket.status === "closed";
+          const isLoadingMsgs = loadingMsgId === ticket.id;
 
           return (
             <View key={ticket.id} style={[s.card, { marginBottom: 10 }]}>
               <View style={s.ticketCardInner}>
-
-                {/* ── Ticket Header ── */}
-                <View style={s.ticketCardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.ticketCardTitle, { fontFamily: F.semiBold }]} numberOfLines={1}>
-                      {ticket.title}
-                    </Text>
-                    <Text style={[s.ticketCardDate, { fontFamily: F.regular }]}>
-                      Raised on {formatDate(ticket.createdAt)}
-                    </Text>
-                  </View>
-                  <View style={s.ticketHeaderRight}>
-                    <TouchableOpacity
-                      style={[s.wandBtn, noteOpen && s.wandBtnActive]}
-                      onPress={() => setOpenNoteId(prev => prev === ticket.id ? null : ticket.id)}
-                      activeOpacity={0.75}
-                    >
-                      <MaterialCommunityIcons
-                        name="magic-staff"
-                        size={15}
-                        color={noteOpen ? C.white : C.navy}
-                      />
-                      <Text style={[s.wandBtnTxt, { fontFamily: F.semiBold }, noteOpen && { color: C.white }]}>
-                        View More
+                <TouchableOpacity activeOpacity={0.85} onPress={() => toggleExpand(ticket)}>
+                  <View style={s.ticketCardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.ticketCardTitle, { fontFamily: F.semiBold }]} numberOfLines={1}>
+                        {ticket.title}
                       </Text>
-                    </TouchableOpacity>
-                    <View style={[s.ticketStatusBadge, { backgroundColor: cfg.bgColor }]}>
-                      <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
-                      <Text style={[s.ticketStatusBadgeTxt, { fontFamily: F.semiBold, color: cfg.color }]}>
-                        {cfg.label}
+                      <Text style={[s.ticketCardDate, { fontFamily: F.regular }]}>
+                        {ticket.ticketNumber} · {formatDate(ticket.createdAt)}
+                      </Text>
+                      <Text style={[s.ticketMetaLine, { fontFamily: F.regular }]}>
+                        {formatCategoryLabel(ticket.category)} · {ticket.priority.toUpperCase()}
                       </Text>
                     </View>
-                  </View>
-                </View>
-
-                {/* ── Admin Note Panel ── */}
-                {noteOpen && (
-                  <View style={s.adminNoteBox}>
-                    <View style={s.adminNoteHeader}>
-                      <View style={s.adminNoteAvatarWrap}>
-                        <MaterialCommunityIcons name="shield-account" size={14} color={C.white} />
-                      </View>
-                      <Text style={[s.adminNoteLabel, { fontFamily: F.semiBold }]}>Admin Reply</Text>
-                      <View style={[s.adminStatusChip, { backgroundColor: cfg.bgColor }]}>
-                        <Ionicons name={cfg.icon as any} size={11} color={cfg.color} />
-                        <Text style={[s.adminStatusChipTxt, { fontFamily: F.semiBold, color: cfg.color }]}>
+                    <View style={s.ticketHeaderRight}>
+                      <View style={[s.ticketStatusBadge, { backgroundColor: cfg.bgColor }]}>
+                        <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                        <Text style={[s.ticketStatusBadgeTxt, { fontFamily: F.semiBold, color: cfg.color }]}>
                           {cfg.label}
                         </Text>
                       </View>
-                    </View>
-                    <Text style={[s.adminNoteText, { fontFamily: F.regular }]}>
-                      {ticket.adminNote}
-                    </Text>
-                    <View style={s.adminNoteFooter}>
-                      <Ionicons name="time-outline" size={11} color={C.textLight} />
-                      <Text style={[s.adminNoteTime, { fontFamily: F.regular }]}>
-                        {formatDate(ticket.createdAt)} · Flint & Thread Support Team
-                      </Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up" : "chevron-down"}
+                        size={18}
+                        color={C.textLight}
+                      />
                     </View>
                   </View>
-                )}
+                </TouchableOpacity>
 
-                {/* ── Progress Steps ── */}
                 <View style={s.ticketStepsRow}>
                   {STEPS.map((step, idx) => {
                     const stepCfg = TICKET_STATUS_CONFIG[step];
                     const isCompleted = currentStep > stepCfg.step;
                     const isActive = currentStep === stepCfg.step;
                     const isLast = idx === STEPS.length - 1;
-
                     return (
                       <View key={step} style={s.ticketStepItem}>
                         <View style={s.ticketStepDotRow}>
@@ -561,6 +738,164 @@ const TicketStatusPanel: React.FC<{ tickets: Ticket[]; onClose: () => void }> = 
                   })}
                 </View>
 
+                {isExpanded && (
+                  <View style={s.ticketDetailSection}>
+                    <Text style={[s.ticketDetailSectionTitle, { fontFamily: F.semiBold }]}>
+                      Conversation
+                    </Text>
+
+                    {isLoadingMsgs ? (
+                      <ActivityIndicator size="small" color={C.navy} style={{ marginVertical: 16 }} />
+                    ) : msgs.length === 0 ? (
+                      <Text style={[s.noMsgsText, { fontFamily: F.regular }]}>
+                        No messages yet. Send a reply below.
+                      </Text>
+                    ) : (
+                      <View style={s.msgThread}>
+                        {msgs.map((msg) => {
+                          const isSeller = msg.senderType === "seller";
+                          return (
+                            <View
+                              key={msg.id}
+                              style={[s.ticketMsgRow, isSeller ? s.ticketMsgRowSeller : s.ticketMsgRowAdmin]}
+                            >
+                              <View
+                                style={[
+                                  s.ticketMsgBubble,
+                                  isSeller ? s.ticketMsgBubbleSeller : s.ticketMsgBubbleAdmin,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    s.ticketMsgSender,
+                                    { fontFamily: F.semiBold },
+                                    isSeller && { color: C.navyLight },
+                                  ]}
+                                >
+                                  {isSeller ? "You" : "Support Team"}
+                                </Text>
+                                {!!msg.message && msg.message !== "Attachment" && (
+                                  <Text
+                                    style={[
+                                      s.ticketMsgText,
+                                      { fontFamily: F.regular },
+                                      isSeller && s.ticketMsgTextSeller,
+                                    ]}
+                                  >
+                                    {msg.message}
+                                  </Text>
+                                )}
+                                {msg.attachment ? (
+                                  <Image
+                                    source={{ uri: msg.attachment }}
+                                    style={s.ticketMsgAttachment}
+                                    resizeMode="cover"
+                                  />
+                                ) : null}
+                                <Text
+                                  style={[
+                                    s.ticketMsgTime,
+                                    { fontFamily: F.regular },
+                                    isSeller && { color: "rgba(255,255,255,0.65)" },
+                                  ]}
+                                >
+                                  {formatTime(msg.createdAt)}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {!isClosed && (
+                      <View>
+                        {replyImage[ticket.id] ? (
+                          <View style={s.replyImagePreviewWrap}>
+                            <Image
+                              source={{ uri: replyImage[ticket.id]! }}
+                              style={s.replyImagePreview}
+                              resizeMode="cover"
+                            />
+                            <TouchableOpacity
+                              style={s.replyImageRemove}
+                              onPress={() =>
+                                setReplyImage((prev) => ({ ...prev, [ticket.id]: null }))
+                              }
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="close-circle" size={22} color="#DC2626" />
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                        <View style={s.replyBox}>
+                          <TouchableOpacity
+                            style={s.replyAttachBtn}
+                            onPress={() => handlePickReplyImage(ticket.id)}
+                            disabled={sendingId === ticket.id}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="image-outline" size={20} color={C.navy} />
+                          </TouchableOpacity>
+                          <TextInput
+                            style={[s.replyInput, { fontFamily: F.regular }]}
+                            placeholder="Type your message..."
+                            placeholderTextColor={C.textLight}
+                            value={replyText[ticket.id] ?? ""}
+                            onChangeText={(t) =>
+                              setReplyText((prev) => ({ ...prev, [ticket.id]: t }))
+                            }
+                            multiline
+                            maxLength={2000}
+                          />
+                          <TouchableOpacity
+                            style={[
+                              s.replySendBtn,
+                              (!(replyText[ticket.id] ?? "").trim() &&
+                                !replyImage[ticket.id]) ||
+                                sendingId === ticket.id
+                                ? s.replySendBtnDisabled
+                                : null,
+                            ]}
+                            onPress={() => handleSendReply(ticket)}
+                            disabled={
+                              (!(replyText[ticket.id] ?? "").trim() && !replyImage[ticket.id]) ||
+                              sendingId === ticket.id
+                            }
+                            activeOpacity={0.8}
+                          >
+                            {sendingId === ticket.id ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <Ionicons name="send" size={16} color="#fff" />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {isClosed && (
+                      <View style={s.closedBanner}>
+                        <Ionicons name="lock-closed-outline" size={14} color={C.textMid} />
+                        <Text style={[s.closedBannerTxt, { fontFamily: F.medium }]}>
+                          This ticket is closed
+                        </Text>
+                      </View>
+                    )}
+
+                    {!isClosed && (
+                      <TouchableOpacity
+                        style={s.closeTicketLink}
+                        onPress={() => handleCloseTicket(ticket)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.closeTicketLinkTxt, { fontFamily: F.medium }]}>
+                          Mark as resolved
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             </View>
           );
@@ -658,9 +993,21 @@ const ChatBubble: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
 // LIVE CHAT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
+const mapChatApiToUi = (m: LiveChatMessageResponse): ChatMessage => ({
+  id: String(m.id),
+  text: m.message,
+  sender: m.senderType === "seller" ? "user" : "bot",
+  timestamp: new Date(m.createdAt),
+});
+
+const LiveChatModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  contactConfig: SupportContactConfig | null;
+}> = ({ visible, onClose, contactConfig }) => {
+  const sellerId = getSellerId();
   const WELCOME: ChatMessage = {
-    id: genId(),
+    id: "welcome",
     text: "Hi 👋 Welcome to Flint & Thread support!\nHow can I help you today?",
     sender: "bot",
     timestamp: new Date(),
@@ -670,16 +1017,34 @@ const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [showEscalate, setShowEscalate] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const slideAnim = useRef(new Animated.Value(700)).current;
+
+  const loadChat = useCallback(async () => {
+    setChatLoading(true);
+    try {
+      const history = await getLiveChatHistory(sellerId);
+      if (history.length > 0) {
+        setMessages(history.map(mapChatApiToUi));
+      } else {
+        setMessages([WELCOME]);
+      }
+    } catch {
+      setMessages([WELCOME]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [sellerId]);
 
   useEffect(() => {
     if (visible) {
       Animated.spring(slideAnim, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }).start();
+      loadChat();
     } else {
       Animated.timing(slideAnim, { toValue: 700, duration: 230, useNativeDriver: true }).start();
     }
-  }, [visible]);
+  }, [visible, loadChat]);
 
   const scrollToBottom = () =>
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
@@ -689,46 +1054,32 @@ const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
     scrollToBottom();
   };
 
-  const simulateReply = (userText: string) => {
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const reply = getBotReply(userText);
-      addMsg(reply, "bot");
-      if (reply === BOT_RESPONSES.human) setShowEscalate(true);
-    }, 900 + Math.random() * 500);
-  };
-
-  const sendMessage = (text = inputText) => {
+  const sendMessage = async (text = inputText) => {
     const t = text.trim();
-    if (!t) return;
-    addMsg(t, "user");
+    if (!t || isTyping) return;
     setInputText("");
-    simulateReply(t);
+    setIsTyping(true);
+    try {
+      const updated = await sendLiveChatMessage(sellerId, t);
+      setMessages(updated.map(mapChatApiToUi));
+      const lastBot = updated.filter((m) => m.senderType === "bot").pop();
+      if (lastBot?.message.toLowerCase().includes("email") || lastBot?.message.toLowerCase().includes("call")) {
+        setShowEscalate(true);
+      }
+      if (t.toLowerCase().includes("human") || t.toLowerCase().includes("agent")) {
+        setShowEscalate(true);
+      }
+    } catch {
+      addMsg(t, "user");
+      addMsg(getBotReply(t), "bot");
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  const handleQuick = (
-    key: keyof typeof BOT_RESPONSES,
-    label: string
-  ) => {
-    addMsg(label, "user");
-
-    setIsTyping(true);
-
-    setTimeout(() => {
-      setIsTyping(false);
-
-      addMsg(BOT_RESPONSES[key as keyof typeof BOT_RESPONSES], "bot");
-      if (key === "human") setShowEscalate(true);
-      // =======
-
-      //       addMsg(BOT_RESPONSES[key], "bot");
-
-      //       if (key === "human") {
-      //         setShowEscalate(true);
-      //       }
-      // >>>>>>> 1259fc908c2225bfa778e27657a6a47347e6b273
-    }, 1000);
+  const handleQuick = async (key: keyof typeof BOT_RESPONSES, label: string) => {
+    await sendMessage(label);
+    if (key === "human") setShowEscalate(true);
   };
 
   const restartChat = () => {
@@ -736,6 +1087,10 @@ const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
     setShowEscalate(false);
     setIsTyping(false);
   };
+
+  const waNum = contactConfig?.chat?.whatsappNumber ?? "919063499092";
+  const supportEmail = contactConfig?.email?.address ?? "support@flintandthread.in";
+  const supportPhone = contactConfig?.call?.phone ?? "9063499092";
 
   const QUICK_REPLIES: {
     key: keyof typeof BOT_RESPONSES;
@@ -786,7 +1141,9 @@ const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
             renderItem={({ item }) => <ChatBubble msg={item} />}
             contentContainerStyle={cs.msgList}
             showsVerticalScrollIndicator={false}
-            ListFooterComponent={isTyping ? <TypingIndicator /> : null}
+            ListFooterComponent={
+              chatLoading || isTyping ? <TypingIndicator /> : null
+            }
             onContentSizeChange={scrollToBottom}
           />
 
@@ -811,15 +1168,15 @@ const LiveChatModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
           {/* Escalate Banner */}
           {showEscalate && (
             <View style={cs.escalateBanner}>
-              <TouchableOpacity style={cs.escalateBtn} onPress={() => Linking.openURL("https://wa.me/919063499092")} activeOpacity={0.8}>
+              <TouchableOpacity style={cs.escalateBtn} onPress={() => Linking.openURL(`https://wa.me/${waNum}`)} activeOpacity={0.8}>
                 <Ionicons name="logo-whatsapp" size={14} color="#25D366" />
                 <Text style={[cs.escalateBtnTxt, { fontFamily: F.semiBold }]}>WhatsApp</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={cs.escalateBtn} onPress={() => Linking.openURL("mailto:support@flintandthread.in")} activeOpacity={0.8}>
+              <TouchableOpacity style={cs.escalateBtn} onPress={() => Linking.openURL(`mailto:${supportEmail}`)} activeOpacity={0.8}>
                 <Ionicons name="mail-outline" size={14} color={C.navyLight} />
                 <Text style={[cs.escalateBtnTxt, { fontFamily: F.semiBold }]}>Email Us</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[cs.escalateBtn, cs.escalateBtnCall]} onPress={() => Linking.openURL("tel:9063499092")} activeOpacity={0.8}>
+              <TouchableOpacity style={[cs.escalateBtn, cs.escalateBtnCall]} onPress={() => Linking.openURL(`tel:${supportPhone}`)} activeOpacity={0.8}>
                 <Ionicons name="call-outline" size={14} color="#27AE60" />
                 <Text style={[cs.escalateBtnTxt, { fontFamily: F.semiBold }]}>Call Us</Text>
               </TouchableOpacity>
@@ -912,8 +1269,8 @@ const TopicFAQPanel: React.FC<{ topic: HelpTopic; onClose: () => void }> = ({ to
       </TouchableOpacity>
     </View>
     <View style={s.card}>
-      {topic.faqs.map((faq, i) => (
-        <FAQItem key={i} faq={faq} isLast={i === topic.faqs.length - 1} />
+      {topic.faqs.map((faq) => (
+        <FAQItem key={faq.id} faq={faq} isLast={faq.id === topic.faqs[topic.faqs.length - 1]?.id} />
       ))}
     </View>
   </View>
@@ -939,6 +1296,8 @@ const StarRating = ({ rating, onRate }: { rating: number; onRate: (n: number) =>
 
 const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const router = useRouter();
+  const { isWeb, isDesktop } = useResponsive();
+  const { width: windowWidth } = useWindowDimensions();
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -950,6 +1309,8 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [search, setSearch] = useState("");
   const [issueTitle, setIssueTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("general");
+  const [selectedPriority, setSelectedPriority] = useState("medium");
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
@@ -958,6 +1319,14 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [chatVisible, setChatVisible] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
+  const [serverOffline, setServerOffline] = useState(false);
+  const [generalFaqs, setGeneralFaqs] = useState<FAQ[]>([]);
+  const [helpTopics, setHelpTopics] = useState<HelpTopic[]>([]);
+  const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
+  const [contactConfig, setContactConfig] = useState<SupportContactConfig | null>(null);
 
   // ── Sweet alert state ────────────────────────────────────────────────────
   const [successModalVisible, setSuccessModalVisible] = useState(false);
@@ -967,75 +1336,228 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [issueTitleError, setIssueTitleError] = useState(false);
   const [descriptionError, setDescriptionError] = useState(false);
 
+  // ── Category & Priority options ──────────────────────────────────────────
+  const CATEGORIES = [
+    { value: "general", label: "General" },
+    { value: "technical", label: "Technical Issue" },
+    { value: "billing", label: "Billing" },
+    { value: "product", label: "Product Related" },
+    { value: "order", label: "Order Related" },
+    { value: "account", label: "Account" },
+    { value: "other", label: "Other" },
+  ];
+
+  const PRIORITIES = [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+  ];
+
+  const mapApiTicket = useCallback((t: TicketResponse): Ticket => {
+    const status = normalizeStatus(t.status);
+    return {
+      id: String(t.id),
+      ticketNumber: t.ticketNumber,
+      title: t.subject,
+      description: "",
+      status,
+      category: t.category,
+      priority: t.priority,
+      createdAt: new Date(t.createdAt),
+      updatedAt: new Date(t.updatedAt),
+      lastResponseBy: t.lastResponseBy,
+      adminNote: ADMIN_NOTES[status],
+      messages: mapApiMessages(t.messages),
+    };
+  }, []);
+
+  const loadTickets = useCallback(async () => {
+    setIsLoadingTickets(true);
+    try {
+      const data = await apiGetTickets();
+      setTickets(data.map(mapApiTicket));
+      setServerOffline(false);
+    } catch (err) {
+      console.warn("Failed to load tickets:", err);
+      setServerOffline(true);
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  }, [mapApiTicket]);
+
+  const loadFaqs = useCallback(async () => {
+    setIsLoadingFaqs(true);
+    setGeneralFaqs([]);
+    setHelpTopics([]);
+    setActiveTopic(null);
+    try {
+      const [flat, grouped] = await Promise.all([
+        apiGetFaqs(undefined, true),
+        apiGetGroupedFaqs(true),
+      ]);
+      const sellerFaqsOnly = flat.filter(isSellerFaq);
+      setGeneralFaqs(sellerFaqsOnly.map((f, i) => mapApiFaqToUi(f, i)));
+      setHelpTopics(
+        grouped
+          .map((c) => ({
+            ...c,
+            faqs: c.faqs.filter(isSellerFaq),
+          }))
+          .filter((c) => c.faqs.length > 0)
+          .map((c, i) => mapCategoryToHelpTopic(c, i))
+      );
+      setServerOffline(false);
+    } catch (err) {
+      console.warn("Failed to load FAQs:", err);
+      setGeneralFaqs([]);
+      setHelpTopics([]);
+    } finally {
+      setIsLoadingFaqs(false);
+    }
+  }, []);
+
+  const loadContactConfig = useCallback(async () => {
+    try {
+      const cfg = await getSupportContactConfig();
+      setContactConfig(cfg);
+    } catch (err) {
+      console.warn("Failed to load contact config:", err);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTickets();
+      loadFaqs();
+      loadContactConfig();
+      checkServerConnection().then((r) => setServerOffline(!r.ok));
+    }, [loadTickets, loadFaqs, loadContactConfig])
+  );
+
+  const handleTicketUpdated = useCallback((updated: Ticket) => {
+    setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }, []);
+
   if (!fontsLoaded) return null;
 
-  const filteredFaqs = GENERAL_FAQS.filter(f =>
-    f.question.toLowerCase().includes(search.toLowerCase())
+  const searchLower = search.toLowerCase().trim();
+  const filteredFaqs = generalFaqs.filter(
+    (f) =>
+      !searchLower ||
+      f.question.toLowerCase().includes(searchLower) ||
+      f.answer.toLowerCase().includes(searchLower)
   );
 
   // ── Contact options ──────────────────────────────────────────────────────
   type ContactType = "chat" | "email" | "call";
 
   const contactOptions: { type: ContactType; label: string; sub: string; action: () => void }[] = [
-    { type: "chat", label: "Chat with Support", sub: "Live Chat · Typically replies in minutes", action: () => setChatVisible(true) },
-    { type: "email", label: "Email Support", sub: "support@flintandthread.in", action: () => Linking.openURL("mailto:support@flintandthread.in") },
-    { type: "call", label: "Call Support", sub: "Mon–Sun, 9 AM – 6 PM", action: () => Linking.openURL("tel:9063499092") },
+    {
+      type: "chat",
+      label: "Chat with Support",
+      sub: contactConfig?.chat?.subtitle ?? "Live Chat · Typically replies in minutes",
+      action: () => {
+        if (contactConfig?.chat?.enabled === false) {
+          Alert.alert("Unavailable", "Live chat is temporarily unavailable.");
+          return;
+        }
+        setChatVisible(true);
+      },
+    },
+    {
+      type: "email",
+      label: "Email Support",
+      sub: contactConfig?.email?.address ?? "support@flintandthread.in",
+      action: () => {
+        const address = contactConfig?.email?.address ?? "support@flintandthread.in";
+        openSupportEmail(address);
+      },
+    },
+    {
+      type: "call",
+      label: "Call Support",
+      sub: contactConfig?.call?.hours ?? contactConfig?.call?.subtitle ?? "Mon–Sun, 9 AM – 6 PM",
+      action: () => Linking.openURL(`tel:${contactConfig?.call?.phone ?? "9063499092"}`),
+    },
   ];
 
   // ── Ticket Submit ────────────────────────────────────────────────────────
-  const handleTicketSubmit = () => {
+  const handleTicketSubmit = async () => {
     const titleEmpty = !issueTitle.trim();
     const descEmpty = !description.trim();
+    const hasImage = !!uploadedImage;
 
     setIssueTitleError(titleEmpty);
-    setDescriptionError(descEmpty);
+    setDescriptionError(descEmpty && !hasImage);
 
-    if (titleEmpty || descEmpty) return;
-
-    const DEMO_STATUSES: TicketStatus[] = ["submitted", "review", "processing", "approved"];
-    const randomStatus: TicketStatus =
-      DEMO_STATUSES[Math.floor(Math.random() * DEMO_STATUSES.length)] as TicketStatus;
-    const newTicket: Ticket = {
-      id: genId(),
-      title: issueTitle.trim(),
-      description: description.trim(),
-      status: randomStatus,
-      createdAt: new Date(),
-      adminNote: ADMIN_NOTES[randomStatus],
-    };
-
-    setTickets(prev => [newTicket, ...prev]);
-    setSubmittedTitle(newTicket.title);
-
-    // Clear form
-    setIssueTitle("");
-    setDescription("");
-    setUploadedImage(null);
-    setIssueTitleError(false);
-    setDescriptionError(false);
-
-    // Show sweet alert instead of Alert.alert
-    setSuccessModalVisible(true);
-    setTicketSubmitted(true);
-    setTimeout(() => {
-      setTicketSubmitted(false);
-    }, 5000);
-  };
-
-  const handlePickImage = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permissionResult.granted) {
-      Alert.alert(
-        "Permission Required",
-        "Please allow access to your photo library in Settings."
-      );
+    if (titleEmpty) {
+      Alert.alert("Required", "Please enter a subject for your ticket.");
+      return;
+    }
+    if (descEmpty && !hasImage) {
+      Alert.alert("Required", "Please enter a description or attach an image.");
       return;
     }
 
+    setIsSubmitting(true);
+
+    try {
+      const ticketPayload: CreateTicketPayload = {
+        subject: issueTitle.trim(),
+        category: selectedCategory,
+        priority: selectedPriority,
+      };
+      const desc = description.trim();
+      if (desc) {
+        ticketPayload.description = desc;
+      } else if (hasImage) {
+        ticketPayload.description = "See attached image";
+      }
+
+      const apiTicket = uploadedImage
+        ? await apiCreateTicketWithImage(ticketPayload, uploadedImage)
+        : await apiCreateTicket(ticketPayload);
+
+      const newTicket = mapApiTicket(apiTicket);
+      setTickets((prev) => [newTicket, ...prev.filter((t) => t.id !== newTicket.id)]);
+      setSubmittedTitle(newTicket.title);
+      setExpandedTicketId(newTicket.id);
+      setActiveTopic("tickets");
+
+      setIssueTitle("");
+      setDescription("");
+      setSelectedCategory("general");
+      setSelectedPriority("medium");
+      setUploadedImage(null);
+      setIssueTitleError(false);
+      setDescriptionError(false);
+
+      setSuccessModalVisible(true);
+      setTicketSubmitted(true);
+      setTimeout(() => setTicketSubmitted(false), 5000);
+
+      loadTickets().catch(() => {});
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to create ticket. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    if (Platform.OS !== "web") {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library in Settings."
+        );
+        return;
+      }
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: false,
       quality: 0.8,
     });
@@ -1094,7 +1616,11 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
 
       {/* ── Live Chat Modal ── */}
-      <LiveChatModal visible={chatVisible} onClose={() => setChatVisible(false)} />
+      <LiveChatModal
+        visible={chatVisible}
+        onClose={() => setChatVisible(false)}
+        contactConfig={contactConfig}
+      />
 
       {/* ── Sweet Alert Success Modal ── */}
       <SuccessModal
@@ -1119,10 +1645,24 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
       <ScrollView
         style={s.scroll}
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={[s.scrollContent, isWeb && s.scrollContentWeb]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <View
+          style={[
+            s.pageInner,
+            isWeb && { maxWidth: isDesktop ? 1100 : Math.min(720, windowWidth - 32), alignSelf: "center" as const },
+          ]}
+        >
+        {serverOffline && (
+          <View style={s.offlineBanner}>
+            <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
+            <Text style={[s.offlineBannerText, { fontFamily: F.medium }]}>
+              Backend offline. Start server on port 8080, then reload app.
+            </Text>
+          </View>
+        )}
 
         {/* Navy Banner */}
         <View style={s.navyBanner}>
@@ -1167,16 +1707,23 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
             </View>
           </View>
           <View style={s.card}>
-            {filteredFaqs.length === 0 ? (
+            {isLoadingFaqs ? (
               <View style={s.noResultWrap}>
-
-                <Ionicons name="search-outline" size={28} color={C.textLight} />                
-                <Text style={[s.noResult, { fontFamily: F.regular }]}>No results for &quot;{search}&quot;</Text>
-
+                <ActivityIndicator size="small" color={C.navy} />
+                <Text style={[s.noResult, { fontFamily: F.regular, marginTop: 8 }]}>
+                  Loading FAQs...
+                </Text>
+              </View>
+            ) : filteredFaqs.length === 0 ? (
+              <View style={s.noResultWrap}>
+                <Ionicons name="search-outline" size={28} color={C.textLight} />
+                <Text style={[s.noResult, { fontFamily: F.regular }]}>
+                  {search ? `No results for "${search}"` : "No questions available at the moment."}
+                </Text>
               </View>
             ) : (
-              filteredFaqs.map((faq, i) => (
-                <FAQItem key={i} faq={faq} isLast={i === filteredFaqs.length - 1} />
+              filteredFaqs.map((faq) => (
+                <FAQItem key={faq.id} faq={faq} isLast={faq.id === filteredFaqs[filteredFaqs.length - 1]?.id} />
               ))
             )}
           </View>
@@ -1198,8 +1745,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         </View>
 
         {/* Raise a Ticket */}
-       {/* Raise a Ticket */}
-<View style={s.section}>
+<View style={[s.section, isWeb && s.sectionWeb]}>
   <View style={s.sectionLabelRow}>
     <View style={[s.sectionLabelPill, { backgroundColor: "#F0FDF4" }]}>
       <MaterialCommunityIcons
@@ -1244,125 +1790,116 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         <>
           {/* Issue Title */}
           <View style={s.fieldLabelRow}>
-            <Ionicons
-              name="create-outline"
-              size={13}
-              color={C.textMid}
-            />
-
-            <Text
-              style={[
-                s.fieldLabel,
-                { fontFamily: F.medium },
-              ]}
-            >
-              Issue title{" "}
-              <Text style={s.requiredStar}>*</Text>
+            <Ionicons name="create-outline" size={13} color={C.textMid} />
+            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
+              Subject <Text style={s.requiredStar}>*</Text>
             </Text>
           </View>
 
           <TextInput
-            style={[
-              s.fieldInput,
-              { fontFamily: F.regular },
-              issueTitleError && s.fieldInputError,
-            ]}
+            style={[s.fieldInput, { fontFamily: F.regular }, issueTitleError && s.fieldInputError]}
             placeholder="e.g. Payment not received"
             placeholderTextColor={C.textLight}
             value={issueTitle}
-            onChangeText={(t) => {
-              setIssueTitle(t);
-              if (t.trim()) setIssueTitleError(false);
-            }}
+            onChangeText={(t) => { setIssueTitle(t); if (t.trim()) setIssueTitleError(false); }}
             returnKeyType="next"
           />
 
           {issueTitleError && (
             <View style={s.errorRow}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={13}
-                color="#DC2626"
-              />
-              <Text
-                style={[
-                  s.errorText,
-                  { fontFamily: F.regular },
-                ]}
-              >
-                Issue title is required
-              </Text>
+              <Ionicons name="alert-circle-outline" size={13} color="#DC2626" />
+              <Text style={[s.errorText, { fontFamily: F.regular }]}>Subject is required</Text>
             </View>
           )}
 
-          {/* Description */}
-          <View
-            style={[
-              s.fieldLabelRow,
-              { marginTop: 14 },
-            ]}
-          >
-            <Ionicons
-              name="document-text-outline"
-              size={13}
-              color={C.textMid}
-            />
+          {/* Category & Priority Row */}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+            <View style={{ flex: 1 }}>
+              <View style={s.fieldLabelRow}>
+                <Ionicons name="pricetag-outline" size={13} color={C.textMid} />
+                <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Category</Text>
+              </View>
+              <View style={s.pickerWrap}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[s.chipBtn, selectedCategory === cat.value && s.chipBtnActive]}
+                      onPress={() => setSelectedCategory(cat.value)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, selectedCategory === cat.value && s.chipBtnTxtActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </View>
 
-            <Text
-              style={[
-                s.fieldLabel,
-                { fontFamily: F.medium },
-              ]}
-            >
-              Description{" "}
-              <Text style={s.requiredStar}>*</Text>
+          <View style={{ marginTop: 10 }}>
+            <View style={s.fieldLabelRow}>
+              <Ionicons name="flag-outline" size={13} color={C.textMid} />
+              <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Priority</Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {PRIORITIES.map((p) => {
+                const priorityColors: Record<string, string> = { low: "#16A34A", medium: "#D97706", high: "#DC2626" };
+                const isActive = selectedPriority === p.value;
+                return (
+                  <TouchableOpacity
+                    key={p.value}
+                    style={[s.chipBtn, isActive && { backgroundColor: priorityColors[p.value], borderColor: priorityColors[p.value] }]}
+                    onPress={() => setSelectedPriority(p.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, isActive && { color: "#fff" }]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Description */}
+          <View style={[s.fieldLabelRow, { marginTop: 14 }]}>
+            <Ionicons name="document-text-outline" size={13} color={C.textMid} />
+            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
+              Description <Text style={s.requiredStar}>*</Text>
             </Text>
           </View>
 
           <TextInput
-            style={[
-              s.fieldTextarea,
-              { fontFamily: F.regular },
-              descriptionError && s.fieldInputError,
-            ]}
+            style={[s.fieldTextarea, { fontFamily: F.regular }, descriptionError && s.fieldInputError]}
             placeholder="Describe your issue in detail..."
             placeholderTextColor={C.textLight}
             value={description}
-            onChangeText={(t) => {
-              setDescription(t);
-              if (t.trim()) setDescriptionError(false);
-            }}
+            onChangeText={(t) => { setDescription(t); if (t.trim()) setDescriptionError(false); }}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
           />
 
           {/* Upload */}
-          <TouchableOpacity
-            style={s.uploadBox}
-            activeOpacity={0.7}
-            onPress={handlePickImage}
-          >
+          <TouchableOpacity style={s.uploadBox} activeOpacity={0.7} onPress={handlePickImage}>
             {uploadedImage ? (
-              <Image
-                source={{ uri: uploadedImage }}
-                style={s.uploadPreview}
-              />
+              <View style={s.uploadPreviewWrap}>
+                <Image source={{ uri: uploadedImage }} style={s.uploadPreview} />
+                <TouchableOpacity
+                  style={s.uploadRemoveBtn}
+                  onPress={() => setUploadedImage(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={22} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
             ) : (
               <>
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={28}
-                  color={C.textLight}
-                />
-
-                <Text
-                  style={[
-                    s.uploadText,
-                    { fontFamily: F.regular },
-                  ]}
-                >
-                  Tap to upload
+                <Ionicons name="cloud-upload-outline" size={28} color={C.textLight} />
+                <Text style={[s.uploadText, { fontFamily: F.regular }]}>
+                  {Platform.OS === "web" ? "Click to upload image" : "Tap to upload image"}
                 </Text>
               </>
             )}
@@ -1370,25 +1907,19 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
           {/* Submit Button */}
           <TouchableOpacity
-            style={s.submitBtn}
+            style={[s.submitBtn, isSubmitting && s.submitBtnDisabled]}
             onPress={handleTicketSubmit}
             activeOpacity={0.8}
+            disabled={isSubmitting}
           >
             <View style={s.btnInner}>
-              <Ionicons
-                name="send"
-                size={15}
-                color="#fff"
-                style={{ marginRight: 8 }}
-              />
-
-              <Text
-                style={[
-                  s.submitBtnText,
-                  { fontFamily: F.semiBold },
-                ]}
-              >
-                Create Support Ticket
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name="send" size={15} color="#fff" style={{ marginRight: 8 }} />
+              )}
+              <Text style={[s.submitBtnText, { fontFamily: F.semiBold }]}>
+                {isSubmitting ? "Submitting..." : "Create Support Ticket"}
               </Text>
             </View>
           </TouchableOpacity>
@@ -1408,13 +1939,25 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
               <Text style={[s.sectionLabel, { fontFamily: F.bold, color: "#7C3AED" }]}>Help Topics</Text>
             </View>
           </View>
-          <View style={s.topicsGrid}>
-            {HELP_TOPICS.map((t, i) => {
+          <View style={[s.topicsGrid, isWeb && s.topicsGridWeb, isDesktop && s.topicsGridDesktop]}>
+            {!isLoadingFaqs && helpTopics.length === 0 ? (
+              <View style={[s.card, { width: "100%", padding: 16 }]}>
+                <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, textAlign: "center" }]}>
+                  No help topics available at the moment.
+                </Text>
+              </View>
+            ) : null}
+            {helpTopics.map((t, i) => {
               const isActive = typeof activeTopic !== "string" && activeTopic?.label === t.label;
               return (
                 <TouchableOpacity
                   key={i}
-                  style={[s.topicPill, isActive && s.topicPillActive, isActive && { borderColor: t.color }]}
+                  style={[
+                    s.topicPill,
+                    isDesktop && s.topicPillDesktop,
+                    isActive && s.topicPillActive,
+                    isActive && { borderColor: t.color },
+                  ]}
                   activeOpacity={0.7}
                   onPress={() => setActiveTopic(prev => (typeof prev !== "string" && prev?.label === t.label) ? null : t)}
                 >
@@ -1465,7 +2008,18 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           )}
 
           {activeTopic === "tickets" && (
-            <TicketStatusPanel tickets={tickets} onClose={() => setActiveTopic(null)} />
+            <TicketStatusPanel
+              tickets={tickets}
+              onClose={() => {
+                setActiveTopic(null);
+                setExpandedTicketId(null);
+              }}
+              isLoadingTickets={isLoadingTickets}
+              expandedTicketId={expandedTicketId}
+              onExpandedChange={setExpandedTicketId}
+              onTicketUpdated={handleTicketUpdated}
+              onRefresh={loadTickets}
+            />
           )}
         </View>
 
@@ -1518,6 +2072,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           </View>
         </View>
 
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1533,6 +2088,9 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.lightGray },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 48 },
+  scrollContentWeb: { paddingHorizontal: 8 },
+  pageInner: { width: "100%" },
+  sectionWeb: { marginTop: 16 },
 
   header: {
     flexDirection: "row", alignItems: "center",
@@ -1554,6 +2112,19 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
 
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  offlineBannerText: { flex: 1, fontSize: 13, color: "#92400E" },
   navyBanner: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: C.navy, borderRadius: 16,
@@ -1638,6 +2209,11 @@ const s = StyleSheet.create({
   uploadPreviewText: { fontSize: 13, color: "#27AE60" },
   uploadRemoveBtn: { position: "absolute", top: 6, right: 6, backgroundColor: C.white, borderRadius: 10 },
 
+  pickerWrap: { marginTop: 2 },
+  chipBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#D1D9E6", backgroundColor: C.lightGray },
+  chipBtnActive: { backgroundColor: C.navy, borderColor: C.navy },
+  chipBtnTxt: { fontSize: 13, color: C.textMid },
+  chipBtnTxtActive: { color: C.white },
   submitBtn: { marginTop: 16, backgroundColor: C.navy, borderRadius: 10, paddingVertical: 13, alignItems: "center" },
   submitBtnDisabled: { opacity: 0.4 },
   submitBtnText: { fontSize: 15, color: C.white, letterSpacing: 0.2 },
@@ -1646,6 +2222,9 @@ const s = StyleSheet.create({
   outlineBtnText: { fontSize: 15, color: C.navy },
 
   topicsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  topicsGridWeb: { gap: 10 },
+  topicsGridDesktop: { gap: 12 },
+  topicPillDesktop: { flexBasis: "31%", flexGrow: 1, maxWidth: "48%" },
   topicPill: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2, paddingHorizontal: 12, paddingVertical: 11, width: "48%", borderWidth: 1.5, borderColor: "transparent" },
   topicPillFull: { width: "100%" },
   topicPillActive: { backgroundColor: C.softBlue },
@@ -1669,8 +2248,130 @@ const s = StyleSheet.create({
   ticketHeaderRight: { alignItems: "flex-end", gap: 6 },
   ticketCardTitle: { fontSize: 16, color: C.textDark, marginBottom: 3 },
   ticketCardDate: { fontSize: 12, color: C.textLight },
+  ticketMetaLine: { fontSize: 11, color: C.textLight, marginTop: 2 },
   ticketStatusBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   ticketStatusBadgeTxt: { fontSize: 11 },
+  refreshTicketsBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.white,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+
+  ticketDetailSection: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#EBF0F8",
+  },
+  ticketDetailSectionTitle: { fontSize: 14, color: C.textDark, marginBottom: 10 },
+  noMsgsText: { fontSize: 13, color: C.textLight, textAlign: "center", marginVertical: 12 },
+  msgThread: { gap: 10, marginBottom: 12 },
+  ticketMsgRow: { flexDirection: "row", marginBottom: 4 },
+  ticketMsgRowSeller: { justifyContent: "flex-end" },
+  ticketMsgRowAdmin: { justifyContent: "flex-start" },
+  ticketMsgBubble: {
+    maxWidth: "88%",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  ticketMsgBubbleSeller: { backgroundColor: C.navy, borderBottomRightRadius: 4 },
+  ticketMsgBubbleAdmin: {
+    backgroundColor: C.lightGray,
+    borderBottomLeftRadius: 4,
+    borderWidth: 0.5,
+    borderColor: "#E5E9F0",
+  },
+  ticketMsgSender: { fontSize: 11, color: "#7C3AED", marginBottom: 4 },
+  ticketMsgText: { fontSize: 14, color: C.textDark, lineHeight: 20 },
+  ticketMsgTextSeller: { color: C.white },
+  ticketMsgTime: { fontSize: 10, color: C.textLight, marginTop: 6 },
+  ticketMsgAttachment: {
+    width: "100%",
+    height: 160,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: "#E5E9F0",
+  },
+  replyImagePreviewWrap: {
+    position: "relative",
+    alignSelf: "flex-start",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  replyImagePreview: {
+    width: 72,
+    height: 72,
+    borderRadius: 8,
+    backgroundColor: "#E5E9F0",
+  },
+  replyImageRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: C.white,
+    borderRadius: 11,
+  },
+  replyBox: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    marginTop: 4,
+  },
+  replyAttachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.lightGray,
+    borderWidth: 0.5,
+    borderColor: "#D1D9E6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  replyInput: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 100,
+    borderWidth: 0.5,
+    borderColor: "#D1D9E6",
+    borderRadius: 12,
+    backgroundColor: C.lightGray,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: C.textDark,
+  },
+  replySendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.navy,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  replySendBtnDisabled: { opacity: 0.4 },
+  closedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+  },
+  closedBannerTxt: { fontSize: 13, color: C.textMid },
+  closeTicketLink: { alignItems: "center", marginTop: 10, paddingVertical: 6 },
+  closeTicketLinkTxt: { fontSize: 13, color: C.textLight, textDecorationLine: "underline" },
 
   wandBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
