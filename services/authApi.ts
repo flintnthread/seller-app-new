@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+﻿import { Platform } from "react-native";
 import { resolveApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/client";
 
@@ -17,18 +17,19 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
             },
         });
     } catch (err) {
+        const pcIp = baseUrl.replace(/^https?:\/\//, "").split(":")[0];
         const emulatorHint =
             Platform.OS === "android"
-                ? "\n• Android emulator: use http://10.0.2.2:8080 or set EXPO_PUBLIC_API_BASE_URL"
+                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true and use http://10.0.2.2:8080"
                 : "";
         const phoneHint =
             Platform.OS !== "web"
-                ? "\n• Physical device: set EXPO_PUBLIC_API_BASE_URL to your PC IP in .env"
-                : "\n• Web uses http://localhost:8080 — start backend: cd seller-backend && .\\mvnw.cmd spring-boot:run";
+                ? `\n• Physical device: set EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:8080 in seller-app-new/.env (run ipconfig), then restart: npx expo start --clear`
+                : "\n• Web: start backend on localhost:8080";
         const detail =
             err instanceof Error && err.message ? ` (${err.message})` : "";
         throw new ApiError(
-            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Ensure backend is running on port 8080.`
+            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Ensure backend is running: cd seller-backend && .\\mvnw.cmd spring-boot:run\n• Phone and PC must be on the same Wi‑Fi. PC IP in .env: ${pcIp}`
         );
     }
 
@@ -119,6 +120,104 @@ export async function resetPasswordWithToken(
     const body = await authFetch<{ message: string }>("/api/auth/reset-password", {
         method: "POST",
         body: JSON.stringify({ token: token.trim(), password, confirmPassword }),
+    });
+    return body.message;
+}
+
+export type OtpSentResult = {
+    message: string;
+    maskedMobile: string;
+    devOtp?: string | null;
+};
+
+export async function sendRegistrationOtp(mobile: string): Promise<OtpSentResult> {
+    return authFetch<OtpSentResult>("/api/sellers/send-otp", {
+        method: "POST",
+        body: JSON.stringify({ mobile: mobile.trim(), method: "sms" }),
+    });
+}
+
+export type OtpVerifiedResult = {
+    verified: boolean;
+    mobileVerificationToken: string;
+    message: string;
+};
+
+export async function verifyRegistrationOtp(mobile: string, otp: string): Promise<OtpVerifiedResult> {
+    return authFetch<OtpVerifiedResult>("/api/sellers/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ mobile: mobile.trim(), otp: otp.trim() }),
+    });
+}
+
+export type RegisterSellerResult = {
+    sellerId: number;
+    message: string;
+    emailVerificationRequired: boolean;
+};
+
+export async function registerSeller(payload: {
+    mobileVerificationToken: string;
+    mobile: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+}): Promise<RegisterSellerResult> {
+    return authFetch<RegisterSellerResult>("/api/sellers/register", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export type StartEmailVerificationResult = {
+    message: string;
+    email: string;
+    otpSent: boolean;
+    alreadyVerified: boolean;
+};
+
+export async function confirmEmailVerificationLink(
+    token: string
+): Promise<StartEmailVerificationResult> {
+    const body = await authFetch<{
+        message: string;
+        email: string;
+        otpSent: boolean;
+        alreadyVerified: boolean;
+    }>("/api/auth/confirm-email-link", {
+        method: "POST",
+        body: JSON.stringify({ token: token.trim() }),
+    });
+    return {
+        message: body.message,
+        email: body.email ?? "",
+        otpSent: body.otpSent === true,
+        alreadyVerified: body.alreadyVerified === true,
+    };
+}
+
+export type EmailVerificationResult = {
+    message: string;
+    verified: boolean;
+    email?: string | null;
+};
+
+export async function verifyEmailOtp(
+    email: string,
+    otp: string
+): Promise<EmailVerificationResult> {
+    return authFetch<EmailVerificationResult>("/api/auth/verify-email-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
+    });
+}
+
+export async function resendEmailVerificationOtp(email: string): Promise<string> {
+    const body = await authFetch<{ message: string }>("/api/auth/resend-email-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
     });
     return body.message;
 }

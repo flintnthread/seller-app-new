@@ -22,6 +22,9 @@ export type OrderStatus =
 
 // ─── List-level Order (used by OrdersScreen card) ─────────────────────────────
 export interface Order {
+  /** Unique key for list rendering (one row per order line item). */
+  listKey: string;
+  /** Display order id (e.g. #ORD-123) — shared by line items on the same order. */
   id: string;
   date: string;
   product: string;
@@ -44,6 +47,17 @@ export interface OrderStep {
   iconLib: "Ionicons" | "MCIcons";
   iconName: string;
   status: StepStatus;
+  comment?: string;
+}
+
+export interface OrderStatusHistoryEntry {
+  id: number;
+  orderId: number;
+  status: string;
+  statusLabel: string;
+  comment?: string;
+  createdBy?: number;
+  createdAt: string;
 }
 
 export interface CustomerInfo {
@@ -63,32 +77,196 @@ export interface PaymentInfo {
 }
 
 export interface OrderItem {
+  lineItemId?: number;
+  productId?: number;
+  variantId?: number;
+  sellerId?: number;
   name: string;
   variant: string;
   sku: string;
   qty: number;
   price: string; // display string
+  priceAmount?: number;
+  subtotalAmount?: number;
   image: string;
+  hsnCode?: string;
+  unitPrice?: number;
+  tax?: number;
+  discount?: number;
+  status?: string;
+  uiStatus?: OrderStatus;
+  color?: string;
+  size?: string;
+  sellerName?: string;
+  weight?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  packageDeadWeight?: number;
+  volumetricWeight?: number;
+  chargeableWeight?: number;
+  customDetails?: OrderItemCustomDetail[];
+}
+
+export interface OrderItemCustomDetail {
+  id: number;
+  orderItemId: number;
+  fieldKey: string;
+  fieldLabel: string;
+  valueText?: string;
+  valueFile?: string;
+  createdAt: string;
+}
+
+export interface OrderEmailLog {
+  id: number;
+  orderId: number;
+  email: string;
+  emailType: string;
+  subject: string;
+  status: string;
+  sentAt: string;
+  errorMessage?: string;
+}
+
+export interface OrderGstRecord {
+  id?: number;
+  orderId: number;
+  gstNumber?: string;
+  gstInfo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OrderReturnRequest {
+  id: number;
+  orderId: number;
+  orderItemId: number;
+  productName: string;
+  reason?: string;
+  description?: string;
+  unboxingVideo?: string;
+  solution?: string;
+  solutionLabel?: string;
+  status: string;
+  statusLabel: string;
+  adminComment?: string;
+  shiprocketReturnId?: string;
+  processedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OrderExchangeRequest {
+  id: number;
+  orderId: number;
+  orderItemId: number;
+  productName: string;
+  reason?: string;
+  description?: string;
+  exchangeColor?: number;
+  exchangeSize?: number;
+  status: string;
+  statusLabel: string;
+  adminComment?: string;
+  shiprocketOrderId?: string;
+  shiprocketShipmentId?: string;
+  shiprocketAwbCode?: string;
+  trackingNumber?: string;
+  shippingProvider?: string;
+  processedAt?: string;
+  createdAt: string;
+}
+
+export interface OrderReplacementRequest {
+  id: number;
+  orderId: number;
+  orderItemId: number;
+  productName: string;
+  reason?: string;
+  description?: string;
+  status: string;
+  statusLabel: string;
+  adminComment?: string;
+  shiprocketReturnId?: string;
+  trackingNumber?: string;
+  shippingProvider?: string;
+  processedAt?: string;
+  createdAt: string;
+}
+
+export interface OrderCancellationRequest {
+  id: number;
+  orderId: number;
+  orderItemId: number;
+  productName: string;
+  reason?: string;
+  status: string;
+  statusLabel: string;
+  adminComment?: string;
+  processedAt?: string;
+  createdAt: string;
+}
+
+export interface OrderReviewSummary {
+  returnCount: number;
+  exchangeCount: number;
+  replacementCount: number;
+  cancellationCount: number;
+  hasPendingReview: boolean;
 }
 
 export interface PricingBreakdown {
   subtotal: string;
   shipping: string;
+  tax?: string;
   discount?: string;
+  referralDiscount?: string;
+  walletDeduction?: string;
   total: string;
+  subtotalAmount?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  totalAmount?: number;
+}
+
+export interface ShiprocketInfo {
+  orderId?: string;
+  shipmentId?: string;
+  awb?: string;
+  courier?: string;
+  status?: string;
+  trackingUrl?: string;
+  syncedAt?: string;
 }
 
 export interface OrderDetail {
   id: string;
+  orderId?: number;
+  orderNumber?: string;
   date: string;
   status: OrderStatus;
+  dbStatus?: string;
   customer: CustomerInfo;
   items: OrderItem[];
   pricing: PricingBreakdown;
   payment: PaymentInfo;
   steps: OrderStep[];
+  statusHistory?: OrderStatusHistoryEntry[];
+  emailLogs?: OrderEmailLog[];
+  gstRecords?: OrderGstRecord[];
+  returns?: OrderReturnRequest[];
+  exchanges?: OrderExchangeRequest[];
+  replacements?: OrderReplacementRequest[];
+  cancellations?: OrderCancellationRequest[];
+  reviewSummary?: OrderReviewSummary;
   customerNote?: string;
   sellerNote?: string;
+  cancelReason?: string;
+  gstNumber?: string;
+  gstInfo?: string;
+  billing?: CustomerInfo;
+  shiprocket?: ShiprocketInfo;
   /** Label shown on the primary (filled) action button */
   primaryActionLabel: string;
   /** Label shown on the secondary (outline) action button */
@@ -417,10 +595,9 @@ export function getOrderDetail(id: string): OrderDetail | undefined {
 }
 
 // ─── Re-export flat list for OrdersScreen ────────────────────────────────────
-export const ORDERS: Order[] = ORDER_DETAILS.map((d) => {
-  const item = d.items[0];
-  if (!item) throw new Error(`Order ${d.id} has no items`);
-  return {
+export const ORDERS: Order[] = ORDER_DETAILS.flatMap((d) =>
+  d.items.map((item, idx) => ({
+    listKey: `${d.id}-${item.lineItemId ?? idx}`,
     id: d.id,
     date: d.date,
     product: item.name,
@@ -430,6 +607,6 @@ export const ORDERS: Order[] = ORDER_DETAILS.map((d) => {
     status: d.status,
     customer: d.customer.name,
     image: item.image,
-    ...(d.extraNote !== undefined ? { extra: d.extraNote } : {}),
-  };
-});
+    ...(idx === 0 && d.extraNote !== undefined ? { extra: d.extraNote } : {}),
+  })),
+);
