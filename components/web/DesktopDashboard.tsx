@@ -16,6 +16,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { DashboardTables } from "./DashboardTables";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
 import {
   SmartWelcomeHeader,
@@ -131,18 +132,27 @@ const ALL_STATS_DATA = {
 
 
 
-export const DesktopDashboard: React.FC = () => {
+export type DesktopDashboardProps = {
+  profile: SellerProfileSummary | null;
+  profileLoading: boolean;
+};
+
+export function DesktopDashboard({
+  profile,
+  profileLoading,
+}: DesktopDashboardProps) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1200;
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
+  const welcomeName = profile?.firstName ?? (profileLoading ? "…" : "Seller");
 
 
   return (
     <View style={styles.container}>
       {/* ── 1. SMART WELCOME HEADER ── */}
-      <SmartWelcomeHeader name="Priya" />
+      <SmartWelcomeHeader name={welcomeName} />
 
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>
@@ -215,7 +225,7 @@ export const DesktopDashboard: React.FC = () => {
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {

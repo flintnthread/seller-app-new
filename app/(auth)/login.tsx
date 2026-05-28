@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,6 +25,7 @@ import { useSweetAlert } from "@/components/common/SweetAlert";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import { ApiError } from "@/lib/api/client";
 import { setSellerId } from "@/lib/api/sellerSession";
+import { getPostLoginRoute } from "@/lib/auth/postLoginRoute";
 import { loginSeller } from "@/services/authApi";
 
 const C = {
@@ -93,6 +94,7 @@ const FloatingBubble: React.FC<{
 
 export default function SellerLogin() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string; fromSignup?: string }>();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
@@ -112,6 +114,18 @@ export default function SellerLogin() {
 
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 16 : 24)).current;
+
+  useEffect(() => {
+    if (typeof params.email === "string" && params.email.trim()) {
+      setEmail(params.email.trim());
+    }
+  }, [params.email]);
+
+  useEffect(() => {
+    if (params.fromSignup === "1") {
+      showSuccess("Please log in to continue with your seller profile.", "Account created");
+    }
+  }, [params.fromSignup, showSuccess]);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener(
@@ -214,8 +228,13 @@ export default function SellerLogin() {
       const result = await loginSeller(email.trim(), password);
       await setSellerId(result.sellerId);
       setIsProfileCompleted(result.profileCompleted);
-      showSuccess(`Welcome back${result.firstName ? `, ${result.firstName}` : ""}!`, "Login successful");
-      router.replace("/(main)/dashboard");
+
+      showSuccess(
+        `Welcome back${result.firstName ? `, ${result.firstName}` : ""}!`,
+        "Login successful"
+      );
+
+      router.replace(getPostLoginRoute());
     } catch (e) {
       const message =
         e instanceof ApiError

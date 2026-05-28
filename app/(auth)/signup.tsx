@@ -29,6 +29,8 @@ import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
+import { clearSellerId } from "@/lib/api/sellerSession";
 import Svg, { Path, Circle } from "react-native-svg";
 import { showMessage } from "react-native-flash-message";
 
@@ -568,6 +570,7 @@ const SellerSignUpScreen: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
+  const { setIsProfileCompleted } = useProfileStatus();
   const scrollViewRef = useRef<ScrollView>(null);
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 20 : 0)).current;
@@ -792,17 +795,26 @@ const SellerSignUpScreen: React.FC = () => {
       return;
     }
 
-    // Navigate to sellerpersonalinfo with user data
-    router.push({
-      pathname: "/(main)/sellerpersonalinfo",
-      params: {
-        fullName: fullName,
-        mobile: mobile,
-        email: email
-      }
+    void clearSellerId();
+    setIsProfileCompleted(false);
+
+    showMessage({
+      message: "Account created",
+      description: "Please log in to continue with your seller profile.",
+      type: "success",
+      icon: "success",
+      ...toastConfig,
     });
 
-  }, [validations, password, confirmPassword, agreed, scrollToFirstError, router, fullName, mobile, email]);
+    router.replace({
+      pathname: "/(auth)/login",
+      params: {
+        email: email.trim(),
+        fromSignup: "1",
+      },
+    });
+
+  }, [validations, password, confirmPassword, agreed, scrollToFirstError, router, fullName, mobile, email, setIsProfileCompleted]);
 
   const pwdMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
   const pwdMismatch = password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword;
