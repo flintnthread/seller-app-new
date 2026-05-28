@@ -1,0 +1,679 @@
+import { Platform } from "react-native";
+import { apiRequest } from "@/lib/api/client";
+
+export type ProductListItem = {
+    id: string;
+    name: string;
+    sku: string;
+    price: number;
+    image: string;
+    status: string;
+    stock: number;
+    updated: string;
+    category: string;
+    subcategory: string;
+    subSubcategory?: string;
+    color: string;
+    size: string;
+    description?: string;
+    material?: string;
+    weight?: string;
+    dimensions?: string;
+    returnPolicy?: string;
+    warranty?: string;
+};
+
+export type ProductDetailSpec = { label: string; value: string };
+export type ProductDetailDeliveryCharge = { zone: string; standard: string; express: string };
+
+/** Full product_variants row + UI aliases from GET /api/products/{id} */
+export type ProductDetailVariant = {
+    id: string;
+    productId: string;
+    color: string;
+    colorHex: string;
+    size: string;
+    sku: string;
+    stock: number;
+    basePrice: number;
+    mrpExclGst: number;
+    mrpPrice: number;
+    discountPercentage: number;
+    discountAmount: number;
+    sellingPrice: number;
+    taxPercentage: number;
+    taxAmount: number;
+    finalPrice: number;
+    mrpInclGst: number;
+    intraCityDeliveryCharge: number;
+    metroMetroDeliveryCharge: number;
+    totalPriceIntraCity: number;
+    totalPriceMetroMetro: number;
+    commissionPercentage: number;
+    commissionAmount: number;
+    videoPath: string;
+    weight: number;
+    createdAt: string;
+    updatedAt: string;
+    mrp: number;
+    discount: number;
+    sellingPriceExGst: number;
+    gstPercent: number;
+    gstAmount: number;
+    sellingPriceWithGst: number;
+    commissionPercent: number;
+    intraCityDelivery: number;
+    metroMetroDelivery: number;
+    totalIntraCity: number;
+    totalMetroMetro: number;
+    imageUri?: string;
+    videoUri?: string;
+};
+
+export type ProductDetailSizeChartRow = {
+    size: string;
+    chest: string;
+    waist: string;
+    hip: string;
+    length: string;
+};
+
+export type ProductDetail = {
+    id: string;
+    categoryId: number;
+    subcategoryId: number;
+    sizeChartId?: number;
+    name: string;
+    sku: string;
+    price: number;
+    mrp: number;
+    mrpExclGst: number;
+    mrpInclGst: number;
+    sellingPriceExGst: number;
+    discount: number;
+    images: string[];
+    status: string;
+    rawStatus: string;
+    stock: number;
+    updated: string;
+    category: string;
+    subcategory: string;
+    color: string;
+    size: string;
+    hsnCode: string;
+    gst: string;
+    createdAt: string;
+    approvedAt: string;
+    shortDescription: string;
+    description: string;
+    material: string;
+    weight: string;
+    dimensions: string;
+    returnPolicy: string;
+    warranty: string;
+    careInstructions: string;
+    adminNotes: string;
+    deliveryTimeMin?: number;
+    deliveryTimeMax?: number;
+    intraCityCharge: number;
+    metroMetroCharge: number;
+    acceptCod: boolean;
+    fragile: boolean;
+    specifications: ProductDetailSpec[];
+    features: string[];
+    delivery: {
+        estimated: string;
+        freeAbove: string;
+        expressAvailable: boolean;
+        expressCharge: string;
+        cod: boolean;
+        codCharge: string;
+        locations: string;
+    };
+    packaging: {
+        boxDimensions: string;
+        grossWeight: string;
+        packagingType: string;
+        fragile: boolean;
+    };
+    deliveryCharges: ProductDetailDeliveryCharge[];
+    returnDetails: {
+        window: string;
+        conditions: string[];
+        process: string;
+        refundMode: string;
+    };
+    variants: ProductDetailVariant[];
+    sizeChart: ProductDetailSizeChartRow[];
+};
+
+type ApiProductListItem = {
+    id: number;
+    name: string;
+    sku?: string;
+    price?: number;
+    image?: string;
+    status?: string;
+    stock?: number;
+    updated?: string;
+    category?: string;
+    subcategory?: string;
+    color?: string;
+    size?: string;
+    description?: string;
+    material?: string;
+    weight?: string;
+    dimensions?: string;
+    returnPolicy?: string;
+    warranty?: string;
+};
+
+type ApiProductVariant = {
+    id: number;
+    productId?: number;
+    color?: string;
+    colorHex?: string;
+    size?: string;
+    sku?: string;
+    stock?: number;
+    basePrice?: number;
+    mrpExclGst?: number;
+    mrpPrice?: number;
+    discountPercentage?: number;
+    discountAmount?: number;
+    sellingPrice?: number;
+    taxPercentage?: number;
+    taxAmount?: number;
+    finalPrice?: number;
+    mrpInclGst?: number;
+    intraCityDeliveryCharge?: number;
+    metroMetroDeliveryCharge?: number;
+    totalPriceIntraCity?: number;
+    totalPriceMetroMetro?: number;
+    commissionPercentage?: number;
+    commissionAmount?: number;
+    videoPath?: string;
+    weight?: number;
+    createdAt?: string;
+    updatedAt?: string;
+    mrp?: number;
+    discount?: number;
+    sellingPriceExGst?: number;
+    gstPercent?: number;
+    gstAmount?: number;
+    sellingPriceWithGst?: number;
+    commissionPercent?: number;
+    commissionAmount?: number;
+    intraCityDelivery?: number;
+    metroMetroDelivery?: number;
+    totalIntraCity?: number;
+    totalMetroMetro?: number;
+    imageUri?: string;
+    videoUri?: string;
+};
+
+type ApiProductDetail = {
+    id: number;
+    categoryId?: number;
+    subcategoryId?: number;
+    sizeChartId?: number;
+    name: string;
+    sku?: string;
+    price?: number;
+    mrp?: number;
+    mrpExclGst?: number;
+    mrpInclGst?: number;
+    sellingPriceExGst?: number;
+    discount?: number;
+    images?: string[];
+    status?: string;
+    rawStatus?: string;
+    stock?: number;
+    updated?: string;
+    category?: string;
+    subcategory?: string;
+    color?: string;
+    size?: string;
+    hsnCode?: string;
+    gst?: string;
+    createdAt?: string;
+    approvedAt?: string;
+    shortDescription?: string;
+    description?: string;
+    material?: string;
+    weight?: string;
+    dimensions?: string;
+    returnPolicy?: string;
+    warranty?: string;
+    careInstructions?: string;
+    adminNotes?: string;
+    deliveryTimeMin?: number;
+    deliveryTimeMax?: number;
+    intraCityCharge?: number;
+    metroMetroCharge?: number;
+    acceptCod?: boolean;
+    fragile?: boolean;
+    specifications?: ProductDetailSpec[];
+    features?: string[];
+    delivery?: ProductDetail["delivery"];
+    packaging?: ProductDetail["packaging"];
+    deliveryCharges?: ProductDetailDeliveryCharge[];
+    returnDetails?: ProductDetail["returnDetails"];
+    variants?: ApiProductVariant[];
+    sizeChart?: ProductDetailSizeChartRow[];
+};
+
+function toListItem(row: ApiProductListItem): ProductListItem {
+    return {
+        id: String(row.id),
+        name: row.name ?? "",
+        sku: row.sku ?? "",
+        price: Number(row.price ?? 0),
+        image: row.image ?? "",
+        status: row.status ?? "Inactive",
+        stock: Number(row.stock ?? 0),
+        updated: row.updated ?? "",
+        category: row.category ?? "Uncategorized",
+        subcategory: row.subcategory ?? "",
+        color: row.color ?? "",
+        size: row.size ?? "",
+        description: row.description,
+        material: row.material,
+        weight: row.weight,
+        dimensions: row.dimensions,
+        returnPolicy: row.returnPolicy,
+        warranty: row.warranty,
+    };
+}
+
+function num(v: unknown, fallback = 0): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function toVariant(v: ApiProductVariant): ProductDetailVariant {
+    return {
+        id: String(v.id),
+        productId: String(v.productId ?? ""),
+        color: v.color ?? "—",
+        colorHex: v.colorHex ?? "#9CA3AF",
+        size: v.size ?? "—",
+        sku: v.sku ?? "—",
+        stock: num(v.stock),
+        basePrice: num(v.basePrice),
+        mrpExclGst: num(v.mrpExclGst),
+        mrpPrice: num(v.mrpPrice),
+        discountPercentage: num(v.discountPercentage),
+        discountAmount: num(v.discountAmount),
+        sellingPrice: num(v.sellingPrice),
+        taxPercentage: num(v.taxPercentage),
+        taxAmount: num(v.taxAmount),
+        finalPrice: num(v.finalPrice),
+        mrpInclGst: num(v.mrpInclGst),
+        intraCityDeliveryCharge: num(v.intraCityDeliveryCharge),
+        metroMetroDeliveryCharge: num(v.metroMetroDeliveryCharge),
+        totalPriceIntraCity: num(v.totalPriceIntraCity),
+        totalPriceMetroMetro: num(v.totalPriceMetroMetro),
+        commissionPercentage: num(v.commissionPercentage),
+        commissionAmount: num(v.commissionAmount),
+        videoPath: v.videoPath ?? "",
+        weight: num(v.weight),
+        createdAt: v.createdAt ?? "—",
+        updatedAt: v.updatedAt ?? "—",
+        mrp: num(v.mrp ?? v.mrpPrice),
+        discount: num(v.discount ?? v.discountPercentage),
+        sellingPriceExGst: num(v.sellingPriceExGst ?? v.sellingPrice),
+        gstPercent: num(v.gstPercent ?? v.taxPercentage),
+        gstAmount: num(v.gstAmount ?? v.taxAmount),
+        sellingPriceWithGst: num(v.sellingPriceWithGst ?? v.finalPrice),
+        commissionPercent: num(v.commissionPercent ?? v.commissionPercentage),
+        intraCityDelivery: num(v.intraCityDelivery ?? v.intraCityDeliveryCharge),
+        metroMetroDelivery: num(v.metroMetroDelivery ?? v.metroMetroDeliveryCharge),
+        totalIntraCity: num(v.totalIntraCity ?? v.totalPriceIntraCity),
+        totalMetroMetro: num(v.totalMetroMetro ?? v.totalPriceMetroMetro),
+        ...(v.imageUri ? { imageUri: v.imageUri } : {}),
+        ...(v.videoUri ? { videoUri: v.videoUri } : {}),
+    };
+}
+
+function toDetail(row: ApiProductDetail): ProductDetail {
+    const images = row.images?.filter(Boolean) ?? [];
+    return {
+        id: String(row.id),
+        categoryId: num(row.categoryId),
+        subcategoryId: num(row.subcategoryId),
+        sizeChartId: row.sizeChartId,
+        name: row.name ?? "",
+        sku: row.sku ?? "—",
+        price: num(row.price),
+        mrp: num(row.mrpExclGst ?? row.mrp),
+        mrpExclGst: num(row.mrpExclGst ?? row.mrp),
+        mrpInclGst: num(row.mrpInclGst),
+        sellingPriceExGst: num(row.sellingPriceExGst),
+        discount: num(row.discount),
+        images: images.length > 0 ? images : [""],
+        status: row.status ?? "Inactive",
+        rawStatus: row.rawStatus ?? row.status ?? "",
+        stock: num(row.stock),
+        updated: row.updated ?? "—",
+        category: row.category ?? "Uncategorized",
+        subcategory: row.subcategory ?? "",
+        color: row.color ?? "—",
+        size: row.size ?? "—",
+        hsnCode: row.hsnCode ?? "—",
+        gst: row.gst ?? "—",
+        createdAt: row.createdAt ?? "—",
+        approvedAt: row.approvedAt ?? "—",
+        shortDescription: row.shortDescription ?? "",
+        description: row.description ?? "",
+        material: row.material ?? "—",
+        weight: row.weight ?? "—",
+        dimensions: row.dimensions ?? "—",
+        returnPolicy: row.returnPolicy ?? "—",
+        warranty: row.warranty ?? "No Warranty",
+        careInstructions: row.careInstructions ?? "—",
+        adminNotes: row.adminNotes ?? "",
+        deliveryTimeMin: row.deliveryTimeMin,
+        deliveryTimeMax: row.deliveryTimeMax,
+        intraCityCharge: num(row.intraCityCharge),
+        metroMetroCharge: num(row.metroMetroCharge),
+        acceptCod: row.acceptCod === true,
+        fragile: row.fragile === true,
+        specifications: row.specifications ?? [],
+        features: row.features ?? [],
+        delivery: row.delivery ?? {
+            estimated: "—",
+            freeAbove: "—",
+            expressAvailable: false,
+            expressCharge: "—",
+            cod: false,
+            codCharge: "—",
+            locations: "—",
+        },
+        packaging: row.packaging ?? {
+            boxDimensions: "—",
+            grossWeight: "—",
+            packagingType: "—",
+            fragile: false,
+        },
+        deliveryCharges: row.deliveryCharges ?? [],
+        returnDetails: row.returnDetails ?? {
+            window: "—",
+            conditions: [],
+            process: "—",
+            refundMode: "—",
+        },
+        variants: (row.variants ?? []).map(toVariant),
+        sizeChart: row.sizeChart ?? [],
+    };
+}
+
+export async function fetchProducts(): Promise<ProductListItem[]> {
+    const rows = await apiRequest<ApiProductListItem[]>("/api/products");
+    return rows.map(toListItem);
+}
+
+export async function fetchProductDetail(productId: string): Promise<ProductDetail> {
+    const row = await apiRequest<ApiProductDetail>(`/api/products/${productId}`);
+    return toDetail(row);
+}
+
+export type CatalogSubcategory = {
+    id: number;
+    name: string;
+    gstPercentage?: number;
+};
+
+export type CatalogCategory = {
+    id: number;
+    name: string;
+    subcategories: CatalogSubcategory[];
+};
+
+export type CatalogColor = {
+    id: number;
+    name: string;
+    hex: string;
+};
+
+export type CatalogSize = {
+    id: number;
+    name: string;
+    code: string;
+};
+
+export type ProductFormCatalog = {
+    categories: CatalogCategory[];
+    colors: CatalogColor[];
+    sizes: CatalogSize[];
+};
+
+export type CreateProductImagePayload = {
+    source: string;
+    primary?: boolean;
+    sortOrder?: number;
+    variantClientKey?: string;
+};
+
+export type CreateProductVariantPayload = {
+    clientKey?: string;
+    colorId?: number;
+    color: string;
+    sizeId?: number;
+    size: string;
+    sku?: string;
+    stock: number;
+    mrp: number;
+    sellingPrice: number;
+    discount?: number;
+    videoUrl?: string;
+    images?: CreateProductImagePayload[];
+};
+
+export type CreateProductPayload = {
+    categoryId?: number;
+    categoryName?: string;
+    subcategoryId?: number;
+    subcategoryName?: string;
+    name: string;
+    sku?: string;
+    hsnCode: string;
+    productMaterialType?: string;
+    gstPercentage?: number;
+    lengthCm: number;
+    widthCm: number;
+    heightCm: number;
+    productWeight: number;
+    fragile?: boolean;
+    shortDescription: string;
+    description: string;
+    features?: string;
+    returnPolicy: string;
+    specifications?: string;
+    sizeChartId?: number;
+    deliveryTimeMin?: number;
+    deliveryTimeMax?: number;
+    deliveryInfo?: string;
+    warrantyInfo?: string;
+    careInstructions?: string;
+    acceptCod?: boolean;
+    acceptPrepaid?: boolean;
+    customized?: boolean;
+    variants: CreateProductVariantPayload[];
+    images?: CreateProductImagePayload[];
+};
+
+export type CreateProductResult = {
+    productId: string;
+    variants: { clientKey: string; variantId: string }[];
+};
+
+type ApiCreateProductResponse = {
+    productId: number;
+    variants?: { clientKey?: string; variantId?: number }[];
+};
+
+export async function fetchProductFormCatalog(): Promise<ProductFormCatalog> {
+    return apiRequest<ProductFormCatalog>("/api/catalog/product-form");
+}
+
+export async function createProduct(payload: CreateProductPayload): Promise<CreateProductResult> {
+    const row = await apiRequest<ApiCreateProductResponse>("/api/products", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+    return {
+        productId: String(row.productId),
+        variants: (row.variants ?? []).map((v) => ({
+            clientKey: v.clientKey ?? "",
+            variantId: String(v.variantId ?? ""),
+        })),
+    };
+}
+
+export type UpdateProductPayload = CreateProductPayload & {
+    variants: (CreateProductVariantPayload & { id?: number; remove?: boolean })[];
+};
+
+export async function updateProduct(
+    productId: string,
+    payload: UpdateProductPayload
+): Promise<CreateProductResult> {
+    const row = await apiRequest<ApiCreateProductResponse>(`/api/products/${productId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
+    return {
+        productId: String(row.productId),
+        variants: (row.variants ?? []).map((v) => ({
+            clientKey: v.clientKey ?? "",
+            variantId: String(v.variantId ?? ""),
+        })),
+    };
+}
+
+export async function deleteProduct(productId: string): Promise<void> {
+    await apiRequest<void>(`/api/products/${productId}`, { method: "DELETE" });
+}
+
+export type VariantMutationPayload = {
+    colorId?: number;
+    color: string;
+    sizeId?: number;
+    size: string;
+    sku?: string;
+    stock: number;
+    mrp: number;
+    sellingPrice: number;
+    discount?: number;
+    videoUrl?: string;
+    images?: CreateProductImagePayload[];
+};
+
+export async function createProductVariant(
+    productId: string,
+    payload: VariantMutationPayload
+): Promise<{ variantId: string }> {
+    const row = await apiRequest<{ variantId?: number }>(`/api/products/${productId}/variants`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+    return { variantId: String(row.variantId ?? "") };
+}
+
+export async function updateProductVariant(
+    productId: string,
+    variantId: string,
+    payload: VariantMutationPayload
+): Promise<{ variantId: string }> {
+    const row = await apiRequest<{ variantId?: number }>(
+        `/api/products/${productId}/variants/${variantId}`,
+        { method: "PUT", body: JSON.stringify(payload) }
+    );
+    return { variantId: String(row.variantId ?? variantId) };
+}
+
+export async function deleteProductVariant(productId: string, variantId: string): Promise<void> {
+    await apiRequest<void>(`/api/products/${productId}/variants/${variantId}`, {
+        method: "DELETE",
+    });
+}
+
+export type BulkImportResult = {
+    productsCreated: number;
+    variantsCreated: number;
+    productIds: number[];
+    errors: string[];
+};
+
+export async function bulkImportProducts(fileUri: string, fileName: string): Promise<BulkImportResult> {
+    const sellerId = (await import("@/lib/api/sellerSession")).ensureSellerId();
+    if (!sellerId) throw new Error("Seller not logged in.");
+
+    const { resolveApiBaseUrl } = await import("@/lib/api/config");
+    const baseUrl = resolveApiBaseUrl();
+    const formData = new FormData();
+
+    if (Platform.OS === "web") {
+        const blob = await (await fetch(fileUri)).blob();
+        formData.append("file", blob, fileName);
+    } else {
+        formData.append("file", {
+            uri: fileUri,
+            name: fileName,
+            type: "application/zip",
+        } as unknown as Blob);
+    }
+
+    const res = await fetch(`${baseUrl}/api/products/bulk-import`, {
+        method: "POST",
+        headers: { "X-Seller-Id": String(sellerId) },
+        body: formData,
+    });
+
+    if (!res.ok) {
+        let message = `Import failed (${res.status})`;
+        try {
+            const body = await res.json();
+            if (body?.message) message = body.message;
+        } catch {
+            // ignore
+        }
+        throw new Error(message);
+    }
+    return res.json() as Promise<BulkImportResult>;
+}
+
+export type PincodeOption = {
+    pincodeId: number;
+    pincode: string;
+    area: string;
+    city: string;
+    state: string;
+    country: string;
+    selected: boolean;
+};
+
+export type ProductDeliverySettings = {
+    productId: number;
+    deliverAllLocations: boolean;
+    pincodes: PincodeOption[];
+};
+
+export async function fetchProductDeliverySettings(
+    productId: string,
+    search?: string
+): Promise<ProductDeliverySettings> {
+    const q = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+    return apiRequest<ProductDeliverySettings>(`/api/products/${productId}/delivery-settings${q}`);
+}
+
+export async function updateProductDeliverySettings(
+    productId: string,
+    payload: { deliverAllLocations: boolean; pincodeIds: number[] }
+): Promise<ProductDeliverySettings> {
+    return apiRequest<ProductDeliverySettings>(`/api/products/${productId}/delivery-settings`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
+}

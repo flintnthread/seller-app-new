@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, Platform, StatusBar, SafeAreaView, Switch,
-    Dimensions, Modal, Animated, Image, Alert,
+    Dimensions, Modal, Animated, Image, Alert, ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
@@ -16,6 +16,13 @@ import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
+import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import {
+    createProduct,
+    fetchProductFormCatalog,
+    type ProductFormCatalog,
+} from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
 
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
@@ -108,6 +115,8 @@ interface SweetAlertProps {
     visible: boolean;
     stage: SweetAlertStage;
     productName?: string;
+    savedProductId?: string | null;
+    isSaving?: boolean;
     onConfirm: () => void;
     onCancel: () => void;
     onDone: () => void;
@@ -175,6 +184,8 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
     visible,
     stage,
     productName,
+    savedProductId,
+    isSaving = false,
     onConfirm,
     onCancel,
     onDone,
@@ -319,16 +330,24 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                                     style={sa.cancelBtn}
                                     onPress={() => animateOut(onCancel)}
                                     activeOpacity={0.8}
+                                    disabled={isSaving}
                                 >
                                     <AppText style={sa.cancelTxt}>Cancel</AppText>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={sa.confirmBtn}
+                                    style={[sa.confirmBtn, isSaving && { opacity: 0.75 }]}
                                     onPress={onConfirm}
                                     activeOpacity={0.88}
+                                    disabled={isSaving}
                                 >
-                                    <MaterialCommunityIcons name="check" size={18} color="#fff" />
-                                    <AppText style={sa.confirmTxt}>Yes, Save</AppText>
+                                    {isSaving ? (
+                                        <ActivityIndicator color="#fff" size="small" />
+                                    ) : (
+                                        <MaterialCommunityIcons name="check" size={18} color="#fff" />
+                                    )}
+                                    <AppText style={sa.confirmTxt}>
+                                        {isSaving ? "Saving…" : "Yes, Save"}
+                                    </AppText>
                                 </TouchableOpacity>
                             </View>
                         </>
@@ -386,6 +405,7 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                                     {productName
                                         ? `"${productName}" has been submitted for review.`
                                         : "Your product has been submitted for review."}
+                                    {savedProductId ? `\nProduct ID: ${savedProductId}` : ""}
                                     {"\n"}You'll be notified once it goes live.
                                 </AppText>
 
@@ -1530,12 +1550,19 @@ const SIZE_TABLE_COLS = [
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
-    const subcats = data.category ? (SUBCATEGORIES[data.category] || []) : [];
+    const categoryOptions =
+        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES;
+    const selectedCategory = catalog?.categories?.find(
+        (c: { name: string }) => c.name === data.category
+    );
+    const subcats =
+        selectedCategory?.subcategories?.map((s: { name: string }) => s.name) ??
+        (data.category ? SUBCATEGORIES[data.category] || [] : []);
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
@@ -1804,8 +1831,34 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 )}
             </Card>
 
-            <PM visible={catPick} title="Select Category" options={CATEGORIES} selected={data.category} onSelect={(v: string) => { onChange("category", v); onChange("subcategory", ""); }} onClose={() => setCatPick(false)} />
-            <PM visible={subPick} title="Select Subcategory" options={subcats} selected={data.subcategory} onSelect={(v: string) => onChange("subcategory", v)} onClose={() => setSubPick(false)} />
+            <PM
+                visible={catPick}
+                title="Select Category"
+                options={categoryOptions}
+                selected={data.category}
+                onSelect={(v: string) => {
+                    const cat = catalog?.categories?.find((c: { name: string }) => c.name === v);
+                    onChange("category", v);
+                    onChange("categoryId", cat?.id ?? null);
+                    onChange("subcategory", "");
+                    onChange("subcategoryId", null);
+                }}
+                onClose={() => setCatPick(false)}
+            />
+            <PM
+                visible={subPick}
+                title="Select Subcategory"
+                options={subcats}
+                selected={data.subcategory}
+                onSelect={(v: string) => {
+                    const sub = selectedCategory?.subcategories?.find(
+                        (s: { name: string }) => s.name === v
+                    );
+                    onChange("subcategory", v);
+                    onChange("subcategoryId", sub?.id ?? null);
+                }}
+                onClose={() => setSubPick(false)}
+            />
             <PM visible={matPick} title="Select Material" options={MATERIAL_TYPES} selected={data.materialType} onSelect={(v: string) => onChange("materialType", v)} onClose={() => setMatPick(false)} />
         </ScrollView>
     );
@@ -1914,11 +1967,21 @@ const ipg = StyleSheet.create({
 // STEP 2 — Variants
 // ─────────────────────────────────────────────────────────────
 type Variant = {
-    id: string; color: string; size: string; sku: string;
-    stock: string; mrp: string; sellingPrice: string; discount: string; images: string[]; videoUrl: string;
+    id: string;
+    color: string;
+    colorId?: number;
+    size: string;
+    sizeId?: number;
+    sku: string;
+    stock: string;
+    mrp: string;
+    sellingPrice: string;
+    discount: string;
+    images: string[];
+    videoUrl: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDesktop = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
 
@@ -1950,13 +2013,22 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
         }));
     };
 
-    const upVariant = (id: string, field: string, value: string) => {
+    const colorOptions =
+        catalog?.colors?.map((c: { name: string }) => c.name) ?? COLORS_LIST;
+    const sizeOptions =
+        catalog?.sizes?.map((s: { name: string; code: string }) =>
+            s.name === s.code ? s.name : `${s.name} (${s.code})`
+        ) ?? SIZES_LIST;
+
+    const upVariant = (id: string, field: string, value: string | number | undefined) => {
         setVariants((p: Variant[]) => p.map((v: Variant) => {
             if (v.id !== id) return v;
             const u = { ...v, [field]: value };
             if (field === "mrp" || field === "sellingPrice") {
-                const mrp = parseFloat(field === "mrp" ? value : u.mrp) || 0;
-                const sp = parseFloat(field === "sellingPrice" ? value : u.sellingPrice) || 0;
+                const mrpRaw = field === "mrp" ? value : u.mrp;
+                const spRaw = field === "sellingPrice" ? value : u.sellingPrice;
+                const mrp = parseFloat(String(mrpRaw ?? "")) || 0;
+                const sp = parseFloat(String(spRaw ?? "")) || 0;
                 if (mrp > 0 && sp > 0 && sp <= mrp)
                     u.discount = String(Math.round(((mrp - sp) / mrp) * 100));
             }
@@ -2059,15 +2131,34 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
             </View>
 
             <PM
-                visible={!!clrPick} title="Select Color" options={COLORS_LIST}
+                visible={!!clrPick}
+                title="Select Color"
+                options={colorOptions}
                 selected={variants.find((v: Variant) => v.id === clrPick)?.color || ""}
-                onSelect={(val: string) => { if (clrPick) upVariant(clrPick, "color", val); }}
+                onSelect={(val: string) => {
+                    if (!clrPick) return;
+                    const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
+                    upVariant(clrPick, "color", val);
+                    upVariant(clrPick, "colorId", color?.id);
+                }}
                 onClose={() => setClrPick(null)}
             />
             <PM
-                visible={!!szPick} title="Select Size" options={SIZES_LIST}
+                visible={!!szPick}
+                title="Select Size"
+                options={sizeOptions}
                 selected={variants.find((v: Variant) => v.id === szPick)?.size || ""}
-                onSelect={(val: string) => { if (szPick) upVariant(szPick, "size", val); }}
+                onSelect={(val: string) => {
+                    if (!szPick) return;
+                    const size = catalog?.sizes?.find(
+                        (s: { name: string; code: string }) =>
+                            s.name === val ||
+                            `${s.name} (${s.code})` === val ||
+                            s.code === val
+                    );
+                    upVariant(szPick, "size", size?.name ?? val);
+                    upVariant(szPick, "sizeId", size?.id);
+                }}
                 onClose={() => setSzPick(null)}
             />
         </ScrollView>
@@ -2096,20 +2187,16 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         }
     };
 
-    const [additionalImages, setAdditionalImages] = useState<string[]>(
-        PREFILL_WITH_DUMMY
-            ? [
-                  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=400&q=80",
-                  "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400&q=80",
-              ]
-            : []
-    );
+    const additionalImages: string[] = data.additionalImages ?? [];
 
     const addAdditionalImages = (uris: string[]) => {
-        setAdditionalImages(prev => [...prev, ...uris].slice(0, 4));
+        onChange("additionalImages", [...additionalImages, ...uris].slice(0, 4));
     };
     const removeAdditionalImage = (index: number) => {
-        setAdditionalImages(prev => prev.filter((_, i) => i !== index));
+        onChange(
+            "additionalImages",
+            additionalImages.filter((_: string, i: number) => i !== index)
+        );
     };
 
     return (
@@ -2700,7 +2787,10 @@ const sp = StyleSheet.create({
 const initBasicData = () => {
     if (!PREFILL_WITH_DUMMY) {
         return {
-            name: "", category: "", subcategory: "", materialType: "", hsnCode: "",
+            name: "", category: "", subcategory: "",
+            categoryId: undefined as number | undefined,
+            subcategoryId: undefined as number | undefined,
+            materialType: "", hsnCode: "",
             shortDesc: "", fullDesc: "", length: "", width: "", height: "",
             weight: "", weightSlab: "", fragile: "No", customized: false,
             custTitle: "", custInstructions: "", custLeadDays: "", custCharge: "",
@@ -2710,8 +2800,10 @@ const initBasicData = () => {
     }
     return {
         name: "Premium Cotton Crew Neck T-Shirt",
-        category: "Clothing",
-        subcategory: "T-Shirts",
+        category: "",
+        subcategory: "",
+        categoryId: undefined as number | undefined,
+        subcategoryId: undefined as number | undefined,
         materialType: "Cotton",
         hsnCode: "61091000",
         shortDesc: "Soft, breathable cotton tee with a relaxed fit — ideal for everyday wear and easy styling.",
@@ -2731,8 +2823,8 @@ const initVariants = (): Variant[] => {
         return [{ id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" }];
     }
     return [
-        { id: "1", color: "Blue", size: "M", sku: "FNT-TEE-BLU-M-001", stock: "120", mrp: "1299", sellingPrice: "899", discount: "31", images: [], videoUrl: "" },
-        { id: "2", color: "Black", size: "L", sku: "FNT-TEE-BLK-L-002", stock: "85", mrp: "1299", sellingPrice: "949", discount: "27", images: [], videoUrl: "" },
+        { id: "1", color: "Blue", colorId: 14, size: "Medium", sizeId: 4, sku: "FNT-TEE-BLU-M-001", stock: "120", mrp: "1299", sellingPrice: "899", discount: "31", images: [], videoUrl: "" },
+        { id: "2", color: "Black", colorId: 11, size: "Large", sizeId: 5, sku: "FNT-TEE-BLK-L-002", stock: "85", mrp: "1299", sellingPrice: "949", discount: "27", images: [], videoUrl: "" },
     ];
 };
 
@@ -2759,6 +2851,12 @@ const initDetailsData = () => {
 
 const initImagesData = () => ({
     primaryImage: PREFILL_WITH_DUMMY ? DUMMY_PRIMARY_IMAGE_URI : null,
+    additionalImages: PREFILL_WITH_DUMMY
+        ? [
+              "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=400&q=80",
+              "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400&q=80",
+          ]
+        : ([] as string[]),
 });
 
 const AddNewProduct: React.FC = () => {
@@ -2778,8 +2876,43 @@ const AddNewProduct: React.FC = () => {
     // ── Sweet Alert state ──────────────────────────────────────
     const [sweetAlertVisible, setSweetAlertVisible] = useState(false);
     const [sweetAlertStage, setSweetAlertStage] = useState<SweetAlertStage>("confirm");
+    const [isSaving, setIsSaving] = useState(false);
+    const [savedProductId, setSavedProductId] = useState<string | null>(null);
+    const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchProductFormCatalog()
+            .then((data) => {
+                if (cancelled) return;
+                setCatalog(data);
+                if (!PREFILL_WITH_DUMMY) return;
+                setBasicData((prev) => {
+                    if (prev.categoryId) return prev;
+                    const cat =
+                        data.categories.find((c) => c.subcategories.length > 0) ??
+                        data.categories[0];
+                    const sub = cat?.subcategories[0];
+                    if (!cat || !sub) return prev;
+                    return {
+                        ...prev,
+                        category: cat.name,
+                        categoryId: cat.id,
+                        subcategory: sub.name,
+                        subcategoryId: sub.id,
+                    };
+                });
+            })
+            .catch((err: unknown) => {
+                const msg = err instanceof ApiError ? err.message : "Failed to load catalog.";
+                showToast(msg, "error");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [showToast]);
 
     useFocusEffect(
         useCallback(() => {
@@ -2841,21 +2974,53 @@ const AddNewProduct: React.FC = () => {
 
     // ── handleSave: validate first, then show SweetAlert confirm ──
     const handleSave = () => {
-        const errors = validateDetails(detailsData);
-        setDetailErrors(errors);
-        if (errors.length > 0) {
-            showErrors(errors);
+        const basicErrs = validateBasicInfo(basicData);
+        const variantErrs = validateVariants(variants);
+        const imageErrs = validateImages(imagesData);
+        const detailErrs = validateDetails(detailsData);
+        const allErrors = [...basicErrs, ...variantErrs, ...imageErrs, ...detailErrs];
+
+        setBasicErrors(basicErrs);
+        setVariantErrors(variantErrs);
+        setImageErrors(imageErrs);
+        setDetailErrors(detailErrs);
+
+        if (allErrors.length > 0) {
+            showErrors(allErrors);
             return;
         }
-        setDetailErrors([]);
-        // Open the SweetAlert in confirm stage
+
+        setSavedProductId(null);
         setSweetAlertStage("confirm");
         setSweetAlertVisible(true);
     };
 
-    // ── User confirms in SweetAlert → save & switch to success ──
-    const handleSweetConfirm = () => {
-        setSweetAlertStage("success");
+    const handleSweetConfirm = async () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            const payload = await buildCreateProductPayload({
+                basic: basicData,
+                variants,
+                images: imagesData,
+                details: detailsData,
+            });
+            const result = await createProduct(payload);
+            setSavedProductId(result.productId);
+            setSweetAlertStage("success");
+            showToast(`Product saved (ID ${result.productId})`, "success");
+        } catch (err: unknown) {
+            const msg =
+                err instanceof ApiError
+                    ? err.message
+                    : err instanceof Error
+                      ? err.message
+                      : "Failed to save product.";
+            showToast(msg, "error");
+            setSweetAlertVisible(false);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // ── User closes success stage → navigate away ──────────────
@@ -2903,8 +3068,25 @@ const AddNewProduct: React.FC = () => {
 
     const stepContent = (
         <>
-            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} isDesktop={isDesktop} />}
-            {step === 1 && <StepVariants variants={variants} setVariants={setVariants} rmVariant={rmVariant} errors={variantErrors} isDesktop={isDesktop} />}
+            {step === 0 && (
+                <StepBasicInfo
+                    data={basicData}
+                    onChange={upBasic}
+                    errors={basicErrors}
+                    catalog={catalog}
+                    isDesktop={isDesktop}
+                />
+            )}
+            {step === 1 && (
+                <StepVariants
+                    variants={variants}
+                    setVariants={setVariants}
+                    rmVariant={rmVariant}
+                    errors={variantErrors}
+                    catalog={catalog}
+                    isDesktop={isDesktop}
+                />
+            )}
             {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
             {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} isDesktop={isDesktop} />}
         </>
@@ -2915,6 +3097,8 @@ const AddNewProduct: React.FC = () => {
             visible={sweetAlertVisible}
             stage={sweetAlertStage}
             productName={basicData.name ?? ""}
+            savedProductId={savedProductId}
+            isSaving={isSaving}
             onConfirm={handleSweetConfirm}
             onCancel={handleSweetCancel}
             onDone={handleSweetDone}

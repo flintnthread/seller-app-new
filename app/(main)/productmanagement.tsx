@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     Dimensions, StatusBar, SafeAreaView, Image, Modal,
-    TextInput, Platform, PanResponder, Alert, Switch,
+    TextInput, Platform, PanResponder, Alert, Switch, ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import {
@@ -11,6 +11,9 @@ import {
 } from "@expo-google-fonts/outfit";
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useSellerProducts } from "@/hooks/useSellerProducts";
+import { deleteProduct, type ProductListItem } from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -46,38 +49,7 @@ const TABS: { label: TabType; icon: string; color: string; bg: string }[] = [
     { label: "Low Stock",    icon: "alert-circle-outline", color: C.orange, bg: C.orangePale },
 ];
 
-type Product = {
-    id: string; name: string; sku: string; price: number; image: string;
-    status: string; stock: number; updated: string; category: string;
-    subcategory: string; subSubcategory?: string; color: string; size: string;
-    description?: string; material?: string; weight?: string;
-    dimensions?: string; returnPolicy?: string; warranty?: string;
-};
-
-const INITIAL_PRODUCTS: Product[] = [
-    { id:"1",  name:"Running Sports Shoes", sku:"SHOES001", price:1999, image:"https://picsum.photos/seed/shoes1/100/100",      status:"Active",       stock:50,  updated:"20 May 2024", category:"Footwear",    subcategory:"Sneakers",  subSubcategory:"Running",      color:"Red",   size:"42",       description:"High-performance running shoes with advanced cushioning and breathable mesh upper.", material:"Mesh & Rubber", weight:"0.5 kg", dimensions:"30 × 15 × 12 cm", returnPolicy:"30 Days Return", warranty:"6 Months" },
-    { id:"2",  name:"Smart Watch Series 5", sku:"WATCH005", price:2999, image:"https://picsum.photos/seed/watch1/100/100",      status:"Active",       stock:30,  updated:"19 May 2024", category:"Electronics", subcategory:"Wearables", subSubcategory:"Smartwatches", color:"Black", size:"Free Size",description:"Feature-rich smartwatch with health tracking, GPS, and 7-day battery life.", material:"Stainless Steel & Silicone", weight:"0.12 kg", dimensions:"4.5 × 3.8 × 1.0 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"3",  name:"Travel Backpack",       sku:"BAG002",   price:1299, image:"https://picsum.photos/seed/backpack1/100/100",  status:"Inactive",     stock:0,   updated:"18 May 2024", category:"Bags",        subcategory:"Backpacks", subSubcategory:"Travel",       color:"Blue",  size:"Free Size",description:"Spacious 40L travel backpack with laptop compartment and anti-theft design.", material:"Nylon", weight:"1.2 kg", dimensions:"55 × 35 × 20 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"4",  name:"Wireless Headphones",   sku:"HEAD004",  price:1799, image:"https://picsum.photos/seed/headphones1/100/100",status:"Out of Stock", stock:0,   updated:"17 May 2024", category:"Electronics", subcategory:"Audio",     subSubcategory:"Headphones",   color:"White", size:"Free Size",description:"Premium wireless headphones with active noise cancellation and 30hr battery.", material:"Plastic & Memory Foam", weight:"0.28 kg", dimensions:"20 × 18 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"5",  name:"Cotton T-Shirt",        sku:"SHIRT003", price:499,  image:"https://picsum.photos/seed/tshirt1/100/100",    status:"Active",       stock:120, updated:"20 May 2024", category:"Clothing",    subcategory:"T-Shirts",  subSubcategory:"Casual",       color:"White", size:"M",        description:"100% premium cotton t-shirt with relaxed fit and breathable fabric.", material:"Cotton", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"6",  name:"Denim Jeans",           sku:"JEAN001",  price:1199, image:"https://picsum.photos/seed/jeans1/100/100",     status:"Active",       stock:85,  updated:"19 May 2024", category:"Clothing",    subcategory:"Jeans",     subSubcategory:"Slim Fit",     color:"Blue",  size:"32",       description:"Classic slim-fit denim jeans with stretch for all-day comfort.", material:"Denim (98% Cotton, 2% Elastane)", weight:"0.6 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"7",  name:"Leather Wallet",        sku:"WALL007",  price:799,  image:"https://picsum.photos/seed/wallet1/100/100",    status:"Active",       stock:8,   updated:"15 May 2024", category:"Accessories", subcategory:"Wallets",   subSubcategory:"Bi-fold",      color:"Brown", size:"Free Size",description:"Genuine leather bi-fold wallet with RFID blocking and multiple card slots.", material:"Genuine Leather", weight:"0.08 kg", dimensions:"11 × 9 × 1 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"8",  name:"Sunglasses UV400",      sku:"SUN008",   price:999,  image:"https://picsum.photos/seed/glasses1/100/100",   status:"Active",       stock:6,   updated:"14 May 2024", category:"Accessories", subcategory:"Eyewear",   subSubcategory:"Polarized",    color:"Black", size:"Free Size",description:"Polarized UV400 sunglasses with lightweight titanium frame.", material:"Titanium & Polycarbonate", weight:"0.03 kg", dimensions:"14 × 5 × 4 cm", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"9",  name:"Yoga Mat Pro",          sku:"MAT009",   price:1499, image:"https://picsum.photos/seed/mat1/100/100",       status:"Inactive",     stock:0,   updated:"13 May 2024", category:"Sports",      subcategory:"Yoga",      subSubcategory:"Mats",         color:"Purple",size:"Free Size",description:"6mm thick non-slip yoga mat with alignment lines and carrying strap.", material:"TPE (Eco-friendly)", weight:"1.0 kg", dimensions:"183 × 61 × 0.6 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"10", name:"Bluetooth Speaker",     sku:"SPK010",   price:2499, image:"https://picsum.photos/seed/speaker1/100/100",   status:"Active",       stock:25,  updated:"12 May 2024", category:"Electronics", subcategory:"Audio",     subSubcategory:"Speakers",     color:"Gray",  size:"Free Size",description:"360° surround sound Bluetooth speaker with IPX7 waterproof rating.", material:"Polycarbonate & Silicone", weight:"0.55 kg", dimensions:"9 × 9 × 8 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"11", name:"Formal Oxford Shoes",   sku:"OXFD011",  price:3499, image:"https://picsum.photos/seed/shoes2/100/100",     status:"Active",       stock:20,  updated:"11 May 2024", category:"Footwear",    subcategory:"Formal",    subSubcategory:"Oxford",       color:"Black", size:"43",       description:"Handcrafted genuine leather Oxford shoes for formal occasions.", material:"Full-Grain Leather", weight:"0.9 kg", dimensions:"32 × 12 × 11 cm", returnPolicy:"14 Days Return", warranty:"6 Months" },
-    { id:"12", name:"Polo Shirt",            sku:"POLO012",  price:699,  image:"https://picsum.photos/seed/polo1/100/100",      status:"Out of Stock", stock:0,   updated:"10 May 2024", category:"Clothing",    subcategory:"Shirts",    subSubcategory:"Polo",         color:"Red",   size:"L",        description:"Classic polo shirt in piqué cotton with ribbed collar and cuffs.", material:"100% Piqué Cotton", weight:"0.22 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"13", name:"Running Cap",           sku:"CAP013",   price:349,  image:"https://picsum.photos/seed/cap1/100/100",       status:"Active",       stock:60,  updated:"09 May 2024", category:"Accessories", subcategory:"Headwear",  subSubcategory:"Caps",         color:"Blue",  size:"Free Size",description:"Lightweight moisture-wicking running cap with UV protection.", material:"Polyester", weight:"0.08 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"14", name:"Gym Gloves",            sku:"GLOVE014", price:449,  image:"https://picsum.photos/seed/gloves1/100/100",    status:"Active",       stock:40,  updated:"08 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Gloves",       color:"Black", size:"M",        description:"Full-finger gym gloves with wrist support and anti-slip grip.", material:"Leather & Neoprene", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"15", name:"Protein Shaker Bottle", sku:"SHAKE015", price:299,  image:"https://picsum.photos/seed/bottle1/100/100",   status:"Active",       stock:90,  updated:"07 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Accessories",  color:"Gray",  size:"Free Size",description:"700ml BPA-free protein shaker with mixing ball and leak-proof lid.", material:"BPA-Free Plastic", weight:"0.18 kg", dimensions:"24 × 8 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"16", name:"Ankle Socks Pack",      sku:"SOCK016",  price:199,  image:"https://picsum.photos/seed/socks1/100/100",    status:"Active",       stock:200, updated:"06 May 2024", category:"Clothing",    subcategory:"Innerwear", subSubcategory:"Socks",        color:"White", size:"Free Size",description:"Pack of 6 breathable cotton ankle socks with cushioned sole.", material:"80% Cotton, 20% Lycra", weight:"0.12 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"17", name:"Resistance Bands Set",  sku:"BAND017",  price:599,  image:"https://picsum.photos/seed/bands1/100/100",    status:"Active",       stock:55,  updated:"05 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Equipment",    color:"Red",   size:"Free Size",description:"Set of 5 latex resistance bands in varying resistance levels.", material:"Natural Latex", weight:"0.3 kg", dimensions:"60 × 5 cm each", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"18", name:"Jump Rope Pro",         sku:"JUMP018",  price:399,  image:"https://picsum.photos/seed/jumprope1/100/100", status:"Inactive",     stock:0,   updated:"04 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Cardio",       color:"Black", size:"Free Size",description:"Speed jump rope with steel wire cable and ergonomic foam handles.", material:"Steel & Foam", weight:"0.22 kg", dimensions:"Adjustable up to 3m", returnPolicy:"7 Days Return", warranty:"6 Months" },
-    { id:"19", name:"Foam Roller",           sku:"FOAM019",  price:799,  image:"https://picsum.photos/seed/foam1/100/100",     status:"Active",       stock:35,  updated:"03 May 2024", category:"Sports",      subcategory:"Yoga",      subSubcategory:"Accessories",  color:"Purple",size:"Free Size",description:"High-density EPP foam roller for muscle recovery and myofascial release.", material:"EPP Foam", weight:"0.5 kg", dimensions:"45 × 15 cm", returnPolicy:"7 Days Return", warranty:"No Warranty" },
-    { id:"20", name:"Sports Water Bottle",   sku:"WBOT020",  price:549,  image:"https://picsum.photos/seed/waterbottle1/100/100",status:"Active",      stock:75,  updated:"02 May 2024", category:"Sports",      subcategory:"Gym",       subSubcategory:"Hydration",    color:"Blue",  size:"Free Size",description:"1L insulated stainless steel water bottle keeps drinks cold 24hrs.", material:"Stainless Steel", weight:"0.35 kg", dimensions:"26 × 7 cm", returnPolicy:"14 Days Return", warranty:"1 Year" },
-    { id:"21", name:"Training Shorts",       sku:"SHORT021", price:649,  image:"https://picsum.photos/seed/shorts1/100/100",   status:"Active",       stock:45,  updated:"01 May 2024", category:"Clothing",    subcategory:"Shorts",    subSubcategory:"Training",     color:"Black", size:"L",        description:"Quick-dry training shorts with built-in compression liner.", material:"Polyester & Spandex", weight:"0.2 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-    { id:"22", name:"Sports Bra",            sku:"BRA022",   price:799,  image:"https://picsum.photos/seed/sportsbra1/100/100",status:"Out of Stock", stock:0,   updated:"30 Apr 2024", category:"Clothing",    subcategory:"Innerwear", subSubcategory:"Sports",       color:"Pink",  size:"M",        description:"High-impact sports bra with removable cups and cross-back design.", material:"Nylon & Spandex", weight:"0.15 kg", dimensions:"N/A", returnPolicy:"30 Days Return", warranty:"No Warranty" },
-];
+type Product = ProductListItem;
 
 const CATEGORIES    = ["All","Footwear","Electronics","Bags","Clothing","Accessories","Sports"];
 
@@ -567,11 +539,24 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
     const handleAction = (label: string) => {
         if (label === "Delete Product") {
             onClose();
+            if (Platform.OS === "web" && typeof window !== "undefined") {
+                const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
+                if (confirmed) void onDelete(product.id);
+                return;
+            }
             setTimeout(() => {
-                Alert.alert("Delete Product", `Are you sure you want to delete "${product.name}"?`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => onDelete(product.id) }], { cancelable: true });
+                Alert.alert(
+                    "Delete Product",
+                    `Are you sure you want to delete "${product.name}"?`,
+                    [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: () => void onDelete(product.id) },
+                    ],
+                    { cancelable: true }
+                );
             }, 300);
-        } else if (label === "View Product") { onClose(); router.push("/(main)/Productdetail");
-        } else if (label === "Edit Product") { onClose(); router.push("/(main)/Editproduct");
+        } else if (label === "View Product") { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any);
+        } else if (label === "Edit Product") { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any);
         } else if (label === "Update Location") { onClose(); setTimeout(() => onUpdateLocation(product.id), 200);
         } else { onClose(); }
     };
@@ -634,11 +619,24 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
     const handleAction = (label: string) => {
         if (label === "Delete Product") {
             onClose();
+            if (Platform.OS === "web" && typeof window !== "undefined") {
+                const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
+                if (confirmed) void onDelete(product.id);
+                return;
+            }
             setTimeout(() => {
-                Alert.alert("Delete Product", `Are you sure you want to delete "${product.name}"?`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => onDelete(product.id) }], { cancelable: true });
+                Alert.alert(
+                    "Delete Product",
+                    `Are you sure you want to delete "${product.name}"?`,
+                    [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: () => void onDelete(product.id) },
+                    ],
+                    { cancelable: true }
+                );
             }, 300);
-        } else if (label === "View Product")    { onClose(); router.push("/(main)/Productdetail"); }
-        else if (label === "Edit Product")      { onClose(); router.push("/(main)/Editproduct"); }
+        } else if (label === "View Product")    { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any); }
+        else if (label === "Edit Product")      { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any); }
         else if (label === "Update Location")   { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
         else                                    { onClose(); }
     };
@@ -732,7 +730,7 @@ const wp = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const WebProductsScreen: React.FC = () => {
     const router = useRouter();
-    const [products, setProducts]               = useState<Product[]>(INITIAL_PRODUCTS);
+    const { products, setProducts, loading, error, reload } = useSellerProducts();
     const [viewType, setViewType]               = useState<ViewType>("list");
     const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
     const [sortBy, setSortBy]                   = useState<SortType>("Latest");
@@ -762,7 +760,15 @@ const WebProductsScreen: React.FC = () => {
     const activeActionProduct = products.find(p => p.id === productActionId);
     const locationProduct     = products.find(p => p.id === locationProductId);
 
-    const handleDelete = useCallback((id: string) => setProducts(prev => prev.filter(p => p.id !== id)), []);
+    const handleDelete = useCallback(async (id: string) => {
+        try {
+            await deleteProduct(id);
+            await reload();
+        } catch (e) {
+            const msg = e instanceof ApiError ? e.message : "Failed to delete product.";
+            Alert.alert("Delete failed", msg);
+        }
+    }, [reload]);
     const handleUpdateLocation = useCallback((id: string) => setLocationProductId(id), []);
 
     const totalCount      = products.length;
@@ -842,9 +848,26 @@ const WebProductsScreen: React.FC = () => {
     const subcatKeys   = Object.keys(catTree);
     const subSubOptions = filterSubcategory !== "All" ? (catTree[filterSubcategory] ?? []) : [];
 
+    if (loading && products.length === 0) {
+        return (
+            <View style={[wst.root, { alignItems: "center", justifyContent: "center" }]}>
+                <ActivityIndicator size="large" color={C.navy} />
+                <Text style={{ marginTop: 12, fontFamily: "Outfit_500Medium", color: C.textMid }}>Loading products…</Text>
+            </View>
+        );
+    }
+
     return (
         <View style={wst.root}>
             <ScrollView style={wst.pageScroll} showsVerticalScrollIndicator={false} contentContainerStyle={wst.pageContent}>
+                {error ? (
+                    <View style={{ marginBottom: 12, padding: 12, borderRadius: 10, backgroundColor: C.redPale, borderWidth: 1, borderColor: "#FECACA" }}>
+                        <Text style={{ fontFamily: "Outfit_500Medium", fontSize: 12, color: C.red }}>{error}</Text>
+                        <TouchableOpacity onPress={reload} style={{ marginTop: 8, alignSelf: "flex-start" }}>
+                            <Text style={{ fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.navy }}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
                 {/* Page header */}
                 <View style={wst.pageHeader}>
                     <View>
@@ -1217,7 +1240,7 @@ const WebProductsScreen: React.FC = () => {
                                         const st = getStatusStyle(product.status);
                                         const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                                         return (
-                                            <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push("/(main)/Productdetail")} activeOpacity={0.7}>
+                                            <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
                                                 <View style={[wst.tableCell, { flex: 3 }]}>
                                                     <Image source={{ uri: product.image }} style={wst.tableProductImg} />
@@ -1310,7 +1333,7 @@ const WebProductsScreen: React.FC = () => {
                                         {visibleProducts.map(product => {
                                             const st = getStatusStyle(product.status);
                                             return (
-                                                <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push("/(main)/Productdetail")} activeOpacity={0.75}>
+                                                <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
                                                         <Image source={{ uri: product.image }} style={wst.webGridImg} />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
@@ -1558,8 +1581,7 @@ const wst = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const MobileProductsScreen: React.FC = () => {
     const router = useRouter();
-
-    const [products, setProducts]               = useState<Product[]>(INITIAL_PRODUCTS);
+    const { products, setProducts, loading, error, reload } = useSellerProducts();
     const [viewType, setViewType]               = useState<ViewType>("list");
     const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
     const [sortBy, setSortBy]                   = useState<SortType>("Latest");
@@ -1586,9 +1608,15 @@ const MobileProductsScreen: React.FC = () => {
         lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
     });
 
-    const handleDelete = useCallback((id: string) => {
-        setProducts(prev => prev.filter(p => p.id !== id));
-    }, []);
+    const handleDelete = useCallback(async (id: string) => {
+        try {
+            await deleteProduct(id);
+            await reload();
+        } catch (e) {
+            const msg = e instanceof ApiError ? e.message : "Failed to delete product.";
+            Alert.alert("Delete failed", msg);
+        }
+    }, [reload]);
 
     const handleUpdateLocation = useCallback((id: string) => {
         setLocationProductId(id);
@@ -1674,6 +1702,16 @@ const MobileProductsScreen: React.FC = () => {
     const subcatOptions = filterCategory !== "All" ? (SUBCATEGORIES[filterCategory] ?? ["All"]) : ["All"];
     const currentSortOption = SORT_OPTIONS.find(o => o.value === sortBy);
 
+    if (loading && products.length === 0) {
+        return (
+            <SafeAreaView style={[s.root, { alignItems: "center", justifyContent: "center" }]}>
+                <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
+                <ActivityIndicator size="large" color={C.navy} />
+                <Text style={{ marginTop: 12, fontFamily: "Outfit_500Medium", color: C.textMid }}>Loading products…</Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={s.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
@@ -1715,6 +1753,14 @@ const MobileProductsScreen: React.FC = () => {
             )}
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+                {error ? (
+                    <View style={{ marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: C.redPale, borderWidth: 1, borderColor: "#FECACA" }}>
+                        <Text style={{ fontFamily: "Outfit_500Medium", fontSize: 12, color: C.red }}>{error}</Text>
+                        <TouchableOpacity onPress={reload} style={{ marginTop: 8, alignSelf: "flex-start" }}>
+                            <Text style={{ fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.navy }}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
                 <View style={s.actionRow}>
                     <TouchableOpacity style={s.actionCard} activeOpacity={0.75} onPress={() => router.push("/(main)/Addnewproduct")}>
                         <View style={[s.actionIconBox, { backgroundColor: "rgba(30,43,107,0.10)" }]}>
@@ -1863,7 +1909,7 @@ const MobileProductsScreen: React.FC = () => {
                             const st    = getStatusColor(product.status);
                             const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                             return (
-                                <TouchableOpacity key={product.id} style={s.productRow} activeOpacity={0.7} onPress={() => router.push("/(main)/Productdetail")}>
+                                <TouchableOpacity key={product.id} style={s.productRow} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
                                     <Image source={{ uri: product.image }} style={s.productImage} />
                                     <View style={s.productInfo}>
                                         <Text style={s.productName} numberOfLines={1}>{product.name}</Text>
@@ -1892,7 +1938,7 @@ const MobileProductsScreen: React.FC = () => {
                         {visibleProducts.map(product => {
                             const st = getStatusColor(product.status);
                             return (
-                                <TouchableOpacity key={product.id} style={s.gridCard} activeOpacity={0.7} onPress={() => router.push("/(main)/Productdetail")}>
+                                <TouchableOpacity key={product.id} style={s.gridCard} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
                                     <Image source={{ uri: product.image }} style={s.gridImage} />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>

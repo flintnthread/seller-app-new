@@ -16,6 +16,7 @@ import {
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useNavigation } from "@react-navigation/native";
+import { bulkImportProducts } from "@/services/productApi";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -271,11 +272,22 @@ export default function BulkUpload() {
   const handleStartImport = async () => {
     if (!selectedFile) return;
     setIsImporting(true);
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsImporting(false);
-    showToast("Import started successfully!", "success");
+    try {
+      const result = await bulkImportProducts(selectedFile.uri, selectedFile.name);
+      const errNote =
+        result.errors?.length > 0 ? ` (${result.errors.length} warning(s))` : "";
+      showToast(
+        `Imported ${result.productsCreated} product(s), ${result.variantsCreated} variant(s)${errNote}`,
+        result.productsCreated > 0 ? "success" : "error"
+      );
+      if (result.productsCreated > 0) {
+        setSelectedFile(null);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Import failed", "error");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
