@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, Platform, StatusBar, SafeAreaView, Switch,
-    Dimensions, Modal, Animated, Image, Alert,
+    Dimensions, Modal, Animated, Image, Alert, ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
@@ -10,8 +10,12 @@ import {
     useFonts, Outfit_400Regular, Outfit_500Medium,
     Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
-import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
+import { buildUpdateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEditForm";
+import { fetchProductDetail, updateProduct } from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
 
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
@@ -988,8 +992,16 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
 // STEP 2 — Variants
 // ─────────────────────────────────────────────────────────────
 type Variant = {
-    id: string; color: string; size: string; sku: string;
-    stock: string; mrp: string; sellingPrice: string; discount: string; images: string[];
+    id: string;
+    color: string;
+    size: string;
+    sku: string;
+    stock: string;
+    mrp: string;
+    sellingPrice: string;
+    discount: string;
+    images: string[];
+    videoUrl?: string;
 };
 
 const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
@@ -2145,6 +2157,7 @@ const sp = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const EditProduct: React.FC = () => {
     const router = useRouter();
+    const { id: productId } = useLocalSearchParams<{ id?: string }>();
     const { isDesktop } = useResponsive();
     const [step, setStep] = useState(0);
     const [maxUnlocked, setMaxUnlocked] = useState(3);
@@ -2156,19 +2169,61 @@ const EditProduct: React.FC = () => {
     const [discardModal, setDiscardModal] = useState(false);
     // ── NEW: web success popup state ──
     const [successPopup, setSuccessPopup] = useState(false);
+    const [loadingProduct, setLoadingProduct] = useState(!!productId);
+    const [saving, setSaving] = useState(false);
 
     const [basicData, setBasicData] = useState({ ...MOCK_PRODUCT });
     const [variants, setVariants] = useState<Variant[]>(MOCK_VARIANTS);
-    const [imagesData, setImagesData] = useState<{ primaryImage: string | null }>({ primaryImage: EXISTING_IMAGES[0] ?? null });
+    const [imagesData, setImagesData] = useState<{ primaryImage: string | null; additionalImages?: string[] }>({
+        primaryImage: EXISTING_IMAGES[0] ?? null,
+        additionalImages: EXISTING_IMAGES.slice(1),
+    });
     const [detailsData, setDetailsData] = useState({ ...MOCK_DETAILS });
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
+
+    useEffect(() => {
+        if (!productId) {
+            setLoadingProduct(false);
+            return;
+        }
+        let cancelled = false;
+        setLoadingProduct(true);
+        fetchProductDetail(String(productId))
+            .then((detail) => {
+                if (cancelled) return;
+                const mapped = mapProductDetailToEditForm(detail);
+                setBasicData(mapped.basic);
+                setVariants(mapped.variants);
+                setImagesData(mapped.images);
+                setDetailsData(mapped.details);
+                setIsDirty(false);
+            })
+            .catch((err: unknown) => {
+                const msg = err instanceof ApiError ? err.message : "Failed to load product.";
+                showToast(msg, "error");
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingProduct(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [productId, showToast]);
 
     const [fontsLoaded] = useFonts({
         Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
     });
 
     if (!fontsLoaded) return null;
+
+    if (loadingProduct) {
+        return (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
+                <ActivityIndicator size="large" color={C.navy} />
+            </View>
+        );
+    }
 
     const markDirty = () => { if (!isDirty) setIsDirty(true); };
 
@@ -2209,20 +2264,41 @@ const EditProduct: React.FC = () => {
     };
 
     // ── UPDATED: shows web popup on web, toast on mobile ──
-    const handleUpdate = () => {
-        const errors = validateDetails(detailsData);
-        setDetailErrors(errors);
-        if (errors.length > 0) { showErrors(errors); return; }
-        setDetailErrors([]);
-        setIsDirty(false);
-
-        if (Platform.OS === "web") {
-            // Show the custom success popup on web
-            setSuccessPopup(true);
-        } else {
-            // Keep original toast + navigate behaviour on mobile
-            showToast("Product updated successfully!", "success");
-            setTimeout(() => router.back(), 900);
+    const handleUpdate = async () => {
+        if (!productId) {
+            showToast("Product id is missing.", "error");
+            return;
+        }
+        const basicErrs = validateBasicInfo(basicData);
+        const variantErrs = validateVariants(variants);
+        const imageErrs = validateImages(imagesData);
+        const detailErrs = validateDetails(detailsData);
+        const allErrors = [...basicErrs, ...variantErrs, ...imageErrs, ...detailErrs];
+        if (allErrors.length > 0) {
+            showErrors(allErrors);
+            return;
+        }
+        setSaving(true);
+        try {
+            const payload = await buildUpdateProductPayload({
+                basic: basicData,
+                variants: variants.map((v) => ({ ...v, videoUrl: v.videoUrl ?? "" })),
+                images: imagesData,
+                details: detailsData,
+            });
+            await updateProduct(String(productId), payload);
+            setIsDirty(false);
+            if (Platform.OS === "web") {
+                setSuccessPopup(true);
+            } else {
+                showToast("Product updated successfully!", "success");
+                setTimeout(() => router.back(), 900);
+            }
+        } catch (err: unknown) {
+            const msg = err instanceof ApiError ? err.message : "Failed to update product.";
+            showToast(msg, "error");
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -2243,10 +2319,17 @@ const EditProduct: React.FC = () => {
             <TouchableOpacity
                 style={[isDesktop ? ds.saveBtn : sc.saveBtn, !isDirty && sc.saveBtnDim]}
                 onPress={handleUpdate}
-                activeOpacity={isDirty ? 0.85 : 0.5}
+                activeOpacity={isDirty && !saving ? 0.85 : 0.5}
+                disabled={!isDirty || saving}
             >
-                <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                <Text style={isDesktop ? ds.saveTxt : sc.saveTxt}>{isDirty ? "Update Product" : "No Changes"}</Text>
+                {saving ? (
+                    <ActivityIndicator color={C.white} size="small" />
+                ) : (
+                    <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+                )}
+                <Text style={isDesktop ? ds.saveTxt : sc.saveTxt}>
+                    {saving ? "Saving…" : isDirty ? "Update Product" : "No Changes"}
+                </Text>
             </TouchableOpacity>
         ) : (
             <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
