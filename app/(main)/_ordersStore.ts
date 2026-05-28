@@ -5,7 +5,7 @@
  * OrdersScreen and OrderDetailsScreen subscribe for live updates.
  */
 
-import type { OrderDetail, OrderStatus, OrderStep, StepStatus } from "./ordersData";
+import type { OrderDetail, OrderStatus, OrderStep, StepStatus } from "./_ordersData";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import { fetchSellerOrderDetails, fetchSellerOrderStats, updateSellerOrderStatus } from "@/services/orderApi";
 

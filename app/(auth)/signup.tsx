@@ -31,6 +31,12 @@ import { useRouter } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Path, Circle } from "react-native-svg";
 import { showMessage } from "react-native-flash-message";
+import {
+  registerSeller,
+  sendRegistrationOtp,
+  verifyRegistrationOtp,
+} from "@/services/authApi";
+import { ApiError } from "@/lib/api/client";
 
 // ─── Suppress browser focus outline globally (web only) ───────────────────────
 if (Platform.OS === "web" && typeof document !== "undefined") {
@@ -408,9 +414,9 @@ const IconEyeSlash = () => (
   </Svg>
 );
 
-const IconShieldCheck = () => (
+const IconShieldCheck = ({ color = SUCCESS }: { color?: string }) => (
   <Svg width={16} height={16} viewBox="0 0 16 16">
-    <Path fill={SUCCESS} d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM10.854 6.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 8.793l2.646-2.647a.5.5 0 0 1 .708 0z" />
+    <Path fill={color} d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM10.854 6.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 8.793l2.646-2.647a.5.5 0 0 1 .708 0z" />
   </Svg>
 );
 
@@ -421,7 +427,7 @@ interface InputFieldProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
+  keyboardType?: "default" | "email-address" | "numeric" | "phone-pad" | "number-pad";
   secureTextEntry?: boolean;
   rightElement?: React.ReactNode;
   leftIcon?: React.ReactNode;
@@ -430,6 +436,7 @@ interface InputFieldProps {
   inputRef?: React.RefObject<TextInput | null>;
   onLayout?: (event: LayoutChangeEvent) => void;
   isDesktop?: boolean;
+  maxLength?: number;
 }
 
 // ─── InputField ───────────────────────────────────────────────────────────────
@@ -448,6 +455,7 @@ const InputField: React.FC<InputFieldProps> = ({
   inputRef,
   onLayout,
   isDesktop = false,
+  maxLength,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -482,6 +490,7 @@ const InputField: React.FC<InputFieldProps> = ({
           editable={editable}
           autoCapitalize="none"
           autoCorrect={false}
+          maxLength={maxLength}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
         />
@@ -588,6 +597,10 @@ const SellerSignUpScreen: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [otpTimer, setOtpTimer] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [mobileVerificationToken, setMobileVerificationToken] = useState("");
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   // Clear validation error for a field when it changes
   const clearFieldError = useCallback((field: string) => {
@@ -650,6 +663,13 @@ const SellerSignUpScreen: React.FC = () => {
   }, [isTimerActive, otpTimer]);
 
   // Function to mask mobile number (show only last 3 digits)
+  const formatMobileForSms = (number: string) => {
+    const digits = number.replace(/\D/g, "");
+    const last10 = digits.length > 10 ? digits.slice(-10) : digits;
+    if (last10.length !== 10) return number;
+    return `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+  };
+
   const maskMobileNumber = (number: string) => {
     if (number.length < 3) return number;
     const visible = number.slice(-3);
@@ -679,7 +699,7 @@ const SellerSignUpScreen: React.FC = () => {
   const validations = useMemo(() => ({
     fullName: fullName.trim().length > 0,
     mobile: validateMobile(mobile),
-    otp: otp === "1234",
+    otp: otpVerified || otp.trim().length >= 4,
     email: validateEmail(email),
     password: validatePassword(password),
     confirmPassword: confirmPassword.length > 0,
@@ -692,8 +712,8 @@ const SellerSignUpScreen: React.FC = () => {
   const scrollToFirstError = useCallback(() => {
     const firstError = [
       { field: 'fullName', ref: fieldRefs.fullName, valid: validations.fullName },
-      { field: 'mobile', ref: fieldRefs.mobile, valid: validations.mobile },
-      { field: 'otp', ref: fieldRefs.otp, valid: validations.otp },
+      { field: 'mobile', ref: fieldRefs.mobile, valid: validations.mobile || validations.otpVerified },
+      { field: 'otp', ref: fieldRefs.otp, valid: validations.otpVerified || validations.otp },
       { field: 'email', ref: fieldRefs.email, valid: validations.email },
       { field: 'password', ref: fieldRefs.password, valid: validations.password },
       { field: 'confirmPassword', ref: fieldRefs.confirmPassword, valid: validations.confirmPassword },
@@ -716,7 +736,7 @@ const SellerSignUpScreen: React.FC = () => {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleSendOtp = useCallback(() => {
+  const handleSendOtp = useCallback(async () => {
     if (!mobile || mobile.replace(/\D/g, "").length < 10) {
       showMessage({
         message: "Invalid Number",
@@ -729,42 +749,74 @@ const SellerSignUpScreen: React.FC = () => {
       return;
     }
 
-    setOtpSent(true);
-    // Start 1-minute timer
-    setOtpTimer(60);
-    setIsTimerActive(true);
-
-    showMessage({
-      message: "OTP Sent",
-      type: "success",
-      icon: "success",
-      ...toastConfig,
-    });
-  }, [mobile]);
-
-  const handleVerifyOtp = useCallback(() => {
-    if (otp === "1234") {
-      setOtpVerified(true);
+    setSendingOtp(true);
+    try {
+      const result = await sendRegistrationOtp(mobile);
+      setOtpSent(true);
+      setOtpVerified(false);
+      setMobileVerificationToken("");
+      setOtp("");
+      setDevOtpHint(result.devOtp ?? null);
+      setOtpTimer(60);
+      setIsTimerActive(true);
 
       showMessage({
-        message: "Verified",
+        message: `OTP sent to ${formatMobileForSms(mobile)}`,
         type: "success",
         icon: "success",
         ...toastConfig,
       });
-    } else {
+    } catch (err) {
       showMessage({
-        message: "Wrong OTP",
+        message: err instanceof ApiError ? err.message : "Failed to send OTP",
         type: "danger",
         icon: "danger",
         ...toastConfig,
       });
-
-      fieldRefs.otp.current?.focus();
+    } finally {
+      setSendingOtp(false);
     }
-  }, [otp]);
+  }, [mobile]);
 
-  const handleSignUp = useCallback(() => {
+  const handleVerifyOtp = useCallback(async () => {
+    if (!otp || otp.trim().length < 4) {
+      showMessage({
+        message: "Enter the OTP",
+        type: "danger",
+        icon: "danger",
+        ...toastConfig,
+      });
+      fieldRefs.otp.current?.focus();
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const result = await verifyRegistrationOtp(mobile, otp);
+      setOtpVerified(true);
+      setMobileVerificationToken(result.mobileVerificationToken);
+      setDevOtpHint(null);
+
+      showMessage({
+        message: `Mobile ${formatMobileForSms(mobile)} verified successfully`,
+        type: "success",
+        icon: "success",
+        ...toastConfig,
+      });
+    } catch (err) {
+      showMessage({
+        message: err instanceof ApiError ? err.message : "Wrong OTP",
+        type: "danger",
+        icon: "danger",
+        ...toastConfig,
+      });
+      fieldRefs.otp.current?.focus();
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }, [otp, mobile]);
+
+  const handleSignUp = useCallback(async () => {
     const errors: ValidationError[] = [];
 
     if (!validations.fullName) {
@@ -792,17 +844,70 @@ const SellerSignUpScreen: React.FC = () => {
       return;
     }
 
-    // Navigate to sellerpersonalinfo with user data
-    router.push({
-      pathname: "/(main)/sellerpersonalinfo",
-      params: {
-        fullName: fullName,
-        mobile: mobile,
-        email: email
-      }
-    });
+    if (!mobileVerificationToken) {
+      showMessage({
+        message: "Please verify your mobile number first",
+        type: "danger",
+        icon: "danger",
+        ...toastConfig,
+      });
+      return;
+    }
 
-  }, [validations, password, confirmPassword, agreed, scrollToFirstError, router, fullName, mobile, email]);
+    const trimmedName = fullName.trim();
+    const spaceIndex = trimmedName.indexOf(" ");
+    const firstName = spaceIndex > 0 ? trimmedName.slice(0, spaceIndex) : trimmedName;
+    const lastName = spaceIndex > 0 ? trimmedName.slice(spaceIndex + 1).trim() : "";
+
+    setIsLoading(true);
+    try {
+      const result = await registerSeller({
+        mobileVerificationToken,
+        mobile,
+        firstName,
+        lastName,
+        email: email.trim(),
+        password,
+        confirmPassword,
+      });
+
+      const registeredEmail = email.trim().toLowerCase();
+
+      showMessage({
+        ...toastConfig,
+        message: `Verification link sent to ${registeredEmail}. Open your email and click the link.`,
+        type: "success",
+        icon: "success",
+        duration: 4000,
+      });
+
+      router.replace({
+        pathname: "/(auth)/check-email",
+        params: { email: registeredEmail },
+      });
+    } catch (err) {
+      showMessage({
+        message: err instanceof ApiError ? err.message : "Registration failed",
+        type: "danger",
+        icon: "danger",
+        ...toastConfig,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+
+  }, [
+    validations,
+    password,
+    confirmPassword,
+    agreed,
+    scrollToFirstError,
+    router,
+    fullName,
+    mobile,
+    email,
+    mobileVerificationToken,
+  ]);
 
   const pwdMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
   const pwdMismatch = password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword;
@@ -880,7 +985,17 @@ const SellerSignUpScreen: React.FC = () => {
             value={mobile}
             onChangeText={(text) => {
               clearFieldError("mobile");
-              setMobile(text.replace(/\D/g, ""));
+              const digits = text.replace(/\D/g, "").slice(0, 10);
+              if (digits !== mobile) {
+                setOtpSent(false);
+                setOtpVerified(false);
+                setMobileVerificationToken("");
+                setDevOtpHint(null);
+                setOtp("");
+                setIsTimerActive(false);
+                setOtpTimer(0);
+              }
+              setMobile(digits);
             }}
             placeholder="Enter mobile number"
             keyboardType="phone-pad"
@@ -901,8 +1016,11 @@ const SellerSignUpScreen: React.FC = () => {
                     isTimerActive && styles.inlineBtnDisabled,
                   ]}
                   onPress={handleSendOtp}
-                  disabled={isTimerActive}
+                  disabled={isTimerActive || sendingOtp}
                 >
+                  {sendingOtp ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
                   <AppText
                     style={[
                       styles.inlineBtnText,
@@ -911,31 +1029,53 @@ const SellerSignUpScreen: React.FC = () => {
                   >
                     {otpSent ? "Resend" : "Send OTP"}
                   </AppText>
+                  )}
                 </TouchableOpacity>
               ) : (
-                <View style={styles.verifiedBadge}>
-                  <IconShieldCheck />
-                  <AppText style={styles.verifiedText}>Verified</AppText>
+                <View style={[styles.verifiedBtn, isDesktop && styles.verifiedBtnDesktop]}>
+                  <IconShieldCheck color="#FFFFFF" />
+                  <AppText style={styles.verifiedBtnText}>Verified</AppText>
                 </View>
               )
             }
           />
         )}
 
+        {otpVerified &&
+          wrapField(
+            2,
+            <View style={styles.mobileVerifiedBanner}>
+              <IconShieldCheck />
+              <AppText style={styles.mobileVerifiedBannerText}>
+                Mobile {formatMobileForSms(mobile)} verified. Complete your account below.
+              </AppText>
+            </View>
+          )}
+
         {otpSent && !otpVerified &&
           wrapField(
             2,
             <View style={styles.otpConfirmationContainer}>
+              <View style={styles.otpSentBanner}>
+                <AppText style={styles.otpSentBannerText}>
+                  OTP sent via SMS to {formatMobileForSms(mobile)}
+                </AppText>
+              </View>
               <AppText style={styles.otpConfirmationText}>
-                We have sent an OTP to your mobile number {maskMobileNumber(mobile)}
+                Enter the 6-digit code we sent to your mobile
                 {isTimerActive && (
                   <AppText style={styles.timerText}>
                     {" "}
-                    ({Math.floor(otpTimer / 60)}:
+                    (resend in {Math.floor(otpTimer / 60)}:
                     {(otpTimer % 60).toString().padStart(2, "0")})
                   </AppText>
                 )}
               </AppText>
+              {devOtpHint ? (
+                <AppText style={styles.devOtpHint}>
+                  Development OTP: {devOtpHint} — enter this code and tap Verify
+                </AppText>
+              ) : null}
             </View>
           )}
 
@@ -949,10 +1089,11 @@ const SellerSignUpScreen: React.FC = () => {
               value={otp}
               onChangeText={(text) => {
                 clearFieldError("otp");
-                setOtp(text);
+                setOtp(text.replace(/\D/g, "").slice(0, 6));
               }}
-              placeholder="Enter OTP"
-              keyboardType="numeric"
+              placeholder="Enter 6-digit OTP"
+              keyboardType="number-pad"
+              maxLength={6}
               leftIcon={<IconKey />}
               inputRef={fieldRefs.otp}
               error={validationErrors.find((e) => e.field === "otp")?.message}
@@ -963,17 +1104,30 @@ const SellerSignUpScreen: React.FC = () => {
                     styles.inlineBtn,
                     styles.inlineBtnVerify,
                     isDesktop && styles.inlineBtnDesktop,
+                    otp.trim().length === 6 && styles.inlineBtnVerifyReady,
                   ]}
                   onPress={handleVerifyOtp}
+                  disabled={verifyingOtp || otp.trim().length < 6}
                 >
+                  {verifyingOtp ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
                   <AppText style={styles.inlineBtnText}>Verify</AppText>
+                  )}
                 </TouchableOpacity>
               }
             />
           )}
 
-        {wrapField(
+        {otpVerified && wrapField(
           4,
+          <View style={styles.stepHeader}>
+            <AppText style={styles.stepHeaderText}>Step 2 — Account details</AppText>
+          </View>
+        )}
+
+        {otpVerified && wrapField(
+          5,
           <InputField
             isDesktop={isDesktop}
             label="Email Address"
@@ -994,8 +1148,8 @@ const SellerSignUpScreen: React.FC = () => {
           />
         )}
 
-        {wrapField(
-          5,
+        {otpVerified && wrapField(
+          6,
           <InputField
             isDesktop={isDesktop}
             label="Password"
@@ -1022,9 +1176,9 @@ const SellerSignUpScreen: React.FC = () => {
           />
         )}
 
-        {password.length > 0 &&
+        {otpVerified && password.length > 0 &&
           wrapField(
-            6,
+            7,
             <View style={styles.passwordRequirementsContainer}>
               {getPasswordRequirements(password).map((requirement, index) => (
                 <AppText
@@ -1042,8 +1196,8 @@ const SellerSignUpScreen: React.FC = () => {
             </View>
           )}
 
-        {wrapField(
-          7,
+        {otpVerified && wrapField(
+          8,
           <InputField
             isDesktop={isDesktop}
             label="Confirm Password"
@@ -1069,9 +1223,9 @@ const SellerSignUpScreen: React.FC = () => {
           />
         )}
 
-        {(pwdMatch || pwdMismatch) &&
+        {otpVerified && (pwdMatch || pwdMismatch) &&
           wrapField(
-            8,
+            9,
             <AppText
               style={[styles.matchHint, pwdMatch ? styles.matchOk : styles.matchErr]}
             >
@@ -1079,8 +1233,8 @@ const SellerSignUpScreen: React.FC = () => {
             </AppText>
           )}
 
-        {wrapField(
-          9,
+        {otpVerified && wrapField(
+          10,
           <TouchableOpacity
             style={[styles.checkRow, isDesktop && styles.checkRowDesktop]}
             onPress={() => setAgreed((v) => !v)}
@@ -1128,8 +1282,8 @@ const SellerSignUpScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
-        {wrapField(
-          10,
+        {otpVerified && wrapField(
+          11,
           <View style={styles.signUpBtnWrapper}>
             <PrimaryButton
               title="Sign Up"
@@ -1137,11 +1291,14 @@ const SellerSignUpScreen: React.FC = () => {
               isLoading={isLoading}
               isDesktop={isDesktop}
             />
+            <AppText style={styles.signUpHint}>
+              After signup, open your email, click the verification link, then enter the code we send you.
+            </AppText>
           </View>
         )}
 
         {wrapField(
-          11,
+          12,
           <View style={styles.loginRow}>
             <AppText style={styles.loginText}>Already have an account? </AppText>
             <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
@@ -1441,7 +1598,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 54,
     fontFamily: fontFamilies.bold,
-    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0 } as object) : {}),
   },
   inputRowDisabled: {
     opacity: 0.55,
@@ -1455,7 +1612,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderColor: "#e2e8f0",
     minHeight: 52,
-    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0 } as object) : {}),
   },
   inputRowFocusedDesktop: {
     borderColor: C.orange,
@@ -1477,7 +1634,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: TEXT,
     paddingVertical: 12,
-    ...(Platform.OS === "web" ? ({ outlineWidth: 0, outline: "none" } as object) : {}),
+    ...(Platform.OS === "web" ? ({ outlineWidth: 0 } as object) : {}),
   },
   inputRight: {
     marginLeft: 8,
@@ -1525,21 +1682,85 @@ const styles = StyleSheet.create({
     color: PRIMARY_L,
     fontFamily: fontFamilies.semiBold,
   },
+  devOtpHint: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#B45309",
+    fontFamily: fontFamilies.semiBold,
+    lineHeight: 20,
+  },
 
-  // ── Verified badge ───────────────────────────────────────────────────────
-  verifiedBadge: {
+  otpSentBanner: {
+    backgroundColor: "rgba(30, 58, 110, 0.08)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: PRIMARY_L,
+  },
+  otpSentBannerText: {
+    fontSize: 14,
+    fontFamily: fontFamilies.semiBold,
+    color: C.navy,
+  },
+  mobileVerifiedBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(61,158,90,0.1)",
+    gap: 10,
+    backgroundColor: "rgba(61, 158, 90, 0.12)",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(61, 158, 90, 0.35)",
   },
-  verifiedText: {
-    fontSize: 12,
-    fontFamily: fontFamilies.bold,
+  mobileVerifiedBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: fontFamilies.semiBold,
     color: SUCCESS,
+    lineHeight: 20,
+  },
+  verifiedBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: SUCCESS,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 100,
+  },
+  verifiedBtnDesktop: {
+    paddingVertical: 12,
+    minWidth: 110,
+  },
+  verifiedBtnText: {
+    fontSize: 13,
+    fontFamily: fontFamilies.bold,
+    color: "#FFFFFF",
+  },
+  inlineBtnVerifyReady: {
+    backgroundColor: C.navy,
+  },
+  stepHeader: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  stepHeaderText: {
+    fontSize: 15,
+    fontFamily: fontFamilies.bold,
+    color: C.navy,
+  },
+  signUpHint: {
+    marginTop: 10,
+    fontSize: 12,
+    color: TEXT_SEC,
+    textAlign: "center",
+    lineHeight: 18,
   },
 
   // ── Eye toggle ───────────────────────────────────────────────────────────
