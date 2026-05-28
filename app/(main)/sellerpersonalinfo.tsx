@@ -24,8 +24,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  resolveDocumentDisplayUrl,
+  uploadProfilePhoto,
+} from "@/services/sellerProfileApi";
 import {
   CREAM, PRIMARY, PRIMARY_D, PRIMARY_L, TEXT, TEXT_SEC,
   INPUT_BG, SUCCESS, ERROR, SPACING, BORDER_RADIUS,
@@ -148,6 +155,7 @@ export default function SellerPersonalInfo() {
   const scrollViewRef = useRef<ScrollView>(null);
   const routerParams = useLocalSearchParams();
   const { width } = useWindowDimensions();
+  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
 
   // True when running on web AND viewport is wide enough for 2-col layout
   const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
@@ -158,6 +166,7 @@ export default function SellerPersonalInfo() {
   const [email, setEmail] = useState("");
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [fieldPositions, setFieldPositions] = useState<Record<string, number>>({});
 
   // Auto-fill from signup params
@@ -166,6 +175,30 @@ export default function SellerPersonalInfo() {
     if (routerParams.mobile)   setMobile(routerParams.mobile as string);
     if (routerParams.email)    setEmail(routerParams.email as string);
   }, [routerParams]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        const loadedName =
+          profile.fullName?.trim() ||
+          [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+        if (loadedName) setName(loadedName);
+        if (profile.mobile) setMobile(profile.mobile.replace(/\D/g, "").slice(-10));
+        if (profile.email) setEmail(profile.email);
+        const pic = profile.personal?.profilePicUrl;
+        if (pic) setImage(resolveDocumentDisplayUrl(pic));
+      } catch {
+        // Signup route params remain as fallback
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fieldRefs = {
     name:   useRef<TextInput>(null),
@@ -212,28 +245,45 @@ export default function SellerPersonalInfo() {
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 1,
+      quality: 0.85,
       allowsEditing: true,
       aspect: [1, 1],
     });
-    if (!result.canceled) {
-      setImage(result.assets?.[0]?.uri || "");
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    const localUri = result.assets[0].uri;
+    setImage(localUri);
+    setIsUploadingPhoto(true);
+    try {
+      await hydrateSellerSession();
+      const updated = await uploadProfilePhoto(localUri);
+      const url = updated.personal?.profilePicUrl;
+      if (url) setImage(resolveDocumentDisplayUrl(url));
+      showSuccess("Profile photo uploaded.");
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not upload profile photo."));
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await hydrateSellerSession();
       router.push("/(main)/sellerbusinessinfo");
-    }, 1000);
+    } catch (e) {
+      showError(getApiErrorMessage(e));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ── Personal info fields config ──────────────────────────
   const personalFields = [
-    { key: "name",   label: "Full Name",       value: name   || "Sri Raj Dodda",      iconName: "user"     },
-    { key: "mobile", label: "Mobile Number",   value: mobile ? `+91 ${mobile}` : "9876543210", iconName: "phone"    },
-    { key: "email",  label: "Email Address",   value: email  || "sriraj@gmail.com",   iconName: "envelope" },
+    { key: "name",   label: "Full Name",       value: name   || "—", iconName: "user"     },
+    { key: "mobile", label: "Mobile Number",   value: mobile ? `+91 ${mobile}` : "—", iconName: "phone"    },
+    { key: "email",  label: "Email Address",   value: email  || "—", iconName: "envelope" },
   ];
 
   // ── Render personal fields: 2-col on web, 1-col on mobile ─
@@ -361,7 +411,9 @@ export default function SellerPersonalInfo() {
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={s.uploadBtnInner}
                   >
-                    <AppText style={s.uploadBtnText}>{image ? "Change Photo" : "Upload Photo"}</AppText>
+                    <AppText style={s.uploadBtnText}>
+                      {isUploadingPhoto ? "Uploading…" : image ? "Change Photo" : "Upload Photo"}
+                    </AppText>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -424,17 +476,14 @@ export default function SellerPersonalInfo() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={s.continueBtnInner}
             >
-              {isLoading ? (
-                <AppText style={s.continueBtnText}>Continue</AppText>
-              ) : (
-                <AppText style={s.continueBtnText}>Continue</AppText>
-              )}
+              <AppText style={s.continueBtnText}>{isLoading ? "Please wait…" : "Continue"}</AppText>
             </LinearGradient>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <SweetAlertHost />
     </View>
   );
 }

@@ -5,7 +5,7 @@
  * - Mobile layout: UNCHANGED
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,12 @@ import {
   Platform,
   useWindowDimensions,
   Alert,
+  type ImageStyle,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { AppHeader } from '@/components/common/AppHeader';
 
 // ─── Bootstrap Icons via web font (desktop/web) ───────────────────────────────
@@ -39,7 +44,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
  * On native: renders a fallback Text symbol
  */
 const NATIVE_FALLBACKS = {
-  'person-circle'        : '👤',
+  'person-circle': '👤',
   'building'             : '🏢',
   'geo-alt'              : '📍',
   'bank'                 : '🏦',
@@ -67,54 +72,25 @@ const NATIVE_FALLBACKS = {
   'clock-history'        : '⏳',
   'patch-check'          : '✓',
   'exclamation-triangle' : '⚠',
-  'info-circle'          : 'ℹ',
+  'info-circle': 'ℹ',
+} as const;
+
+type IconName = keyof typeof NATIVE_FALLBACKS;
+
+type IconProps = {
+  name: IconName;
+  size?: number;
+  color?: string;
+  style?: StyleProp<TextStyle | ViewStyle>;
 };
 
-function BI({ name, size = 16, color = '#2D3748', style }) {
-  if (Platform.OS === 'web') {
-    return (
-      <Text
-        style={[{ fontSize: size, color, lineHeight: size + 4, fontFamily: 'bootstrap-icons' }, style]}
-        // Bootstrap Icons font renders via CSS class on web
-      >
-        {/* We use a span trick: render as HTML element */}
-        {null}
-      </Text>
-    );
-  }
+function Icon({ name, size = 16, color = '#2D3748', style }: IconProps) {
   return (
-    <Text style={[{ fontSize: size, color }, style]}>
-      {NATIVE_FALLBACKS[name] || '•'}
+    <Text style={[{ fontSize: size, color }, style as StyleProp<TextStyle>]}>
+      {NATIVE_FALLBACKS[name]}
     </Text>
   );
 }
-
-// On web we use a real <i> tag via a wrapper component
-function Icon({ name, size = 16, color = '#2D3748', style }) {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
-        {/* eslint-disable-next-line react-native/no-raw-text */}
-        <Text
-          style={{ fontSize: size, color, lineHeight: size }}
-          // @ts-ignore – web only
-          dangerouslySetInnerHTML={undefined}
-        >
-          <i className={`bi bi-${name}`} style={{ fontSize: size, color }} />
-        </Text>
-      </View>
-    );
-  }
-  return (
-    <Text style={[{ fontSize: size, color }, style]}>
-      {NATIVE_FALLBACKS[name] || '•'}
-    </Text>
-  );
-}
-
-// ─── Optional native image picker ─────────────────────────────────────────────
-let ImagePicker = null;
-try { ImagePicker = require('react-native-image-picker'); } catch (_) {}
 
 // ─── Breakpoint ───────────────────────────────────────────────────────────────
 const DESKTOP_BREAKPOINT = 1024;
@@ -145,28 +121,43 @@ const C = {
 };
 
 // ─── Sidebar nav items ────────────────────────────────────────────────────────
-const NAV_SECTIONS = [
-  { title: 'GENERAL', items: [
-      { label: 'Dashboard', icon: 'house-door' },
-  ]},
-  { title: 'SELLER TOOLS', items: [
-      { label: 'Products',      icon: 'box-seam'   },
-      { label: 'Orders',        icon: 'receipt'    },
-      { label: 'Subcategories', icon: 'folder'     },
-      { label: 'Colors',        icon: 'palette'    },
-      { label: 'Sizes',         icon: 'rulers'     },
-  ]},
-  { title: 'SERVICES', items: [
-      { label: 'Request Category', icon: 'tag'     },
-      { label: 'Support',          icon: 'headset' },
-  ]},
+type NavItem = { label: string; icon: IconName };
+type NavSection = { title: string; items: NavItem[] };
+
+const NAV_SECTIONS: NavSection[] = [
+  { title: 'GENERAL', items: [{ label: 'Dashboard', icon: 'house-door' }] },
+  {
+    title: 'SELLER TOOLS',
+    items: [
+      { label: 'Products', icon: 'box-seam' },
+      { label: 'Orders', icon: 'receipt' },
+      { label: 'Subcategories', icon: 'folder' },
+      { label: 'Colors', icon: 'palette' },
+      { label: 'Sizes', icon: 'rulers' },
+    ],
+  },
+  {
+    title: 'SERVICES',
+    items: [
+      { label: 'Request Category', icon: 'tag' },
+      { label: 'Support', icon: 'headset' },
+    ],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════
 //  Reusable helpers
 // ═══════════════════════════════════════════════════════════════
 
-function SectionCard({ headerColor, iconName, title, children, cardStyle }) {
+type SectionCardProps = {
+  headerColor: string;
+  iconName: IconName;
+  title: string;
+  children: React.ReactNode;
+  cardStyle?: StyleProp<ViewStyle>;
+};
+
+function SectionCard({ headerColor, iconName, title, children, cardStyle }: SectionCardProps) {
   return (
     <View style={[s.card, cardStyle]}>
       <View style={[s.cardHeader, { backgroundColor: headerColor }]}>
@@ -178,7 +169,13 @@ function SectionCard({ headerColor, iconName, title, children, cardStyle }) {
   );
 }
 
-function InfoRow({ label, value, valueStyle }) {
+type InfoRowProps = {
+  label: string;
+  value: string;
+  valueStyle?: StyleProp<TextStyle>;
+};
+
+function InfoRow({ label, value, valueStyle }: InfoRowProps) {
   return (
     <View style={s.infoRow}>
       <Text style={s.infoLabel}>{label}</Text>
@@ -187,7 +184,14 @@ function InfoRow({ label, value, valueStyle }) {
   );
 }
 
-function InfoGrid({ left, right }) {
+type InfoGridCell = { label: string; value: string };
+
+type InfoGridProps = {
+  left: InfoGridCell;
+  right?: InfoGridCell;
+};
+
+function InfoGrid({ left, right }: InfoGridProps) {
   return (
     <View style={s.infoGrid}>
       <View style={s.infoGridCell}>
@@ -215,7 +219,21 @@ function PendingBadge() {
 // ═══════════════════════════════════════════════════════════════
 //  Editable field
 // ═══════════════════════════════════════════════════════════════
-function EditableField({ label, value, onSave, pending = false, multiline = false }) {
+type EditableFieldProps = {
+  label: string;
+  value: string;
+  onSave: (next: string) => void;
+  pending?: boolean;
+  multiline?: boolean;
+};
+
+function EditableField({
+  label,
+  value,
+  onSave,
+  pending = false,
+  multiline = false,
+}: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft,   setDraft]   = useState(value);
 
@@ -274,30 +292,28 @@ function EditableField({ label, value, onSave, pending = false, multiline = fals
 // ═══════════════════════════════════════════════════════════════
 //  Profile Photo Upload
 // ═══════════════════════════════════════════════════════════════
-function ProfilePhotoSection({ photoUri, onPhotoChange }) {
-  const fileInputRef = useRef(null);
+type ProfilePhotoSectionProps = {
+  photoUri: string | null;
+  onPhotoChange: (uri: string) => void;
+};
 
-  const handleWebUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const allowed = ['image/jpeg','image/png','image/gif','image/webp'];
-    if (!allowed.includes(file.type)) { alert('Only JPG, PNG, GIF, or WebP files are allowed.'); return; }
-    if (file.size > 2 * 1024 * 1024) { alert('File size must be 2 MB or less.'); return; }
-    onPhotoChange(URL.createObjectURL(file));
-  };
+function ProfilePhotoSection({ photoUri, onPhotoChange }: ProfilePhotoSectionProps) {
+  const handleUploadPress = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library.');
+      return;
+    }
 
-  const handleNativeUpload = () => {
-    if (!ImagePicker) { Alert.alert('Not available','react-native-image-picker is not installed.'); return; }
-    ImagePicker.launchImageLibrary({ mediaType:'photo', quality:0.8, selectionLimit:1 }, (res) => {
-      if (res.didCancel || res.errorCode) return;
-      const asset = res.assets && res.assets[0];
-      if (asset) onPhotoChange(asset.uri);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsMultipleSelection: false,
     });
-  };
 
-  const handleUploadPress = () => {
-    if (Platform.OS === 'web') fileInputRef.current && fileInputRef.current.click();
-    else handleNativeUpload();
+    if (!result.canceled && result.assets[0]?.uri) {
+      onPhotoChange(result.assets[0].uri);
+    }
   };
 
   return (
@@ -313,20 +329,11 @@ function ProfilePhotoSection({ photoUri, onPhotoChange }) {
       <View style={s.profilePicInfo}>
         <Text style={s.infoLabel}>PROFILE PICTURE</Text>
         <Text style={s.profilePicHint}>JPG, PNG, GIF or WebP. Max 2 MB.</Text>
-        <TouchableOpacity style={s.uploadBtn} onPress={handleUploadPress}>
-          <Icon name="upload" size={13} color={C.white} style={{ marginRight: 6 }} />
+        <TouchableOpacity style={s.uploadBtn} onPress={() => void handleUploadPress()}>
+          <Icon name="upload" size={13} color={C.white} style={s.uploadBtnIcon} />
           <Text style={s.uploadBtnText}>Upload new photo</Text>
         </TouchableOpacity>
       </View>
-      {Platform.OS === 'web' && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          style={{ display: 'none' }}
-          onChange={handleWebUpload}
-        />
-      )}
     </View>
   );
 }
@@ -392,11 +399,19 @@ function DesktopTopBar() {
 // ═══════════════════════════════════════════════════════════════
 //  KYC status items
 // ═══════════════════════════════════════════════════════════════
-const KYC_ITEMS = [
-  { label: 'PROFILE COMPLETED', text: 'Completed',    icon: 'patch-check',  bg: '#C6F6D5', fg: '#276749' },
-  { label: 'KYC COMPLETED',     text: 'Pending',      icon: 'clock-history',bg: '#FEEBC8', fg: '#7B341E' },
-  { label: 'KYC VERIFIED',      text: 'Not Verified', icon: 'x-lg',         bg: '#FED7D7', fg: '#9B2C2C' },
-  { label: 'HAS GST',           text: 'Yes',          icon: 'check-lg',     bg: '#BEE3F8', fg: '#2A4365' },
+type KycItem = {
+  label: string;
+  text: string;
+  icon: IconName;
+  bg: string;
+  fg: string;
+};
+
+const KYC_ITEMS: KycItem[] = [
+  { label: 'PROFILE COMPLETED', text: 'Completed', icon: 'patch-check', bg: '#C6F6D5', fg: '#276749' },
+  { label: 'KYC COMPLETED', text: 'Pending', icon: 'clock-history', bg: '#FEEBC8', fg: '#7B341E' },
+  { label: 'KYC VERIFIED', text: 'Not Verified', icon: 'x-lg', bg: '#FED7D7', fg: '#9B2C2C' },
+  { label: 'HAS GST', text: 'Yes', icon: 'check-lg', bg: '#BEE3F8', fg: '#2A4365' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -406,7 +421,7 @@ export default function SellerProfileScreen() {
   const { width } = useWindowDimensions();
   const isDesktop  = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
 
-  const [photoUri, setPhotoUri] = useState(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [address,  setAddress]  = useState('PickCell,B-506,Radha Vallabh, Near D mart, 150 Feet Road, Bhayndar West 401101');
   const [road,     setRoad]     = useState('150 Feet Road');
   const [landmark, setLandmark] = useState('Dmart');
@@ -604,7 +619,27 @@ export default function SellerProfileScreen() {
 // ═══════════════════════════════════════════════════════════════
 //  Mobile content (wire your existing JSX here)
 // ═══════════════════════════════════════════════════════════════
-function MobileProfileContent({ photoUri, onPhotoChange, address, onAddressSave, road, onRoadSave, landmark, onLandmarkSave }) {
+type MobileProfileContentProps = {
+  photoUri: string | null;
+  onPhotoChange: (uri: string) => void;
+  address: string;
+  onAddressSave: (next: string) => void;
+  road: string;
+  onRoadSave: (next: string) => void;
+  landmark: string;
+  onLandmarkSave: (next: string) => void;
+};
+
+function MobileProfileContent({
+  photoUri,
+  onPhotoChange,
+  address,
+  onAddressSave,
+  road,
+  onRoadSave,
+  landmark,
+  onLandmarkSave,
+}: MobileProfileContentProps) {
   return (
     <View style={s.mobilePlaceholder}>
       <ProfilePhotoSection photoUri={photoUri} onPhotoChange={onPhotoChange} />
@@ -627,21 +662,18 @@ const s = StyleSheet.create({
 
   // ── Desktop root ───────────────────────────────────────────────
   desktopRoot: {
-  flex: 1,
-  flexDirection: 'row',
-  backgroundColor: C.offWhite,
-  width: '100%',
-  height: '100vh',
-},
-  // desktopRoot: {
-  //   flex: 1, flexDirection: 'row', backgroundColor: C.offWhite,
-  //   ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
-  // },
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: C.offWhite,
+    width: '100%',
+  },
 
   // ── Sidebar ────────────────────────────────────────────────────
   desktopSidebar: {
-    width: 240, backgroundColor: C.sidebarBg, paddingBottom: 24, flexShrink: 0,
-    ...(Platform.OS === 'web' ? { height: '100vh', position: 'sticky', top: 0 } : {}),
+    width: 240,
+    backgroundColor: C.sidebarBg,
+    paddingBottom: 24,
+    flexShrink: 0,
   },
   sidebarLogo: {
     paddingHorizontal: 20, paddingVertical: 20,
@@ -656,10 +688,15 @@ const s = StyleSheet.create({
 
   // ── Top bar ────────────────────────────────────────────────────
   desktopTopBar: {
-    height: 60, backgroundColor: C.white, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: C.border,
-    ...(Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 10 } : {}),
+    height: 60,
+    backgroundColor: C.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    zIndex: 10,
   },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: C.offWhite,
@@ -714,11 +751,12 @@ desktopRow: {
   // ── Profile photo ──────────────────────────────────────────────
   profilePicRow:         { flexDirection: 'row', alignItems: 'center', gap: 16 },
   profilePicWrap:        { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: C.orange, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF3E0' },
-  profilePicImage:       { width: '100%', height: '100%', resizeMode: 'cover' },
+  profilePicImage:       { width: '100%', height: '100%', resizeMode: 'cover' } as ImageStyle,
   profilePicPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   profilePicInfo:        { flex: 1, gap: 6 },
   profilePicHint:        { fontSize: 12, color: C.textSecondary },
   uploadBtn:             { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: C.orange, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6, marginTop: 4 },
+  uploadBtnIcon:         { marginRight: 6 },
   uploadBtnText:         { fontSize: 13, color: C.white, fontWeight: '600' },
 
   // ── Info rows ──────────────────────────────────────────────────

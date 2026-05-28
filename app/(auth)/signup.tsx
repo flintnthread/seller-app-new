@@ -29,6 +29,8 @@ import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
+import { clearSellerId } from "@/lib/api/sellerSession";
 import Svg, { Path, Circle } from "react-native-svg";
 import { showMessage } from "react-native-flash-message";
 import {
@@ -577,6 +579,7 @@ const SellerSignUpScreen: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
+  const { setIsProfileCompleted } = useProfileStatus();
   const scrollViewRef = useRef<ScrollView>(null);
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 20 : 0)).current;

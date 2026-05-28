@@ -3,7 +3,7 @@
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
  */
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,13 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { Checkbox } from "./_sellerComponents";
 import { fontFamilies } from "@/constants/fonts";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  updateAddressProfile,
+} from "@/services/sellerProfileApi";
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -208,8 +215,10 @@ const pair = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerAddressInfo() {
   const router = useRouter();
-  const { businessCategory } = useLocalSearchParams();
+  const { businessCategory: businessCategoryParam } = useLocalSearchParams();
+  const businessCategory = typeof businessCategoryParam === "string" ? businessCategoryParam : "";
   const scrollViewRef = useRef<ScrollView>(null);
+  const { showError, SweetAlertHost } = useSweetAlert();
 
   // ── State (100% unchanged) ──
   const [streetAddress, setStreetAddress]         = useState("");
@@ -228,6 +237,38 @@ export default function SellerAddressInfo() {
   const [validationErrors, setValidationErrors]   = useState<ValidationError[]>([]);
   const [isLoading, setIsLoading]                 = useState(false);
   const [fieldPositions, setFieldPositions]       = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        const a = profile.address;
+        if (a.streetAddress) setStreetAddress(a.streetAddress);
+        if (a.landmark) setLandmark(a.landmark);
+        if (a.city) setCity(a.city);
+        if (a.state) setState(a.state);
+        if (a.country) setCountry(a.country);
+        if (a.pincode) setPincode(a.pincode);
+        if (a.warehouseDifferent) {
+          setWarehouse(true);
+          if (a.warehouseAddress) setWarehouseAddress(a.warehouseAddress);
+          if (a.warehouseLandmark) setWarehouseLandmark(a.warehouseLandmark);
+          if (a.warehouseCity) setWarehouseCity(a.warehouseCity);
+          if (a.warehouseState) setWarehouseState(a.warehouseState);
+          if (a.warehouseCountry) setWarehouseCountry(a.warehouseCountry);
+          if (a.warehousePincode) setWarehousePincode(a.warehousePincode);
+        }
+      } catch {
+        // keep form as-is
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // ── Logic (100% unchanged) ──
   const fieldRefs = {
@@ -295,7 +336,7 @@ export default function SellerAddressInfo() {
 
   const handleBack = () => router.push("/(main)/sellerbusinessinfo");
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const errors: ValidationError[] = [];
     if (!validations.streetAddress)    errors.push({ field: "streetAddress",    message: "Street address is required" });
     if (!validations.landmark)         errors.push({ field: "landmark",         message: "Landmark is required" });
@@ -312,11 +353,40 @@ export default function SellerAddressInfo() {
       if (!validations.warehousePincode)  errors.push({ field: "warehousePincode",  message: "Pincode is required" });
     }
     if (errors.length > 0) { setValidationErrors(errors); scrollToFirstError(); return; }
+
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await hydrateSellerSession();
+      const payload = {
+        streetAddress: streetAddress.trim(),
+        landmark: landmark.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        country: country.trim(),
+        pincode: pincode.trim(),
+        warehouseDifferent: warehouse,
+        ...(warehouse
+          ? {
+              warehouseAddress: warehouseAddress.trim(),
+              warehouseLandmark: warehouseLandmark.trim(),
+              warehouseCity: warehouseCity.trim(),
+              warehouseState: warehouseState.trim(),
+              warehouseCountry: warehouseCountry.trim(),
+              warehousePincode: warehousePincode.trim(),
+            }
+          : {}),
+      } as const;
+
+      await updateAddressProfile(payload);
+      router.push({
+        pathname: "/(main)/sellerbanking",
+        params: businessCategory ? { businessCategory } : {},
+      });
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not save address details."));
+    } finally {
       setIsLoading(false);
-      router.push({ pathname: "/(main)/sellerbanking", params: { businessCategory } });
-    }, 1000);
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────
@@ -605,7 +675,7 @@ export default function SellerAddressInfo() {
                 style={s.continueBtnInner}
               >
                 <Text style={s.continueBtnText}>
-                  {isLoading ? "Continue" : "Continue"}
+                  {isLoading ? "Saving…" : "Continue"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -614,6 +684,7 @@ export default function SellerAddressInfo() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <SweetAlertHost />
     </View>
   );
 }
