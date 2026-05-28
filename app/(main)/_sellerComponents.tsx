@@ -30,7 +30,7 @@ import {
   SPACING,
   BORDER_RADIUS,
   FONT_SIZES,
-} from "./sellerDesignTokens";
+} from "./_sellerDesignTokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

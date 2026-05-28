@@ -123,3 +123,101 @@ export async function resetPasswordWithToken(
     });
     return body.message;
 }
+
+export type OtpSentResult = {
+    message: string;
+    maskedMobile: string;
+    devOtp?: string | null;
+};
+
+export async function sendRegistrationOtp(mobile: string): Promise<OtpSentResult> {
+    return authFetch<OtpSentResult>("/api/sellers/send-otp", {
+        method: "POST",
+        body: JSON.stringify({ mobile: mobile.trim(), method: "sms" }),
+    });
+}
+
+export type OtpVerifiedResult = {
+    verified: boolean;
+    mobileVerificationToken: string;
+    message: string;
+};
+
+export async function verifyRegistrationOtp(mobile: string, otp: string): Promise<OtpVerifiedResult> {
+    return authFetch<OtpVerifiedResult>("/api/sellers/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ mobile: mobile.trim(), otp: otp.trim() }),
+    });
+}
+
+export type RegisterSellerResult = {
+    sellerId: number;
+    message: string;
+    emailVerificationRequired: boolean;
+};
+
+export async function registerSeller(payload: {
+    mobileVerificationToken: string;
+    mobile: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+}): Promise<RegisterSellerResult> {
+    return authFetch<RegisterSellerResult>("/api/sellers/register", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+export type StartEmailVerificationResult = {
+    message: string;
+    email: string;
+    otpSent: boolean;
+    alreadyVerified: boolean;
+};
+
+export async function confirmEmailVerificationLink(
+    token: string
+): Promise<StartEmailVerificationResult> {
+    const body = await authFetch<{
+        message: string;
+        email: string;
+        otpSent: boolean;
+        alreadyVerified: boolean;
+    }>("/api/auth/confirm-email-link", {
+        method: "POST",
+        body: JSON.stringify({ token: token.trim() }),
+    });
+    return {
+        message: body.message,
+        email: body.email ?? "",
+        otpSent: body.otpSent === true,
+        alreadyVerified: body.alreadyVerified === true,
+    };
+}
+
+export type EmailVerificationResult = {
+    message: string;
+    verified: boolean;
+    email?: string | null;
+};
+
+export async function verifyEmailOtp(
+    email: string,
+    otp: string
+): Promise<EmailVerificationResult> {
+    return authFetch<EmailVerificationResult>("/api/auth/verify-email-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
+    });
+}
+
+export async function resendEmailVerificationOtp(email: string): Promise<string> {
+    const body = await authFetch<{ message: string }>("/api/auth/resend-email-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+    return body.message;
+}

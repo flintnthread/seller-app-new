@@ -250,7 +250,7 @@ const welcomeStyles = StyleSheet.create({
     gap: 0,
     ...Platform.select({
       web: {
-        background: "linear-gradient(135deg, #FFFFFF 60%, #F0EEFF 100%)",
+        backgroundColor: "#F8F7FF",
         boxShadow: "0 1px 4px 0 rgba(108, 99, 255, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04)",
       },
     }),
@@ -387,7 +387,7 @@ const welcomeStyles = StyleSheet.create({
     justifyContent: "space-between",
     ...Platform.select({
       web: {
-        background: "linear-gradient(160deg, #FFFBEB 0%, #FFF7ED 100%)",
+        backgroundColor: "#FFF7ED",
         borderRadius: 10,
         padding: 10,
         marginLeft: 0,
