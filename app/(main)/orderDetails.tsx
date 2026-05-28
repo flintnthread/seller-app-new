@@ -41,8 +41,8 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
-import type { OrderDetail, OrderStep } from "./ordersData";
-import { getLiveOrder, subscribeToOrderChanges } from "./ordersStore";
+import type { OrderDetail, OrderStep } from "./_ordersData";
+import { getLiveOrder, subscribeToOrderChanges } from "./_ordersStore";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
 const BP_TABLET  = 768;   // >= tablet: 2-col layout

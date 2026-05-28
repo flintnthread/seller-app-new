@@ -7,8 +7,8 @@
  * reflect the change immediately on next render / navigation.
  */
 
-import type { OrderDetail, OrderStatus } from "./ordersData";
-import { ORDER_DETAILS } from "./ordersData";
+import type { OrderDetail, OrderStatus } from "./_ordersData";
+import { ORDER_DETAILS } from "./_ordersData";
 
 // ── Listeners ─────────────────────────────────────────────────────────────────
 type Listener = () => void;
@@ -30,7 +30,7 @@ const liveOrders = new Map<string, OrderDetail>(
 );
 
 // ── Stepper builder (same logic as ordersData.ts) ─────────────────────────────
-import type { OrderStep, StepStatus } from "./ordersData";
+import type { OrderStep, StepStatus } from "./_ordersData";
 
 function buildSteps(
   status: OrderStatus,

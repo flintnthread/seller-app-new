@@ -5,12 +5,12 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Dimensions,
   Platform,
   Text,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { Colors, palette } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
