@@ -69,7 +69,10 @@ const Register = () => {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      router.replace("/(main)/dashboard");
+      router.replace({
+        pathname: "/(auth)/login",
+        params: { email: email.trim(), fromSignup: "1" },
+      });
     }, 1500);
   };
 
