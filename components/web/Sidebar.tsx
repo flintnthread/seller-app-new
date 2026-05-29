@@ -34,6 +34,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           items: [
             { name: 'Category Request', path: '/categoryrequest', icon: 'square.grid.2x2.fill' as const, iconColor: '#14B8A6' },
             { name: 'Payments', path: '/payoutrequest', icon: 'cart.fill' as const, iconColor: '#10B981' },
+            { name: 'Support', path: '/helpsupport', icon: 'headphones' as const, iconColor: '#6366F1' },
           ],
         },
         {
