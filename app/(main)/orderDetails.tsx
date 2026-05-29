@@ -20,7 +20,7 @@
  */
 
 import { router, useLocalSearchParams } from "expo-router";
-import * as ExpoLinking from "expo-linking";
+import { buildInvoiceQrUrl } from "@/lib/linking/invoiceScanUrl";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -649,18 +649,7 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
   const invoiceNo = order.invoiceNumber || order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
   const totalTax  = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
   const qrOrderKey = String(order.orderId ?? order.orderNumber ?? order.id).replace(/^#/, "");
-  const scanPayload = ExpoLinking.createURL("/invoiceinfo", {
-    queryParams: {
-      orderId: qrOrderKey,
-      orderNumber: order.orderNumber ?? "",
-      invoiceNumber: invoiceNo,
-      awb: srData.awb,
-      orderDate: order.date,
-      payment: order.payment.method,
-      total: order.pricing.total,
-      invoiceUrl: order.invoiceUrl ?? "",
-    },
-  });
+  const scanPayload = buildInvoiceQrUrl(qrOrderKey);
   const barcodeImageUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(
     scanPayload
   )}&code=Code128&translate-esc=false&dpi=96`;
