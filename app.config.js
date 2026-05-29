@@ -22,6 +22,7 @@ function readEnvFile(name) {
 }
 
 const apiBaseUrl = readEnvFile("EXPO_PUBLIC_API_BASE_URL").replace(/\/$/, "");
+const appBaseUrl = readEnvFile("EXPO_PUBLIC_APP_BASE_URL").replace(/\/$/, "");
 const devSellerId = readEnvFile("EXPO_PUBLIC_DEV_SELLER_ID") || "1";
 const androidEmulatorApi = readEnvFile("EXPO_PUBLIC_API_ANDROID_EMULATOR") === "true";
 
@@ -36,8 +37,18 @@ if (!apiBaseUrl) {
 module.exports = {
     expo: {
         ...appJson.expo,
+        linking: {
+            scheme: appJson.expo.scheme ?? "fntseller",
+            prefixes: ["fntseller://"],
+            config: {
+                screens: {
+                    invoiceinfo: "invoiceinfo",
+                },
+            },
+        },
         extra: {
             apiBaseUrl,
+            appBaseUrl,
             devSellerId,
             androidEmulatorApi,
         },

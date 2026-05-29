@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   SafeAreaView,
   View,
@@ -12,34 +12,55 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { fetchSellerOrderDetail } from "@/services/orderApi";
-import type { OrderDetail } from "@/app/(main)/_ordersData";
+import { useInvoiceScan, type InvoiceScanParams } from "@/hooks/useInvoiceScan";
 
-type Params = {
-  orderId?: string;
-  orderNumber?: string;
-  invoiceNumber?: string;
-  awb?: string;
-  orderDate?: string;
-  payment?: string;
-  total?: string;
-  invoiceUrl?: string;
-};
+function isPdfUrl(url: string): boolean {
+  return /\.pdf($|\?)/i.test(url);
+}
+
+function isImageUrl(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp)($|\?)/i.test(url);
+}
+
+function NativeInvoicePreview({ url }: { url: string }) {
+  const WebView = require("react-native-webview").WebView;
+  const previewIsPdf = isPdfUrl(url);
+  const previewIsImage = isImageUrl(url);
+  const source = previewIsImage
+    ? { uri: url }
+    : {
+        uri: previewIsPdf
+          ? url
+          : `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`,
+      };
+
+  return (
+    <WebView
+      source={source}
+      style={s.webview}
+      startInLoadingState
+      renderLoading={() => (
+        <View style={s.webviewLoading}>
+          <ActivityIndicator color="#1E3A6E" />
+        </View>
+      )}
+    />
+  );
+}
 
 export default function InvoiceInfoScreen() {
+  const params = useLocalSearchParams<InvoiceScanParams>();
   const {
-    orderId = "-",
-    orderNumber = "",
-    invoiceNumber = "-",
-    awb = "-",
-    orderDate = "-",
-    payment = "-",
-    total = "-",
-    invoiceUrl = "",
-  } = useLocalSearchParams<Params>();
-  const [liveOrder, setLiveOrder] = useState<OrderDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+    scanCode,
+    scanResult,
+    liveOrder,
+    loading,
+    loadError,
+    orderKey,
+    invoiceUrl,
+    invoiceNumber,
+  } = useInvoiceScan(params);
+
   const hsnDisplay = useMemo(() => {
     if (!liveOrder?.items?.length) return "-";
     const codes = Array.from(
@@ -52,47 +73,13 @@ export default function InvoiceInfoScreen() {
     return codes.length > 0 ? codes.join(", ") : "-";
   }, [liveOrder]);
 
-  const orderKey = useMemo(() => {
-    const raw = (orderId ?? "").trim();
-    if (raw && raw !== "-") return raw.replace(/^#/, "");
-    const ord = (orderNumber ?? "").trim();
-    if (ord) return ord.replace(/^#/, "");
-    return "";
-  }, [orderId, orderNumber]);
-
-  useEffect(() => {
-    if (!orderKey) return;
-    let cancelled = false;
-
-    const run = async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const detail = await fetchSellerOrderDetail(orderKey);
-        if (!cancelled) setLiveOrder(detail);
-      } catch (err: any) {
-        if (!cancelled) {
-          setLoadError(err?.message || "Failed to load live order details.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [orderKey]);
-
-  const openInvoice = async () => {
-    const resolvedInvoiceUrl = liveOrder?.invoiceUrl || invoiceUrl;
-    if (!resolvedInvoiceUrl) {
-      Alert.alert("Invoice", "Invoice URL is not available for this QR.");
+  const openInvoiceExternally = async () => {
+    if (!invoiceUrl) {
+      Alert.alert("Invoice", "Invoice file is not available yet for this order.");
       return;
     }
     try {
-      await Linking.openURL(resolvedInvoiceUrl);
+      await Linking.openURL(invoiceUrl);
     } catch {
       Alert.alert("Invoice", "Unable to open invoice link.");
     }
@@ -104,7 +91,8 @@ export default function InvoiceInfoScreen() {
       <Text style={s.value}>{value || "-"}</Text>
     </View>
   );
-  const canOpenInvoice = !!(liveOrder?.invoiceUrl || invoiceUrl);
+
+  const showPreview = !!invoiceUrl && !loading;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -112,67 +100,90 @@ export default function InvoiceInfoScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Scanned Order Info</Text>
+        <Text style={s.headerTitle}>Invoice Scan</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.content}>
-        <View style={s.card}>
-          <View style={s.titleRow}>
-            <MaterialCommunityIcons name="file-document-outline" size={20} color="#1E3A6E" />
-            <Text style={s.title}>Invoice Details</Text>
+        {loading ? (
+          <View style={s.loadingWrap}>
+            <ActivityIndicator size="large" color="#1E3A6E" />
+            <Text style={s.loadingText}>Loading invoice from scan...</Text>
+            {!!scanCode && <Text style={s.hintText}>Code: {scanCode}</Text>}
           </View>
-
-          <InfoRow label="Order ID" value={liveOrder?.id || orderId} />
-          <InfoRow label="Invoice No" value={liveOrder?.invoiceNumber || invoiceNumber} />
-          <InfoRow label="AWB No" value={awb} />
-          <InfoRow label="Order Date" value={liveOrder?.date || orderDate} />
-          <InfoRow label="Payment" value={liveOrder?.payment?.method || payment} />
-          <InfoRow label="Total" value={liveOrder?.pricing?.total || total} />
-          <InfoRow label="GST Number" value={liveOrder?.gstNumber || "-"} />
-          <InfoRow label="HSN Code" value={hsnDisplay} />
-        </View>
-
-        <View style={s.card}>
-          <View style={s.titleRow}>
-            <MaterialCommunityIcons name="database-check-outline" size={20} color="#1E3A6E" />
-            <Text style={s.title}>Live Order Data</Text>
-          </View>
-
-          {loading ? (
-            <View style={s.loadingWrap}>
-              <ActivityIndicator size="small" color="#1E3A6E" />
-              <Text style={s.loadingText}>Loading order details from API...</Text>
-            </View>
-          ) : loadError ? (
+        ) : loadError ? (
+          <View style={s.card}>
             <Text style={s.errorText}>{loadError}</Text>
-          ) : liveOrder ? (
-            <>
-              <InfoRow label="Status" value={liveOrder.status} />
-              <InfoRow label="Customer" value={liveOrder.customer?.name || "-"} />
-              <InfoRow label="Items" value={String(liveOrder.items?.length ?? 0)} />
-              <InfoRow label="Invoice No" value={liveOrder.invoiceNumber || invoiceNumber} />
-              <InfoRow label="GST Number" value={liveOrder.gstNumber || "-"} />
-              <InfoRow label="HSN Code" value={hsnDisplay} />
-              <InfoRow label="Invoice URL" value={liveOrder.invoiceUrl ? "Available" : "Not available"} />
-            </>
-          ) : (
-            <Text style={s.hintText}>No live order data loaded yet.</Text>
-          )}
-        </View>
+            <Text style={s.hintText}>Scan code: {scanCode || "—"}</Text>
+            <TouchableOpacity
+              style={[s.btn, { marginTop: 16 }]}
+              onPress={() => router.replace("/(auth)/login")}
+            >
+              <Text style={s.btnText}>Log in to Seller App</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={s.card}>
+              <View style={s.titleRow}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color="#1E3A6E" />
+                <Text style={s.title}>Invoice Details</Text>
+              </View>
 
-        <TouchableOpacity style={[s.btn, !canOpenInvoice && s.btnDisabled]} onPress={openInvoice} disabled={!canOpenInvoice}>
-          <Ionicons name="open-outline" size={16} color="#fff" />
-          <Text style={s.btnText}>Open Invoice Page</Text>
-        </TouchableOpacity>
-        {!!liveOrder && (
-          <TouchableOpacity
-            style={[s.btn, { backgroundColor: "#1E3A6E" }]}
-            onPress={() => router.push({ pathname: "/(main)/orderDetails", params: { orderId: liveOrder.id } })}
-          >
-            <Ionicons name="receipt-outline" size={16} color="#fff" />
-            <Text style={s.btnText}>Open Full Order Details</Text>
-          </TouchableOpacity>
+              <InfoRow label="Scan Code" value={scanCode} />
+              <InfoRow label="Order ID" value={liveOrder?.id || orderKey} />
+              <InfoRow label="Invoice No" value={invoiceNumber} />
+              <InfoRow label="Order Date" value={liveOrder?.date || "-"} />
+              <InfoRow label="Payment" value={liveOrder?.payment?.method || "-"} />
+              <InfoRow label="Total" value={liveOrder?.pricing?.total || "-"} />
+              <InfoRow label="GST Number" value={liveOrder?.gstNumber || "-"} />
+              <InfoRow label="HSN Code" value={hsnDisplay} />
+              <InfoRow label="Status" value={liveOrder?.status || "-"} />
+              {scanResult?.message ? (
+                <InfoRow label="Scan" value={scanResult.found ? "Matched" : scanResult.message} />
+              ) : null}
+            </View>
+
+            {showPreview ? (
+              <View style={s.previewCard}>
+                <View style={s.titleRow}>
+                  <MaterialCommunityIcons name="file-eye-outline" size={20} color="#1E3A6E" />
+                  <Text style={s.title}>Invoice Preview</Text>
+                </View>
+                <NativeInvoicePreview url={invoiceUrl} />
+              </View>
+            ) : (
+              <View style={s.card}>
+                <Text style={s.hintText}>
+                  Invoice file is not linked yet. Details above are from the order record.
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[s.btn, !invoiceUrl && s.btnDisabled]}
+              onPress={openInvoiceExternally}
+              disabled={!invoiceUrl}
+            >
+              <Ionicons name="open-outline" size={16} color="#fff" />
+              <Text style={s.btnText}>Open Invoice in Browser</Text>
+            </TouchableOpacity>
+
+            {!!liveOrder && (
+              <TouchableOpacity
+                style={[s.btn, { backgroundColor: "#1E3A6E" }]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(main)/orderDetails",
+                    params: { orderId: liveOrder.id },
+                  })
+                }
+              >
+                <Ionicons name="receipt-outline" size={16} color="#fff" />
+                <Text style={s.btnText}>View Full Order</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -191,13 +202,21 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  content: { padding: 16, gap: 16 },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  previewCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   title: { fontSize: 16, fontWeight: "700", color: "#1F2937" },
@@ -222,8 +241,18 @@ const s = StyleSheet.create({
   },
   btnDisabled: { backgroundColor: "#9CA3AF" },
   btnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  loadingWrap: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  loadingText: { color: "#4B5563", fontSize: 13 },
-  errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 19, paddingVertical: 6 },
-  hintText: { color: "#6B7280", fontSize: 13, paddingVertical: 6 },
+  loadingWrap: { alignItems: "center", justifyContent: "center", paddingVertical: 48, gap: 12 },
+  loadingText: { color: "#4B5563", fontSize: 14 },
+  errorText: { color: "#B91C1C", fontSize: 14, lineHeight: 20 },
+  hintText: { color: "#6B7280", fontSize: 13, lineHeight: 19 },
+  webview: { width: "100%", height: 480, borderRadius: 8, backgroundColor: "#F9FAFB" },
+  webviewLoading: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
