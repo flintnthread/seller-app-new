@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#151D4F", // Matches C.navyDeep of Dashboard header
     ...Platform.select({
       android: {
-        paddingTop: 32,
+        paddingTop: 18,
       },
       default: {},
     }),
