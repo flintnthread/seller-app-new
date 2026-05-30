@@ -46,14 +46,21 @@ import { Colors as DesignColors, palette } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontFamilies } from "@/constants/fonts";
 import { useRouter } from "expo-router";
+import {
+    useSellerProfileSummary,
+    type SellerProfileSummary,
+} from "@/hooks/useSellerProfileSummary";
+import { clearSellerId } from "@/lib/api/sellerSession";
 import type { TextProps } from 'react-native';
-import { DesktopDashboard } from "@/components/web/DesktopDashboard";
+import {
+    DesktopDashboard,
+    type DesktopDashboardProps,
+} from "@/components/web/DesktopDashboard";
 import { useActiveHeader } from "@/components/web/HeaderContext";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
 import {
     EMPTY_ORDERS_CHART,
@@ -906,12 +913,13 @@ const MENU_MAIN_ITEMS = (pendingOrders: number) => [
 const SideDrawer: React.FC<{
     visible: boolean;
     onClose: () => void;
-    sellerName: string;
-    storeName: string;
+    profile: SellerProfileSummary | null;
     rating: string;
     pendingOrders: number;
-}> = ({ visible, onClose, sellerName, storeName, rating, pendingOrders }) => {
+}> = ({ visible, onClose, profile, rating, pendingOrders }) => {
     const router = useRouter();
+    const displayName = profile?.fullName ?? "Seller";
+    const storeLabel = profile?.storeLabel ?? "Your store";
     const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
     const [activeItem, setActiveItem] = useState("Dashboard");
@@ -967,14 +975,21 @@ const SideDrawer: React.FC<{
                         <View style={dr.drawerHeader}>
                             <View style={dr.drawerHeaderTop}>
                                 <View style={dr.drawerAvatar}>
-                                    <MaterialCommunityIcons name="account" size={36} color={C.purpleLight} />
+                                    {profile?.profilePicUrl ? (
+                                        <Image
+                                            source={{ uri: profile.profilePicUrl }}
+                                            style={dr.drawerAvatarImage}
+                                        />
+                                    ) : (
+                                        <MaterialCommunityIcons name="account" size={36} color={C.purpleLight} />
+                                    )}
                                 </View>
                                 <TouchableOpacity onPress={onClose} style={dr.drawerCloseBtn}>
                                     <Ionicons name="close" size={20} color="rgba(255,255,255,0.7)" />
                                 </TouchableOpacity>
                             </View>
-                            <AppText style={dr.drawerName}>{sellerName}</AppText>
-                            <AppText style={dr.drawerStore}>{storeName}</AppText>
+                            <AppText style={dr.drawerName}>{displayName}</AppText>
+                            <AppText style={dr.drawerStore}>{storeLabel}</AppText>
                             <View style={dr.drawerBadgeRow}>
                                 <View style={dr.platBadge}>
                                     <MaterialCommunityIcons name="check-decagram" size={11} color="#fff" />
@@ -994,7 +1009,7 @@ const SideDrawer: React.FC<{
                     {/* ── Main Menu Items ── */}
                     <ScrollView style={dr.menuScroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                         <AppText style={dr.menuSectionLabel}>MAIN MENU</AppText>
-                        {MENU_MAIN_ITEMS.map((item, i) => {
+                        {MENU_MAIN_ITEMS(pendingOrders).map((item, i) => {
                             const isActive = activeItem === item.label;
                             return (
                                 <TouchableOpacity
@@ -1112,7 +1127,9 @@ const dr = StyleSheet.create({
         backgroundColor: "rgba(244, 241, 241, 0.1)",
         borderWidth: 2, borderColor: "rgba(255,255,255,0.2)",
         alignItems: "center", justifyContent: "center",
+        overflow: "hidden",
     },
+    drawerAvatarImage: { width: 64, height: 64, borderRadius: 32 },
     drawerCloseBtn: {
         width: 34, height: 34, borderRadius: 17,
         backgroundColor: "rgba(255,255,255,0.08)",
@@ -1181,7 +1198,10 @@ const dr = StyleSheet.create({
 });
 
 // ─── Main Dashboard ──────────────────────────────────────────
-const MobileDashboard: React.FC = () => {
+const MobileDashboard: React.FC<{
+    profile: SellerProfileSummary | null;
+    profileLoading: boolean;
+}> = ({ profile, profileLoading }) => {
     const router = useRouter();
     const {
         data,
@@ -1194,13 +1214,10 @@ const MobileDashboard: React.FC = () => {
         averageRating,
         reviewCount,
     } = useDashboardData();
-    const { profile } = useSellerProfile();
-    const sellerDisplayName =
-        profile?.businessName?.trim() ||
-        profile?.fullName?.trim() ||
-        [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
-        "Seller";
-    const storeDisplayName = profile?.businessName?.trim() || `${sellerDisplayName}'s Store`;
+    const displayName = profile?.fullName ?? (profileLoading ? "Loading…" : "Seller");
+    const storeLabel = profile?.storeLabel ?? "Your store";
+    const mobileDisplay = profile?.mobileDisplay ?? "—";
+    const emailDisplay = profile?.email ?? "—";
     const profileRating =
         averageRating > 0 ? String(averageRating) : "—";
     const profileReviewCount = reviewCount;
@@ -1218,6 +1235,8 @@ const MobileDashboard: React.FC = () => {
     const orderSummaryView = orderSummary;
     const topProductsView = topProducts;
     const totalProductsCount = totalProducts;
+    const pendingOrdersCount =
+        orderSummaryView?.find((o) => o.label === "Pending")?.count ?? 0;
     const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
     const [ordersPeriod, setOrdersPeriod] = useState<SalesPeriod>("Week");
     const [productsPeriod, setProductsPeriod] = useState<SalesPeriod>("Week");
@@ -1261,7 +1280,16 @@ const MobileDashboard: React.FC = () => {
         } else if (id === "logout") {
             Alert.alert("Logout", "Are you sure you want to logout?", [
                 { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: () => router.replace("/(auth)/login") },
+                {
+                    text: "Logout",
+                    style: "destructive",
+                    onPress: () => {
+                        void (async () => {
+                            await clearSellerId();
+                            router.replace("/(auth)/login");
+                        })();
+                    },
+                },
             ]);
         }
     };
@@ -1289,7 +1317,7 @@ const MobileDashboard: React.FC = () => {
     const activeCardColor = MENU_CARDS.find(c => c.id === activeMenuCard)?.color ?? C.purple;
 
     const CARD_SUBTITLES: Record<string, string> = {
-        dashboard: `${greeting}, ${sellerDisplayName}`,
+        dashboard: `${greeting}, ${displayName}`,
         products: "Manage your products",
         orders: "Track & manage orders",
         categories: "Browse product categories",
@@ -1299,7 +1327,7 @@ const MobileDashboard: React.FC = () => {
         support: "Help & support centre",
         logout: "See you soon!",
     };
-    const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, ${sellerDisplayName}`;
+    const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, ${displayName}`;
 
     return (
         <View style={s.root}>
@@ -1388,7 +1416,14 @@ const MobileDashboard: React.FC = () => {
                             <View style={s.profileTop}>
                                 <View style={s.avatarWrap}>
                                     <View style={s.avatarCircle}>
-                                        <MaterialCommunityIcons name="account" size={44} color={C.purpleLight} />
+                                        {profile?.profilePicUrl ? (
+                                            <Image
+                                                source={{ uri: profile.profilePicUrl }}
+                                                style={s.avatarImage}
+                                            />
+                                        ) : (
+                                            <MaterialCommunityIcons name="account" size={44} color={C.purpleLight} />
+                                        )}
                                     </View>
                                     <View style={s.avatarBadge}>
                                         <MaterialCommunityIcons name="store" size={12} color="#fff" />
@@ -1396,23 +1431,29 @@ const MobileDashboard: React.FC = () => {
                                 </View>
                                 <View style={s.profileInfo}>
                                     <View style={s.profileNameRow}>
-                                        <AppText style={s.profileName}>{sellerDisplayName}</AppText>
+                                        <AppText style={s.profileName}>{displayName}</AppText>
                                         <View style={s.platinumBadge}>
-                                            <MaterialCommunityIcons name="check-decagram" size={12} color="#fff" />
-                                            <AppText style={s.platinumText}>Platinum</AppText>
+                                            <MaterialCommunityIcons
+                                                name={profile?.profileCompleted ? "check-decagram" : "clock-outline"}
+                                                size={12}
+                                                color="#fff"
+                                            />
+                                            <AppText style={s.platinumText}>
+                                                {profile?.profileCompleted ? "Verified" : "Pending"}
+                                            </AppText>
                                         </View>
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="store-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>{storeDisplayName}</AppText>
+                                        <AppText style={s.profileDetailText}>{storeLabel}</AppText>
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="phone-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>{profile?.mobile || "—"}</AppText>
+                                        <AppText style={s.profileDetailText}>{mobileDisplay}</AppText>
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="email-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>{profile?.email || "—"}</AppText>
+                                        <AppText style={s.profileDetailText}>{emailDisplay}</AppText>
                                     </View>
                                 </View>
                                 <View style={s.ratingBox}>
@@ -1443,10 +1484,10 @@ const MobileDashboard: React.FC = () => {
 
                 {/* ── REFERRAL ── */}
                 <ReferralSection
-                    referralCode={profile?.referralCode ?? ""}
-                    goal={profile?.referralGoal ?? 6}
-                    totalReferred={profile?.referralTotalReferred ?? 0}
-                    qualified={profile?.referralQualifiedReferred ?? 0}
+                    referralCode=""
+                    goal={6}
+                    totalReferred={0}
+                    qualified={0}
                 />
 
                 {/* ── TODAY'S OVERVIEW ── */}
@@ -1756,10 +1797,9 @@ const MobileDashboard: React.FC = () => {
             <SideDrawer
                 visible={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
-                sellerName={sellerDisplayName}
-                storeName={storeDisplayName}
+                profile={profile}
                 rating={profileRating}
-                pendingOrders={orderSummaryView?.find((o) => o.label === "Pending")?.count ?? 0}
+                pendingOrders={pendingOrdersCount}
             />
 
             <AllProductsModal visible={showAllProducts} onClose={() => setShowAllProducts(false)} />
@@ -1807,7 +1847,8 @@ const s = StyleSheet.create({
     profileGrad: { padding: 16 },
     profileTop: { flexDirection: "row", alignItems: "flex-start", marginBottom: 14 },
     avatarWrap: { position: "relative", marginRight: 12 },
-    avatarCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.3)" },
+    avatarCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", overflow: "hidden" },
+    avatarImage: { width: 70, height: 70, borderRadius: 35 },
     avatarBadge: { position: "absolute", bottom: 0, right: 0, backgroundColor: C.purple, width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.navyDeep },
     profileInfo: { flex: 1 },
     profileNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 6 },
@@ -2006,10 +2047,17 @@ const s = StyleSheet.create({
 });
 
 const SellerDashboard: React.FC = () => {
+  const { summary, loading } = useSellerProfileSummary();
+
+  const desktopProps: DesktopDashboardProps = {
+    profile: summary,
+    profileLoading: loading,
+  };
+
   if (Platform.OS === "web") {
-    return <DesktopDashboard />;
+    return <DesktopDashboard {...desktopProps} />;
   }
-  return <MobileDashboard />;
+  return <MobileDashboard profile={summary} profileLoading={loading} />;
 };
 
 export default SellerDashboard;

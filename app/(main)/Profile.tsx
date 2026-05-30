@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { useRouter } from 'expo-router';
-import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -14,9 +14,19 @@ import {
 } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AppText } from "@/components/AppText";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
+import { clearSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  resolveDocumentDisplayUrl,
+  uploadProfilePhoto,
+  type SellerProfileResponse,
+} from "@/services/sellerProfileApi";
 
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
 
 import {
   AntDesign,
@@ -27,51 +37,111 @@ import {
 } from "@expo/vector-icons";
 import { Modal, Text } from "react-native";
 
+const PLACEHOLDER_AVATAR = "https://i.pravatar.cc/300";
 
-
+function formatMobileDisplay(mobile: string): string {
+  const digits = mobile.replace(/\D/g, "").slice(-10);
+  if (digits.length !== 10) return mobile || "—";
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+}
 
 export default function SellerProfileScreen() {
-  const { profile, save } = useSellerProfile();
-  const displayName =
-    profile?.businessName?.trim() ||
-    profile?.fullName?.trim() ||
-    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
-    "Seller";
-  const sellerIdLabel = profile?.id != null ? `Seller ID: ${profile.id}` : "Seller ID: —";
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [sellerId, setSellerIdDisplay] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [profileCompleted, setProfileCompletedLocal] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    if (profile?.profilePicUrl) setProfileImage(profile.profilePicUrl);
-    else if (profile?.profilePic) setProfileImage(profile.profilePic);
-  }, [profile]);
+  const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
+  const { setIsProfileCompleted } = useProfileStatus();
 
   const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= 1024;
+  const isDesktop = Platform.OS === "web" && width >= 1024;
+
+  const applyProfile = useCallback(
+    (profile: SellerProfileResponse) => {
+      const name =
+        profile.fullName?.trim() ||
+        [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+      setFullName(name);
+      setMobile(profile.mobile?.replace(/\D/g, "").slice(-10) || "");
+      setEmail(profile.email || "");
+      setSellerIdDisplay(String(profile.sellerId));
+      setBusinessName(profile.business?.businessName?.trim() || "");
+      setProfileCompletedLocal(profile.profileCompleted);
+      setIsProfileCompleted(profile.profileCompleted);
+      const pic = profile.personal?.profilePicUrl;
+      setProfileImage(pic ? resolveDocumentDisplayUrl(pic) : null);
+    },
+    [setIsProfileCompleted]
+  );
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (active) applyProfile(profile);
+      } catch (e) {
+        if (active) {
+          showError(getApiErrorMessage(e, "Could not load your profile."));
+        }
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [applyProfile, showError]);
+
+  const displayName = fullName || businessName || "Seller";
+  const displayMobile = formatMobileDisplay(mobile);
+  const displaySellerId = sellerId ? `SEL${sellerId}` : "—";
+  const avatarUri = profileImage || PLACEHOLDER_AVATAR;
+
+  const uploadPickedImage = async (localUri: string) => {
+    setProfileImage(localUri);
+    setUploadingPhoto(true);
+    try {
+      await hydrateSellerSession();
+      const updated = await uploadProfilePhoto(localUri);
+      applyProfile(updated);
+      showSuccess("Profile photo updated.");
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not upload profile photo."));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSelectCamera = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Camera permission is required to take photos.');
+      if (status !== "granted") {
+        Alert.alert("Permission denied", "Camera permission is required to take photos.");
         setModalVisible(false);
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.85,
       });
-      if (!result.canceled && result.assets && result.assets[0]) {
-        setProfileImage(result.assets[0].uri);
-      }
       setModalVisible(false);
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        await uploadPickedImage(result.assets[0].uri);
+      }
+    } catch {
+      Alert.alert("Error", "Failed to pick image. Please try again.");
       setModalVisible(false);
     }
   };
@@ -79,27 +149,49 @@ export default function SellerProfileScreen() {
   const handleSelectGallery = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Gallery permission is required to select photos.');
+      if (status !== "granted") {
+        Alert.alert("Permission denied", "Gallery permission is required to select photos.");
         setModalVisible(false);
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.85,
       });
-      if (!result.canceled && result.assets && result.assets[0]) {
-        setProfileImage(result.assets[0].uri);
-      }
       setModalVisible(false);
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        await uploadPickedImage(result.assets[0].uri);
+      }
+    } catch {
+      Alert.alert("Error", "Failed to pick image. Please try again.");
       setModalVisible(false);
     }
   };
+
+  const handleLogout = () => {
+    const doLogout = async () => {
+      await clearSellerId();
+      setIsProfileCompleted(false);
+      router.replace("/(auth)/login");
+    };
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm("Are you sure you want to logout?")) {
+        void doLogout();
+      }
+      return;
+    }
+
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => void doLogout() },
+    ]);
+  };
+
+  const openViewProfile = () => router.push("/viewsellerprofile");
+  const openCompleteProfile = () => router.push("/(main)/sellerpersonalinfo");
 
   // ─── DESKTOP LAYOUT ───────────────────────────────────────────────────────
   if (isDesktop) {
@@ -127,23 +219,24 @@ export default function SellerProfileScreen() {
             {/* Profile Card */}
             <View style={desktopStyles.sidebarProfileCard}>
               <View style={desktopStyles.sidebarAvatarWrap}>
-                <TouchableOpacity onPress={() => setModalVisible(true)}>
-                  {profileImage ? (
+                <TouchableOpacity onPress={() => setModalVisible(true)} disabled={uploadingPhoto}>
                   <Image
-                    source={{ uri: profileImage }}
+                    source={{ uri: avatarUri }}
                     style={desktopStyles.sidebarAvatar}
                   />
-                  ) : (
-                  <View style={[desktopStyles.sidebarAvatar, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
-                    <Feather name="user" size={36} color="#9CA3AF" />
-                  </View>
+                  {uploadingPhoto && (
+                    <View style={desktopStyles.avatarLoadingOverlay}>
+                      <ActivityIndicator color="#fff" />
+                    </View>
                   )}
                   <View style={desktopStyles.sidebarCameraOverlay}>
                     <Feather name="camera" size={14} color="#fff" />
                   </View>
                 </TouchableOpacity>
               </View>
-              <AppText style={desktopStyles.sidebarName}>{displayName}</AppText>
+              <AppText style={desktopStyles.sidebarName}>
+                {loadingProfile ? "Loading…" : displayName}
+              </AppText>
               {/* <View style={desktopStyles.sidebarBadge}>
                 <Ionicons name="star" size={13} color="#c28b00" />
                 <AppText style={desktopStyles.sidebarBadgeText}>Gold Seller</AppText>
@@ -151,20 +244,28 @@ export default function SellerProfileScreen() {
               <View style={desktopStyles.sidebarInfoBlock}>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <Feather name="phone" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>{profile?.mobile || "—"}</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{displayMobile}</AppText>
                 </View>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <MaterialIcons name="credit-card" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>{sellerIdLabel}</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{displaySellerId}</AppText>
                 </View>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <MaterialIcons name="email" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>{profile?.email || "—"}</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{email || "—"}</AppText>
                 </View>
               </View>
+              {!loadingProfile && !profileCompleted && (
+                <TouchableOpacity
+                  style={desktopStyles.sidebarCompleteBtn}
+                  onPress={openCompleteProfile}
+                >
+                  <AppText style={desktopStyles.sidebarCompleteBtnText}>Complete profile</AppText>
+                </TouchableOpacity>
+              )}
              <TouchableOpacity
      style={desktopStyles.sidebarEditBtn}
-    onPress={() => router.push('/viewsellerprofile')}
+    onPress={openViewProfile}
     >
      <Ionicons name="create-outline" size={16} color="#FF6B35" />
     <AppText style={desktopStyles.sidebarEditBtnText}>
@@ -207,7 +308,7 @@ export default function SellerProfileScreen() {
               ))}
             </View>
             {/* Desktop Logout Button */}
-   <TouchableOpacity style={desktopStyles.desktopLogoutBtn}>
+   <TouchableOpacity style={desktopStyles.desktopLogoutBtn} onPress={handleLogout}>
   <AntDesign name="logout" size={18} color="#FF6B35" />
   <AppText style={desktopStyles.desktopLogoutText}>
     Logout
@@ -365,9 +466,10 @@ export default function SellerProfileScreen() {
         <Text style={modalStyles.optionText}>Choose From Gallery</Text>
       </TouchableOpacity>
 
+      </View>
     </View>
-  </View>
 </Modal>
+        <SweetAlertHost />
 
       </View>
     );
@@ -385,16 +487,15 @@ export default function SellerProfileScreen() {
         <View style={styles.profileCard}>
           <View style={styles.profileTop}>
             <View style={styles.imageContainer}>
-              <TouchableOpacity onPress={() => setModalVisible(true)}>
-                {profileImage ? (
+              <TouchableOpacity onPress={() => setModalVisible(true)} disabled={uploadingPhoto}>
                 <Image
-                  source={{ uri: profileImage }}
+                  source={{ uri: avatarUri }}
                   style={styles.profileImage}
                 />
-                ) : (
-                <View style={[styles.profileImage, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
-                  <Feather name="user" size={44} color="#9CA3AF" />
-                </View>
+                {uploadingPhoto && (
+                  <View style={styles.avatarLoadingOverlay}>
+                    <ActivityIndicator color="#fff" />
+                  </View>
                 )}
                 <View style={styles.cameraOverlay}>
                   <Feather name="camera" size={20} color="#fff" />
@@ -404,7 +505,7 @@ export default function SellerProfileScreen() {
 
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
-                <AppText style={styles.name}>{displayName}</AppText>
+                <AppText style={styles.name}>{loadingProfile ? "Loading…" : displayName}</AppText>
                 {/* <View style={styles.badge}>
                   <Ionicons name="star" size={16} color="#c28b00" />
                   <AppText style={styles.badgeText}>Gold Seller</AppText>
@@ -413,25 +514,31 @@ export default function SellerProfileScreen() {
 
               <View style={styles.infoRow}>
                 <Feather name="phone" size={16} color="#666" />
-                <AppText style={styles.infoText}>{profile?.mobile || "—"}</AppText>
+                <AppText style={styles.infoText}>{displayMobile}</AppText>
               </View>
 
               <View style={styles.infoRow}>
                 <MaterialIcons name="credit-card" size={16} color="#666" />
-                <AppText style={styles.infoText}>{sellerIdLabel}</AppText>
+                <AppText style={styles.infoText}>Seller ID: {displaySellerId}</AppText>
               </View>
 
               <View style={styles.infoRow}>
                 <MaterialIcons name="email" size={16} color="#666" />
-                <AppText style={styles.infoText}>{profile?.email || "—"}</AppText>
+                <AppText style={styles.infoText}>{email || "—"}</AppText>
               </View>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.editBtn} >
+          {!loadingProfile && !profileCompleted && (
+            <TouchableOpacity style={styles.completeProfileBtn} onPress={openCompleteProfile}>
+              <AppText style={styles.completeProfileBtnText}>Complete your seller profile</AppText>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.editBtn} onPress={openViewProfile}>
             <View style={styles.editBtnHighlight}>
               <Ionicons name="create-outline" size={20} color="#FF6B35" />
-              <AppText style={styles.editBtnText}>Edit Seller Profile</AppText>
+              <AppText style={styles.editBtnText}>View Seller Profile</AppText>
             </View>
           </TouchableOpacity>
         </View>
@@ -486,7 +593,7 @@ export default function SellerProfileScreen() {
         </View>
 
         {/* LOGOUT */}
-        <TouchableOpacity style={styles.logoutBtn}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <AntDesign name="logout" size={20} color="#FF6B35" />
           <AppText style={styles.logoutText}>Logout</AppText>
         </TouchableOpacity>
@@ -597,6 +704,7 @@ export default function SellerProfileScreen() {
     </View>
   </View>
 </Modal>
+      <SweetAlertHost />
     </View>
   );
 }
@@ -857,6 +965,30 @@ const desktopStyles = StyleSheet.create({
     color: '#FF6B35',
     fontSize: 13,
     fontFamily: fontFamilies.bold,
+  },
+  sidebarCompleteBtn: {
+    marginBottom: 10,
+    width: '100%' as any,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  sidebarCompleteBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: fontFamilies.bold,
+  },
+  avatarLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Sidebar Nav
@@ -1267,6 +1399,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completeProfileBtn: {
+    marginTop: 14,
+    backgroundColor: "#FF6B35",
+    paddingVertical: 12,
+    borderRadius: 22,
+    alignItems: "center",
+  },
+  completeProfileBtnText: {
+    color: "#fff",
+    fontFamily: fontFamilies.bold,
+    fontSize: 14,
   },
   menuItemRow: {
     flexDirection: "row",

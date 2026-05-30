@@ -23,10 +23,17 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
-import { verifyGstNumber } from "@/services/utilApi";
-import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  toUiBusinessCategory,
+  updateBusinessProfile,
+  verifyGstNumber,
+  type GstVerifyResponse,
+} from "@/services/sellerProfileApi";
 const { width: SW } = Dimensions.get("window");
 
 // ─── Design tokens ───────────────────────────────────────────
@@ -371,7 +378,7 @@ const sc = StyleSheet.create({
 export default function SellerBusinessInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { profile, save } = useSellerProfile();
+  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
 
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -391,21 +398,8 @@ export default function SellerBusinessInfo() {
   const [aadharError, setAadharError] = useState("");
   const [panValid, setPanValid] = useState(false);
   const [aadharValid, setAadharValid] = useState(false);
-
-  useEffect(() => {
-    if (!profile) return;
-    if (profile.sellerCategory) setBusinessCategory(profile.sellerCategory.toUpperCase());
-    if (profile.businessName) setBusinessName(profile.businessName);
-    if (profile.businessType) setBusinessType(profile.businessType);
-    if (profile.hasGst != null) setHasGST(profile.hasGst);
-    if (profile.gstType) setGstType(profile.gstType);
-    if (profile.gstNumber) {
-      setGstNumber(profile.gstNumber);
-      setGstVerified(true);
-    }
-    if (profile.panNumber) setPanNumber(profile.panNumber);
-    if (profile.aadhaarNumber) setAadharNumber(formatAadhaar(profile.aadhaarNumber));
-  }, [profile]);
+  const [isVerifyingGst, setIsVerifyingGst] = useState(false);
+  const [gstDetails, setGstDetails] = useState<GstVerifyResponse | null>(null);
 
   const businessTypes = ["Sole Proprietorship", "Partnership", "Private Limited", "Public Limited", "LLP"];
   const gstTypes = ["Regular", "Composition", "Consumer"];
@@ -474,27 +468,83 @@ export default function SellerBusinessInfo() {
     }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        const b = profile.business;
+        const cat = toUiBusinessCategory(b.businessCategory);
+        if (cat) setBusinessCategory(cat);
+        if (b.businessName) setBusinessName(b.businessName);
+        if (b.businessType) setBusinessType(b.businessType);
+        setHasGST(b.hasGst || cat === "B2B");
+        if (b.gstType) setGstType(b.gstType);
+        if (b.gstNumber) {
+          setGstNumber(b.gstNumber);
+          setGstVerified(true);
+        }
+        if (b.panNumber) {
+          setPanNumber(b.panNumber);
+          setPanValid(true);
+        }
+        if (b.aadhaarNumber) {
+          const digits = b.aadhaarNumber.replace(/\D/g, "");
+          if (digits.length === 12) {
+            setAadharNumber(formatAadhaar(digits));
+            setAadharValid(true);
+          }
+        }
+      } catch {
+        // keep empty form
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleGSTVerify = useCallback(async () => {
     const err = validateGST(gstNumber);
-    if (err) { setGstError(err); return; }
-    setIsLoading(true);
+    if (err) {
+      setGstError(err);
+      return;
+    }
+    setIsVerifyingGst(true);
     try {
+      await hydrateSellerSession();
       const result = await verifyGstNumber(gstNumber);
-      if (result.valid) {
+      if (result.verified) {
         setGstVerified(true);
+        setGstDetails(result);
+        const legalName = result.businessName?.trim() || result.tradeName?.trim() || "";
+        if (legalName) setBusinessName(legalName);
+        if (result.businessType && businessTypes.includes(result.businessType)) {
+          setBusinessType(result.businessType);
+        }
+        if (result.panNumber) {
+          const pan = result.panNumber.toUpperCase();
+          setPanNumber(pan);
+          setPanValid(validatePAN(pan) === "");
+        }
         clearFieldError("gstNumber");
-        showMessage({ message: result.message || "GST verified", type: "success" });
+        clearFieldError("gstVerification");
+        showSuccess(result.message || "GST verified. Business details loaded.");
       } else {
         setGstVerified(false);
-        setGstError(result.message || "Invalid GST number");
+        setGstDetails(null);
+        showError(result.message || "GST verification failed.");
       }
-    } catch {
+    } catch (e) {
       setGstVerified(false);
-      setGstError("Could not verify GST. Try again.");
+      setGstDetails(null);
+      showError(getApiErrorMessage(e, "GST verification failed."));
     } finally {
-      setIsLoading(false);
+      setIsVerifyingGst(false);
     }
-  }, [gstNumber]);
+  }, [gstNumber, businessTypes, clearFieldError, showError, showSuccess]);
 
   const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
@@ -516,23 +566,36 @@ export default function SellerBusinessInfo() {
     if (panErr) errors.push({ field: "panNumber", message: panErr });
     if (aadErr) errors.push({ field: "aadharNumber", message: aadErr });
 
-    if (errors.length > 0) { setValidationErrors(errors); return; }
-    setValidationErrors([]);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await save({
-        sellerCategory: businessCategory.toLowerCase(),
+      await hydrateSellerSession();
+      const payload = {
+        businessCategory,
         businessName: businessName.trim(),
         businessType,
-        hasGst: hasGST,
-        gstType: hasGST ? gstType : undefined,
-        gstNumber: hasGST ? gstNumber.trim().toUpperCase() : undefined,
+        hasGst: businessCategory === "B2B" ? true : hasGST,
+        ...(businessCategory === "B2B" || hasGST
+          ? {
+              gstType,
+              gstNumber: gstNumber.trim().toUpperCase(),
+              gstVerified,
+            }
+          : {}),
         panNumber: panNumber.trim().toUpperCase(),
-        aadhaarNumber: aadharNumber.replace(/\s/g, ""),
-      });
+        aadhaarNumber: aadharNumber,
+        ...(businessCategory !== "B2B" && !hasGST ? { gstVerified } : {}),
+      } as const;
+
+      await updateBusinessProfile(payload as any);
+      setValidationErrors([]);
       router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
-    } catch {
-      showMessage({ message: "Failed to save business info", type: "danger" });
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not save business information."));
     } finally {
       setIsLoading(false);
     }
@@ -721,6 +784,7 @@ export default function SellerBusinessInfo() {
                           const error = validateGST(t.toUpperCase());
                           setGstError(error);
                           setGstVerified(false);
+                          setGstDetails(null);
                           clearFieldError("gstNumber");
                         }}
                         onBlur={() => {
@@ -740,7 +804,7 @@ export default function SellerBusinessInfo() {
                         activeOpacity={0.85}
                       >
                         <AppText style={s.inlineVerifyText}>
-                          {isLoading ? "Verify" : gstVerified ? "Verified" : "Verify"}
+                          {isVerifyingGst ? "…" : gstVerified ? "Verified" : "Verify"}
                         </AppText>
                       </TouchableOpacity>
                     </View>
@@ -754,6 +818,28 @@ export default function SellerBusinessInfo() {
                       <View style={si.errorRow}>
                         <Icon name="exclamation-circle" size={11} color={T.error} />
                         <AppText style={si.errorText}>{validationErrors.find(e => e.field === "gstVerification")?.message}</AppText>
+                      </View>
+                    )}
+                    {gstVerified && gstDetails && (
+                      <View style={s.gstDetailsCard}>
+                        <AppText style={s.gstDetailsTitle}>Verified business details</AppText>
+                        {!!gstDetails.businessName && (
+                          <AppText style={s.gstDetailsLine}>Legal name: {gstDetails.businessName}</AppText>
+                        )}
+                        {!!gstDetails.tradeName && (
+                          <AppText style={s.gstDetailsLine}>Trade name: {gstDetails.tradeName}</AppText>
+                        )}
+                        {!!gstDetails.panNumber && (
+                          <AppText style={s.gstDetailsLine}>PAN: {gstDetails.panNumber}</AppText>
+                        )}
+                        {!!gstDetails.address && (
+                          <AppText style={s.gstDetailsLine}>Address: {gstDetails.address}</AppText>
+                        )}
+                        {(gstDetails.city || gstDetails.state || gstDetails.pincode) && (
+                          <AppText style={s.gstDetailsLine}>
+                            {[gstDetails.city, gstDetails.state, gstDetails.pincode].filter(Boolean).join(", ")}
+                          </AppText>
+                        )}
                       </View>
                     )}
                   </View>
@@ -845,7 +931,7 @@ export default function SellerBusinessInfo() {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={s.continueBtnInner}
               >
-                <AppText style={s.continueBtnText}>Continue</AppText>
+                <AppText style={s.continueBtnText}>{isLoading ? "Saving…" : "Continue"}</AppText>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -853,6 +939,7 @@ export default function SellerBusinessInfo() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <SweetAlertHost />
     </View>
   );
 }
@@ -895,6 +982,26 @@ const s = StyleSheet.create({
   errorText: { fontSize: 12, color: T.error, fontWeight: "400" },
 
   // Inline verify button (inside GST input)
+  gstDetailsCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: T.navyPale,
+    borderWidth: 1,
+    borderColor: T.success + "55",
+    gap: 4,
+  },
+  gstDetailsTitle: {
+    fontSize: 12,
+    fontFamily: fontFamilies.bold,
+    color: T.success,
+    marginBottom: 4,
+  },
+  gstDetailsLine: {
+    fontSize: 12,
+    color: T.textMid,
+    lineHeight: 18,
+  },
   inlineVerifyBtn: {
     backgroundColor: T.orange, paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: 8, marginLeft: 6, minWidth: 60,

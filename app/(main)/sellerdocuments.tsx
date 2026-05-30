@@ -29,13 +29,24 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
-import { uriToImageSource } from "@/lib/media/imagePayload";
-import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import Animated, { useSharedValue, withTiming, withSpring } from "react-native-reanimated";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  resolveDocumentDisplayUrl,
+  submitSellerProfile,
+  SELLER_DOCUMENT_TYPES,
+  toUiBusinessCategory,
+  updateCompanyPan,
+  uploadSellerDocument,
+  type SellerDocumentField,
+} from "@/services/sellerProfileApi";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -514,6 +525,8 @@ export default function SellerDocuments() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const { width } = useWindowDimensions();
+  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
+  const { setIsProfileCompleted } = useProfileStatus();
 
   // True when running on web AND viewport is wide enough for 2-col layout
   const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
@@ -545,8 +558,8 @@ export default function SellerDocuments() {
   const [sourceModalVisible, setSourceModalVisible] = useState(false);
   const [pendingDocumentType, setPendingDocumentType] = useState<string>("");
   const [webCameraVisible, setWebCameraVisible] = useState(false);
-  const { profile, save } = useSellerProfile();
-  const [submitting, setSubmitting] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const setFileType = (field: string, type: "image" | "pdf") =>
     setFileTypes(prev => ({ ...prev, [field]: type }));
@@ -559,6 +572,107 @@ export default function SellerDocuments() {
     const cat = routerParams.businessCategory as string;
     if (cat) setBusinessCategory(cat);
   }, [routerParams]);
+
+  const isSellerDocumentField = (field: string): field is SellerDocumentField =>
+    field in SELLER_DOCUMENT_TYPES;
+
+  const applyDocumentToState = (field: string, uri: string) => {
+    const map: Record<string, (v: string) => void> = {
+      aadharFront: setAadharFront,
+      aadharBack: setAadharBack,
+      panCard: setPanCard,
+      businessProof: setBusinessProof,
+      bankAccountProof: setBankAccountProof,
+      cancelledCheque: setCancelledCheque,
+      companyPanDocument: setCompanyPanDocument,
+      certificateOfIncorporation: setCertificateOfIncorporation,
+      partnershipDeed: setPartnershipDeed,
+      msmeUdyamCertificate: setMsmeUdyamCertificate,
+      iecCertificate: setIecCertificate,
+    };
+    map[field]?.(uri);
+  };
+
+  const uploadDocumentForField = async (
+    field: string,
+    localUri: string,
+    fileType: "image" | "pdf" = "image"
+  ) => {
+    if (field === "liveSelfie") {
+      setUploadingField(field);
+      try {
+        await hydrateSellerSession();
+        const res = await uploadSellerDocument("liveSelfie", localUri);
+        const url = resolveDocumentDisplayUrl(res.url) || res.url;
+        setLiveSelfies((prev) => [...prev, url]);
+        clearFieldError("liveSelfie");
+      } catch (e) {
+        showError(getApiErrorMessage(e, "Could not upload selfie."));
+      } finally {
+        setUploadingField(null);
+      }
+      return;
+    }
+
+    if (!isSellerDocumentField(field)) return;
+
+    applyDocumentToState(field, localUri);
+    setFileType(field, fileType);
+    setUploadingField(field);
+    try {
+      await hydrateSellerSession();
+      const res = await uploadSellerDocument(field, localUri);
+      const url = resolveDocumentDisplayUrl(res.url) || res.url;
+      applyDocumentToState(field, url);
+      clearFieldError(field);
+    } catch (e) {
+      applyDocumentToState(field, null as unknown as string);
+      deleteDocument(field);
+      showError(getApiErrorMessage(e, "Could not upload document."));
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+
+        const cat = toUiBusinessCategory(profile.business.businessCategory);
+        if (cat) setBusinessCategory(cat);
+        if (profile.business.companyPan) setCompanyPanNumber(profile.business.companyPan);
+
+        const files = profile.documents?.files ?? {};
+        const setIf = (key: SellerDocumentField, setter: (v: string) => void) => {
+          const url = files[key];
+          if (url) setter(resolveDocumentDisplayUrl(url) || url);
+        };
+        setIf("aadharFront", (u) => setAadharFront(u));
+        setIf("aadharBack", (u) => setAadharBack(u));
+        setIf("panCard", (u) => setPanCard(u));
+        setIf("businessProof", (u) => setBusinessProof(u));
+        setIf("bankAccountProof", (u) => setBankAccountProof(u));
+        setIf("cancelledCheque", (u) => setCancelledCheque(u));
+        setIf("companyPanDocument", (u) => setCompanyPanDocument(u));
+        setIf("certificateOfIncorporation", (u) => setCertificateOfIncorporation(u));
+        setIf("partnershipDeed", (u) => setPartnershipDeed(u));
+        setIf("msmeUdyamCertificate", (u) => setMsmeUdyamCertificate(u));
+        setIf("iecCertificate", (u) => setIecCertificate(u));
+
+        const selfie = profile.documents?.liveSelfieUrl;
+        if (selfie) setLiveSelfies([resolveDocumentDisplayUrl(selfie) || selfie]);
+      } catch {
+        // keep local state
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const clearFieldError = (field: string) =>
     setValidationErrors(prev => prev.filter(e => e.field !== field));
@@ -578,7 +692,7 @@ export default function SellerDocuments() {
         const reader = new FileReader();
         reader.onload = (ev: any) => {
           const dataUri = ev.target?.result as string;
-          if (dataUri) { setDocumentValue(documentType, dataUri); setFileType(documentType, isPdf ? "pdf" : "image"); clearFieldError(documentType); }
+          if (dataUri) void uploadDocumentForField(documentType, dataUri, isPdf ? "pdf" : "image");
         };
         reader.readAsDataURL(file);
       };
@@ -595,29 +709,20 @@ export default function SellerDocuments() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { Alert.alert("Permission Required", "Camera roll permission is needed."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1 });
-    if (!result.canceled && result.assets?.[0]) { setDocumentValue(pendingDocumentType, result.assets[0].uri); setFileType(pendingDocumentType, "image"); clearFieldError(pendingDocumentType); }
+    if (!result.canceled && result.assets?.[0]) {
+      void uploadDocumentForField(pendingDocumentType, result.assets[0].uri, "image");
+    }
   };
 
   const handlePickPdf = async () => {
     setSourceModalVisible(false);
     await new Promise(r => setTimeout(r, 300));
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], copyToCacheDirectory: true });
-    if (!result.canceled && result.assets?.[0]) { const asset = result.assets[0]; setDocumentValue(pendingDocumentType, asset.uri); setFileType(pendingDocumentType, asset.mimeType === "application/pdf" ? "pdf" : "image"); clearFieldError(pendingDocumentType); }
-  };
-
-  const setDocumentValue = (field: string, uri: string) => {
-    const map: Record<string, (v: string) => void> = {
-      aadharFront: setAadharFront, aadharBack: setAadharBack, panCard: setPanCard,
-      businessProof: setBusinessProof, bankAccountProof: setBankAccountProof,
-      cancelledCheque: setCancelledCheque,
-      liveSelfie: (uri) => setLiveSelfies(prev => [...prev, uri]),
-      companyPanDocument: setCompanyPanDocument,
-      certificateOfIncorporation: setCertificateOfIncorporation,
-      partnershipDeed: setPartnershipDeed,
-      msmeUdyamCertificate: setMsmeUdyamCertificate,
-      iecCertificate: setIecCertificate,
-    };
-    map[field]?.(uri);
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      const type = asset.mimeType === "application/pdf" ? "pdf" : "image";
+      void uploadDocumentForField(pendingDocumentType, asset.uri, type);
+    }
   };
 
   const deleteDocument = (field: string) => {
@@ -642,13 +747,14 @@ export default function SellerDocuments() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") { Alert.alert("Permission Required", "Sorry, we need camera permission to capture your selfie."); return; }
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 1, aspect: [1, 1] });
-    if (!result.canceled && result.assets?.[0]) { const uri = result.assets[0].uri; setLiveSelfies(prev => [...prev, uri]); clearFieldError("liveSelfie"); }
+    if (!result.canceled && result.assets?.[0]) {
+      void uploadDocumentForField("liveSelfie", result.assets[0].uri, "image");
+    }
   };
 
   const handleWebSelfieCapture = (dataUri: string) => {
     setWebCameraVisible(false);
-    setLiveSelfies(prev => [...prev, dataUri]);
-    clearFieldError("liveSelfie");
+    void uploadDocumentForField("liveSelfie", dataUri, "image");
   };
 
   const validateDocuments = () => {
@@ -674,35 +780,36 @@ export default function SellerDocuments() {
 
   const handleFinish = async () => {
     const errors = validateDocuments();
-    if (errors.length > 0) { setValidationErrors(errors); return; }
-    setSubmitting(true);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    if (uploadingField) {
+      showError("Please wait for the current upload to finish.");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      const [aadharFrontSrc, aadharBackSrc, panCardSrc, businessProofSrc, bankProofSrc, chequeSrc] =
-        await Promise.all([
-          aadharFront ? uriToImageSource(aadharFront) : Promise.resolve(""),
-          aadharBack ? uriToImageSource(aadharBack) : Promise.resolve(""),
-          panCard ? uriToImageSource(panCard) : Promise.resolve(""),
-          businessProof ? uriToImageSource(businessProof) : Promise.resolve(""),
-          bankAccountProof ? uriToImageSource(bankAccountProof) : Promise.resolve(""),
-          cancelledCheque ? uriToImageSource(cancelledCheque) : Promise.resolve(""),
-        ]);
-      await save({
-        aadharFront: aadharFrontSrc || undefined,
-        aadharBack: aadharBackSrc || undefined,
-        panCard: panCardSrc || undefined,
-        businessProof: businessProofSrc || undefined,
-        bankProof: bankProofSrc || undefined,
-        cancelledCheque: chequeSrc || undefined,
-        profileCompleted: true,
-        kycCompleted: true,
-      });
+      await hydrateSellerSession();
+      if (businessCategory === "B2B" && companyPanNumber.trim()) {
+        await updateCompanyPan(companyPanNumber.trim().toUpperCase());
+      }
+      const result = await submitSellerProfile();
+      if (!result.submitted) {
+        const detail = result.errors?.length ? result.errors.join("\n") : result.message;
+        showError(detail || "Profile could not be submitted.");
+        return;
+      }
+      setIsProfileCompleted(true);
+      showSuccess(result.message || "Profile submitted successfully.");
       setSuccess(true);
       modalOpacity.value = withTiming(1, { duration: 400 });
       modalScale.value = withSpring(1, { damping: 20, stiffness: 300 });
-    } catch {
-      showMessage({ message: "Failed to submit documents", type: "danger" });
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not submit profile."));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -713,9 +820,7 @@ export default function SellerDocuments() {
   };
 
   const makeWebFileDrop = (field: string) => (uri: string, type: "image" | "pdf") => {
-    setDocumentValue(field, uri);
-    setFileType(field, type);
-    clearFieldError(field);
+    void uploadDocumentForField(field, uri, type);
   };
 
   // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
@@ -1091,9 +1196,16 @@ export default function SellerDocuments() {
                 <AppText style={s.backBtnText}>Back</AppText>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleFinish} style={s.continueBtn} activeOpacity={0.85}>
+            <TouchableOpacity
+              onPress={handleFinish}
+              style={s.continueBtn}
+              activeOpacity={0.85}
+              disabled={isSubmitting || !!uploadingField}
+            >
               <LinearGradient colors={[T.orange, T.orangeDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.continueBtnInner}>
-                <AppText style={s.continueBtnText}>Submit Profile</AppText>
+                <AppText style={s.continueBtnText}>
+                  {isSubmitting ? "Submitting…" : uploadingField ? "Uploading…" : "Submit Profile"}
+                </AppText>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -1170,6 +1282,7 @@ export default function SellerDocuments() {
           </Animated.View>
         </View>
       </Modal>
+      <SweetAlertHost />
     </View>
   );
 }

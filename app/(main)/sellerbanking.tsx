@@ -3,7 +3,7 @@
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
  */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,11 +18,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
-import { lookupIfsc } from "@/services/utilApi";
-import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { fontFamilies } from "@/constants/fonts";
+import { useSweetAlert } from "@/components/common/SweetAlert";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  fetchSellerProfile,
+  getApiErrorMessage,
+  lookupIfscCode,
+  updateBankingProfile,
+} from "@/services/sellerProfileApi";
 
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
@@ -306,9 +311,10 @@ const pair = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBanking() {
   const router = useRouter();
-  const { businessCategory } = useLocalSearchParams();
+  const { businessCategory: businessCategoryParam } = useLocalSearchParams();
+  const businessCategory = typeof businessCategoryParam === "string" ? businessCategoryParam : "";
   const scrollViewRef = useRef<ScrollView>(null);
-  const { profile, save } = useSellerProfile();
+  const { showError, SweetAlertHost } = useSweetAlert();
 
   // ── State (100% unchanged) ──
   const [ifscCode,             setIfscCode]             = useState("");
@@ -320,18 +326,29 @@ export default function SellerBanking() {
   const [validationErrors,     setValidationErrors]     = useState<{ field: string; message: string }[]>([]);
   const [fieldValid, setFieldValid] = useState<Record<string, boolean>>({});
   const [fieldSuccess, setFieldSuccess] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLookingUpIfsc, setIsLookingUpIfsc] = useState(false);
 
   useEffect(() => {
-    if (!profile) return;
-    if (profile.ifscCode) setIfscCode(profile.ifscCode);
-    if (profile.bankName) setBankName(profile.bankName);
-    if (profile.branchName) setBranchName(profile.branchName);
-    if (profile.accountHolder) setAccountHolderName(profile.accountHolder);
-    if (profile.accountNumber) {
-      setAccountNumber(profile.accountNumber);
-      setConfirmAccountNumber(profile.accountNumber);
-    }
-  }, [profile]);
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        const b = profile.banking;
+        if (b.ifscCode) setIfscCode(b.ifscCode.toUpperCase());
+        if (b.bankName) setBankName(b.bankName);
+        if (b.branchName) setBranchName(b.branchName);
+        if (b.accountHolderName) setAccountHolderName(b.accountHolderName);
+      } catch {
+        // keep empty form
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // ── Helpers (100% unchanged) ──
   const getError = (field: string) =>
@@ -353,43 +370,55 @@ export default function SellerBanking() {
     setFieldSuccess(prev => ({ ...prev, [field]: "" }));
   };
 
-  // ── IFSC handler (100% unchanged) ──
   const handleIfscChange = (text: string) => {
     const upper = text.toUpperCase();
     setIfscCode(upper);
     clearError("ifscCode");
     setFieldValid(prev => ({ ...prev, ifscCode: false }));
-    if (text.length > 0) {
+    setFieldSuccess(prev => ({ ...prev, ifscCode: "" }));
+    setBankName("");
+    setBranchName("");
+
+    if (upper.length > 0 && upper.length < 11) {
       const e = validateIfscCode(upper);
-      if (e && upper.length > 0) setError("ifscCode", e);
-      else { clearError("ifscCode"); setFieldValid(prev => ({ ...prev, ifscCode: true })); }
+      if (e) setError("ifscCode", e);
     }
+
     if (upper.length === 11) {
-      lookupIfsc(upper)
-        .then((res) => {
-          if (res.found) {
-            setBankName(res.bank || "");
-            setBranchName(res.branch || "");
+      const formatError = validateIfscCode(upper);
+      if (formatError) {
+        setError("ifscCode", formatError);
+        return;
+      }
+
+      void (async () => {
+        setIsLookingUpIfsc(true);
+        try {
+          await hydrateSellerSession();
+          const details = await lookupIfscCode(upper);
+          if (details.found) {
+            setBankName(details.bankName);
+            setBranchName(details.branchName);
+            setFieldValid(prev => ({ ...prev, ifscCode: true }));
+            setSuccess("ifscCode", "Bank details loaded");
           } else {
             setBankName("");
             setBranchName("");
-            setError("ifscCode", "IFSC code not found");
+            setError("ifscCode", "IFSC code not found. Please check and try again.");
           }
-        })
-        .catch(() => {
+        } catch (e) {
           setBankName("");
           setBranchName("");
-          setError("ifscCode", "Could not look up IFSC. Check the code and try again.");
-        });
-    } else {
-      setBankName("");
-      setBranchName("");
+          setError("ifscCode", getApiErrorMessage(e, "Could not lookup IFSC code."));
+        } finally {
+          setIsLookingUpIfsc(false);
+        }
+      })();
     }
   };
 
   const autoFilled = bankName.length > 0 && branchName.length > 0;
 
-  // ── Submit (100% unchanged) ──
   const handleNext = async () => {
     const errors: { field: string; message: string }[] = [];
     const ifscErr    = validateIfscCode(ifscCode);
@@ -405,17 +434,25 @@ export default function SellerBanking() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
+
+    setIsLoading(true);
     try {
-      await save({
+      await hydrateSellerSession();
+      await updateBankingProfile({
         ifscCode: ifscCode.trim().toUpperCase(),
         bankName: bankName.trim(),
         branchName: branchName.trim(),
-        accountHolder: accountHolderName.trim(),
+        accountHolderName: accountHolderName.trim(),
         accountNumber: accountNumber.trim(),
       });
-      router.push({ pathname: "/(main)/sellerdocuments", params: { businessCategory } });
-    } catch {
-      showMessage({ message: "Failed to save banking details", type: "danger" });
+      router.push({
+        pathname: "/(main)/sellerdocuments",
+        params: businessCategory ? { businessCategory } : {},
+      });
+    } catch (e) {
+      showError(getApiErrorMessage(e, "Could not save bank details."));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -486,8 +523,8 @@ export default function SellerBanking() {
               label="IFSC Code"
               value={ifscCode}
               onChangeText={handleIfscChange}
-              onBlur={() => { if (ifscCode.length === 11) { const e = validateIfscCode(ifscCode); if (e) setError("ifscCode", e); else setFieldValid(prev => ({ ...prev, ifscCode: true })); } else if (ifscCode.length > 0 && ifscCode.length < 11) { setError("ifscCode", "IFSC code must be 11 characters"); } else { clearError("ifscCode"); } }}
-              placeholder="e.g. SBIN0000345"
+              onBlur={() => { if (ifscCode.length === 11) { const e = validateIfscCode(ifscCode); if (e) setError("ifscCode", e); else if (!getError("ifscCode")) setFieldValid(prev => ({ ...prev, ifscCode: true })); } else if (ifscCode.length > 0 && ifscCode.length < 11) { setError("ifscCode", "IFSC code must be 11 characters"); } else { clearError("ifscCode"); } }}
+              placeholder={isLookingUpIfsc ? "Looking up bank…" : "e.g. SBIN0000345"}
               autoCapitalize="characters"
               maxLength={11}
               error={getError("ifscCode")}
@@ -631,7 +668,7 @@ export default function SellerBanking() {
                 style={s.continueBtnInner}
               >
                 {/* Screen 1 continueBtnText: 16px 800 white letterSpacing 0.2 */}
-                <Text style={s.continueBtnText}>Continue</Text>
+                <Text style={s.continueBtnText}>{isLoading ? "Saving…" : "Continue"}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -639,6 +676,7 @@ export default function SellerBanking() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <SweetAlertHost />
     </View>
   );
 }

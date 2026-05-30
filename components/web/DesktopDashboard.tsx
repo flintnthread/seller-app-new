@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { EMPTY_SALES_CHART } from "@/lib/dashboard/chartDefaults";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
 import {
@@ -22,6 +21,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { DashboardTables } from "./DashboardTables";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
 import {
   SmartWelcomeHeader,
@@ -61,17 +61,24 @@ const C = {
   textLight: "#9CA3AF",
 };
 
-// ─── Import stats from shared logic ───
-export const DesktopDashboard: React.FC = () => {
+export type DesktopDashboardProps = {
+  profile: SellerProfileSummary | null;
+  profileLoading: boolean;
+};
+
+export function DesktopDashboard({
+  profile,
+  profileLoading,
+}: DesktopDashboardProps) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1200;
   const { data, reviewCount } = useDashboardData();
   const widgets = useDashboardWidgets();
-  const { profile } = useSellerProfile();
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
   const { salesChart } = useDashboardCharts(salesPeriod);
+  const welcomeName = profile?.firstName ?? (profileLoading ? "…" : "Seller");
 
   const salesDataMerged = useMemo(() => {
     const chart = salesChart ?? EMPTY_SALES_CHART;
@@ -106,14 +113,14 @@ export const DesktopDashboard: React.FC = () => {
     <View style={styles.container}>
       {/* ── 1. SMART WELCOME HEADER ── */}
       <SmartWelcomeHeader
-        name={widgets.sellerName}
+        name={welcomeName}
         totalOrders={widgets.overview?.orders ?? 0}
         salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
         pendingOrders={widgets.orderSummary?.pending ?? 0}
         views={widgets.overview?.views ?? 0}
-        referralCode={profile?.referralCode ?? ""}
-        referralGoal={profile?.referralGoal ?? 6}
-        referralTotalReferred={profile?.referralTotalReferred ?? 0}
+        referralCode=""
+        referralGoal={6}
+        referralTotalReferred={0}
       />
 
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
@@ -203,7 +210,7 @@ export const DesktopDashboard: React.FC = () => {
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {

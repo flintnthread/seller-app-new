@@ -9,7 +9,7 @@ import { clearSellerId } from '@/lib/api/sellerSession';
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isProfileCompleted, setIsProfileCompleted } = useProfileStatus();
+  const { isProfileCompleted } = useProfileStatus();
 
   // Dynamically define sections based on profile completion status
   const sections = isProfileCompleted
@@ -34,6 +34,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           items: [
             { name: 'Category Request', path: '/categoryrequest', icon: 'square.grid.2x2.fill' as const, iconColor: '#14B8A6' },
             { name: 'Payments', path: '/payoutrequest', icon: 'cart.fill' as const, iconColor: '#10B981' },
+            { name: 'Support', path: '/helpsupport', icon: 'headphones' as const, iconColor: '#6366F1' },
           ],
         },
         {
@@ -118,12 +119,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                           ]);
                         }
                       } else if (item.name === 'Complete Profile') {
-                        setIsProfileCompleted(true);
-                        if (Platform.OS === 'web') {
-                          window.alert("Profile completed successfully! Full sidebar access unlocked.");
-                        } else {
-                          Alert.alert("Success", "Profile completed successfully!");
-                        }
+                        router.push("/(main)/sellerpersonalinfo");
                       } else {
                         router.push(item.path as any);
                       }
