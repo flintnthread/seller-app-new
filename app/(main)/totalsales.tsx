@@ -1,6 +1,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  fetchAnalyticsOverview,
+  fetchPaymentMethods,
+  fetchSalesTrend,
+  fetchTopSellingProducts,
+} from '@/services/earningsApi';
 import {
   Dimensions,
   Image,
@@ -102,156 +108,51 @@ function formatDateDisplay(date: Date): string {
   return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+function rangeToTrendPeriod(range: string): string {
+  if (range === 'This Day') return 'day';
+  if (range === 'Last 7 days') return 'week';
+  if (range === 'This Month' || range === 'Last 30 Days') return 'month';
+  return 'week';
+}
 
-const ALL_TREND_DATA: Record<string, TrendPoint[]> = {
-  'This Day': [
-    { label: '8 AM',  value: 3200 }, { label: '10 AM', value: 5800 },
-    { label: '12 PM', value: 8400 }, { label: '2 PM',  value: 6700 },
-    { label: '4 PM',  value: 9100 }, { label: '6 PM',  value: 7300 },
-    { label: '8 PM',  value: 4500 },
-  ],
-  'Last 7 days': [
-    { label: '20 May', value: 9800 },  { label: '21 May', value: 17800 },
-    { label: '22 May', value: 14200 }, { label: '23 May', value: 24680 },
-    { label: '24 May', value: 17600 }, { label: '25 May', value: 11800 },
-    { label: '26 May', value: 16200 },
-  ],
-  'Last 30 Days': [
-    { label: 'W1', value: 62000 }, { label: 'W2', value: 78000 },
-    { label: 'W3', value: 54000 }, { label: 'W4', value: 91000 },
-  ],
-  'This Month': [
-    { label: 'W1', value: 62000 }, { label: 'W2', value: 78000 },
-    { label: 'W3', value: 54000 }, { label: 'W4', value: 91000 },
-  ],
-  'Custom Date Range': [
-    { label: '20 May', value: 9800 },  { label: '21 May', value: 17800 },
-    { label: '22 May', value: 14200 }, { label: '23 May', value: 24680 },
-    { label: '24 May', value: 17600 }, { label: '25 May', value: 11800 },
-    { label: '26 May', value: 16200 },
-  ],
+function totalsalesPeriodFromRange(range: string): string {
+  return rangeToTrendPeriod(range);
+}
+
+const PAYMENT_COLORS: Record<string, string> = {
+  UPI: '#0B3D91',
+  Card: '#10B981',
+  COD: '#8B5CF6',
+  'Net Banking': '#F59E0B',
+  Other: '#6B7280',
 };
 
-const ACTIVE_INDICES: Record<string, number> = {
-  'This Day': 4, 'Last 7 Days': 3, 'Last 30 Days': 2, 'This Month': 3, 'Custom Date Range': 3,
-};
+function formatIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
-const CHART_MAXES: Record<string, number> = {
-  'This Day': 12000, 'Last 7 Days': 30000, 'Last 30 Days': 120000, 'This Month': 100000, 'Custom Date Range': 30000,
-};
+function trendChartMax(values: number[]): number {
+  const max = Math.max(1, ...values);
+  if (max >= 100000) return Math.ceil(max / 20000) * 20000;
+  if (max >= 30000) return Math.ceil(max / 5000) * 5000;
+  return Math.ceil(max / 1000) * 1000;
+}
 
-const CHANNEL_DATA: Record<string, {
-  channels: Channel[]; total: number; orders: number;
-  aov: number; returns: number; cancels: number; replacements: number;
-}> = {
-  'All Channels': {
-    channels: [
-      { label: 'Mobile App', value: 78450, pct: 62.5, color: '#0B3D91' },
-      { label: 'Website',    value: 28600, pct: 37.5, color: '#ff6a00' },
-    ],
-    total: 125450, orders: 125, aov: 1003.6, returns: 2, cancels: 5, replacements: 3,
-  },
-  'Delivered': {
-    channels: [{ label: 'Delivered', value: 98000, pct: 100, color: '#10B981' }],
-    total: 98000, orders: 98, aov: 1000, returns: 0, cancels: 0, replacements: 1,
-  },
-  'Pending': {
-    channels: [{ label: 'Pending', value: 15000, pct: 100, color: '#F59E0B' }],
-    total: 15000, orders: 15, aov: 1000, returns: 0, cancels: 2, replacements: 0,
-  },
-  'Canceled': {
-    channels: [{ label: 'Canceled', value: 5200, pct: 100, color: '#EF4444' }],
-    total: 5200, orders: 5, aov: 1040, returns: 0, cancels: 5, replacements: 0,
-  },
-  'Returns': {
-    channels: [{ label: 'Returns', value: 3800, pct: 100, color: '#8B5CF6' }],
-    total: 3800, orders: 4, aov: 950, returns: 4, cancels: 0, replacements: 0,
-  },
-  'Replacements': {
-    channels: [{ label: 'Replacements', value: 2100, pct: 100, color: '#06B6D4' }],
-    total: 2100, orders: 3, aov: 700, returns: 0, cancels: 0, replacements: 3,
-  },
-  'UPI': {
-    channels: [{ label: 'UPI', value: 78450, pct: 100, color: '#0B3D91' }],
-    total: 78450, orders: 84, aov: 933.93, returns: 1, cancels: 2, replacements: 1,
-  },
-  'Card': {
-    channels: [{ label: 'Card', value: 28600, pct: 100, color: '#10B981' }],
-    total: 28600, orders: 28, aov: 1021.43, returns: 1, cancels: 1, replacements: 1,
-  },
-  'COD': {
-    channels: [{ label: 'COD', value: 11250, pct: 100, color: '#8B5CF6' }],
-    total: 11250, orders: 10, aov: 1125, returns: 0, cancels: 1, replacements: 1,
-  },
-  'Net Banking': {
-    channels: [{ label: 'Net Banking', value: 7150, pct: 100, color: '#F59E0B' }],
-    total: 7150, orders: 7, aov: 1021.43, returns: 0, cancels: 1, replacements: 0,
-  },
-};
-
-const CHANNEL_PAYMENT_METHODS: Record<string, PaymentMethod[]> = {
-  'All Channels': [
-    { label: 'UPI', value: 78450, pct: 0, color: '#0B3D91' },
-    { label: 'Card', value: 28600, pct: 0, color: '#10B981' },
-    { label: 'COD', value: 11250, pct: 0, color: '#8B5CF6' },
-    { label: 'Net Banking', value: 7150, pct: 0, color: '#F59E0B' },
-  ],
-  'UPI': [{ label: 'UPI', value: 78450, pct: 0, color: '#0B3D91' }],
-  'Card': [{ label: 'Card', value: 28600, pct: 0, color: '#10B981' }],
-  'COD': [{ label: 'COD', value: 11250, pct: 0, color: '#8B5CF6' }],
-  'Net Banking': [{ label: 'Net Banking', value: 7150, pct: 0, color: '#F59E0B' }],
-};
-
-const getPaymentMethodsForChannel = (channel: string): PaymentMethod[] => {
-  const methods = CHANNEL_PAYMENT_METHODS[channel as keyof typeof CHANNEL_PAYMENT_METHODS] ?? CHANNEL_PAYMENT_METHODS['All Channels'];
-  const total = methods.reduce((sum, item) => sum + item.value, 0);
-
-  const computed = methods.map((item) => ({
-    ...item,
-    pct: total > 0 ? Number(((item.value / total) * 100).toFixed(1)) : 0,
-  })) as PaymentMethod[];
-
-  if (computed.length > 0 && total > 0) {
-    const sumPct = computed.reduce((sum, item) => sum + item.pct, 0);
-    const delta = Number((100 - sumPct).toFixed(1));
-    if (delta !== 0) {
-      const lastIndex = computed.length - 1;
-      const lastItem = computed[lastIndex];
-      if (lastItem) {
-        computed[lastIndex] = { ...lastItem, pct: Number((lastItem.pct + delta).toFixed(1)) };
-      }
-    }
+function trendYLabels(chartMax: number): string[] {
+  if (chartMax >= 100000) {
+    const step = chartMax / 3;
+    return [`₹${Math.round(step * 3 / 1000)}K`, `₹${Math.round(step * 2 / 1000)}K`, `₹${Math.round(step / 1000)}K`, '₹0'];
   }
-  return computed;
-};
-
-const ALL_PRODUCTS: Product[] = [
-  { name: 'Cotton Kurti', qty: 45, value: 35910, pct: 28.6, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
-  { name: 'Floral Maxi Dress', qty: 32, value: 26880, pct: 21.4, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
-  { name: 'Handbag', qty: 28, value: 20972, pct: 16.7, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
-];
-
-const CHANNEL_PRODUCTS: Record<string, Product[]> = {
-  'All Channels': ALL_PRODUCTS,
-  'Delivered': ALL_PRODUCTS,
-  'Pending': ALL_PRODUCTS,
-  'Canceled': ALL_PRODUCTS,
-  'Returns': ALL_PRODUCTS,
-  'Replacements': ALL_PRODUCTS,
-  'UPI': [
-    { name: 'Cotton Kurti', qty: 30, value: 23940, pct: 30.5, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
-    { name: 'Floral Maxi Dress', qty: 22, value: 18480, pct: 23.6, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
-    { name: 'Handbag', qty: 15, value: 11235, pct: 14.3, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
-  ],
-  'Card': [
-    { name: 'Handbag', qty: 13, value: 9737, pct: 34.0, uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=200&q=70' },
-    { name: 'Floral Maxi Dress', qty: 10, value: 8400, pct: 29.4, uri: 'https://images.unsplash.com/photo-1520975693411-0b54d1c6424e?auto=format&fit=crop&w=200&q=70' },
-    { name: 'Cotton Kurti', qty: 8, value: 6384, pct: 22.3, uri: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=200&q=70' },
-  ],
-  'COD': ALL_PRODUCTS,
-  'Net Banking': ALL_PRODUCTS,
-};
+  if (chartMax >= 30000) {
+    const step = chartMax / 3;
+    return [`₹${Math.round(step * 3 / 1000)}K`, `₹${Math.round(step * 2 / 1000)}K`, `₹${Math.round(step / 1000)}K`, '₹0'];
+  }
+  const step = chartMax / 3;
+  return [`₹${Math.round(step * 3 / 1000)}K`, `₹${Math.round(step * 2 / 1000)}K`, `₹${Math.round(step / 1000)}K`, '₹0'];
+}
 
 // ─── Smooth Path ──────────────────────────────────────────────────────────────
 
@@ -393,17 +294,60 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, end
 
 // ─── Sales Trend Chart ────────────────────────────────────────────────────────
 
-const SalesTrendChart: React.FC<{ range: string }> = ({ range }) => {
+const SalesTrendChart: React.FC<{ range: string; customFrom?: Date; customTo?: Date }> = ({
+  range,
+  customFrom,
+  customTo,
+}) => {
   const W = SW - 32 - 46 - 12;
   const H = 170;
   const P = 10;
 
-  const fallbackTrendData = ALL_TREND_DATA['Last 7 days']!;
-  const trendData = ALL_TREND_DATA[range] ?? fallbackTrendData;
-  const chartMax = CHART_MAXES[range] ?? 30000;
-  const activeIndex = ACTIVE_INDICES[range] ?? 3;
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const xs = trendData.map((_, i) => (i / (trendData.length - 1)) * (W - P * 2) + P);
+  useEffect(() => {
+    if (range === 'Custom Date Range' && customFrom && customTo) {
+      setLoading(true);
+      fetchSalesTrend('week', formatIsoDate(customFrom), formatIsoDate(customTo))
+        .then((pts) => setTrendData(pts.map((p) => ({ label: p.label, value: p.value }))))
+        .catch(() => setTrendData([]))
+        .finally(() => setLoading(false));
+      return;
+    }
+    if (range === 'Custom Date Range') {
+      setTrendData([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetchSalesTrend(rangeToTrendPeriod(range))
+      .then((pts) => setTrendData(pts.map((p) => ({ label: p.label, value: p.value }))))
+      .catch(() => setTrendData([]))
+      .finally(() => setLoading(false));
+  }, [range, customFrom, customTo]);
+
+  if (loading) {
+    return (
+      <View style={[s.trendRow, { minHeight: H, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: C.textLight }}>Loading chart…</Text>
+      </View>
+    );
+  }
+
+  if (trendData.length === 0) {
+    return (
+      <View style={[s.trendRow, { minHeight: H, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: C.textLight }}>No sales data for this period</Text>
+      </View>
+    );
+  }
+
+  const chartMax = trendChartMax(trendData.map((p) => p.value));
+  const activeIndex = Math.max(0, trendData.length - 1);
+  const denom = Math.max(1, trendData.length - 1);
+
+  const xs = trendData.map((_, i) => (i / denom) * (W - P * 2) + P);
   const ys = trendData.map(({ value }) => H - (Math.max(0, Math.min(chartMax, value)) / chartMax) * (H - P * 2) - P);
 
   const path = buildSmoothPath(xs, ys);
@@ -413,11 +357,7 @@ const SalesTrendChart: React.FC<{ range: string }> = ({ range }) => {
   const activePoint = trendData[activeIndex];
   const lastIndex = xs.length - 1;
 
-  const yLabels = chartMax >= 100000
-    ? ['₹120K', '₹80K', '₹40K', '₹0']
-    : chartMax >= 30000
-    ? ['₹30K', '₹20K', '₹10K', '₹0']
-    : ['₹12K', '₹8K', '₹4K', '₹0'];
+  const yLabels = trendYLabels(chartMax);
 
   return (
     <View style={s.trendRow}>
@@ -737,9 +677,91 @@ const TotalSalesScreen: React.FC = () => {
   // ── NEW: calendar opened from "Custom Date Range" in Sales Trend dropdown ──
   const [showTrendCal, setShowTrendCal] = useState(false);
 
-  const channelData = CHANNEL_DATA[selectedChannel] ?? CHANNEL_DATA['All Channels']!;
-  const products = CHANNEL_PRODUCTS[selectedChannel] ?? CHANNEL_PRODUCTS['All Channels']!;
-  const paymentMethods = getPaymentMethodsForChannel(selectedChannel);
+  const [apiOverview, setApiOverview] = useState<{
+    total: number; orders: number; aov: number; returns: number;
+    cancels: number; replacements: number;
+    channels: Channel[];
+  } | null>(null);
+  const [apiPaymentMethods, setApiPaymentMethods] = useState<PaymentMethod[] | null>(null);
+  const [apiProducts, setApiProducts] = useState<{ name: string; qty: number; value: number; pct: number; uri: string }[] | null>(null);
+
+  useEffect(() => {
+    const period = totalsalesPeriodFromRange(selectedRange);
+    fetchAnalyticsOverview(period, selectedChannel)
+      .then((s) => {
+        const total = Number(s.total ?? 0);
+        const orders = s.orders ?? 0;
+        const channelTotal = s.channels.reduce((sum, c) => sum + Number(c.amount ?? 0), 0) || total;
+        setApiOverview({
+          total,
+          orders,
+          aov: s.aov ?? (orders > 0 ? Math.round(total / orders) : 0),
+          returns: s.returns ?? 0,
+          cancels: s.cancels ?? 0,
+          replacements: s.replacements ?? 0,
+          channels: s.channels.map((c) => ({
+            label: c.name,
+            value: Number(c.amount ?? 0),
+            pct: channelTotal > 0 ? (Number(c.amount ?? 0) / channelTotal) * 100 : 0,
+            color: PAYMENT_COLORS[c.name] ?? '#0B3D91',
+          })),
+        });
+      })
+      .catch(() => setApiOverview(null));
+    fetchPaymentMethods(period)
+      .then((methods) => {
+        setApiPaymentMethods(
+          methods.map((m) => ({
+            label: m.label,
+            value: m.value,
+            pct: m.pct,
+            color: PAYMENT_COLORS[m.label] ?? PAYMENT_COLORS.Other,
+          }))
+        );
+      })
+      .catch(() => setApiPaymentMethods(null));
+    fetchTopSellingProducts(5)
+      .then((rows) => {
+        const totalSold = rows.reduce((sum, p) => sum + p.sold, 0) || 1;
+        setApiProducts(
+          rows.map((p) => {
+            const priceNum = Number(String(p.price).replace(/[^\d.]/g, "")) || 0;
+            const value = priceNum * p.sold;
+            return {
+              name: p.name,
+              qty: p.sold,
+              value,
+              pct: (p.sold / totalSold) * 100,
+              uri: p.image || "",
+            };
+          })
+        );
+      })
+      .catch(() => setApiProducts(null));
+  }, [selectedRange, selectedChannel]);
+
+  const emptyChannel = {
+    channels: [] as Channel[],
+    total: 0,
+    orders: 0,
+    aov: 0,
+    returns: 0,
+    cancels: 0,
+    replacements: 0,
+  };
+  const channelData = apiOverview
+    ? {
+        channels: apiOverview.channels,
+        total: apiOverview.total,
+        orders: apiOverview.orders,
+        aov: apiOverview.aov,
+        returns: apiOverview.returns,
+        cancels: apiOverview.cancels,
+        replacements: apiOverview.replacements,
+      }
+    : emptyChannel;
+  const products = apiProducts ?? [];
+  const paymentMethods = apiPaymentMethods ?? [];
   const paymentTotal = paymentMethods.reduce((sum, item) => sum + item.value, 0);
   const dateRangeLabel = `${formatDateShort(filterStart)} – ${formatDateShort(filterEnd)} ${filterEnd.getFullYear()}`;
 
@@ -893,7 +915,11 @@ const TotalSalesScreen: React.FC = () => {
               onCustomRange={() => setShowTrendCal(true)}
             />
           </View>
-          <SalesTrendChart range={selectedRange} />
+          <SalesTrendChart
+            range={selectedRange}
+            customFrom={selectedRange === 'Custom Date Range' ? filterStart : undefined}
+            customTo={selectedRange === 'Custom Date Range' ? filterEnd : undefined}
+          />
         </View>
 
         {/* ── Sales by Payment Method ── */}

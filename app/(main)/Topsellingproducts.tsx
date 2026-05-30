@@ -5,9 +5,10 @@ import {
   MaterialIcons,
 } from '@expo/vector-icons';
 
-import { useMemo, useRef, useState } from 'react';
-
+import { useMemo, useRef, useState, useEffect } from 'react';
+import { fetchTopSellingProducts, type TopSellingProduct } from '@/services/earningsApi';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -22,153 +23,49 @@ import {
   View,
 } from 'react-native';
 
-const initialProducts = [
-  {
-    id: 1,
-    name: 'Cotton Kurti',
-    category: 'Womens Wear',
-    price: 799,
-    oldPrice: 1299,
-    discount: '38% OFF',
-    qty: 45,
-    sales: 35910,
-    rating: 4.3,
+type TopProductRow = {
+  id: number;
+  name: string;
+  category: string;
+  price: number;
+  oldPrice: number;
+  discount: string;
+  qty: number;
+  sales: number;
+  rating: number | null;
+  isWishlist: boolean;
+  added: boolean;
+  image: string;
+};
+
+function parseInrAmount(value?: string | null): number {
+  if (!value) return 0;
+  return Number(String(value).replace(/[^\d.]/g, "")) || 0;
+}
+
+function mapTopProduct(p: TopSellingProduct, idx: number): TopProductRow {
+  const price = parseInrAmount(p.price);
+  const sold = p.sold ?? 0;
+  const sales = price * sold;
+  const oldPrice = parseInrAmount(p.mrp);
+  return {
+    id: Number(p.id) || idx + 1,
+    name: p.name,
+    category: p.category || "—",
+    price,
+    oldPrice,
+    discount: p.discount?.trim() ? p.discount : "—",
+    qty: sold,
+    sales,
+    rating: p.avgRating != null && p.avgRating > 0 ? p.avgRating : null,
     isWishlist: false,
     added: false,
-    image: 'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?q=80&w=800',
-  },
-  {
-    id: 2,
-    name: 'Floral Maxi Dress',
-    category: 'Womens Wear',
-    price: 899,
-    oldPrice: 1799,
-    discount: '50% OFF',
-    qty: 32,
-    sales: 26880,
-    rating: 4.5,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=800',
-  },
-  {
-    id: 3,
-    name: 'Leather Handbag',
-    category: 'Accessories',
-    price: 749,
-    oldPrice: 1499,
-    discount: '50% OFF',
-    qty: 28,
-    sales: 20972,
-    rating: 4.2,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800',
-  },
-  {
-    id: 4,
-    name: 'Casual Sneakers',
-    category: 'Footwear',
-    price: 1299,
-    oldPrice: 2499,
-    discount: '48% OFF',
-    qty: 26,
-    sales: 33774,
-    rating: 4.4,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800',
-  },
-  {
-    id: 5,
-    name: 'Analog Watch',
-    category: 'Accessories',
-    price: 649,
-    oldPrice: 1299,
-    discount: '50% OFF',
-    qty: 24,
-    sales: 15576,
-    rating: 4.1,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?q=80&w=800',
-  },
-  {
-    id: 6,
-    name: 'Mens Denim Jacket',
-    category: 'Mens Wear',
-    price: 1899,
-    oldPrice: 2999,
-    discount: '36% OFF',
-    qty: 20,
-    sales: 28500,
-    rating: 4.6,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800',
-  },
-  {
-    id: 7,
-    name: 'Mens Party Dress',
-    category: 'Mens Wear',
-    price: 999,
-    oldPrice: 1599,
-    discount: '38% OFF',
-    qty: 35,
-    sales: 19450,
-    rating: 4.5,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=800',
-  },
-  {
-    id: 8,
-    name: 'Kids Party Dress',
-    category: 'Kids Wear',
-    price: 999,
-    oldPrice: 1599,
-    discount: '38% OFF',
-    qty: 35,
-    sales: 19450,
-    rating: 4.5,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?q=80&w=800',
-  },
-  {
-    id: 9,
-    name: 'Sports T-Shirt',
-    category: 'Sportswear',
-    price: 699,
-    oldPrice: 1199,
-    discount: '42% OFF',
-    qty: 42,
-    sales: 31400,
-    rating: 4.4,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?q=80&w=800',
-  },
-  {
-    id: 10,
-    name: 'Homely Storage Basket',
-    category: 'Homely Hub',
-    price: 549,
-    oldPrice: 999,
-    discount: '45% OFF',
-    qty: 30,
-    sales: 12100,
-    rating: 4.0,
-    isWishlist: false,
-    added: false,
-    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?q=80&w=800',
-  },
-];
+    image: p.image || "",
+  };
+}
 
 const sortOptions = ['Price Low to High', 'Price High to Low', 'Top Rated', 'Best Selling'];
 const filterOptions = ['All', 'Above 4 Rating', 'Price Below ₹1000', 'Wishlist Only', 'Custom Date Range'];
-const categoryOptions = ['All', 'Womens Wear', 'Mens Wear', 'Kids Wear', 'Sportswear', 'Accessories', 'Footwear', 'Sweets', 'Homely Hub'];
-
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -351,7 +248,19 @@ const calStyles = StyleSheet.create({
 });
 
 export default function TopSellingProducts() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<TopProductRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchTopSellingProducts(50)
+      .then((rows) => {
+        setProducts(rows.map(mapTopProduct));
+      })
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   const [searchText, setSearchText] = useState('');
   const [sortModal, setSortModal] = useState(false);
   const [filterModal, setFilterModal] = useState(false);
@@ -359,6 +268,21 @@ export default function TopSellingProducts() {
   const [selectedSort, setSelectedSort] = useState('Best Selling');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const categoryOptions = useMemo(() => {
+    const cats = new Set<string>();
+    for (const p of products) {
+      const c = p.category?.trim();
+      if (c && c !== "—") cats.add(c);
+    }
+    return ["All", ...Array.from(cats).sort((a, b) => a.localeCompare(b))];
+  }, [products]);
+
+  useEffect(() => {
+    if (selectedCategory !== "All" && !categoryOptions.includes(selectedCategory)) {
+      setSelectedCategory("All");
+    }
+  }, [categoryOptions, selectedCategory]);
   const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
   const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -389,12 +313,16 @@ export default function TopSellingProducts() {
     let data = [...products];
     if (searchText.trim() !== '') data = data.filter(item => item.name.toLowerCase().includes(searchText.toLowerCase()));
     if (selectedCategory !== 'All') data = data.filter(item => item.category === selectedCategory);
-    if (selectedFilter === 'Above 4 Rating') data = data.filter(item => item.rating >= 4);
+    if (selectedFilter === 'Above 4 Rating') {
+      data = data.filter(item => item.rating != null && item.rating >= 4);
+    }
     if (selectedFilter === 'Price Below ₹1000') data = data.filter(item => item.price < 1000);
     if (selectedFilter === 'Wishlist Only') data = data.filter(item => item.isWishlist);
     if (selectedSort === 'Price Low to High') data.sort((a, b) => a.price - b.price);
     if (selectedSort === 'Price High to Low') data.sort((a, b) => b.price - a.price);
-    if (selectedSort === 'Top Rated') data.sort((a, b) => b.rating - a.rating);
+    if (selectedSort === 'Top Rated') {
+      data.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    }
     if (selectedSort === 'Best Selling') data.sort((a, b) => b.sales - a.sales);
     return data;
   }, [products, searchText, selectedSort, selectedFilter, selectedCategory]);
@@ -507,23 +435,39 @@ export default function TopSellingProducts() {
     </Modal>
   );
 
-  const renderProduct = ({ item }: { item: (typeof initialProducts)[0] }) => (
+  const renderProduct = ({ item }: { item: TopProductRow }) => (
     <View style={styles.card}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
+      {item.image ? (
+        <Image source={{ uri: item.image }} style={styles.productImage} />
+      ) : (
+        <View style={[styles.productImage, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
+          <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
+        </View>
+      )}
       <View style={styles.productDetails}>
         <Text style={styles.productName}>{item.name}</Text>
         <Text style={styles.category}>{item.category}</Text>
         <View style={styles.ratingRow}>
-          <AntDesign name="star" size={15} color="#FF8C00" />
-          <Text style={styles.rating}>{item.rating}</Text>
+          {item.rating != null ? (
+            <>
+              <AntDesign name="star" size={15} color="#FF8C00" />
+              <Text style={styles.rating}>{item.rating}</Text>
+            </>
+          ) : (
+            <Text style={[styles.rating, { color: "#9CA3AF" }]}>No ratings</Text>
+          )}
           <View style={styles.bestSellerBadge}>
             <Text style={styles.bestSellerText}>Bestseller</Text>
           </View>
         </View>
         <View style={styles.priceRow}>
           <Text style={styles.price}>₹{item.price}</Text>
-          <Text style={styles.oldPrice}>₹{item.oldPrice}</Text>
-          <Text style={styles.discount}>{item.discount}</Text>
+          {item.oldPrice > item.price ? (
+            <Text style={styles.oldPrice}>₹{item.oldPrice}</Text>
+          ) : null}
+          {item.discount !== "—" ? (
+            <Text style={styles.discount}>{item.discount}</Text>
+          ) : null}
         </View>
         <Text style={styles.salesText}>Qty: {item.qty} • ₹{item.sales.toLocaleString()} Sales</Text>
       </View>
@@ -586,6 +530,11 @@ export default function TopSellingProducts() {
         <Text style={styles.productCount}>{filteredProducts.length} Products</Text>
       </View>
 
+      {loading ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <ActivityIndicator size="large" color="#0A2A66" />
+        </View>
+      ) : (
       <FlatList
         data={filteredProducts}
         keyExtractor={item => item.id.toString()}
@@ -593,7 +542,13 @@ export default function TopSellingProducts() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         style={styles.content}
+        ListEmptyComponent={
+          <View style={{ padding: 32, alignItems: "center" }}>
+            <Text style={{ color: "#6B7280" }}>No top products yet.</Text>
+          </View>
+        }
       />
+      )}
 
       <View style={styles.bottomTab}>
         <TouchableOpacity style={styles.tabItem}>

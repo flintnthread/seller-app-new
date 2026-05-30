@@ -35,11 +35,27 @@ const C = {
 };
 
 // ─── 1. SMART WELCOME HEADER ───
-const REFERRAL_CODE = "F&T-THEL-0023611";
-const REFERRAL_GOAL = 6;
-const REFERRAL_CURRENT = 0;
+type WelcomeHeaderProps = {
+  name?: string;
+  totalOrders?: number;
+  salesFormatted?: string;
+  pendingOrders?: number;
+  views?: number;
+  referralCode?: string;
+  referralGoal?: number;
+  referralTotalReferred?: number;
+};
 
-export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya" }) => {
+export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
+  name = "Seller",
+  totalOrders = 0,
+  salesFormatted = "₹0",
+  pendingOrders = 0,
+  views = 0,
+  referralCode = "",
+  referralGoal = 6,
+  referralTotalReferred = 0,
+}) => {
   const router = useRouter();
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
@@ -70,7 +86,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
   const handleCopy = () => {
     if (Platform.OS === "web") {
       // @ts-ignore
-      navigator?.clipboard?.writeText(REFERRAL_CODE);
+      if (referralCode) navigator?.clipboard?.writeText(referralCode);
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -79,7 +95,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
   const handleShare = async () => {
     const shareData = {
       title: "Join F&T Marketplace!",
-      text: `Use my referral code ${REFERRAL_CODE} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
+      text: `Use my referral code ${referralCode || "—"} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
       url: "https://fandt.app/register",
     };
     if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
@@ -97,7 +113,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
     }
   };
 
-  const progressPct = Math.min((REFERRAL_CURRENT / REFERRAL_GOAL) * 100, 100);
+  const progressPct = referralGoal > 0 ? Math.min((referralTotalReferred / referralGoal) * 100, 100) : 0;
 
   return (
     <View style={welcomeStyles.container}>
@@ -106,10 +122,11 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
         <View style={welcomeStyles.heroText}>
           <AppText style={welcomeStyles.title}>{greeting}, {name} 👋</AppText>
           <AppText style={welcomeStyles.subtitle}>
-            Your store sales increased by <AppText style={welcomeStyles.highlight}>18%</AppText> this week. You received <AppText style={welcomeStyles.highlight}>12 new orders</AppText> today.
+            You have <AppText style={welcomeStyles.highlight}>{totalOrders} orders</AppText> and{" "}
+            <AppText style={welcomeStyles.highlight}>{salesFormatted}</AppText> in total sales.
           </AppText>
           <AppText style={welcomeStyles.motivation}>
-            ✨ Keep it up! High customer traffic detected in Clothing categories.
+            ✨ {pendingOrders > 0 ? `${pendingOrders} orders need your attention.` : "All caught up — no pending orders."}
           </AppText>
         </View>
 
@@ -138,25 +155,25 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.green }]} />
             <AppText style={welcomeStyles.statText}>
-              Today's Sales: <AppText style={welcomeStyles.statValue}>₹12,450</AppText>
+              Total Sales: <AppText style={welcomeStyles.statValue}>{salesFormatted}</AppText>
             </AppText>
-            <AppText style={[welcomeStyles.statBadge, { color: C.green, backgroundColor: C.greenPale }]}>+8%</AppText>
           </View>
           <View style={welcomeStyles.statDivider} />
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.purple }]} />
             <AppText style={welcomeStyles.statText}>
-              Pending Orders: <AppText style={welcomeStyles.statValue}>3</AppText>
+              Pending Orders: <AppText style={welcomeStyles.statValue}>{pendingOrders}</AppText>
             </AppText>
-            <AppText style={[welcomeStyles.statBadge, { color: C.purple, backgroundColor: C.purplePale }]}>Action</AppText>
+            {pendingOrders > 0 ? (
+              <AppText style={[welcomeStyles.statBadge, { color: C.purple, backgroundColor: C.purplePale }]}>Action</AppText>
+            ) : null}
           </View>
           <View style={welcomeStyles.statDivider} />
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.blue }]} />
             <AppText style={welcomeStyles.statText}>
-              Live Visitors: <AppText style={welcomeStyles.statValue}>1,245</AppText>
+              Product Views: <AppText style={welcomeStyles.statValue}>{views.toLocaleString("en-IN")}</AppText>
             </AppText>
-            <AppText style={[welcomeStyles.statBadge, { color: C.blue, backgroundColor: C.bluePale }]}>+15%</AppText>
           </View>
         </View>
       </View>
@@ -184,7 +201,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
         <View style={welcomeStyles.refProgressWrap}>
           <View style={welcomeStyles.refProgressRow}>
             <AppText style={welcomeStyles.refProgressLabel}>
-              {REFERRAL_CURRENT} / {REFERRAL_GOAL} sellers invited
+              {referralTotalReferred} / {referralGoal} sellers invited
             </AppText>
             <AppText style={welcomeStyles.refProgressPct}>{Math.round(progressPct)}%</AppText>
           </View>
@@ -192,7 +209,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
             <View style={[welcomeStyles.refBarFill, { width: `${progressPct || 4}%` as any }]} />
           </View>
           <AppText style={welcomeStyles.refGoalNote}>
-            🏆 Invite {REFERRAL_GOAL - REFERRAL_CURRENT} more sellers to unlock ₹2,500 bonus!
+            🏆 Invite {Math.max(0, referralGoal - referralTotalReferred)} more sellers to unlock ₹2,500 bonus!
           </AppText>
         </View>
 
@@ -200,7 +217,7 @@ export const SmartWelcomeHeader: React.FC<{ name?: string }> = ({ name = "Priya"
         <View style={welcomeStyles.refCodeWrap}>
           <View style={{ flex: 1 }}>
             <AppText style={welcomeStyles.refCodeLabel}>YOUR REFERRAL CODE</AppText>
-            <AppText style={welcomeStyles.refCode}>{REFERRAL_CODE}</AppText>
+            <AppText style={welcomeStyles.refCode}>{referralCode || "—"}</AppText>
           </View>
           <View style={{ flexDirection: "row", gap: 6 }}>
             <TouchableOpacity
@@ -526,14 +543,16 @@ const welcomeStyles = StyleSheet.create({
 });
 
 // ─── 3. REAL-TIME ACTIVITY FEED ───
-export const RealTimeActivityFeed: React.FC = () => {
-  const activities = [
-    { text: "New order #ORD123456 received from Priya Sharma", time: "5 mins ago", icon: "shopping", color: C.purple, bg: C.purplePale },
-    { text: "Customer Anjali Mehta left a 5-star review on Cotton Kurti", time: "1 hour ago", icon: "star", color: C.yellow, bg: C.yellowPale },
-    { text: "Product stock 'Silk Dupatta' is low (only 3 units left)", time: "2 hours ago", icon: "alert-decagram", color: C.red, bg: C.redPale },
-    { text: "Payment payout of ₹12,450 credited to HDFC bank account", time: "1 day ago", icon: "cash-check", color: C.green, bg: C.greenPale },
-    { text: "Product 'Women's Sandals' added to 14 wishlists today", time: "1 day ago", icon: "heart", color: C.pink, bg: C.pinkPale },
-  ];
+type ActivityItem = { id: string; text: string; time: string; icon: string };
+
+export const RealTimeActivityFeed: React.FC<{ activities?: ActivityItem[] }> = ({ activities = [] }) => {
+  const iconColors: Record<string, { color: string; bg: string }> = {
+    "cart-outline": { color: C.purple, bg: C.purplePale },
+    "shopping": { color: C.purple, bg: C.purplePale },
+    star: { color: C.yellow, bg: C.yellowPale },
+    "alert-decagram": { color: C.red, bg: C.redPale },
+  };
+  const defaultStyle = { color: C.blue, bg: C.bluePale };
 
   return (
     <View style={panelStyles.card}>
@@ -545,17 +564,24 @@ export const RealTimeActivityFeed: React.FC = () => {
         </View>
       </View>
       <View style={panelStyles.list}>
-        {activities.map((act, i) => (
-          <View key={i} style={panelStyles.item}>
-            <View style={[panelStyles.iconWrap, { backgroundColor: act.bg }]}>
-              <MaterialCommunityIcons name={act.icon as any} size={16} color={act.color} />
-            </View>
-            <View style={panelStyles.content}>
-              <AppText style={panelStyles.itemText}>{act.text}</AppText>
-              <AppText style={panelStyles.itemTime}>{act.time}</AppText>
-            </View>
-          </View>
-        ))}
+        {activities.length === 0 ? (
+          <AppText style={panelStyles.itemTime}>No recent activity yet.</AppText>
+        ) : (
+          activities.map((act) => {
+            const style = iconColors[act.icon] ?? defaultStyle;
+            return (
+              <View key={act.id} style={panelStyles.item}>
+                <View style={[panelStyles.iconWrap, { backgroundColor: style.bg }]}>
+                  <MaterialCommunityIcons name={act.icon as any} size={16} color={style.color} />
+                </View>
+                <View style={panelStyles.content}>
+                  <AppText style={panelStyles.itemText}>{act.text}</AppText>
+                  <AppText style={panelStyles.itemTime}>{act.time}</AppText>
+                </View>
+              </View>
+            );
+          })
+        )}
       </View>
     </View>
   );
@@ -643,12 +669,40 @@ const panelStyles = StyleSheet.create({
 });
 
 // ─── 4. AI BUSINESS INSIGHTS SECTION ───
-export const AIBusinessInsights: React.FC = () => {
-  const insights = [
-    { text: "Suggested Discount: Apply 15% off on Cotton Kurtis to lift checkout conversions by 4.2%.", priority: "HIGH PRIORITY", color: C.pink, bg: C.pinkPale },
-    { text: "Trending Categories: Clothing accessories are rising 30% MoM in your local geographic area.", priority: "MARKET TREND", color: C.purple, bg: C.purplePale },
-    { text: "Smart Pricing: Lower Ethnic Saree to ₹1,999 to potentially secure 2x listing views.", priority: "STABLE ADVICE", color: C.teal, bg: C.tealPale },
-  ];
+type InsightLowStock = { name: string; stock: number };
+type InsightTopProduct = { name: string; sold: number };
+
+export const AIBusinessInsights: React.FC<{
+  lowStock?: InsightLowStock[];
+  topProducts?: InsightTopProduct[];
+}> = ({ lowStock = [], topProducts = [] }) => {
+  const insights: { text: string; priority: string; color: string; bg: string }[] = [];
+  if (lowStock.length > 0) {
+    const item = lowStock[0]!;
+    insights.push({
+      text: `Low stock: "${item.name}" has only ${item.stock} unit(s) left. Consider restocking.`,
+      priority: "INVENTORY",
+      color: C.red,
+      bg: C.redPale,
+    });
+  }
+  if (topProducts.length > 0) {
+    const top = topProducts[0]!;
+    insights.push({
+      text: `Top seller: "${top.name}" with ${top.sold} unit(s) sold. Promote similar listings.`,
+      priority: "SALES",
+      color: C.purple,
+      bg: C.purplePale,
+    });
+  }
+  if (insights.length === 0) {
+    insights.push({
+      text: "Add products and fulfill orders to unlock store insights.",
+      priority: "INFO",
+      color: C.teal,
+      bg: C.tealPale,
+    });
+  }
 
   return (
     <View style={panelStyles.card}>
@@ -697,51 +751,40 @@ const aiStyles = StyleSheet.create({
   },
 });
 
-// ─── 5. SALES HEATMAP ───
-export const SalesHeatmap: React.FC = () => {
-  // Render GitHub-style activity matrix grid
-  const cols = 15;
-  const rows = 7;
-  const opacityMatrix = [
-    [0.1, 0.4, 0.8, 0.2, 0.5, 0.9, 0.1, 0.3, 0.7, 0.2, 0.4, 0.8, 0.1, 0.5, 0.9],
-    [0.3, 0.1, 0.5, 0.8, 0.2, 0.4, 0.7, 0.1, 0.3, 0.6, 0.9, 0.1, 0.4, 0.8, 0.2],
-    [0.6, 0.9, 0.1, 0.3, 0.6, 0.8, 0.2, 0.4, 0.9, 0.1, 0.5, 0.7, 0.2, 0.3, 0.6],
-    [0.2, 0.4, 0.7, 0.1, 0.5, 0.9, 0.1, 0.3, 0.6, 0.8, 0.2, 0.4, 0.7, 0.1, 0.5],
-    [0.5, 0.8, 0.2, 0.4, 0.7, 0.1, 0.4, 0.8, 0.2, 0.5, 0.9, 0.1, 0.3, 0.6, 0.8],
-    [0.9, 0.1, 0.3, 0.6, 0.8, 0.2, 0.5, 0.9, 0.1, 0.4, 0.7, 0.2, 0.5, 0.9, 0.1],
-    [0.1, 0.5, 0.9, 0.1, 0.3, 0.7, 0.2, 0.4, 0.8, 0.1, 0.3, 0.6, 0.8, 0.2, 0.4],
-  ];
+// ─── 5. SALES HEATMAP (weekly trend bars) ───
+export const SalesHeatmap: React.FC<{ points?: { label: string; value: number }[] }> = ({ points = [] }) => {
+  const maxVal = Math.max(...points.map((p) => p.value), 1);
+  const barH = 72;
 
   return (
     <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <View style={panelStyles.header}>
-        <AppText style={panelStyles.title}>Hourly Sales Heatmap</AppText>
-        <AppText style={panelStyles.liveText}>Past 30 Days Activity</AppText>
+        <AppText style={panelStyles.title}>Weekly Sales Trend</AppText>
+        <AppText style={panelStyles.liveText}>From dashboard API</AppText>
       </View>
       <View style={heatmapStyles.gridWrap}>
-        <Svg width="100%" height={100} viewBox="0 0 320 100">
-          {Array.from({ length: cols }).map((_, c) =>
-            Array.from({ length: rows }).map((_, r) => {
-              const opVal = opacityMatrix[r]?.[c] ?? 0.1;
+        {points.length === 0 ? (
+          <AppText style={heatmapStyles.metaText}>No sales data for this period.</AppText>
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", height: barH + 24, width: "100%", paddingHorizontal: 4 }}>
+            {points.map((p, i) => {
+              const h = Math.max(4, (p.value / maxVal) * barH);
               return (
-                <Rect
-                  key={`${c}-${r}`}
-                  x={c * 20 + 10}
-                  y={r * 12 + 6}
-                  width={16}
-                  height={9}
-                  rx={2}
-                  fill={C.purple}
-                  opacity={opVal}
-                />
+                <View key={i} style={{ alignItems: "center", flex: 1 }}>
+                  <View style={{ width: "70%", maxWidth: 28, height: h, backgroundColor: C.purple, borderRadius: 4, opacity: 0.85 }} />
+                  <AppText style={{ fontSize: 9, fontFamily: "Poppins_500Medium", color: C.textLight, marginTop: 6 }} numberOfLines={1}>
+                    {p.label}
+                  </AppText>
+                </View>
               );
-            })
-          )}
-        </Svg>
+            })}
+          </View>
+        )}
       </View>
       <View style={heatmapStyles.meta}>
         <AppText style={heatmapStyles.metaText}>
-          🔥 <AppText style={heatmapStyles.bold}>Peak orders</AppText> are typically placed between <AppText style={heatmapStyles.bold}>4 PM - 7 PM</AppText> on Saturdays.
+          Total units this week:{" "}
+          <AppText style={heatmapStyles.bold}>{points.reduce((s, p) => s + p.value, 0)}</AppText>
         </AppText>
       </View>
     </View>
@@ -770,38 +813,51 @@ const heatmapStyles = StyleSheet.create({
 });
 
 // ─── 7. SMART INVENTORY MONITORING ───
-export const SmartInventoryMonitoring: React.FC = () => {
-  const lowStocks = [
-    { name: "Nike Running Shoes", stock: "2 left", color: C.red },
-    { name: "Floral Summer Hoodie", stock: "5 left", color: C.orange },
-  ];
+type LowStockItem = { id: string; name: string; stock: number };
+
+export const SmartInventoryMonitoring: React.FC<{
+  lowStock?: LowStockItem[];
+  totalProducts?: number;
+}> = ({ lowStock = [], totalProducts = 0 }) => {
+  const healthPct =
+    totalProducts > 0
+      ? Math.round(((totalProducts - lowStock.length) / totalProducts) * 100)
+      : 100;
+  const healthColor = healthPct >= 70 ? C.green : healthPct >= 40 ? C.orange : C.red;
 
   return (
     <View style={panelStyles.card}>
       <View style={panelStyles.header}>
         <AppText style={panelStyles.title}>Smart Inventory Health</AppText>
-        <AppText style={[panelStyles.liveText, { color: C.green }]}>Health: 82%</AppText>
+        <AppText style={[panelStyles.liveText, { color: healthColor }]}>Health: {healthPct}%</AppText>
       </View>
       
       <View style={inventoryStyles.healthBarWrap}>
         <View style={inventoryStyles.barBg}>
-          <View style={[inventoryStyles.barFill, { width: "82%", backgroundColor: C.green }]} />
+          <View style={[inventoryStyles.barFill, { width: `${healthPct}%` as any, backgroundColor: healthColor }]} />
         </View>
       </View>
 
       <AppText style={inventoryStyles.sectionTitle}>Reorder Recommendations</AppText>
       <View style={inventoryStyles.alertList}>
-        {lowStocks.map((item, i) => (
-          <View key={i} style={inventoryStyles.alertRow}>
-            <View style={inventoryStyles.alertLeft}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={14} color={item.color} />
-              <AppText style={inventoryStyles.itemName}>{item.name}</AppText>
-            </View>
-            <View style={[inventoryStyles.pill, { backgroundColor: item.color + "15" }]}>
-              <AppText style={[inventoryStyles.pillText, { color: item.color }]}>{item.stock}</AppText>
-            </View>
-          </View>
-        ))}
+        {lowStock.length === 0 ? (
+          <AppText style={inventoryStyles.itemName}>No low-stock alerts.</AppText>
+        ) : (
+          lowStock.map((item) => {
+            const color = item.stock <= 2 ? C.red : C.orange;
+            return (
+              <View key={item.id} style={inventoryStyles.alertRow}>
+                <View style={inventoryStyles.alertLeft}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={14} color={color} />
+                  <AppText style={inventoryStyles.itemName}>{item.name}</AppText>
+                </View>
+                <View style={[inventoryStyles.pill, { backgroundColor: color + "15" }]}>
+                  <AppText style={[inventoryStyles.pillText, { color }]}>{item.stock} left</AppText>
+                </View>
+              </View>
+            );
+          })
+        )}
       </View>
     </View>
   );
@@ -861,65 +917,93 @@ const inventoryStyles = StyleSheet.create({
 });
 
 // ─── 8. LIVE ORDER TRACKING PANEL ───
-export const LiveOrderTrackingPanel: React.FC = () => {
-  const steps = [
-    { label: "Processing", done: true },
-    { label: "Packed", done: true },
-    { label: "Shipped", current: true },
-    { label: "Out for Deliv.", done: false },
-    { label: "Delivered", done: false },
-  ];
+type TrackingOrder = {
+  id: string;
+  status: string;
+  customerName?: string;
+  productName?: string;
+  awb?: string;
+  courier?: string;
+  steps?: { label: string; status: "done" | "active" | "pending" }[];
+};
+
+export const LiveOrderTrackingPanel: React.FC<{ order?: TrackingOrder | null }> = ({ order }) => {
+  if (!order) {
+    return (
+      <View style={[panelStyles.card, { flex: 1, justifyContent: "center", paddingVertical: 32 }]}>
+        <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
+        <AppText style={[panelStyles.itemTime, { marginTop: 8 }]}>No active orders to track.</AppText>
+      </View>
+    );
+  }
+
+  const steps =
+    order.steps ??
+    ["Pending", "Processing", "Shipped", "Delivered"].map((label) => ({
+      label,
+      status: "pending" as const,
+    }));
+
+  const statusIndex = ["Pending", "Processing", "Shipped", "Delivered", "Returned"].indexOf(order.status);
+  const normalizedSteps = steps.map((st, i) => {
+    if (st.status !== "pending") return st;
+    if (statusIndex < 0) return st;
+    if (i < statusIndex) return { ...st, status: "done" as const };
+    if (i === statusIndex) return { ...st, status: "active" as const };
+    return st;
+  });
 
   return (
     <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <View>
         <View style={panelStyles.header}>
           <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
-          <AppText style={panelStyles.liveText}>ORD#123455</AppText>
+          <AppText style={panelStyles.liveText}>{order.id}</AppText>
         </View>
 
         <View style={trackingStyles.timeline}>
-          {steps.map((st, i) => {
-            const isDone = st.done || st.current;
+          {normalizedSteps.map((st, i) => {
+            const isDone = st.status === "done";
+            const isCurrent = st.status === "active";
             return (
               <View key={i} style={trackingStyles.stepCol}>
-                <View style={[trackingStyles.circle, isDone && { backgroundColor: C.green, borderColor: C.green }]}>
-                  {st.done ? (
+                <View style={[trackingStyles.circle, (isDone || isCurrent) && { backgroundColor: C.green, borderColor: C.green }]}>
+                  {isDone ? (
                     <Ionicons name="checkmark" size={10} color={C.white} />
-                  ) : st.current ? (
+                  ) : isCurrent ? (
                     <View style={trackingStyles.pulseRing} />
                   ) : null}
                 </View>
-                <AppText style={[trackingStyles.label, st.current && { color: C.purple, fontFamily: "Poppins_700Bold" }]}>{st.label}</AppText>
+                <AppText style={[trackingStyles.label, isCurrent && { color: C.purple, fontFamily: "Poppins_700Bold" }]}>{st.label}</AppText>
               </View>
             );
           })}
         </View>
       </View>
 
-      {/* ── Delivery Partner & Tracking Details Row ── */}
       <View style={trackingStyles.detailsBox}>
         <View style={trackingStyles.detailItem}>
-          <MaterialCommunityIcons name="truck-delivery-outline" size={16} color={C.teal} />
+          <MaterialCommunityIcons name="account-outline" size={16} color={C.teal} />
           <View style={{ marginLeft: 6 }}>
-            <AppText style={trackingStyles.detailTitle}>Delhivery Express</AppText>
-            <AppText style={trackingStyles.detailValue}>ID: DLV-98745210</AppText>
+            <AppText style={trackingStyles.detailTitle}>Customer</AppText>
+            <AppText style={trackingStyles.detailValue}>{order.customerName ?? "—"}</AppText>
           </View>
         </View>
         <View style={trackingStyles.verticalDivider} />
         <View style={trackingStyles.detailItem}>
-          <MaterialCommunityIcons name="calendar-clock-outline" size={16} color={C.orange} />
+          <MaterialCommunityIcons name="package-variant" size={16} color={C.orange} />
           <View style={{ marginLeft: 6 }}>
-            <AppText style={trackingStyles.detailTitle}>Expected Delivery</AppText>
-            <AppText style={trackingStyles.detailValue}>Tomorrow, 12:00 PM</AppText>
+            <AppText style={trackingStyles.detailTitle}>Product</AppText>
+            <AppText style={trackingStyles.detailValue} numberOfLines={1}>{order.productName ?? "—"}</AppText>
           </View>
         </View>
       </View>
 
-      {/* ── Status Meta Info ── */}
       <View style={trackingStyles.meta}>
         <AppText style={trackingStyles.metaText}>
-          📍 <AppText style={trackingStyles.bold}>Live Status</AppText>: Package departed Mumbai Transit Hub. Next update at Pune.
+          📍 <AppText style={trackingStyles.bold}>Status</AppText>: {order.status}
+          {order.awb ? ` · AWB ${order.awb}` : ""}
+          {order.courier ? ` · ${order.courier}` : ""}
         </AppText>
       </View>
     </View>
@@ -1011,38 +1095,30 @@ const trackingStyles = StyleSheet.create({
 });
 
 // ─── 9. TOP PRODUCTS PERFORMANCE ───
-export const TopProductsPerformance: React.FC = () => {
-  const items = [
-    { name: "Cotton Designer Kurti", sold: 120, revenue: "₹1,07,880", conv: "3.4%", ret: "0.8%", profit: "₹240" },
-    { name: "Floral Elegant Maxi Dress", sold: 98, revenue: "₹1,27,302", conv: "2.8%", ret: "1.2%", profit: "₹450" },
-    { name: "Leather Sling Handbag", sold: 76, revenue: "₹56,924", conv: "2.1%", ret: "2.4%", profit: "₹180" },
-  ];
+type TopProductRow = { id: string; name: string; sold: number; price: string };
 
+export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ items = [] }) => {
   return (
     <View style={panelStyles.card}>
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Top Selling Products Performance</AppText>
       
-      {/* Table Headers */}
       <View style={tableStyles.headerRow}>
         <AppText style={[tableStyles.headerText, { flex: 2 }]}>Product</AppText>
         <AppText style={tableStyles.headerText}>Sold</AppText>
-        <AppText style={tableStyles.headerText}>Revenue</AppText>
-        <AppText style={tableStyles.headerText}>Conv.</AppText>
-        <AppText style={tableStyles.headerText}>Returns</AppText>
-        <AppText style={tableStyles.headerText}>Net Profit/u</AppText>
+        <AppText style={tableStyles.headerText}>Price</AppText>
       </View>
 
-      {/* Table Rows */}
-      {items.map((it, i) => (
-        <View key={i} style={tableStyles.row}>
-          <AppText style={[tableStyles.cell, { flex: 2, fontFamily: "Poppins_700Bold" }]} numberOfLines={1}>{it.name}</AppText>
-          <AppText style={tableStyles.cell}>{it.sold}</AppText>
-          <AppText style={tableStyles.cell}>{it.revenue}</AppText>
-          <AppText style={tableStyles.cell}>{it.conv}</AppText>
-          <AppText style={[tableStyles.cell, { color: C.red }]}>{it.ret}</AppText>
-          <AppText style={[tableStyles.cell, { color: C.green }]}>{it.profit}</AppText>
-        </View>
-      ))}
+      {items.length === 0 ? (
+        <AppText style={[tableStyles.cell, { padding: 12 }]}>No sales data yet.</AppText>
+      ) : (
+        items.map((it) => (
+          <View key={it.id} style={tableStyles.row}>
+            <AppText style={[tableStyles.cell, { flex: 2, fontFamily: "Poppins_700Bold" }]} numberOfLines={1}>{it.name}</AppText>
+            <AppText style={tableStyles.cell}>{it.sold}</AppText>
+            <AppText style={tableStyles.cell}>{it.price}</AppText>
+          </View>
+        ))
+      )}
     </View>
   );
 };
@@ -1078,21 +1154,25 @@ const tableStyles = StyleSheet.create({
 });
 
 // ─── 10. SELLER PERFORMANCE SCORE ───
-export const SellerPerformanceScore: React.FC = () => {
-  // Score: 92/100 → stroke calculation for 120px SVG circle
-  // circumference = 2 * π * r = 2 * π * 48 ≈ 301.6
-  const score = 92;
+export const SellerPerformanceScore: React.FC<{
+  rating?: number;
+  orders?: number;
+  returns?: number;
+  views?: number;
+}> = ({ rating = 0, orders = 0, returns = 0, views = 0 }) => {
+  const score = Math.min(100, Math.round((rating / 5) * 100));
   const maxScore = 100;
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - (score / maxScore) * circumference;
+  const returnRate = orders > 0 ? `${((returns / orders) * 100).toFixed(1)}%` : "—";
 
   const metrics = [
-    { label: "Delivery Speed", val: "96%", color: C.green },
-    { label: "Response Time", val: "5 mins", color: C.blue },
-    { label: "Return Rate", val: "1.2%", color: C.green },
-    { label: "Cancellation Rate", val: "0.5%", color: C.green },
-    { label: "Customer Rating", val: "4.8 ★", color: C.yellow },
+    { label: "Total Orders", val: String(orders), color: C.purple },
+    { label: "Product Views", val: views.toLocaleString("en-IN"), color: C.blue },
+    { label: "Return Rate", val: returnRate, color: C.orange },
+    { label: "Returns Count", val: String(returns), color: C.red },
+    { label: "Customer Rating", val: rating > 0 ? `${rating.toFixed(1)} ★` : "—", color: C.yellow },
   ];
 
   return (
@@ -1205,12 +1285,18 @@ const sellerStyles = StyleSheet.create({
 });
 
 // ─── 11. CUSTOMER ANALYTICS ───
-export const CustomerAnalytics: React.FC = () => {
+export const CustomerAnalytics: React.FC<{
+  rating?: number;
+  views?: number;
+  orders?: number;
+  salesFormatted?: string;
+}> = ({ rating = 0, views = 0, orders = 0, salesFormatted = "₹0" }) => {
+  const satisfaction = rating > 0 ? `${Math.round((rating / 5) * 100)}%` : "—";
   const cohortMetrics = [
-    { label: "Repeat Purchase Rate", val: "32.4%", color: C.purple, bg: C.purplePale, icon: "account-multiple-outline" },
-    { label: "Avg. Lifetime Value", val: "₹4,820", color: C.green, bg: C.greenPale, icon: "currency-inr" },
-    { label: "Satisfaction Score", val: "94%", color: C.blue, bg: C.bluePale, icon: "emoticon-happy-outline" },
-    { label: "Churn Rate", val: "3.2%", color: C.orange, bg: C.orangePale, icon: "account-minus-outline" },
+    { label: "Total Orders", val: String(orders), color: C.purple, bg: C.purplePale, icon: "cart-outline" },
+    { label: "Total Sales", val: salesFormatted, color: C.green, bg: C.greenPale, icon: "currency-inr" },
+    { label: "Satisfaction (rating)", val: satisfaction, color: C.blue, bg: C.bluePale, icon: "emoticon-happy-outline" },
+    { label: "Product Views", val: views.toLocaleString("en-IN"), color: C.orange, bg: C.orangePale, icon: "eye-outline" },
   ];
 
   return (
@@ -1269,10 +1355,11 @@ const custStyles = StyleSheet.create({
 
 // ─── 12. MARKETING CENTER ───
 export const MarketingCenter: React.FC = () => {
+  const router = useRouter();
   const tools = [
-    { name: "Coupons Scheduler", desc: "Interactive discounts generator", icon: "ticket-percent-outline", color: C.pink, bg: C.pinkPale },
-    { name: "Email Broadcasts", desc: "Dispatch email campaigns", icon: "email-newsletter", color: C.purple, bg: C.purplePale },
-    { name: "WhatsApp Portal", desc: "Direct consumer ping tools", icon: "whatsapp", color: C.green, bg: C.greenPale },
+    { name: "Manage Products", desc: "Update listings and inventory", icon: "package-variant-closed", color: C.purple, bg: C.purplePale, path: "/(main)/productmanagement" },
+    { name: "Total Sales", desc: "View sales analytics", icon: "chart-line", color: C.blue, bg: C.bluePale, path: "/(main)/totalsales" },
+    { name: "Help & Support", desc: "Open support tickets", icon: "lifebuoy", color: C.green, bg: C.greenPale, path: "/(main)/helpsupport" },
   ];
 
   return (
@@ -1280,7 +1367,7 @@ export const MarketingCenter: React.FC = () => {
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Seller Growth Marketing Hub</AppText>
       <View style={mktStyles.grid}>
         {tools.map((t, i) => (
-          <TouchableOpacity key={i} style={mktStyles.card} activeOpacity={0.8} onPress={() => alert(`Starting: ${t.name}`)}>
+          <TouchableOpacity key={i} style={mktStyles.card} activeOpacity={0.8} onPress={() => router.push(t.path as any)}>
             <View style={[mktStyles.icon, { backgroundColor: t.bg }]}>
               <MaterialCommunityIcons name={t.icon as any} size={18} color={t.color} />
             </View>
@@ -1327,7 +1414,11 @@ const mktStyles = StyleSheet.create({
 });
 
 // ─── 13. FINANCIAL CENTER ───
-export const FinancialCenter: React.FC = () => {
+export const FinancialCenter: React.FC<{
+  availableBalance?: number;
+  bankName?: string;
+}> = ({ availableBalance = 0, bankName }) => {
+  const balanceText = `₹${Math.round(availableBalance).toLocaleString("en-IN")}`;
   return (
     <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <View>
@@ -1338,12 +1429,12 @@ export const FinancialCenter: React.FC = () => {
 
         <View style={finStyles.statsGrid}>
           <View style={finStyles.finItem}>
-            <AppText style={finStyles.label}>GST Calculation (18%)</AppText>
-            <AppText style={finStyles.val}>₹2,241</AppText>
+            <AppText style={finStyles.label}>Available Balance</AppText>
+            <AppText style={finStyles.val}>{balanceText}</AppText>
           </View>
           <View style={finStyles.finItem}>
-            <AppText style={finStyles.label}>Pending Transfer Balance</AppText>
-            <AppText style={finStyles.val}>₹24,500</AppText>
+            <AppText style={finStyles.label}>Settlement Bank</AppText>
+            <AppText style={finStyles.val}>{bankName?.trim() || "—"}</AppText>
           </View>
         </View>
 
@@ -1363,18 +1454,14 @@ export const FinancialCenter: React.FC = () => {
       <View style={finStyles.payoutBox}>
         <MaterialCommunityIcons name="bank-transfer-in" size={16} color={C.green} />
         <View style={{ marginLeft: 6, flex: 1 }}>
-          <AppText style={finStyles.payoutTitle}>Next Automatic Payout</AppText>
-          <AppText style={finStyles.payoutValue}>Scheduled for Monday, May 25th at 10:00 AM</AppText>
-        </View>
-        <View style={finStyles.payoutBadge}>
-          <AppText style={finStyles.payoutBadgeText}>ACTIVE</AppText>
+          <AppText style={finStyles.payoutTitle}>Withdrawable Balance</AppText>
+          <AppText style={finStyles.payoutValue}>{balanceText} available for payout</AppText>
         </View>
       </View>
 
-      {/* ── Financial Bank details footer ── */}
       <View style={finStyles.meta}>
         <AppText style={finStyles.metaText}>
-          🏦 <AppText style={finStyles.bold}>Settlement Bank</AppText>: HDFC Bank Account ending in •••• 4321.
+          🏦 Request payouts from the earnings screen when your balance is ready.
         </AppText>
       </View>
     </View>
@@ -1472,32 +1559,37 @@ const finStyles = StyleSheet.create({
 });
 
 // ─── 14. SMART NOTIFICATION CENTER ───
-export const SmartNotificationCenter: React.FC = () => {
-  const alerts = [
-    { title: "Review Alert", body: "Anjali left a 5-star review.", cat: "Reviews", color: C.yellow },
-    { title: "Payout Processed", body: "₹12,450 cleared successfully.", cat: "Payments", color: C.green },
-    { title: "Inventory Critical", body: "Nike running shoes are out of stock.", cat: "Stock", color: C.red },
-  ];
+type AlertItem = { id: string; title: string; message: string; time?: string; read?: boolean };
+
+export const SmartNotificationCenter: React.FC<{ alerts?: AlertItem[] }> = ({ alerts = [] }) => {
+  const unread = alerts.filter((a) => !a.read).length;
 
   return (
     <View style={panelStyles.card}>
       <View style={panelStyles.header}>
         <AppText style={panelStyles.title}>Priority Store Notifications</AppText>
-        <View style={notifStyles.badge}>
-          <AppText style={notifStyles.badgeText}>3 New</AppText>
-        </View>
+        {unread > 0 ? (
+          <View style={notifStyles.badge}>
+            <AppText style={notifStyles.badgeText}>{unread} New</AppText>
+          </View>
+        ) : null}
       </View>
 
       <View style={notifStyles.list}>
-        {alerts.map((al, i) => (
-          <View key={i} style={notifStyles.item}>
-            <View style={[notifStyles.indicator, { backgroundColor: al.color }]} />
-            <View>
-              <AppText style={notifStyles.alertTitle}>{al.title} • <AppText style={{ color: al.color, fontFamily: "Poppins_700Bold" }}>{al.cat}</AppText></AppText>
-              <AppText style={notifStyles.alertBody}>{al.body}</AppText>
+        {alerts.length === 0 ? (
+          <AppText style={notifStyles.alertBody}>No notifications.</AppText>
+        ) : (
+          alerts.map((al) => (
+            <View key={al.id} style={notifStyles.item}>
+              <View style={[notifStyles.indicator, { backgroundColor: al.read ? C.textLight : C.purple }]} />
+              <View>
+                <AppText style={notifStyles.alertTitle}>{al.title}</AppText>
+                <AppText style={notifStyles.alertBody}>{al.message}</AppText>
+                {al.time ? <AppText style={panelStyles.itemTime}>{al.time}</AppText> : null}
+              </View>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </View>
   );

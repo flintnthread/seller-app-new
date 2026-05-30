@@ -328,7 +328,9 @@ const DesktopListRow: React.FC<{ order: Order; isLast: boolean }> = ({ order, is
   const statusCfg = STATUS_CONFIG[order.status];
   const fullOrder = getLiveOrder(order.id);
   const payMethod = fullOrder?.payment.method ?? "—";
-  const awb       = fullOrder ? getMockAWB(order.id, order.status) : null;
+  const awb = fullOrder?.shiprocket?.awb
+    ? { awb: fullOrder.shiprocket.awb, courier: fullOrder.shiprocket.courier ?? "—" }
+    : null;
   if (!statusCfg) return null;
 
   return (
@@ -423,12 +425,6 @@ const DesktopListRow: React.FC<{ order: Order; isLast: boolean }> = ({ order, is
     </View>
   );
 };
-
-// Helper to get mock AWB for list view (mirrors getMockShiprocketData logic)
-function getMockAWB(orderId: string, status: string): { awb: string; courier: string } | null {
-  if (status === "Pending" || status === "Cancelled") return null;
-  return { awb: "80050999781", courier: "Blue Dart Air" };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OrderCard — unchanged layout for mobile; slightly wider on desktop

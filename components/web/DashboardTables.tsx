@@ -1,9 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { View, StyleSheet, TouchableOpacity, TextInput, Platform } from "react-native";
 import { AppText } from "@/components/AppText";
 import { OrdersTable } from "./OrdersTable";
 import type { Column } from "./OrdersTable";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+  getLiveOrders,
+  loadOrdersFromApi,
+  subscribeToOrderChanges,
+} from "@/app/(main)/_ordersStore";
+import type { OrderStatus } from "@/app/(main)/_ordersData";
 
 const C = {
   navy: "#1E2B6B",
@@ -28,9 +35,7 @@ const C = {
   textLight: "#9CA3AF",
 };
 
-export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Returned";
-
-interface Order {
+interface OrderRow {
   id: string;
   date: string;
   time: string;
@@ -48,84 +53,66 @@ const STATUS_CONFIG: Record<OrderStatus, { bg: string; text: string; color: stri
   Shipped: { bg: C.bluePale, text: "Shipped", color: C.blue },
   Delivered: { bg: C.greenPale, text: "Delivered", color: C.green },
   Returned: { bg: C.redPale, text: "Returned", color: C.red },
+  Cancelled: { bg: C.redPale, text: "Cancelled", color: C.red },
 };
 
-const RECENT_ORDERS: Order[] = [
-  {
-    id: "#ORD123456",
-    date: "20 May 2024",
-    time: "10:30 AM",
-    productName: "Cotton Kurti",
-    variant: "Pink • M",
-    qty: 1,
-    price: 1299,
-    status: "Pending",
-    customer: "Priya Sharma",
-  },
-  {
-    id: "#ORD123455",
-    date: "19 May 2024",
-    time: "09:15 PM",
-    productName: "Floral Maxi Dress",
-    variant: "White • L",
-    qty: 1,
-    price: 2499,
-    status: "Processing",
-    customer: "Anjali Mehta",
-  },
-  {
-    id: "#ORD123454",
-    date: "18 May 2024",
-    time: "02:40 PM",
-    productName: "Handbag",
-    variant: "Brown",
-    qty: 1,
-    price: 749,
-    status: "Shipped",
-    customer: "Neha Verma",
-  },
-  {
-    id: "#ORD123453",
-    date: "18 May 2024",
-    time: "10:20 AM",
-    productName: "Women's Sandals",
-    variant: "Tan • 38",
-    qty: 1,
-    price: 599,
-    status: "Delivered",
-    customer: "Rita Singh",
-  },
-  {
-    id: "#ORD123452",
-    date: "18 May 2024",
-    time: "10:05 AM",
-    productName: "Cotton Kurti",
-    variant: "Blue • M",
-    qty: 1,
-    price: 1299,
-    status: "Returned",
-    customer: "Komal Patel",
-  },
-];
+function mapOrdersToRows(): OrderRow[] {
+  return getLiveOrders().slice(0, 20).map((o) => {
+    const item = o.items[0];
+    const variantParts = [item?.color, item?.size].filter(Boolean);
+    const priceNum =
+      o.pricing?.totalAmount ??
+      (typeof o.pricing?.total === "string"
+        ? Number(o.pricing.total.replace(/[^\d.]/g, ""))
+        : item?.price ?? 0);
+    const dateParts = (o.date || "").split(" ");
+    return {
+      id: o.id,
+      date: dateParts.slice(0, 3).join(" ") || o.date || "—",
+      time: dateParts.slice(3).join(" ") || "—",
+      productName: item?.productName ?? "—",
+      variant: variantParts.length ? variantParts.join(" • ") : "—",
+      qty: item?.qty ?? 1,
+      price: typeof priceNum === "number" ? priceNum : Number(priceNum) || 0,
+      status: o.status,
+      customer: o.customer?.name ?? "—",
+    };
+  });
+}
 
 export const DashboardTables: React.FC = () => {
+  const router = useRouter();
   const [searchText, setSearchText] = useState("");
   const [activeTab, setActiveTab] = useState<string>("All");
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => {
+      if (mounted) setOrders(mapOrdersToRows());
+    };
+    loadOrdersFromApi(true).finally(refresh);
+    const unsub = subscribeToOrderChanges(refresh);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   const tabs = ["All", "Pending", "Processing", "Shipped", "Delivered", "Returned"];
 
-  const filteredOrders = RECENT_ORDERS.filter((order) => {
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchText.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchText.toLowerCase()) ||
-      order.productName.toLowerCase().includes(searchText.toLowerCase());
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const matchesSearch =
+        order.id.toLowerCase().includes(searchText.toLowerCase()) ||
+        order.customer.toLowerCase().includes(searchText.toLowerCase()) ||
+        order.productName.toLowerCase().includes(searchText.toLowerCase());
+      const matchesTab = activeTab === "All" || order.status === activeTab;
+      return matchesSearch && matchesTab;
+    });
+  }, [orders, searchText, activeTab]);
 
-    const matchesTab = activeTab === "All" || order.status === activeTab;
-
-    return matchesSearch && matchesTab;
-  });
-
-  const columns: Column<Order>[] = [
+  const columns: Column<OrderRow>[] = [
     {
       key: "id",
       title: "Order ID",
@@ -142,7 +129,7 @@ export const DashboardTables: React.FC = () => {
         <View style={styles.customerCol}>
           <View style={styles.avatarCircle}>
             <AppText style={styles.avatarText}>
-              {item.customer.split(" ").map((n) => n[0]).join("")}
+              {item.customer.split(" ").map((n) => n[0]).join("").slice(0, 2)}
             </AppText>
           </View>
           <AppText style={styles.customerName}>{item.customer}</AppText>
@@ -183,7 +170,7 @@ export const DashboardTables: React.FC = () => {
       title: "Status",
       width: "11%",
       render: (item) => {
-        const sc = STATUS_CONFIG[item.status];
+        const sc = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.Pending;
         return (
           <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
             <View style={[styles.statusDot, { backgroundColor: sc.color }]} />
@@ -200,7 +187,7 @@ export const DashboardTables: React.FC = () => {
       render: (item) => (
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() => console.log("Manage order", item.id)}
+          onPress={() => router.push({ pathname: "/(main)/orderDetails", params: { id: item.id } })}
           activeOpacity={0.7}
         >
           <AppText style={styles.actionBtnText}>Manage</AppText>
@@ -217,7 +204,6 @@ export const DashboardTables: React.FC = () => {
           <AppText style={styles.cardSubtitle}>List of latest customer transactions</AppText>
         </View>
         
-        {/* Search Input */}
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={16} color={C.textLight} style={styles.searchIcon} />
           <TextInput
@@ -230,7 +216,6 @@ export const DashboardTables: React.FC = () => {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsContainer}>
         {tabs.map((tab) => (
           <TouchableOpacity
@@ -246,7 +231,6 @@ export const DashboardTables: React.FC = () => {
         ))}
       </View>
 
-      {/* Table */}
       <View style={styles.tableWrap}>
         <OrdersTable data={filteredOrders} columns={columns} />
         {filteredOrders.length === 0 && (

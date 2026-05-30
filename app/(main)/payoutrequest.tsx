@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
   MaterialIcons,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
 
 interface BankAccount {
   id: string;
@@ -42,58 +43,6 @@ interface Transaction {
   status: "Completed" | "Pending" | "Failed";
   type: "Payout" | "Revenue";
 }
-
-const MOCK_BANKS: BankAccount[] = [
-  {
-    id: "1",
-    bankName: "HDFC Bank",
-    accountNumber: "•••• 2408",
-    isDefault: true,
-    isVerified: true,
-  },
-  {
-    id: "2",
-    bankName: "ICICI Bank",
-    accountNumber: "•••• 8892",
-    isDefault: false,
-    isVerified: true,
-  },
-];
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: "TXN1",
-    orderId: "FNT10293",
-    amount: 2400,
-    date: "2024-05-12T10:00:00Z",
-    status: "Completed",
-    type: "Payout",
-  },
-  {
-    id: "TXN2",
-    orderId: "FNT10294",
-    amount: 1500,
-    date: "2024-05-11T14:30:00Z",
-    status: "Pending",
-    type: "Payout",
-  },
-  {
-    id: "TXN3",
-    orderId: "FNT10295",
-    amount: 800,
-    date: "2024-05-10T09:15:00Z",
-    status: "Failed",
-    type: "Payout",
-  },
-];
-
-const ORDER_DATABASE: Record<string, number> = {
-  ORD10293: 2400,
-  ORD10294: 1500,
-  ORD10295: 800,
-  ORD10296: 4200,
-  ORD10297: 1200,
-};
 
 const THEME_COLOR = "#1a2b5edc";
 
@@ -166,6 +115,8 @@ export default function EnhancedPayoutRequest() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
 
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [apiTransactions, setApiTransactions] = useState<Transaction[]>([]);
   const [selectedBank, setSelectedBank] = useState("1");
   const [orderId, setOrderId] = useState("");
   const [amount, setAmount] = useState("");
@@ -177,7 +128,32 @@ export default function EnhancedPayoutRequest() {
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const availableBalance = 12400;
+  const [availableBalance, setAvailableBalance] = useState(0);
+
+  useEffect(() => {
+    Promise.all([fetchEarnings(), fetchPayouts()])
+      .then(([earnings, payouts]) => {
+        setAvailableBalance(Number(earnings.availableBalance ?? 0));
+        if (earnings.bankAccount?.bankName) {
+          setBanks([{
+            id: "1",
+            bankName: earnings.bankAccount.bankName ?? "Bank",
+            accountNumber: earnings.bankAccount.accountNumberMasked ?? "••••",
+            isDefault: true,
+            isVerified: earnings.bankAccount.verified,
+          }]);
+        }
+        setApiTransactions(payouts.map((p) => ({
+          id: p.id,
+          orderId: p.orderId,
+          amount: Number(p.amount),
+          date: p.date,
+          status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
+          type: "Payout" as const,
+        })));
+      })
+      .catch(() => undefined);
+  }, []);
 
   const handleOrderIdChange = (text: string) => {
     const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -202,12 +178,13 @@ export default function EnhancedPayoutRequest() {
   const errorMsg = validateAmount();
 
   const filteredTransactions = useMemo(() => {
-    return MOCK_TRANSACTIONS.filter((t) => {
+    const source = apiTransactions;
+    return source.filter((t) => {
       const matchesSearch = t.orderId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "All" || t.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, apiTransactions]);
 
   const handleInitialRequest = () => {
     if (errorMsg) {
@@ -218,20 +195,44 @@ export default function EnhancedPayoutRequest() {
     setShowOtpModal(true);
   };
 
-  const verifyOtpAndRequest = () => {
+  const verifyOtpAndRequest = async () => {
     if (otp.length < 4) {
       Alert.alert("Invalid OTP", "Please enter valid 4 digit OTP");
       return;
     }
+    const amt = Number(amount);
+    if (!amt || amt <= 0) {
+      Alert.alert("Error", "Enter a valid payout amount.");
+      return;
+    }
     setShowOtpModal(false);
     setIsRequesting(true);
-    setTimeout(() => {
-      setIsRequesting(false);
+    try {
+      const result = await requestPayout({
+        amount: amt,
+        orderId: orderId.trim() || undefined,
+        otp,
+        description: "Seller payout request",
+      });
+      setAvailableBalance(Number(result.remainingBalance ?? availableBalance));
       setShowSuccessModal(true);
       setOrderId("");
       setAmount("");
       setOtp("");
-    }, 2000);
+      const payouts = await fetchPayouts();
+      setApiTransactions(payouts.map((p) => ({
+        id: p.id,
+        orderId: p.orderId,
+        amount: Number(p.amount),
+        date: p.date,
+        status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
+        type: "Payout" as const,
+      })));
+    } catch (e) {
+      Alert.alert("Payout failed", e instanceof Error ? e.message : "Could not submit payout request.");
+    } finally {
+      setIsRequesting(false);
+    }
   };
 
   const renderTransactionItem = useCallback(
@@ -398,7 +399,7 @@ export default function EnhancedPayoutRequest() {
               <View style={desktopStyles.fieldBlock}>
                 <Text style={desktopStyles.fieldLabel}>Select Bank Account</Text>
                 <View style={desktopStyles.bankRow}>
-                  {MOCK_BANKS.map((bank) => (
+                  {banks.map((bank) => (
                     <TouchableOpacity
                       key={bank.id}
                       style={[
@@ -711,7 +712,7 @@ export default function EnhancedPayoutRequest() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12 }}
               >
-                {MOCK_BANKS.map((bank) => (
+                {banks.map((bank) => (
                   <TouchableOpacity
                     key={bank.id}
                     style={[styles.bankCard, selectedBank === bank.id && styles.selectedBankCard]}

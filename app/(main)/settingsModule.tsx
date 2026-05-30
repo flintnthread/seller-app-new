@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { fetchSellerSettings, updateSellerSettings } from "@/services/settingsApi";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
 import {
   View,
   TouchableOpacity,
@@ -29,12 +31,35 @@ interface SettingItem {
 }
 
 export default function SettingsScreen() {
+  const { profile } = useSellerProfile();
+  const sellerName =
+    profile?.businessName?.trim() ||
+    profile?.fullName?.trim() ||
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
+    "Seller";
+  const avatarUri = profile?.profilePicUrl || profile?.profilePic || undefined;
   const [darkMode, setDarkMode] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [orderUpdates, setOrderUpdates] = useState(true);
   const [vacationMode, setVacationMode] = useState(false);
   const [biometric, setBiometric] = useState(true);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetchSellerSettings()
+      .then((s) => {
+        setPushNotifications(s.pushNotifications);
+        setOrderUpdates(s.orderUpdates);
+        setVacationMode(s.vacationMode);
+        setDarkMode(s.darkMode);
+        setBiometric(s.biometricLogin);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const persistSettings = useCallback((patch: Parameters<typeof updateSellerSettings>[0]) => {
+    updateSellerSettings(patch).catch(() => undefined);
+  }, []);
 
   const accountSettings: SettingItem[] = useMemo(
     () => [
@@ -240,12 +265,16 @@ export default function SettingsScreen() {
             onValueChange={(value) => {
               if (item.id === "5") {
                 setBiometric(value);
+                persistSettings({ biometricLogin: value });
               } else if (item.id === "8") {
                 setPushNotifications(value);
+                persistSettings({ pushNotifications: value });
               } else if (item.id === "9") {
                 setOrderUpdates(value);
+                persistSettings({ orderUpdates: value });
               } else {
                 setVacationMode(value);
+                persistSettings({ vacationMode: value });
               }
             }}
           />
@@ -278,16 +307,17 @@ export default function SettingsScreen() {
         >
           <View style={styles.profileTop}>
             <View style={styles.profileRow}>
-              <Image
-                source={{
-                  uri: "https://i.pravatar.cc/150?img=12",
-                }}
-                style={styles.avatar}
-              />
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
+                  <Ionicons name="person" size={28} color="#9CA3AF" />
+                </View>
+              )}
 
               <View>
                 <View style={styles.nameRow}>
-                  <AppText style={styles.profileName}>Sai Akshith</AppText>
+                  <AppText style={styles.profileName}>{sellerName}</AppText>
 
                   <View style={styles.verifiedBadge}>
                     <Ionicons
@@ -301,11 +331,11 @@ export default function SettingsScreen() {
                 </View>
 
                 <AppText style={styles.profileEmail}>
-                  [EMAIL_ADDRESS]
+                  {profile?.email || "—"}
                 </AppText>
 
                 <AppText style={styles.profileId}>
-                  Seller ID: SLR-24098
+                  {profile?.id != null ? `Seller ID: ${profile.id}` : "Seller ID: —"}
                 </AppText>
               </View>
             </View>
@@ -396,7 +426,10 @@ export default function SettingsScreen() {
 
           <Switch
             value={darkMode}
-            onValueChange={setDarkMode}
+            onValueChange={(value) => {
+              setDarkMode(value);
+              persistSettings({ darkMode: value });
+            }}
           />
         </TouchableOpacity>
 

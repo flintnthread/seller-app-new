@@ -169,16 +169,6 @@ const BOT_RESPONSES = {
     "I'm not quite sure about that. Could you try one of the quick options below, or describe your issue in more detail?",
 } as const;
 
-//   orders: "You can check your orders in the Orders section.",
-//   payments: "Payment and refund issues are handled within 3-5 business days.",
-//   products: "You can manage products from the Products tab.",
-//   account: "Please reset your password from Account Settings.",
-//   delivery: "Track your shipment from the Orders page.",
-//   human: "Connecting you to a support agent...",
-//   default: "Sorry, I didn't understand your message.",
-// };
-// >>>>>>> 1259fc908c2225bfa778e27657a6a47347e6b273
-
 function getBotReply(text: string): string {
   const l = text.toLowerCase();
   if (l.includes("order")) return BOT_RESPONSES.orders;

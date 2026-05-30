@@ -14,8 +14,10 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { buildUpdateProductPayload } from "@/lib/product/buildCreateProductPayload";
 import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEditForm";
-import { fetchProductDetail, updateProduct } from "@/services/productApi";
+import { fetchProductDetail, updateProduct, fetchProductFormCatalog, type ProductFormCatalog } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
+import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
+import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
@@ -78,11 +80,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
     "Home & Living": ["Furniture", "Decor", "Kitchen", "Bedding"],
     "Books": ["Fiction", "Non-Fiction", "Academic", "Comics"],
 };
-const MATERIAL_TYPES = [
-    "Cotton", "Polyester", "Silk", "Wool", "Linen", "Nylon", "Leather", "Denim",
-    "Rayon", "Acrylic", "Velvet", "Satin", "Chiffon", "Spandex", "Metal",
-    "Plastic", "Wood", "Glass", "Ceramic", "Rubber", "Paper", "Mixed Fabric",
-];
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
 const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
@@ -95,60 +92,46 @@ const STEPS = [
     { key: "details", label: "Details", icon: "clipboard-text-outline", color: "#D97706" },
 ];
 
-// ─── MOCK PRODUCT DATA ────────────────────────────────────────
-const MOCK_PRODUCT = {
-    id: "PRD-2024-00847",
-    name: "Classic Cotton Polo T-Shirt",
-    category: "Clothing",
-    subcategory: "T-Shirts",
-    materialType: "Cotton",
-    hsnCode: "6109",
-    shortDesc: "Premium breathable cotton polo shirt with embroidered logo. Perfect for casual and semi-formal occasions.",
-    fullDesc: "Crafted from 100% premium combed cotton, this polo shirt offers exceptional breathability and comfort throughout the day. Features include a two-button placket, ribbed collar and cuffs, side vents for ease of movement, and a subtle embroidered brand logo on the chest. The fabric undergoes a bio-wash process for extra softness and colour fastness. Available in multiple colours and sizes to suit every body type. Machine washable and quick-dry friendly.\n\n• 100% Premium Combed Cotton\n• Bio-Washed for Extra Softness\n• Embroidered Logo\n• Regular Fit\n• Machine Washable",
-    length: "72",
-    width: "54",
-    height: "3",
-    weight: "0.28",
-    weightSlab: "0-500g",
+const EMPTY_BASIC = {
+    id: "",
+    name: "",
+    category: "",
+    subcategory: "",
+    materialType: "",
+    hsnCode: "",
+    shortDesc: "",
+    fullDesc: "",
+    length: "",
+    width: "",
+    height: "",
+    weight: "",
+    weightSlab: "",
     fragile: "No",
-    customized: true,
-    custTitle: "Name Embroidery on Chest",
-    custInstructions: "Please provide the name (up to 12 characters) to be embroidered on the left chest area. You can also choose from font styles: Classic, Script, or Block. Specify preferred thread colour matching the shirt or contrast.",
-    custLeadDays: "3",
-    custCharge: "149",
+    customized: false,
+    custTitle: "",
+    custInstructions: "",
+    custLeadDays: "",
+    custCharge: "",
     custAllowPhoto: false,
     custImageLabel: "",
     custPickedImage: null as string | null,
-    custAllowText: true,
-    custTextLabel: "Enter name to be embroidered (max 12 characters)",
+    custAllowText: false,
+    custTextLabel: "",
 };
 
-const MOCK_VARIANTS: Variant[] = [
-    { id: "v1", color: "White", size: "S", sku: "CPOLO-WHT-S", stock: "48", mrp: "999", sellingPrice: "699", discount: "30", images: [] },
-    { id: "v2", color: "White", size: "M", sku: "CPOLO-WHT-M", stock: "62", mrp: "999", sellingPrice: "699", discount: "30", images: [] },
-    { id: "v3", color: "Blue", size: "M", sku: "CPOLO-BLU-M", stock: "35", mrp: "999", sellingPrice: "749", discount: "25", images: [] },
-    { id: "v4", color: "Black", size: "L", sku: "CPOLO-BLK-L", stock: "27", mrp: "999", sellingPrice: "699", discount: "30", images: [] },
-];
-
-const MOCK_DETAILS = {
-    sizeChart: "Small Chart",
-    returnPolicy: "14 Days Return",
-    returnPolicyText: "We accept returns within 14 days of delivery if the product is unused, unwashed, and in its original packaging with all tags intact. Custom embroidered items are non-returnable unless defective.",
+const EMPTY_DETAILS = {
+    sizeChart: "",
+    returnPolicy: "",
+    returnPolicyText: "",
     deliveryOption: "Standard Delivery",
     minDays: "3",
     maxDays: "7",
-    deliveryInfo: "Dispatched within 24–48 hours. Express delivery available in major metros. Free shipping on orders above ₹499.",
+    deliveryInfo: "",
     codEnabled: true,
     onlinePayEnabled: true,
-    warranty: "30-day manufacturing defect warranty. Fabric defects covered under standard quality guarantee.",
-    careInstructions: "Machine wash cold (30°C). Do not bleach. Tumble dry low. Cool iron. Do not dry clean. Wash dark colours separately.",
+    warranty: "",
+    careInstructions: "",
 };
-
-const EXISTING_IMAGES = [
-    "https://picsum.photos/seed/polo_front/400/400",
-    "https://picsum.photos/seed/polo_back/400/400",
-    "https://picsum.photos/seed/polo_side/400/400",
-];
 
 // ─────────────────────────────────────────────────────────────
 // TOAST SYSTEM
@@ -257,9 +240,24 @@ const validateVariants = (variants: any[]): string[] => {
 
 const validateImages = (data: any): string[] => {
     const e: string[] = [];
-    if (!data.primaryImage) e.push("Primary product image is required");
+    const primary = data.primaryImage?.trim();
+    const additional = (data.additionalImages ?? []).filter((u: string) => u?.trim());
+    if (!primary && additional.length === 0) {
+        e.push("At least one product image is required");
+    }
     return e;
 };
+
+function imagesFromData(data: { primaryImage?: string | null; additionalImages?: string[] }): string[] {
+    const urls: string[] = [];
+    const primary = data.primaryImage?.trim();
+    if (primary) urls.push(primary);
+    for (const raw of data.additionalImages ?? []) {
+        const u = raw?.trim();
+        if (u && !urls.includes(u)) urls.push(u);
+    }
+    return urls;
+}
 
 const validateDetails = (data: any): string[] => {
     const e: string[] = [];
@@ -320,7 +318,9 @@ const Hint = ({ text }: { text: string }) => <Text style={at.hint}>{text}</Text>
 const CC = ({ cur, max }: { cur: number; max: number }) => <Text style={at.cc}>{cur}/{max}</Text>;
 
 // ─── Picker Modal ─────────────────────────────────────────────
-const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
+const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
+    const items = uniquePickerOptions(options ?? []);
+    return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <TouchableOpacity style={pm.overlay} activeOpacity={1} onPress={onClose} />
         <View style={pm.sheet}>
@@ -332,8 +332,8 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
                 </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-                {options.map((opt: string) => (
-                    <TouchableOpacity key={opt} style={[pm.item, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
+                {items.map((opt: string, index: number) => (
+                    <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
                         <Text style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</Text>
                         {selected === opt && <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>}
                     </TouchableOpacity>
@@ -341,7 +341,8 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
             </ScrollView>
         </View>
     </Modal>
-);
+    );
+};
 
 const pm = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.22)" },
@@ -364,6 +365,7 @@ const InlinePicker = ({
     onSelect: (v: string) => void; onClose: () => void;
 }) => {
     if (!visible) return null;
+    const items = uniquePickerOptions(options ?? []);
     return (
         <View style={fp.inlinePickerWrap} pointerEvents="box-none">
             <TouchableOpacity style={fp.inlinePickerBackdrop} activeOpacity={1} onPress={onClose} />
@@ -375,9 +377,9 @@ const InlinePicker = ({
                     </TouchableOpacity>
                 </View>
                 <ScrollView style={fp.inlinePickerList} bounces={false} keyboardShouldPersistTaps="handled">
-                    {options.map((opt) => (
+                    {items.map((opt, index) => (
                         <TouchableOpacity
-                            key={opt}
+                            key={`${title}-${index}-${opt}`}
                             style={[fp.inlinePickerItem, selected === opt && fp.inlinePickerItemOn]}
                             onPress={() => { onSelect(opt); onClose(); }}
                         >
@@ -797,12 +799,21 @@ const ipg = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
-    const subcats = data.category ? (SUBCATEGORIES[data.category] || []) : [];
+    const categoryOptions = uniquePickerOptions(
+        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
+    );
+    const selectedCategory = catalog?.categories?.find(
+        (c: { name: string }) => c.name === data.category
+    );
+    const subcats = uniquePickerOptions(
+        selectedCategory?.subcategories?.map((s: { name: string }) => s.name) ??
+            (data.category ? SUBCATEGORIES[data.category] || [] : [])
+    );
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
@@ -813,7 +824,7 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
         >
             <View style={eb.idBadge}>
                 <MaterialCommunityIcons name="barcode" size={14} color={C.navyLight} />
-                <Text style={eb.idText}>Product ID: {MOCK_PRODUCT.id}</Text>
+                <Text style={eb.idText}>Product ID: {data.id ?? "—"}</Text>
                 <View style={eb.idStatus}><Text style={eb.idStatusTxt}>● Active</Text></View>
             </View>
 
@@ -852,7 +863,7 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                                 maxLength={8}
                             />
                         </View>
-                        <Hint text="4–8 digit Harmonized Code" />
+                        <Hint text="Auto-filled from material; edit if your product uses a different HSN" />
                     </View>
                 </View>
             </Card>
@@ -981,9 +992,20 @@ const StepBasicInfo = ({ data, onChange, errors, isDesktop = false }: any) => {
                 )}
             </Card>
 
-            <PM visible={catPick} title="Select Category" options={CATEGORIES} selected={data.category} onSelect={(v: string) => { onChange("category", v); onChange("subcategory", ""); }} onClose={() => setCatPick(false)} />
+            <PM visible={catPick} title="Select Category" options={categoryOptions} selected={data.category} onSelect={(v: string) => { onChange("category", v); onChange("subcategory", ""); }} onClose={() => setCatPick(false)} />
             <PM visible={subPick} title="Select Subcategory" options={subcats} selected={data.subcategory} onSelect={(v: string) => onChange("subcategory", v)} onClose={() => setSubPick(false)} />
-            <PM visible={matPick} title="Select Material" options={MATERIAL_TYPES} selected={data.materialType} onSelect={(v: string) => onChange("materialType", v)} onClose={() => setMatPick(false)} />
+            <PM
+                visible={matPick}
+                title="Select Material"
+                options={MATERIAL_TYPES}
+                selected={data.materialType}
+                onSelect={(v: string) => {
+                    onChange("materialType", v);
+                    const hsn = getHsnForMaterial(v);
+                    if (hsn) onChange("hsnCode", hsn);
+                }}
+                onClose={() => setMatPick(false)}
+            />
         </ScrollView>
     );
 };
@@ -1004,9 +1026,16 @@ type Variant = {
     videoUrl?: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = false }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDesktop = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
+
+    const colorOptions =
+        catalog?.colors?.map((c: { name: string }) => c.name) ?? COLORS_LIST;
+    const sizeOptions =
+        catalog?.sizes?.map((s: { name: string; code: string }) =>
+            s.code ? `${s.name} (${s.code})` : s.name
+        ) ?? SIZES_LIST;
 
     const hasErr = (id: string, field: string) =>
         errors.some((e: string) =>
@@ -1128,8 +1157,8 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
                 <Text style={vt.infoTxt}>Each variant can have its own price, stock, and images. At least one variant is required.</Text>
             </View>
 
-            <PM visible={!!clrPick} title="Select Color" options={COLORS_LIST} selected={variants.find((v: Variant) => v.id === clrPick)?.color || ""} onSelect={(val: string) => { if (clrPick) upVariant(clrPick, "color", val); }} onClose={() => setClrPick(null)} />
-            <PM visible={!!szPick} title="Select Size" options={SIZES_LIST} selected={variants.find((v: Variant) => v.id === szPick)?.size || ""} onSelect={(val: string) => { if (szPick) upVariant(szPick, "size", val); }} onClose={() => setSzPick(null)} />
+            <PM visible={!!clrPick} title="Select Color" options={colorOptions} selected={variants.find((v: Variant) => v.id === clrPick)?.color || ""} onSelect={(val: string) => { if (clrPick) upVariant(clrPick, "color", val); }} onClose={() => setClrPick(null)} />
+            <PM visible={!!szPick} title="Select Size" options={sizeOptions} selected={variants.find((v: Variant) => v.id === szPick)?.size || ""} onSelect={(val: string) => { if (szPick) upVariant(szPick, "size", val); }} onClose={() => setSzPick(null)} />
         </ScrollView>
     );
 };
@@ -1137,24 +1166,58 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, isDesktop = fa
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — Images
 // ─────────────────────────────────────────────────────────────
-const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
-    const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
+const StepImages = ({
+    data,
+    onChange,
+    onImagesChange,
+    errors,
+    isDesktop = false,
+}: any) => {
+    const hasErr = errors.some((e: string) =>
+        e.toLowerCase().includes("image") || e.toLowerCase().includes("primary")
+    );
 
-    const [existingImages, setExistingImages] = useState<string[]>(EXISTING_IMAGES);
+    const [existingImages, setExistingImages] = useState<string[]>(() => imagesFromData(data));
     const [primaryIndex, setPrimaryIndex] = useState(0);
     const [newImages, setNewImages] = useState<string[]>([]);
     const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
     const [srcModal, setSrcModal] = useState(false);
     const [manageImagesOpen, setManageImagesOpen] = useState(false);
+    const loadedImagesKey = useRef("");
+    const userEditedRef = useRef(false);
 
     const MAX_TOTAL = 8;
     const allImages = [...existingImages, ...newImages];
     const totalCount = allImages.length;
     const canAdd = totalCount < MAX_TOTAL;
 
+    const syncToParent = useCallback(() => {
+        const all = [...existingImages, ...newImages];
+        const primaryImage = all[primaryIndex] ?? null;
+        const additionalImages = all.filter((_, i) => i !== primaryIndex);
+        if (onImagesChange) {
+            onImagesChange({ primaryImage, additionalImages });
+        } else {
+            onChange("primaryImage", primaryImage);
+            onChange("additionalImages", additionalImages);
+        }
+    }, [existingImages, newImages, primaryIndex, onChange, onImagesChange]);
+
     useEffect(() => {
-        onChange("primaryImage", allImages[primaryIndex] ?? null);
-    }, [existingImages, newImages, primaryIndex]);
+        const urls = imagesFromData(data);
+        const key = urls.join("|");
+        if (!key || key === loadedImagesKey.current) return;
+        loadedImagesKey.current = key;
+        userEditedRef.current = false;
+        setExistingImages(urls);
+        setNewImages([]);
+        setPrimaryIndex(0);
+    }, [data.primaryImage, data.additionalImages]);
+
+    useEffect(() => {
+        if (!userEditedRef.current) return;
+        syncToParent();
+    }, [existingImages, newImages, primaryIndex, syncToParent]);
 
     const pickNewImages = async (source: "camera" | "gallery") => {
         setSrcModal(false);
@@ -1166,18 +1229,25 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
             const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.85 });
             const assets = result.assets ?? [];
             const uri = assets[0]?.uri;
-            if (!result.canceled && uri) setNewImages(p => [...p, uri]);
+            if (!result.canceled && uri) {
+                userEditedRef.current = true;
+                setNewImages(p => [...p, uri]);
+            }
         } else {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed."); return; }
             const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: 0.85 });
             const assets = result.assets ?? [];
-            if (!result.canceled && assets.length) setNewImages(p => [...p, ...assets.map((a: any) => a.uri)]);
+            if (!result.canceled && assets.length) {
+                userEditedRef.current = true;
+                setNewImages(p => [...p, ...assets.map((a: any) => a.uri)]);
+            }
         }
     };
 
     const handleDeleteConfirm = () => {
         if (deleteConfirmIdx === null) return;
+        userEditedRef.current = true;
         const idx = deleteConfirmIdx;
         setDeleteConfirmIdx(null);
         const newTotal = totalCount - 1;
@@ -1250,7 +1320,14 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                         <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.white} />
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={si.radioRow} onPress={() => setPrimaryIndex(globalIdx)} activeOpacity={0.75}>
+                <TouchableOpacity
+                    style={si.radioRow}
+                    onPress={() => {
+                        userEditedRef.current = true;
+                        setPrimaryIndex(globalIdx);
+                    }}
+                    activeOpacity={0.75}
+                >
                     <View style={[si.radio, isPrimary && si.radioOn]}>
                         {isPrimary && <View style={si.radioDot} />}
                     </View>
@@ -1869,7 +1946,7 @@ const dm = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // WEB SUCCESS POPUP  ← NEW
 // ─────────────────────────────────────────────────────────────
-const SuccessPopup = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+const SuccessPopup = ({ visible, productId, onClose }: { visible: boolean; productId: string; onClose: () => void }) => {
     const scaleAnim = useRef(new Animated.Value(0.72)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -1933,7 +2010,7 @@ const SuccessPopup = ({ visible, onClose }: { visible: boolean; onClose: () => v
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={sp.infoLabel}>Product ID</Text>
-                            <Text style={sp.infoValue}>{MOCK_PRODUCT.id}</Text>
+                            <Text style={sp.infoValue}>{productId || "—"}</Text>
                         </View>
                         <View style={sp.activePill}>
                             <View style={sp.activeDot} />
@@ -2172,19 +2249,31 @@ const EditProduct: React.FC = () => {
     const [loadingProduct, setLoadingProduct] = useState(!!productId);
     const [saving, setSaving] = useState(false);
 
-    const [basicData, setBasicData] = useState({ ...MOCK_PRODUCT });
-    const [variants, setVariants] = useState<Variant[]>(MOCK_VARIANTS);
+    const [basicData, setBasicData] = useState({ ...EMPTY_BASIC });
+    const [variants, setVariants] = useState<Variant[]>([]);
     const [imagesData, setImagesData] = useState<{ primaryImage: string | null; additionalImages?: string[] }>({
-        primaryImage: EXISTING_IMAGES[0] ?? null,
-        additionalImages: EXISTING_IMAGES.slice(1),
+        primaryImage: null,
+        additionalImages: [],
     });
-    const [detailsData, setDetailsData] = useState({ ...MOCK_DETAILS });
+    const [detailsData, setDetailsData] = useState({ ...EMPTY_DETAILS });
+    const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
     useEffect(() => {
         if (!productId) {
-            setLoadingProduct(false);
+            router.replace("/(main)/productmanagement");
+        }
+    }, [productId, router]);
+
+    useEffect(() => {
+        fetchProductFormCatalog()
+            .then(setCatalog)
+            .catch(() => setCatalog(null));
+    }, []);
+
+    useEffect(() => {
+        if (!productId) {
             return;
         }
         let cancelled = false;
@@ -2217,6 +2306,10 @@ const EditProduct: React.FC = () => {
 
     if (!fontsLoaded) return null;
 
+    if (!productId) {
+        return null;
+    }
+
     if (loadingProduct) {
         return (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
@@ -2233,6 +2326,10 @@ const EditProduct: React.FC = () => {
         markDirty();
     };
     const upDetails = (k: string, v: any) => { setDetailsData(p => ({ ...p, [k]: v })); markDirty(); };
+    const upImages = (next: { primaryImage: string | null; additionalImages: string[] }) => {
+        setImagesData(next);
+        markDirty();
+    };
     const rmVariant = (id: string) => { setVariants(p => p.filter(v => v.id !== id)); markDirty(); };
 
     const handleBackPress = () => {
@@ -2347,13 +2444,14 @@ const EditProduct: React.FC = () => {
 
     const stepContent = (
         <>
-            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} isDesktop={isDesktop} />}
+            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} catalog={catalog} isDesktop={isDesktop} />}
             {step === 1 && (
                 <StepVariants
                     variants={variants}
                     setVariants={(fn: any) => { setVariants(fn); markDirty(); }}
                     rmVariant={rmVariant}
                     errors={variantErrors}
+                    catalog={catalog}
                     isDesktop={isDesktop}
                 />
             )}
@@ -2361,6 +2459,7 @@ const EditProduct: React.FC = () => {
                 <StepImages
                     data={imagesData}
                     onChange={(k: string, v: any) => { setImagesData((p) => ({ ...p, [k]: v })); markDirty(); }}
+                    onImagesChange={upImages}
                     errors={imageErrors}
                     isDesktop={isDesktop}
                 />
@@ -2404,6 +2503,7 @@ const EditProduct: React.FC = () => {
                 {/* ── Web Success Popup ── */}
                 <SuccessPopup
                     visible={successPopup}
+                    productId={String(basicData.id || productId || "")}
                     onClose={() => { setSuccessPopup(false); router.back(); }}
                 />
                 <ToastContainer toasts={toasts} onRemove={removeToast} />

@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { LogBox, Platform } from "react-native";
 import NotificationsProvider from "@/app/providers/NotificationsProvider";
 import { clearSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
@@ -16,6 +16,7 @@ LogBox.ignoreLogs([
 ]);
 
 export default function RootLayout() {
+  const [sessionReady, setSessionReady] = useState(false);
   const [loaded, error] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
@@ -24,8 +25,11 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    // Require fresh login on every app launch.
-    void clearSellerId().then(() => hydrateSellerSession());
+    // Require fresh login on every app launch. Block UI until clear finishes so
+    // a slow clearSellerId() cannot wipe the id set right after login.
+    void clearSellerId()
+      .then(() => hydrateSellerSession())
+      .finally(() => setSessionReady(true));
   }, []);
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  if (!loaded && !error) {
+  if ((!loaded && !error) || !sessionReady) {
     return null;
   }
 

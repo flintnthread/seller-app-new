@@ -5,15 +5,14 @@ import React, {
     useRef,
     useState,
 } from "react";
+import {
+    markAllNotificationsReadRemote,
+    markNotificationReadRemote,
+    useNotificationsFeed,
+    type AppNotification,
+} from "@/hooks/useNotificationsFeed";
 
-export type AppNotification = {
-  id: string;
-  type: "new_order" | "order_cancelled" | "low_stock" | "payment" | "tickets";
-  title: string;
-  body?: string;
-  time?: string;
-  read?: boolean;
-};
+export { type AppNotification } from "@/hooks/useNotificationsFeed";
 
 type NotificationsContextType = {
   notifications: AppNotification[];
@@ -37,24 +36,7 @@ export function addGlobalNotification(n: AppNotification) {
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: "mock_ticket_1",
-      type: "tickets",
-      title: "Support Ticket #4521 Updated",
-      body: "Our team has responded to your inquiry regarding the payment delay. Click to view details.",
-      time: new Date().toISOString(),
-      read: false,
-    },
-    {
-      id: "mock_order_1",
-      type: "new_order",
-      title: "New Order #FT12345",
-      body: "Macrame Wall Hanging (2 items) - ₹1,250",
-      time: new Date(Date.now() - 3600000).toISOString(),
-      read: false,
-    }
-  ]);
+  const { notifications, setNotifications } = useNotificationsFeed();
   const timers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>(
     {},
   );
@@ -89,13 +71,16 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     timers.current = {};
   };
 
-  const markAllRead = () =>
+  const markAllRead = () => {
     setNotifications((prev) => prev.map((p) => ({ ...p, read: true })));
+    markAllNotificationsReadRemote().catch(() => undefined);
+  };
 
   const markAsSeen = (id: string) => {
     setNotifications((prev) =>
       prev.map((p) => (p.id === id ? { ...p, read: true } : p)),
     );
+    markNotificationReadRemote(id).catch(() => undefined);
     const TTL = 24 * 60 * 60 * 1000; // 24 hours
     if (timers.current[id]) {
       clearTimeout(timers.current[id] as any);
