@@ -138,59 +138,35 @@ interface ShiprocketData {
   trackingUrl: string; events: ShiprocketEvent[];
 }
 
-function getMockShiprocketData(orderId: string, status: string): ShiprocketData {
-  const awb = "80050999781";
-  const baseEvents: ShiprocketEvent[] = [
-    { date:"20 May 2024", time:"10:35 AM", status:"Order Placed",     location:"New Delhi, IN",          description:"Order has been placed and payment confirmed.",           type:"done"    },
-    { date:"20 May 2024", time:"03:00 PM", status:"Pickup Scheduled", location:"New Delhi, IN",          description:"Courier pickup scheduled for your order.",               type:"done"    },
-    { date:"21 May 2024", time:"10:00 AM", status:"Picked Up",        location:"New Delhi Hub",          description:"Shipment picked up by Blue Dart.",                       type:"done"    },
-    { date:"21 May 2024", time:"08:00 PM", status:"In Transit",       location:"Delhi Sorting Facility", description:"Package sorted and loaded for dispatch.",                 type:"done"    },
-    {
-      date:"22 May 2024", time:"06:30 AM", status:"Out for Delivery", location:"Destination City Hub",
-      description:"Shipment is out for delivery to the consignee.",
-      type: status === "Delivered" || status === "Returned" ? "done" : "active",
-    },
-    {
-      date:"22 May 2024", time:"01:15 PM",
-      status: status==="Delivered" ? "Delivered" : status==="Returned" ? "Return Initiated" : "Pending Delivery",
-      location:"Destination Address",
-      description: status==="Delivered" ? "Package delivered successfully. Signed by recipient."
-                 : status==="Returned"  ? "Delivery unsuccessful. Return to origin initiated."
-                 :                        "Awaiting delivery.",
-      type: status==="Delivered" || status==="Returned" ? "done" : "pending",
-    },
-  ];
-  const statusMap: Record<string,string> = {
-    Pending:"Label Created", Processing:"Pickup Scheduled", Shipped:"In Transit",
-    Delivered:"Delivered",   Returned:"RTO Initiated",      Cancelled:"Cancelled",
-  };
-  return {
-    shiprocketOrderId: `SR-${orderId.replace("#","")}`,
-    shipmentId:        `SHP-${orderId.replace("#","")}-01`,
-    awb, courier:"Blue Dart Air",
-    shipmentStatus: statusMap[status] ?? "Unknown",
-    lastSynced:"Today, 10:45 AM",
-    trackingUrl:`https://www.bluedart.com/tracking/${awb}`,
-    events: baseEvents,
-  };
-}
-
 function buildShiprocketData(order: OrderDetail): ShiprocketData {
   const sr = order.shiprocket;
   if (sr?.awb || sr?.orderId || sr?.trackingUrl) {
-    const mock = getMockShiprocketData(order.id, order.status);
     return {
-      shiprocketOrderId: sr.orderId ?? mock.shiprocketOrderId,
-      shipmentId: sr.shipmentId ?? mock.shipmentId,
-      awb: sr.awb ?? mock.awb,
-      courier: sr.courier ?? mock.courier,
-      shipmentStatus: sr.status ?? mock.shipmentStatus,
-      lastSynced: sr.syncedAt ?? mock.lastSynced,
-      trackingUrl: sr.trackingUrl ?? mock.trackingUrl,
-      events: mock.events,
+      shiprocketOrderId: sr.orderId ?? "—",
+      shipmentId: sr.shipmentId ?? "—",
+      awb: sr.awb ?? "—",
+      courier: sr.courier ?? "—",
+      shipmentStatus: sr.status ?? order.status,
+      lastSynced: sr.syncedAt ?? "—",
+      trackingUrl: sr.trackingUrl ?? "",
+      events: [],
     };
   }
-  return getMockShiprocketData(order.id, order.status);
+  return {
+    shiprocketOrderId: "—",
+    shipmentId: "—",
+    awb: "—",
+    courier: "—",
+    shipmentStatus: order.status,
+    lastSynced: "—",
+    trackingUrl: "",
+    events: [],
+  };
+}
+
+async function refreshShiprocketFromApi(orderKey: string): Promise<ShiprocketData> {
+  const refreshed = await fetchSellerOrderDetail(orderKey);
+  return buildShiprocketData(refreshed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -545,9 +521,16 @@ const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }
 const WebTrackingCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
   const [syncing, setSyncing] = useState(false);
   const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
-  const handleSync = () => {
+  const handleSync = async () => {
     setSyncing(true);
-    setTimeout(() => { setSrData(buildShiprocketData(order)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed."); }, 1200);
+    try {
+      setSrData(await refreshShiprocketFromApi(order.id));
+      Alert.alert("Synced", "Tracking data refreshed from server.");
+    } catch {
+      Alert.alert("Sync failed", "Could not refresh tracking. Try again.");
+    } finally {
+      setSyncing(false);
+    }
   };
   return (
     <View style={wc.card}>
@@ -874,9 +857,16 @@ const MobileLayout: React.FC<{
   const MobileTrackingModal = () => {
     const [syncing, setSyncing] = useState(false);
     const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
-    const handleSync = () => {
+    const handleSync = async () => {
       setSyncing(true);
-      setTimeout(() => { setSrData(buildShiprocketData(order)); setSyncing(false); Alert.alert("Synced","Tracking data refreshed from Shiprocket."); }, 1200);
+      try {
+        setSrData(await refreshShiprocketFromApi(order.id));
+        Alert.alert("Synced", "Tracking data refreshed from server.");
+      } catch {
+        Alert.alert("Sync failed", "Could not refresh tracking. Try again.");
+      } finally {
+        setSyncing(false);
+      }
     };
     const MetaRow = ({ label, value, copyable, isUrl }: { label:string; value:string; copyable?:boolean; isUrl?:boolean }) => (
       <View style={tStyles.metaRow}>

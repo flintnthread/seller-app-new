@@ -29,6 +29,9 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { uriToImageSource } from "@/lib/media/imagePayload";
+import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -542,6 +545,8 @@ export default function SellerDocuments() {
   const [sourceModalVisible, setSourceModalVisible] = useState(false);
   const [pendingDocumentType, setPendingDocumentType] = useState<string>("");
   const [webCameraVisible, setWebCameraVisible] = useState(false);
+  const { profile, save } = useSellerProfile();
+  const [submitting, setSubmitting] = useState(false);
 
   const setFileType = (field: string, type: "image" | "pdf") =>
     setFileTypes(prev => ({ ...prev, [field]: type }));
@@ -667,12 +672,38 @@ export default function SellerDocuments() {
     return errors;
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     const errors = validateDocuments();
     if (errors.length > 0) { setValidationErrors(errors); return; }
-    setSuccess(true);
-    modalOpacity.value = withTiming(1, { duration: 400 });
-    modalScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+    setSubmitting(true);
+    try {
+      const [aadharFrontSrc, aadharBackSrc, panCardSrc, businessProofSrc, bankProofSrc, chequeSrc] =
+        await Promise.all([
+          aadharFront ? uriToImageSource(aadharFront) : Promise.resolve(""),
+          aadharBack ? uriToImageSource(aadharBack) : Promise.resolve(""),
+          panCard ? uriToImageSource(panCard) : Promise.resolve(""),
+          businessProof ? uriToImageSource(businessProof) : Promise.resolve(""),
+          bankAccountProof ? uriToImageSource(bankAccountProof) : Promise.resolve(""),
+          cancelledCheque ? uriToImageSource(cancelledCheque) : Promise.resolve(""),
+        ]);
+      await save({
+        aadharFront: aadharFrontSrc || undefined,
+        aadharBack: aadharBackSrc || undefined,
+        panCard: panCardSrc || undefined,
+        businessProof: businessProofSrc || undefined,
+        bankProof: bankProofSrc || undefined,
+        cancelledCheque: chequeSrc || undefined,
+        profileCompleted: true,
+        kycCompleted: true,
+      });
+      setSuccess(true);
+      modalOpacity.value = withTiming(1, { duration: 400 });
+      modalScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+    } catch {
+      showMessage({ message: "Failed to submit documents", type: "danger" });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const closeModal = () => {

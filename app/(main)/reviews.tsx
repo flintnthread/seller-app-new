@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     Dimensions, SafeAreaView, Image, TextInput, Platform,
@@ -9,6 +9,7 @@ import {
     Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { fetchReviewsForProduct } from "@/services/reviewApi";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -42,34 +43,6 @@ interface Review {
     helpful: number;
     images?: string[];
 }
-
-// ─── Mock Reviews Data (keyed by productId) ───────────────────
-const REVIEWS_DATA: Record<string, Review[]> = {
-    "20": [ // Sports Water Bottle
-        { id: "r1",  customerName: "Aarav Sharma",    customerAvatar: "https://i.pravatar.cc/150?img=11", rating: 5, title: "Absolutely love this bottle!", description: "The insulation is incredible — keeps my water ice cold even after a 2-hour gym session. The lid doesn't leak at all and the build quality feels very premium. Definitely worth every rupee.", date: "22 May 2024", verified: true,  helpful: 34 },
-        { id: "r2",  customerName: "Priya Nair",      customerAvatar: "https://i.pravatar.cc/150?img=5",  rating: 4, title: "Great bottle, minor complaint",  description: "Really happy with the purchase overall. Keeps water cold for a long time. My only issue is the mouth opening is slightly narrow — hard to add ice cubes. Would still recommend it to others.", date: "20 May 2024", verified: true,  helpful: 18 },
-        { id: "r3",  customerName: "Rahul Verma",     customerAvatar: "https://i.pravatar.cc/150?img=15", rating: 5, title: "Best gym bottle I've owned",     description: "I have tried at least 5 different water bottles over the years. This one beats them all. The stainless steel finish looks gorgeous and it has zero metallic taste. Using it daily for 3 weeks now with no issues.", date: "18 May 2024", verified: true,  helpful: 27 },
-        { id: "r4",  customerName: "Sneha Kapoor",    customerAvatar: "https://i.pravatar.cc/150?img=9",  rating: 3, title: "Decent but lid can be better",   description: "The bottle itself is solid but the lid sometimes feels loose. I'd prefer a locking mechanism. The insulation works fine, no complaints there. For the price it's okay but I expected a bit more.", date: "15 May 2024", verified: false, helpful: 8  },
-        { id: "r5",  customerName: "Karan Mehta",     customerAvatar: "https://i.pravatar.cc/150?img=3",  rating: 5, title: "Perfect for cycling!",          description: "I use this on my morning cycling rides. Holds 1L which is exactly what I need. The bottle stays cold even under direct sun for about an hour. Super easy to clean too. Excellent product!", date: "12 May 2024", verified: true,  helpful: 21 },
-        { id: "r6",  customerName: "Divya Reddy",     customerAvatar: "https://i.pravatar.cc/150?img=23", rating: 4, title: "Good quality, fast delivery",   description: "Ordered this for my husband and he absolutely loves it. The colour matched the photos exactly. Delivery was quick. Good quality product from this seller. Would order again.", date: "10 May 2024", verified: true,  helpful: 12 },
-        { id: "r7",  customerName: "Amit Joshi",      customerAvatar: "https://i.pravatar.cc/150?img=7",  rating: 2, title: "Expected better insulation",    description: "The bottle looks nice but the insulation is not as advertised. My water got warm within 4 hours not 24 hours as claimed. Might just be a bad unit but felt disappointed with the purchase.", date: "08 May 2024", verified: true,  helpful: 5  },
-        { id: "r8",  customerName: "Meera Pillai",    customerAvatar: "https://i.pravatar.cc/150?img=44", rating: 5, title: "Gifted this to my brother",     description: "Bought this as a birthday gift. The packaging was really nice and presentable. My brother uses it every day at the gym and is very happy. The matte finish looks so elegant. Will definitely buy again.", date: "05 May 2024", verified: true,  helpful: 16 },
-    ],
-    "1": [ // Running Sports Shoes
-        { id: "r1",  customerName: "Vikram Singh",    customerAvatar: "https://i.pravatar.cc/150?img=60", rating: 5, title: "Best running shoes ever",       description: "These shoes transformed my running experience. The cushioning is just perfect — not too soft, not too firm. Ran a 10K in them last week and had zero soreness. Highly recommend to any runner.", date: "21 May 2024", verified: true,  helpful: 42 },
-        { id: "r2",  customerName: "Ananya Gupta",    customerAvatar: "https://i.pravatar.cc/150?img=16", rating: 4, title: "Comfortable but runs small",    description: "Really comfortable and breathable mesh. However I would suggest ordering half a size up — mine felt tight initially. After a week of wear they stretched a bit and now fit perfectly. Overall happy.", date: "19 May 2024", verified: true,  helpful: 29 },
-        { id: "r3",  customerName: "Rohan Das",       customerAvatar: "https://i.pravatar.cc/150?img=52", rating: 3, title: "Good for casual, not marathon",  description: "Fine for jogging and casual use. But if you run long distances seriously, look elsewhere. The sole started showing wear after about 80km. For the price maybe that's expected.", date: "16 May 2024", verified: false, helpful: 11 },
-    ],
-    "2": [ // Smart Watch Series 5
-        { id: "r1",  customerName: "Ishaan Trivedi",  customerAvatar: "https://i.pravatar.cc/150?img=33", rating: 5, title: "Worth every penny!",            description: "The health tracking features are incredibly accurate. Sleep tracking, heart rate, SpO2 — all work flawlessly. Battery easily lasts 7 days with regular use. Best smartwatch in this price range.", date: "20 May 2024", verified: true,  helpful: 55 },
-        { id: "r2",  customerName: "Kavya Iyer",      customerAvatar: "https://i.pravatar.cc/150?img=29", rating: 4, title: "Stylish and functional",        description: "Looks really premium and the AMOLED display is gorgeous. App support is good. Only minor gripe is the GPS takes a few seconds to lock but that's a common issue. Overall a solid smartwatch.", date: "17 May 2024", verified: true,  helpful: 31 },
-    ],
-    "default": [
-        { id: "r1",  customerName: "Rajesh Kumar",    customerAvatar: "https://i.pravatar.cc/150?img=68", rating: 4, title: "Good product",                  description: "Really satisfied with this purchase. The quality is excellent and it arrived well-packaged. Would definitely buy from this seller again. Prompt shipping and everything as described.", date: "20 May 2024", verified: true,  helpful: 14 },
-        { id: "r2",  customerName: "Sunita Rao",      customerAvatar: "https://i.pravatar.cc/150?img=47", rating: 5, title: "Exceeded my expectations",      description: "I was a bit skeptical ordering online but this product completely won me over. The build quality is top notch. It looks even better in person than in the photos. Very happy customer!", date: "18 May 2024", verified: true,  helpful: 22 },
-        { id: "r3",  customerName: "Mohit Agarwal",   customerAvatar: "https://i.pravatar.cc/150?img=57", rating: 3, title: "Average experience",            description: "The product is okay for the price. Nothing extraordinary but it does the job. Delivery was on time. Packaging could be better. Would be great if the seller improved on the finishing.", date: "15 May 2024", verified: false, helpful: 7  },
-    ],
-};
 
 // ─── Star Rating Component ─────────────────────────────────────
 const StarRating: React.FC<{ rating: number; size?: number; interactive?: boolean; onRate?: (r: number) => void }> = ({ rating, size = 14, interactive = false, onRate }) => (
@@ -112,7 +85,13 @@ const ReviewCard: React.FC<{ review: Review; isWeb?: boolean }> = ({ review, isW
         <View style={[rs.reviewCard, isWeb && rs.reviewCardWeb]}>
             {/* Header */}
             <View style={rs.reviewHeader}>
-                <Image source={{ uri: review.customerAvatar }} style={rs.avatar} />
+                {review.customerAvatar ? (
+                    <Image source={{ uri: review.customerAvatar }} style={rs.avatar} />
+                ) : (
+                    <View style={[rs.avatar, { backgroundColor: C.border, alignItems: "center", justifyContent: "center" }]}>
+                        <MaterialCommunityIcons name="account" size={20} color={C.textLight} />
+                    </View>
+                )}
                 <View style={{ flex: 1 }}>
                     <View style={rs.reviewNameRow}>
                         <Text style={rs.customerName}>{review.customerName}</Text>
@@ -170,11 +149,45 @@ const ReviewsScreen: React.FC = () => {
 // ─── Shared logic hook ─────────────────────────────────────────
 const useReviewsLogic = () => {
     const params = useLocalSearchParams<{ productId?: string; productName?: string; productImage?: string }>();
-    const productId    = params.productId    ?? "default";
+    const productId    = params.productId    ?? "";
     const productName  = params.productName  ?? "Product";
-    const productImage = params.productImage ?? "https://picsum.photos/seed/default/100/100";
+    const productImage = params.productImage ?? "";
 
-    const reviews: Review[] = REVIEWS_DATA[productId] ?? REVIEWS_DATA["default"] ?? [];
+    const [reviews, setReviews] = useState<Review[]>([]);
+    const [loading, setLoading] = useState(!!productId);
+
+    useEffect(() => {
+        if (!productId) {
+            setReviews([]);
+            setLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setLoading(true);
+        fetchReviewsForProduct(productId)
+            .then((rows) => {
+                if (cancelled) return;
+                setReviews(rows.map((r) => ({
+                    id: String(r.id),
+                    customerName: r.customerName,
+                    customerAvatar: r.customerAvatar || "",
+                    rating: r.rating,
+                    title: r.title,
+                    description: r.description,
+                    date: r.date,
+                    verified: r.verified,
+                    helpful: 0,
+                    images: r.imageUrl ? [r.imageUrl] : undefined,
+                })));
+            })
+            .catch(() => {
+                if (!cancelled) setReviews([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [productId]);
 
     const [filterRating, setFilterRating] = useState<FilterType>("All");
     const [sortBy, setSortBy]             = useState<"recent" | "helpful" | "highest" | "lowest">("recent");
@@ -208,7 +221,7 @@ const useReviewsLogic = () => {
         return list;
     }, [reviews, filterRating, searchQuery, sortBy]);
 
-    return { productId, productName, productImage, reviews, filteredReviews, totalReviews, avgRating, ratingCounts, filterRating, setFilterRating, sortBy, setSortBy, searchQuery, setSearchQuery };
+    return { productId, productName, productImage, reviews, filteredReviews, totalReviews, avgRating, ratingCounts, filterRating, setFilterRating, sortBy, setSortBy, searchQuery, setSearchQuery, loading };
 };
 
 // ─── MOBILE SCREEN ─────────────────────────────────────────────

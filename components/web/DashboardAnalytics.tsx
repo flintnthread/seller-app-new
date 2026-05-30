@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, StyleSheet, Pressable, useWindowDimensions, Platform } from "react-native";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { DashboardOrderSummary } from "@/services/dashboardApi";
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from "react-native-svg";
 
 const C = {
@@ -28,6 +29,7 @@ export type SalesPeriod = "Day" | "Week" | "Month" | "Year";
 
 interface DashboardAnalyticsProps {
   period: SalesPeriod;
+  orderSummary?: DashboardOrderSummary | null;
   allStatsData: Record<SalesPeriod, {
     orders: string; ordersChange: string;
     sales: string; salesChange: string;
@@ -139,11 +141,11 @@ const sparkRowStyle = {
 export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   period,
   allStatsData,
+  orderSummary,
 }) => {
   const { width } = useWindowDimensions();
   const data = allStatsData[period];
 
-  // Dynamically calculate grid column layouts
   let cardWidth = "33.33%";
   if (width >= 1440) {
     cardWidth = "16.66%";
@@ -153,30 +155,26 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     cardWidth = "50%";
   }
 
-  // Set detailed specific values for periods
-  const revenueVal = period === "Day" ? "₹12,450" : period === "Week" ? "₹86,540" : period === "Month" ? "₹3,12,800" : "₹28,45,000";
-  const revenuePrev = period === "Day" ? "₹10,550 yesterday" : period === "Week" ? "₹73,120 last week" : period === "Month" ? "₹2,52,000 last month" : "₹20,80,000 last year";
-  
-  const ordersVal = period === "Day" ? "28" : period === "Week" ? "156" : period === "Month" ? "589" : "5,430";
-  const ordersPending = period === "Day" ? "3" : period === "Week" ? "12" : period === "Month" ? "42" : "192";
-  const ordersShipped = period === "Day" ? "10" : period === "Week" ? "58" : period === "Month" ? "210" : "1,850";
-  const ordersDelivered = period === "Day" ? "15" : period === "Week" ? "86" : period === "Month" ? "337" : "3,388";
+  const revenueVal = data.sales;
+  const ordersVal = data.orders;
+  const ordersPending = orderSummary ? String(orderSummary.pending) : "—";
+  const ordersShipped = orderSummary ? String(orderSummary.shipped) : "—";
+  const ordersDelivered = orderSummary ? String(orderSummary.delivered) : "—";
 
-  const viewsVal = period === "Day" ? "1,245" : period === "Week" ? "7,820" : period === "Month" ? "29,400" : "3,12,000";
-  const cartRate = period === "Day" ? "7.2%" : period === "Week" ? "8.4%" : period === "Month" ? "9.1%" : "8.6%";
-  const checkoutRate = period === "Day" ? "3.8%" : period === "Week" ? "4.2%" : period === "Month" ? "4.5%" : "4.0%";
+  const viewsVal = data.views;
+  const cartRate = "—";
+  const checkoutRate = data.conversionRate;
 
-  const custVal = period === "Day" ? "14" : period === "Week" ? "68" : period === "Month" ? "210" : "1,850";
-  const custRepeat = period === "Day" ? "28%" : period === "Week" ? "32%" : period === "Month" ? "35%" : "38%";
-  const custTop = period === "Day" ? "Rita S." : period === "Week" ? "Anjali M." : period === "Month" ? "Komal P." : "Priya S.";
+  const custVal = data.newCustomers;
+  const custRepeat = "—";
+  const custTop = "—";
 
-  const grossValNum = period === "Day" ? 12450 : period === "Week" ? 86540 : period === "Month" ? 312800 : 2845000;
-  const netVal = "₹" + Math.round(grossValNum * 0.8).toLocaleString("en-IN");
-  const grossText = "₹" + grossValNum.toLocaleString("en-IN");
+  const netVal = data.avgOrderValue;
+  const grossText = data.sales;
 
-  const visitorsVal = period === "Day" ? "560" : period === "Week" ? "3,840" : period === "Month" ? "15,200" : "162,000";
-  const clicksVal = period === "Day" ? "280" : period === "Week" ? "1,940" : period === "Month" ? "7,450" : "78,300";
-  const bounceVal = period === "Day" ? "45%" : period === "Week" ? "42%" : period === "Month" ? "39%" : "41%";
+  const visitorsVal = data.views;
+  const clicksVal = "—";
+  const bounceVal = "—";
 
   const kpis = [
     {
@@ -187,7 +185,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       icon: "currency-inr" as const,
       color: C.green,
       bgColor: "#F0FDF4",
-      description: `vs ${revenuePrev}`,
+      description: `Returns: ${data.returns}`,
       points: [10, 25, 18, 35, 30, 45, 40],
     },
     {
@@ -226,18 +224,18 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     {
       title: "Profit Analytics",
       value: netVal,
-      change: "+16%",
+      change: data.avgOrderValueChange,
       isPositive: true,
       icon: "wallet-outline" as const,
       color: C.teal,
       bgColor: "#F0FDFA",
-      description: `Gross: ${grossText} • Comm: 20%`,
+      description: `Gross: ${grossText}`,
       points: [8, 20, 14, 28, 22, 38, 32],
     },
     {
       title: "Traffic Analytics",
       value: visitorsVal,
-      change: "+22%",
+      change: data.viewsChange,
       isPositive: true,
       icon: "trending-up" as const,
       color: C.orange,

@@ -22,6 +22,7 @@ import {
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useEarningsData } from "@/hooks/useEarningsData";
 
 interface Transaction {
   id: string;
@@ -31,39 +32,18 @@ interface Transaction {
   status: "Completed" | "Pending" | "Failed";
 }
 
-const transactions: Transaction[] = [
-  {
-    id: "1",
-    title: "Premium Subscription",
-    amount: "₹240",
-    date: "May 12, 2026",
-    status: "Completed",
-  },
-  {
-    id: "2",
-    title: "Ad Revenue",
-    amount: "₹120",
-    date: "May 11, 2026",
-    status: "Pending",
-  },
-  {
-    id: "3",
-    title: "Referral Bonus",
-    amount: "₹80",
-    date: "May 10, 2026",
-    status: "Completed",
-  },
-];
-
-const breakdown = [
-  { title: "Product Sales", percent: "45%" },
-  { title: "Ads Revenue", percent: "25%" },
-  { title: "Subscriptions", percent: "20%" },
-  { title: "Referrals", percent: "10%" },
-];
+const transactionsFallback: Transaction[] = [];
 
 export default function EarningsScreen() {
   const router = useRouter();
+  const { data: earningsData, reload } = useEarningsData();
+  const transactions: Transaction[] = (earningsData?.transactions ?? transactionsFallback).map((t) => ({
+    id: String(t.id),
+    title: t.title,
+    amount: t.amount,
+    date: t.date,
+    status: (t.status === "Pending" || t.status === "Failed" ? t.status : "Completed") as Transaction["status"],
+  }));
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("This Month");
   const [showBalance, setShowBalance] = useState(true);
@@ -82,7 +62,12 @@ export default function EarningsScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
-  const availableBalance = 45600;
+  const availableBalance = earningsData?.availableBalance ?? 0;
+
+  const breakdown = [
+    { title: "Credits", percent: earningsData ? `${Math.round(Number(earningsData.totalCredits))}` : "0" },
+    { title: "Debits", percent: earningsData ? `${Math.round(Number(earningsData.totalDebits))}` : "0" },
+  ];
 
   const handleInitiateWithdrawal = () => {
     const amt = parseFloat(withdrawAmount);
@@ -127,10 +112,7 @@ export default function EarningsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
+    reload().finally(() => setRefreshing(false));
   };
 
   const renderTransaction = ({ item }: { item: Transaction }) => (
@@ -274,7 +256,7 @@ export default function EarningsScreen() {
             <View>
               <Text style={styles.smallText}>Current Month</Text>
               <Text style={styles.smallValue}>
-                {showBalance ? "₹12,400" : "XXXXXX"}
+                {showBalance ? `₹${availableBalance.toLocaleString("en-IN")}` : "XXXXXX"}
               </Text>
             </View>
 
@@ -284,7 +266,7 @@ export default function EarningsScreen() {
                 size={18}
                 color="#f97316"
               />
-              <Text style={styles.growthText}>+18.5%</Text>
+              <Text style={styles.growthText}>—</Text>
             </View>
           </View>
         </View>

@@ -12,7 +12,13 @@ import {
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
-import { deleteProduct, type ProductListItem } from "@/services/productApi";
+import {
+    deleteProduct,
+    fetchProductDeliverySettings,
+    updateProductDeliverySettings,
+    type PincodeOption,
+    type ProductListItem,
+} from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 
 const { width: SW, height: SH } = Dimensions.get("window");
@@ -265,15 +271,55 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
     const [selectedCountry, setSelectedCountry]   = useState("India");
     const [selectedState, setSelectedState]       = useState("All States");
     const [selectedCity, setSelectedCity]         = useState("All Cities");
-    const [selectedPincodes, setSelectedPincodes] = useState<string[]>([]);
+    const [pincodeOptions, setPincodeOptions]     = useState<PincodeOption[]>([]);
+    const [selectedPincodeIds, setSelectedPincodeIds] = useState<number[]>([]);
     const [selectAll, setSelectAll]               = useState(false);
+    const [loading, setLoading]                   = useState(true);
+    const [saving, setSaving]                     = useState(false);
     type SelectorType = 'country' | 'state' | 'city' | null;
     const [selectorVisible, setSelectorVisible]   = useState(false);
     const [selectorType, setSelectorType]         = useState<SelectorType>(null);
     const [selectorOptions, setSelectorOptions]   = useState<string[]>([]);
 
-    const stateOptions = STATES_BY_COUNTRY[selectedCountry] ?? ["All States"];
-    const cityOptions  = CITIES_BY_STATE[selectedState]     ?? ["All Cities"];
+    const loadSettings = useCallback(async (search?: string) => {
+        setLoading(true);
+        try {
+            const settings = await fetchProductDeliverySettings(String(product.id), search);
+            setDeliverAll(settings.deliverAllLocations);
+            setPincodeOptions(settings.pincodes ?? []);
+            setSelectedPincodeIds(
+                (settings.pincodes ?? []).filter((p) => p.selected).map((p) => p.pincodeId)
+            );
+        } catch (err) {
+            const msg = err instanceof ApiError ? err.message : "Failed to load delivery settings.";
+            Alert.alert("Error", msg);
+        } finally {
+            setLoading(false);
+        }
+    }, [product.id]);
+
+    useEffect(() => {
+        loadSettings();
+    }, [loadSettings]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            loadSettings(pincodeQuery.trim() || undefined);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [pincodeQuery, loadSettings]);
+
+    const stateOptions = useMemo(() => {
+        const states = Array.from(new Set(pincodeOptions.map((d) => d.state).filter(Boolean)));
+        return ["All States", ...states];
+    }, [pincodeOptions]);
+
+    const cityOptions = useMemo(() => {
+        let rows = pincodeOptions;
+        if (selectedState !== "All States") rows = rows.filter((d) => d.state === selectedState);
+        const cities = Array.from(new Set(rows.map((d) => d.city).filter(Boolean)));
+        return ["All Cities", ...cities];
+    }, [pincodeOptions, selectedState]);
 
     const openSelector = (type: SelectorType, options: string[]) => {
         setSelectorType(type); setSelectorOptions(options); setSelectorVisible(true);
@@ -287,28 +333,36 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
     };
 
     const filteredData = useMemo(() => {
-        let data = PINCODE_DATA.filter(d => d.country === selectedCountry);
-        if (pincodeQuery.trim()) {
-            const q = pincodeQuery.toLowerCase();
-            data = data.filter(d => d.pincode.includes(q) || d.area.toLowerCase().includes(q) || d.city.toLowerCase().includes(q));
-        }
+        let data = pincodeOptions;
         if (selectedState !== "All States") data = data.filter(d => d.state === selectedState);
         if (selectedCity  !== "All Cities") data = data.filter(d => d.city  === selectedCity);
         return data;
-    }, [pincodeQuery, selectedCountry, selectedState, selectedCity]);
+    }, [pincodeOptions, selectedState, selectedCity]);
 
-    const togglePincode = (key: string) => {
-        setSelectedPincodes(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+    const togglePincode = (pincodeId: number) => {
+        setSelectedPincodeIds(prev => prev.includes(pincodeId) ? prev.filter(k => k !== pincodeId) : [...prev, pincodeId]);
     };
     const toggleSelectAll = () => {
-        if (selectAll) { setSelectedPincodes([]); } else { setSelectedPincodes(filteredData.map(d => `${d.pincode}-${d.area}`)); }
+        if (selectAll) { setSelectedPincodeIds([]); } else { setSelectedPincodeIds(filteredData.map(d => d.pincodeId)); }
         setSelectAll(!selectAll);
     };
-    const handleApply = () => {
-        const count = selectedPincodes.length;
-        Alert.alert("✅ Delivery Locations Updated",
-            `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`,
-            [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+    const handleApply = async () => {
+        setSaving(true);
+        try {
+            await updateProductDeliverySettings(String(product.id), {
+                deliverAllLocations: deliverAll,
+                pincodeIds: deliverAll ? [] : selectedPincodeIds,
+            });
+            const count = selectedPincodeIds.length;
+            Alert.alert("✅ Delivery Locations Updated",
+                `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`,
+                [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+        } catch (err) {
+            const msg = err instanceof ApiError ? err.message : "Failed to save delivery settings.";
+            Alert.alert("Error", msg);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const isWebPlatform = Platform.OS === "web";
@@ -378,16 +432,21 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                         <Text style={[dlp.tableHeaderTxt, { flex: 1.5 }]}>City</Text>
                         <Text style={[dlp.tableHeaderTxt, { flex: 1.2 }]}>State</Text>
                     </View>
-                    {filteredData.length === 0 ? (
+                    {loading ? (
+                        <View style={dlp.emptyTable}>
+                            <ActivityIndicator size="small" color={C.orange} />
+                            <Text style={dlp.emptyTableTitle}>Loading pincodes...</Text>
+                        </View>
+                    ) : filteredData.length === 0 ? (
                         <View style={dlp.emptyTable}>
                             <MaterialCommunityIcons name="map-search-outline" size={32} color={C.textLight} />
                             <Text style={dlp.emptyTableTitle}>No locations found</Text>
                         </View>
                     ) : (
                         filteredData.map((d, i) => {
-                            const key = `${d.pincode}-${d.area}`; const isChecked = selectedPincodes.includes(key);
+                            const isChecked = selectedPincodeIds.includes(d.pincodeId);
                             return (
-                                <TouchableOpacity key={key} style={[dlp.tableRow, isChecked && dlp.tableRowChecked, i % 2 === 1 && dlp.tableRowAlt]} onPress={() => togglePincode(key)} activeOpacity={0.7}>
+                                <TouchableOpacity key={`${d.pincodeId}-${d.area}`} style={[dlp.tableRow, isChecked && dlp.tableRowChecked, i % 2 === 1 && dlp.tableRowAlt]} onPress={() => togglePincode(d.pincodeId)} activeOpacity={0.7}>
                                     <View style={dlp.checkboxWrap}><View style={[dlp.checkbox, isChecked && dlp.checkboxChecked]}>{isChecked && <Ionicons name="checkmark" size={9} color={C.white} />}</View></View>
                                     <Text style={[dlp.tableCellTxt, { flex: 1 }]}>{d.pincode}</Text>
                                     <Text style={[dlp.tableCellTxt, { flex: 2 }]} numberOfLines={1}>{d.area}</Text>
@@ -397,11 +456,11 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                             );
                         })
                     )}
-                    {selectedPincodes.length > 0 && (
+                    {selectedPincodeIds.length > 0 && (
                         <View style={dlp.selectionBanner}>
                             <MaterialCommunityIcons name="check-circle" size={14} color={C.orange} />
-                            <Text style={dlp.selectionBannerTxt}>{selectedPincodes.length} location{selectedPincodes.length > 1 ? "s" : ""} selected</Text>
-                            <TouchableOpacity onPress={() => { setSelectedPincodes([]); setSelectAll(false); }}><Text style={dlp.selectionClearTxt}>Clear</Text></TouchableOpacity>
+                            <Text style={dlp.selectionBannerTxt}>{selectedPincodeIds.length} location{selectedPincodeIds.length > 1 ? "s" : ""} selected</Text>
+                            <TouchableOpacity onPress={() => { setSelectedPincodeIds([]); setSelectAll(false); }}><Text style={dlp.selectionClearTxt}>Clear</Text></TouchableOpacity>
                         </View>
                     )}
                 </View>
@@ -409,7 +468,9 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
 
             <View style={dlp.footer}>
                 <TouchableOpacity style={dlp.cancelBtn} onPress={onClose}><Text style={dlp.cancelBtnTxt}>Cancel</Text></TouchableOpacity>
-                <TouchableOpacity style={dlp.applyBtn} onPress={handleApply}><Text style={dlp.applyBtnTxt}>Apply Selection</Text></TouchableOpacity>
+                <TouchableOpacity style={dlp.applyBtn} onPress={handleApply} disabled={saving}>
+                    {saving ? <ActivityIndicator size="small" color={C.white} /> : <Text style={dlp.applyBtnTxt}>Apply Selection</Text>}
+                </TouchableOpacity>
             </View>
 
             <Modal visible={selectorVisible} transparent animationType="fade">

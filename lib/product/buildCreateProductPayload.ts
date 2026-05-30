@@ -1,5 +1,9 @@
 import { uriToImageSource } from "@/lib/media/imagePayload";
-import type { CreateProductPayload, UpdateProductPayload } from "@/services/productApi";
+import type {
+    CreateProductPayload,
+    CreateProductVariantPayload,
+    UpdateProductPayload,
+} from "@/services/productApi";
 
 type BasicData = {
     name: string;
@@ -91,7 +95,7 @@ export async function buildCreateProductPayload(input: {
 }): Promise<CreateProductPayload> {
     const { basic, variants, images, details } = input;
 
-    const productImages: CreateProductPayload["images"] = [];
+    const productImages: NonNullable<CreateProductPayload["images"]> = [];
     if (images.primaryImage) {
         productImages.push({
             source: await uriToImageSource(images.primaryImage),
@@ -102,6 +106,7 @@ export async function buildCreateProductPayload(input: {
 
     let sortOrder = 1;
     for (const uri of images.additionalImages ?? []) {
+        if (!uri?.trim()) continue;
         productImages.push({
             source: await uriToImageSource(uri),
             primary: false,
@@ -109,42 +114,43 @@ export async function buildCreateProductPayload(input: {
         });
     }
 
-    const variantPayloads: CreateProductPayload["variants"] = [];
+    const variantPayloads: CreateProductVariantPayload[] = [];
     for (const variant of variants) {
-        const variantImages: NonNullable<CreateProductPayload["variants"][0]["images"]> = [];
+        const variantImages: NonNullable<CreateProductVariantPayload["images"]> = [];
         for (let i = 0; i < variant.images.length; i++) {
+            const uri = variant.images[i];
+            if (!uri?.trim()) continue;
             variantImages.push({
-                source: await uriToImageSource(variant.images[i]),
+                source: await uriToImageSource(uri),
                 primary: i === 0,
-                sortOrder: i,
+                sortOrder: variantImages.length,
             });
         }
 
-        variantPayloads.push({
+        const row: CreateProductVariantPayload = {
             clientKey: variant.id,
             color: variant.color,
-            ...(variant.colorId != null ? { colorId: variant.colorId } : {}),
             size: variant.size,
-            ...(variant.sizeId != null ? { sizeId: variant.sizeId } : {}),
-            sku: variant.sku || undefined,
             stock: parseIntSafe(variant.stock),
             mrp: parseNum(variant.mrp),
             sellingPrice: parseNum(variant.sellingPrice),
             discount: parseNum(variant.discount),
-            videoUrl: variant.videoUrl?.trim() || undefined,
             images: variantImages,
-        });
+        };
+        if (variant.colorId != null) row.colorId = variant.colorId;
+        if (variant.sizeId != null) row.sizeId = variant.sizeId;
+        const sku = variant.sku?.trim();
+        if (sku) row.sku = sku;
+        const videoUrl = variant.videoUrl?.trim();
+        if (videoUrl) row.videoUrl = videoUrl;
+        variantPayloads.push(row);
     }
 
     const returnPolicy = details.returnPolicyText?.trim()
         ? `${details.returnPolicy}: ${details.returnPolicyText}`
         : details.returnPolicy;
 
-    return {
-        ...(basic.categoryId != null ? { categoryId: basic.categoryId } : { categoryName: basic.category }),
-        ...(basic.subcategoryId != null
-            ? { subcategoryId: basic.subcategoryId }
-            : { subcategoryName: basic.subcategory }),
+    const payload: CreateProductPayload = {
         name: basic.name.trim(),
         hsnCode: basic.hsnCode.trim(),
         productMaterialType: basic.materialType,
@@ -159,12 +165,27 @@ export async function buildCreateProductPayload(input: {
         deliveryTimeMin: parseIntSafe(details.minDays),
         deliveryTimeMax: parseIntSafe(details.maxDays),
         deliveryInfo: [details.deliveryOption, details.deliveryInfo].filter(Boolean).join(" — "),
-        warrantyInfo: details.warranty?.trim() || undefined,
-        careInstructions: details.careInstructions?.trim() || undefined,
         acceptCod: details.codEnabled,
         acceptPrepaid: details.onlinePayEnabled,
         customized: basic.customized === true,
         variants: variantPayloads,
         images: productImages,
     };
+
+    if (basic.categoryId != null) {
+        payload.categoryId = basic.categoryId;
+    } else {
+        payload.categoryName = basic.category;
+    }
+    if (basic.subcategoryId != null) {
+        payload.subcategoryId = basic.subcategoryId;
+    } else {
+        payload.subcategoryName = basic.subcategory;
+    }
+    const warranty = details.warranty?.trim();
+    if (warranty) payload.warrantyInfo = warranty;
+    const care = details.careInstructions?.trim();
+    if (care) payload.careInstructions = care;
+
+    return payload;
 }

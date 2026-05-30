@@ -50,6 +50,16 @@ import type { TextProps } from 'react-native';
 import { DesktopDashboard } from "@/components/web/DesktopDashboard";
 import { useActiveHeader } from "@/components/web/HeaderContext";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardCharts } from "@/hooks/useDashboardCharts";
+import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { useSellerProducts } from "@/hooks/useSellerProducts";
+import {
+    EMPTY_ORDERS_CHART,
+    EMPTY_PRODUCTS_CHART,
+    EMPTY_SALES_CHART,
+} from "@/lib/dashboard/chartDefaults";
 
 // ─── Mini Line Chart ─────────────────────────────────────────
 import Svg, { Path, Circle } from "react-native-svg";
@@ -100,67 +110,7 @@ interface ChartPoint {
     value: number;
 }
 
-// ─── Sales chart data per period ─────────────────────────────
-const SALES_DATA: Record<SalesPeriod, {
-    points: number[];
-    labels: string[];
-    totalSales: string;
-    totalOrders: string;
-    salesChange: string;
-    ordersChange: string;
-}> = {
-    "Day": {
-        points: [20, 38, 30, 50, 42, 60, 48, 65, 55, 72, 60, 68, 58],
-        labels: ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm"],
-        totalSales: "₹12,540", totalOrders: "28", salesChange: "8%", ordersChange: "5%",
-    },
-    "Week": {
-        points: [18, 35, 25, 45, 30, 55, 40, 60, 45, 70, 50, 65, 55],
-        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        totalSales: "₹86,540", totalOrders: "156", salesChange: "18%", ordersChange: "14%",
-    },
-    "Month": {
-        points: [30, 42, 55, 38, 60, 70, 65, 80, 72, 90, 85, 78, 95],
-        labels: ["1", "5", "10", "15", "20", "25", "30"],
-        totalSales: "₹3,12,800", totalOrders: "589", salesChange: "24%", ordersChange: "19%",
-    },
-    "Year": {
-        points: [45, 60, 55, 78, 65, 90, 80, 95, 85, 100, 92, 110],
-        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        totalSales: "₹28,45,000", totalOrders: "5,430", salesChange: "36%", ordersChange: "31%",
-    },
-};
-
-const ORDERS_DATA: Record<SalesPeriod, { points: number[]; labels: string[]; total: number; change: string }> = {
-    "Day": { points: [3, 7, 5, 12, 9, 15, 11, 18, 14, 20, 16, 19, 13], labels: ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm"], total: 28, change: "+5%" },
-    "Week": { points: [18, 25, 20, 35, 28, 42, 38], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], total: 156, change: "+14%" },
-    "Month": { points: [45, 60, 55, 70, 65, 80, 75, 90, 85, 100, 95, 88, 110], labels: ["1", "5", "10", "15", "20", "25", "30"], total: 589, change: "+19%" },
-    "Year": { points: [320, 410, 380, 520, 470, 610, 570, 690, 630, 750, 700, 800], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], total: 5430, change: "+31%" },
-};
-
-const PRODUCTS_DATA: Record<SalesPeriod, { points: number[]; labels: string[]; total: number; change: string }> = {
-    "Day": { points: [0, 1, 0, 2, 1, 3, 2, 4, 2, 5, 3, 4, 3], labels: ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm"], total: 5, change: "+2" },
-    "Week": { points: [3, 5, 4, 7, 6, 9, 8], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], total: 42, change: "+12" },
-    "Month": { points: [8, 12, 10, 15, 13, 18, 16, 20, 17, 22, 20, 19, 24], labels: ["1", "5", "10", "15", "20", "25", "30"], total: 148, change: "+38" },
-    "Year": { points: [85, 110, 95, 130, 115, 150, 140, 170, 160, 190, 175, 200], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], total: 1520, change: "+420" },
-};
-
 const PERIOD_OPTIONS: SalesPeriod[] = ["Day", "Week", "Month", "Year"];
-
-const OVERVIEW_STATS = [
-    { icon: "shopping-bag", iconLib: "feather", label: "Orders", value: "28", change: "+12%", color: C.purple },
-    { icon: "currency-inr", iconLib: "mci", label: "Sales", value: "₹12,450", change: "+8%", color: C.green },
-    { icon: "eye-outline", iconLib: "mci", label: "Views", value: "1,245", change: "+15%", color: C.blue },
-    { icon: "star-outline", iconLib: "mci", label: "Rating", value: "4.8", change: "+0.2", color: C.yellow },
-];
-
-const ORDER_SUMMARY = [
-    { icon: "clipboard-list-outline", color: C.purple, label: "Pending", count: 12 },
-    { icon: "package-variant", color: C.yellow, label: "Processing", count: 8 },
-    { icon: "truck-delivery-outline", color: C.blue, label: "Shipped", count: 5 },
-    { icon: "check-circle-outline", color: C.green, label: "Delivered", count: 3 },
-    { icon: "refresh", color: C.red, label: "Returns", count: 2 },
-];
 
 const QUICK_ACTIONS = [
     { icon: "shopping-outline", label: "Products", sub: "Add & manage products", iconColor: C.purple, bgColor: C.purplePale },
@@ -174,20 +124,6 @@ const QUICK_ACTIONS = [
     { icon: "star-outline", label: "Reviews", sub: "Customer reviews", iconColor: C.yellow, bgColor: "#FFFBEB" },
 ];
 
-const ALL_PRODUCTS = [
-    { id: "1", name: "Cotton Kurti", price: "₹899", sold: 120, image: "https://picsum.photos/seed/kurti/80/80", category: "Clothing" },
-    { id: "2", name: "Floral Maxi Dress", price: "₹1,299", sold: 98, image: "https://picsum.photos/seed/dress/80/80", category: "Clothing" },
-    { id: "3", name: "Handbag", price: "₹749", sold: 76, image: "https://picsum.photos/seed/handbag/80/80", category: "Accessories" },
-    { id: "4", name: "Women's Sandals", price: "₹599", sold: 64, image: "https://picsum.photos/seed/sandals/80/80", category: "Footwear" },
-    { id: "5", name: "Ethnic Saree", price: "₹2,199", sold: 55, image: "https://picsum.photos/seed/saree/80/80", category: "Clothing" },
-    { id: "6", name: "Silver Earrings", price: "₹349", sold: 49, image: "https://picsum.photos/seed/earrings/80/80", category: "Jewelry" },
-    { id: "7", name: "Printed Palazzo", price: "₹699", sold: 43, image: "https://picsum.photos/seed/palazzo/80/80", category: "Clothing" },
-    { id: "8", name: "Casual Sneakers", price: "₹1,099", sold: 38, image: "https://picsum.photos/seed/sneakers/80/80", category: "Footwear" },
-    { id: "9", name: "Silk Dupatta", price: "₹449", sold: 32, image: "https://picsum.photos/seed/dupatta/80/80", category: "Accessories" },
-    { id: "10", name: "Gold Necklace Set", price: "₹3,499", sold: 28, image: "https://picsum.photos/seed/necklace/80/80", category: "Jewelry" },
-    { id: "11", name: "Denim Jacket", price: "₹1,799", sold: 24, image: "https://picsum.photos/seed/jacket/80/80", category: "Clothing" },
-    { id: "12", name: "Tote Bag", price: "₹499", sold: 20, image: "https://picsum.photos/seed/totebag/80/80", category: "Accessories" },
-];
 function buildLinePath(pts: ChartPoint[], w: number, h: number): string {
     if (pts.length === 0) return '';
     if (pts.length === 1) return `M ${PAD} ${h - PAD}`;
@@ -239,12 +175,10 @@ function getLastPoint(pts: ChartPoint[], w: number, h: number) {
     return { x: lastX, y: lastY };
 }
 
-const TOP_PRODUCTS = ALL_PRODUCTS.slice(0, 4);
-
 const MENU_CARDS = [
     { id: "dashboard", label: "Dashboard", icon: "view-dashboard-outline", color: C.purple },
     { id: "products", label: "Products", icon: "shopping-outline", color: C.blue },
-    { id: "orders", label: "Orders", icon: "clipboard-list-outline", color: C.orange, badge: "12" },
+    { id: "orders", label: "Orders", icon: "clipboard-list-outline", color: C.orange },
     { id: "categories", label: "Categories", icon: "shape-outline", color: C.pink },
     { id: "colors", label: "Colors", icon: "palette-outline", color: C.teal },
     { id: "sizes", label: "Sizes", icon: "format-size", color: C.indigo },
@@ -254,65 +188,18 @@ const MENU_CARDS = [
 ];
 
 
-// ─── All Stats Data ──────────────────────────────────────────
-const ALL_STATS_DATA: Record<SalesPeriod, {
-    orders: string; ordersChange: string;
-    sales: string; salesChange: string;
-    views: string; viewsChange: string;
-    rating: string; ratingChange: string;
-    newCustomers: string; newCustomersChange: string;
-    avgOrderValue: string; avgOrderValueChange: string;
-    conversionRate: string; conversionRateChange: string;
-    returns: string; returnsChange: string;
-}> = {
-    "Day": {
-        orders: "28", ordersChange: "+12%",
-        sales: "₹12,450", salesChange: "+8%",
-        views: "1,245", viewsChange: "+15%",
-        rating: "4.8", ratingChange: "+0.2",
-        newCustomers: "14", newCustomersChange: "+5%",
-        avgOrderValue: "₹444", avgOrderValueChange: "+3%",
-        conversionRate: "2.2%", conversionRateChange: "+0.4%",
-        returns: "1", returnsChange: "-1",
-    },
-    "Week": {
-        orders: "156", ordersChange: "+14%",
-        sales: "₹86,540", salesChange: "+18%",
-        views: "7,820", viewsChange: "+22%",
-        rating: "4.8", ratingChange: "+0.1",
-        newCustomers: "68", newCustomersChange: "+9%",
-        avgOrderValue: "₹555", avgOrderValueChange: "+4%",
-        conversionRate: "2.0%", conversionRateChange: "+0.3%",
-        returns: "4", returnsChange: "-2",
-    },
-    "Month": {
-        orders: "589", ordersChange: "+19%",
-        sales: "₹3,12,800", salesChange: "+24%",
-
-
-        views: "29,400", viewsChange: "+31%",
-        rating: "4.7", ratingChange: "+0.1",
-        newCustomers: "210", newCustomersChange: "+16%",
-        avgOrderValue: "₹531", avgOrderValueChange: "+5%",
-        conversionRate: "2.0%", conversionRateChange: "+0.2%",
-        returns: "18", returnsChange: "-5",
-    },
-    "Year": {
-        orders: "5,430", ordersChange: "+31%",
-        sales: "₹28,45,000", salesChange: "+36%",
-        views: "3,12,000", viewsChange: "+40%",
-        rating: "4.8", ratingChange: "+0.3",
-        newCustomers: "1,850", newCustomersChange: "+28%",
-        avgOrderValue: "₹524", avgOrderValueChange: "+6%",
-        conversionRate: "1.7%", conversionRateChange: "+0.2%",
-        returns: "142", returnsChange: "-18",
-    },
-};
-
 // ─── All Stats Modal ─────────────────────────────────────────
-const AllStatsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
+const AllStatsModal: React.FC<{
+    visible: boolean;
+    onClose: () => void;
+}> = ({ visible, onClose }) => {
     const [period, setPeriod] = useState<SalesPeriod>("Day");
-    const data = ALL_STATS_DATA[period];
+    const { allStatsData, loading: statsLoading, reload } = useDashboardStatsByPeriod(visible);
+    const data = allStatsData[period];
+
+    useEffect(() => {
+        if (visible) reload();
+    }, [visible, reload]);
 
     const STAT_CARDS = [
         { icon: "clipboard-list-outline", label: "Orders", value: data.orders, change: data.ordersChange, color: C.purple, bg: C.purplePale },
@@ -418,10 +305,10 @@ const AllStatsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ vi
                             ))}
                         </View>
                         {[
-                            { label: "Sales", values: ["₹12,450", "₹86,540", "₹3,12,800", "₹28,45,000"] },
-                            { label: "Orders", values: ["28", "156", "589", "5,430"] },
-                            { label: "Views", values: ["1,245", "7,820", "29,400", "3,12,000"] },
-                            { label: "Rating", values: ["4.8", "4.8", "4.7", "4.8"] },
+                            { label: "Sales", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].sales) },
+                            { label: "Orders", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].orders) },
+                            { label: "Views", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].views) },
+                            { label: "Rating", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].rating) },
                         ].map((row, ri) => (
                             <View key={ri} style={[stm.tableRow, ri % 2 === 0 && stm.tableRowAlt]}>
                                 <AppText style={[stm.tableCell, stm.tableCellLabel, { flex: 1.4 }]}>{row.label}</AppText>
@@ -486,12 +373,6 @@ const stm = StyleSheet.create({
     tableCellVal: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid },
     tableCellHighlight: { color: C.purple, fontFamily: fontFamilies.bold },
 });
-
-// ─── Referral Data ───────────────────────────────────────────
-const REFERRAL_CODE = "F&T-THEL-0023611";
-const REFERRAL_GOAL_SELLERS = 6;
-const REFERRAL_CURRENT_SELLERS = 0;
-const REFERRAL_QUALIFIED = 0;
 
 const MiniChart: React.FC<{
     points: number[];
@@ -644,9 +525,27 @@ const dd = StyleSheet.create({
 
 // ─── All Products Modal ──────────────────────────────────────
 const AllProductsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
+    const router = useRouter();
+    const { products, loading, reload } = useSellerProducts();
     const [selectedCategory, setSelectedCategory] = useState("All");
-    const categories = ["All", ...Array.from(new Set(ALL_PRODUCTS.map(p => p.category)))];
-    const filtered = selectedCategory === "All" ? ALL_PRODUCTS : ALL_PRODUCTS.filter(p => p.category === selectedCategory);
+
+    useEffect(() => {
+        if (visible) reload();
+    }, [visible, reload]);
+
+    const catalog = products.map((p) => ({
+        id: String(p.id),
+        name: p.name,
+        price: p.price,
+        sold: 0,
+        image: p.image || "",
+        category: p.category || "—",
+    }));
+    const categories = ["All", ...Array.from(new Set(catalog.map((p) => p.category).filter(Boolean)))];
+    const filtered =
+        selectedCategory === "All"
+            ? catalog
+            : catalog.filter((p) => p.category === selectedCategory);
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -671,7 +570,9 @@ const AllProductsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                         ))}
                     </ScrollView>
                 </View>
-                <AppText style={ms.resultCount}>{filtered.length} products found</AppText>
+                <AppText style={ms.resultCount}>
+                    {loading ? "Loading products…" : `${filtered.length} products found`}
+                </AppText>
                 <FlatList
                     data={filtered}
                     keyExtractor={item => item.id}
@@ -695,7 +596,14 @@ const AllProductsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                             </View>
                             <View style={ms.cardDivider} />
                             <View style={ms.actionRow}>
-                                <TouchableOpacity style={ms.actionBtnEdit} activeOpacity={0.8} onPress={() => console.log('Edit product:', item.name)}>
+                                <TouchableOpacity
+                                    style={ms.actionBtnEdit}
+                                    activeOpacity={0.8}
+                                    onPress={() => {
+                                        onClose();
+                                        router.push({ pathname: "/(main)/Editproduct", params: { id: item.id } } as any);
+                                    }}
+                                >
                                     <Feather name="edit-2" size={14} color={C.purple} />
                                     <AppText weight="semiBold" size="sm" color={C.purple}>Edit</AppText>
                                 </TouchableOpacity>
@@ -750,19 +658,23 @@ const ms = StyleSheet.create({
 });
 
 // ─── Orders Summary Modal ─────────────────────────────────────
-const ORDER_STATUS_DETAILS = [
-    { icon: "clipboard-list-outline", color: C.purple, bgColor: C.purplePale, label: "Pending", count: 12, desc: "Awaiting confirmation" },
-    { icon: "progress-clock", color: C.yellow, bgColor: "#FFFBEB", label: "Processing", count: 8, desc: "Being prepared" },
-    { icon: "truck-delivery-outline", color: C.blue, bgColor: "#EFF6FF", label: "Shipped", count: 5, desc: "Out for delivery" },
-    { icon: "check-circle-outline", color: C.green, bgColor: "#F0FDF4", label: "Delivered", count: 3, desc: "Successfully delivered" },
-    { icon: "swap-horizontal", color: C.orange, bgColor: "#FFF7ED", label: "Returns", count: 2, desc: "Return requested" },
-    { icon: "close-circle-outline", color: C.red, bgColor: "#FEF2F2", label: "Cancelled", count: 4, desc: "Order cancelled" },
-];
+const OrdersSummaryModal: React.FC<{
+    visible: boolean;
+    onClose: () => void;
+    totalProducts: number;
+    totalOrders: number;
+    orderSummary: { label: string; count: number; icon: string; color: string }[];
+}> = ({ visible, onClose, totalProducts, totalOrders, orderSummary }) => {
+    const ORDER_STATUS_DETAILS = [
+        { icon: "clipboard-list-outline", color: C.purple, bgColor: C.purplePale, label: "Pending", count: orderSummary.find((o) => o.label === "Pending")?.count ?? 0, desc: "Awaiting confirmation" },
+        { icon: "progress-clock", color: C.yellow, bgColor: "#FFFBEB", label: "Processing", count: orderSummary.find((o) => o.label === "Processing")?.count ?? 0, desc: "Being prepared" },
+        { icon: "truck-delivery-outline", color: C.blue, bgColor: "#EFF6FF", label: "Shipped", count: orderSummary.find((o) => o.label === "Shipped")?.count ?? 0, desc: "Out for delivery" },
+        { icon: "check-circle-outline", color: C.green, bgColor: "#F0FDF4", label: "Delivered", count: orderSummary.find((o) => o.label === "Delivered")?.count ?? 0, desc: "Successfully delivered" },
+        { icon: "swap-horizontal", color: C.orange, bgColor: "#FFF7ED", label: "Returns", count: orderSummary.find((o) => o.label === "Returns")?.count ?? 0, desc: "Return requested" },
+    ];
+    const TOTAL_ORDERS_COUNT = totalOrders;
 
-const TOTAL_PRODUCTS_COUNT = ALL_PRODUCTS.length;
-const TOTAL_ORDERS_COUNT = ORDER_STATUS_DETAILS.reduce((s, o) => s + o.count, 0);
-
-const OrdersSummaryModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => (
+    return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
             <View style={om.header}>
@@ -776,7 +688,7 @@ const OrdersSummaryModal: React.FC<{ visible: boolean; onClose: () => void }> = 
                     <View style={om.totalCard}>
                         <LinearGradient colors={[C.navyDeep, C.navyLight]} style={om.totalGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                             <MaterialCommunityIcons name="shopping-outline" size={28} color="rgba(255,255,255,0.7)" />
-                            <AppText style={om.totalNum}>{TOTAL_PRODUCTS_COUNT}</AppText>
+                            <AppText style={om.totalNum}>{totalProducts}</AppText>
                             <AppText style={om.totalLabel}>Total Products</AppText>
                         </LinearGradient>
                     </View>
@@ -790,7 +702,9 @@ const OrdersSummaryModal: React.FC<{ visible: boolean; onClose: () => void }> = 
                 </View>
                 <AppText style={om.sectionLabel}>Order Status Breakdown</AppText>
                 <View style={om.statusGrid}>
-                    {ORDER_STATUS_DETAILS.map((o, i) => (
+                    {ORDER_STATUS_DETAILS.map((o, i) => {
+                        const pct = TOTAL_ORDERS_COUNT > 0 ? Math.round((o.count / TOTAL_ORDERS_COUNT) * 100) : 0;
+                        return (
                         <View key={i} style={om.statusCard}>
                             <View style={[om.statusIconBox, { backgroundColor: o.bgColor }]}>
                                 <MaterialCommunityIcons name={o.icon as any} size={26} color={o.color} />
@@ -799,11 +713,12 @@ const OrdersSummaryModal: React.FC<{ visible: boolean; onClose: () => void }> = 
                             <AppText style={om.statusLabel}>{o.label}</AppText>
                             <AppText style={om.statusDesc}>{o.desc}</AppText>
                             <View style={om.progressBg}>
-                                <View style={[om.progressFill, { width: `${Math.round((o.count / TOTAL_ORDERS_COUNT) * 100)}%` as any, backgroundColor: o.color }]} />
+                                <View style={[om.progressFill, { width: `${pct}%` as any, backgroundColor: o.color }]} />
                             </View>
-                            <AppText style={[om.progressPct, { color: o.color }]}>{Math.round((o.count / TOTAL_ORDERS_COUNT) * 100)}%</AppText>
+                            <AppText style={[om.progressPct, { color: o.color }]}>{pct}%</AppText>
                         </View>
-                    ))}
+                        );
+                    })}
                 </View>
                 <View style={om.summaryBarWrap}>
                     <AppText style={om.sectionLabel}>Distribution</AppText>
@@ -824,7 +739,8 @@ const OrdersSummaryModal: React.FC<{ visible: boolean; onClose: () => void }> = 
             </ScrollView>
         </SafeAreaView>
     </Modal>
-);
+    );
+};
 
 const om = StyleSheet.create({
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.white },
@@ -854,12 +770,18 @@ const om = StyleSheet.create({
 });
 
 // ─── Referral Section ─────────────────────────────────────────
-const ReferralSection: React.FC = () => {
+const ReferralSection: React.FC<{
+    referralCode: string;
+    goal: number;
+    totalReferred: number;
+    qualified: number;
+}> = ({ referralCode, goal, totalReferred, qualified }) => {
     const [copied, setCopied] = useState(false);
-    const progressPercent = Math.min((REFERRAL_CURRENT_SELLERS / REFERRAL_GOAL_SELLERS) * 100, 100);
+    const progressPercent = goal > 0 ? Math.min((totalReferred / goal) * 100, 100) : 0;
 
     const handleCopy = () => {
-        Clipboard.setString(REFERRAL_CODE);
+        if (!referralCode) return;
+        Clipboard.setString(referralCode);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -880,7 +802,7 @@ const ReferralSection: React.FC = () => {
                     <AppText style={rf.codeLabel}>YOUR CODE</AppText>
                     <View style={rf.codePill}>
                         <MaterialCommunityIcons name="gift-outline" size={15} color={C.orangeDeep} />
-                        <AppText style={rf.codeText}>{REFERRAL_CODE}</AppText>
+                        <AppText style={rf.codeText}>{referralCode || "—"}</AppText>
                         <TouchableOpacity style={rf.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
                             <MaterialCommunityIcons
                                 name={copied ? "check" : "content-copy"}
@@ -895,8 +817,8 @@ const ReferralSection: React.FC = () => {
                 </View>
                 <View style={rf.statsGrid}>
                     {[
-                        { icon: "account-multiple-outline", color: C.blue, value: String(REFERRAL_CURRENT_SELLERS), label: "Total referred" },
-                        { icon: "check-circle-outline", color: C.green, value: String(REFERRAL_QUALIFIED), label: "Qualified sellers" },
+                        { icon: "account-multiple-outline", color: C.blue, value: String(totalReferred), label: "Total referred" },
+                        { icon: "check-circle-outline", color: C.green, value: String(qualified), label: "Qualified sellers" },
                         { icon: "medal-outline", color: C.orangeDeep, value: "+5%", label: "Commission earn" },
                     ].map((st, i) => (
                         <View key={i} style={rf.statCard}>
@@ -908,8 +830,8 @@ const ReferralSection: React.FC = () => {
                 </View>
                 <View style={rf.progressBox}>
                     <View style={rf.progressTop}>
-                        <AppText style={rf.progressTitle}>Invite {REFERRAL_GOAL_SELLERS} sellers to unlock reward</AppText>
-                        <AppText style={rf.progressCount}>{REFERRAL_CURRENT_SELLERS} / {REFERRAL_GOAL_SELLERS}</AppText>
+                        <AppText style={rf.progressTitle}>Invite {goal} sellers to unlock reward</AppText>
+                        <AppText style={rf.progressCount}>{totalReferred} / {goal}</AppText>
                     </View>
                     <View style={rf.progBg}>
                         <View style={[rf.progFill, { width: `${progressPercent}%` as any }]} />
@@ -973,15 +895,22 @@ const rf = StyleSheet.create({
 });
 
 // ─── Side Drawer Menu ─────────────────────────────────────────
-const MENU_MAIN_ITEMS = [
-    { icon: "view-dashboard-outline", label: "Dashboard", badge: null, active: true },
+const MENU_MAIN_ITEMS = (pendingOrders: number) => [
+    { icon: "view-dashboard-outline", label: "Dashboard", badge: null as string | null, active: true },
     { icon: "shopping-outline", label: "Products", badge: null, active: false },
-    { icon: "clipboard-list-outline", label: "Orders", badge: "12", active: false },
+    { icon: "clipboard-list-outline", label: "Orders", badge: pendingOrders > 0 ? String(pendingOrders) : null, active: false },
     { icon: "shape-outline", label: "Categories", badge: null, active: false },
     { icon: "tag-plus-outline", label: "Request Category", badge: null, active: false },
 ];
 
-const SideDrawer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
+const SideDrawer: React.FC<{
+    visible: boolean;
+    onClose: () => void;
+    sellerName: string;
+    storeName: string;
+    rating: string;
+    pendingOrders: number;
+}> = ({ visible, onClose, sellerName, storeName, rating, pendingOrders }) => {
     const router = useRouter();
     const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -1044,8 +973,8 @@ const SideDrawer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visib
                                     <Ionicons name="close" size={20} color="rgba(255,255,255,0.7)" />
                                 </TouchableOpacity>
                             </View>
-                            <AppText style={dr.drawerName}>Priya Sharma</AppText>
-                            <AppText style={dr.drawerStore}>Priya&apos;s Collection</AppText>
+                            <AppText style={dr.drawerName}>{sellerName}</AppText>
+                            <AppText style={dr.drawerStore}>{storeName}</AppText>
                             <View style={dr.drawerBadgeRow}>
                                 <View style={dr.platBadge}>
                                     <MaterialCommunityIcons name="check-decagram" size={11} color="#fff" />
@@ -1053,7 +982,7 @@ const SideDrawer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visib
                                 </View>
                                 <View style={dr.ratingPill}>
                                     <Ionicons name="star" size={11} color={C.yellow} />
-                                    <AppText style={dr.ratingPillText}>4.8</AppText>
+                                    <AppText style={dr.ratingPillText}>{rating}</AppText>
                                 </View>
                             </View>
                         </View>
@@ -1254,9 +1183,47 @@ const dr = StyleSheet.create({
 // ─── Main Dashboard ──────────────────────────────────────────
 const MobileDashboard: React.FC = () => {
     const router = useRouter();
+    const {
+        data,
+        loading: dashboardLoading,
+        overviewStats,
+        orderSummary,
+        topProducts,
+        totalProducts,
+        totalOrders,
+        averageRating,
+        reviewCount,
+    } = useDashboardData();
+    const { profile } = useSellerProfile();
+    const sellerDisplayName =
+        profile?.businessName?.trim() ||
+        profile?.fullName?.trim() ||
+        [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
+        "Seller";
+    const storeDisplayName = profile?.businessName?.trim() || `${sellerDisplayName}'s Store`;
+    const profileRating =
+        averageRating > 0 ? String(averageRating) : "—";
+    const profileReviewCount = reviewCount;
+    const ratingLabel =
+        averageRating >= 4.5
+            ? "Excellent"
+            : averageRating >= 4
+              ? "Great"
+              : averageRating >= 3
+                ? "Good"
+                : averageRating > 0
+                  ? "Fair"
+                  : "No reviews";
+    const overviewStatsView = overviewStats;
+    const orderSummaryView = orderSummary;
+    const topProductsView = topProducts;
+    const totalProductsCount = totalProducts;
     const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
     const [ordersPeriod, setOrdersPeriod] = useState<SalesPeriod>("Week");
     const [productsPeriod, setProductsPeriod] = useState<SalesPeriod>("Week");
+    const salesCharts = useDashboardCharts(salesPeriod);
+    const ordersCharts = useDashboardCharts(ordersPeriod);
+    const productsCharts = useDashboardCharts(productsPeriod);
     const [showAllProducts, setShowAllProducts] = useState(false);
     const [showOrdersSummary, setShowOrdersSummary] = useState(false);
     const [showAllStats, setShowAllStats] = useState(false);
@@ -1299,9 +1266,9 @@ const MobileDashboard: React.FC = () => {
         }
     };
 
-    const salesData = SALES_DATA[salesPeriod];
-    const ordersData = ORDERS_DATA[ordersPeriod];
-    const productsData = PRODUCTS_DATA[productsPeriod];
+    const salesData = salesCharts.salesChart ?? EMPTY_SALES_CHART;
+    const ordersData = ordersCharts.ordersChart ?? EMPTY_ORDERS_CHART;
+    const productsData = productsCharts.productsChart ?? EMPTY_PRODUCTS_CHART;
 
     const [greeting, setGreeting] = useState("Hello");
     useEffect(() => {
@@ -1322,7 +1289,7 @@ const MobileDashboard: React.FC = () => {
     const activeCardColor = MENU_CARDS.find(c => c.id === activeMenuCard)?.color ?? C.purple;
 
     const CARD_SUBTITLES: Record<string, string> = {
-        dashboard: `${greeting}, Priya Sharma`,
+        dashboard: `${greeting}, ${sellerDisplayName}`,
         products: "Manage your products",
         orders: "Track & manage orders",
         categories: "Browse product categories",
@@ -1332,7 +1299,7 @@ const MobileDashboard: React.FC = () => {
         support: "Help & support centre",
         logout: "See you soon!",
     };
-    const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, Priya Sharma`;
+    const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, ${sellerDisplayName}`;
 
     return (
         <View style={s.root}>
@@ -1429,7 +1396,7 @@ const MobileDashboard: React.FC = () => {
                                 </View>
                                 <View style={s.profileInfo}>
                                     <View style={s.profileNameRow}>
-                                        <AppText style={s.profileName}>Priya Sharma</AppText>
+                                        <AppText style={s.profileName}>{sellerDisplayName}</AppText>
                                         <View style={s.platinumBadge}>
                                             <MaterialCommunityIcons name="check-decagram" size={12} color="#fff" />
                                             <AppText style={s.platinumText}>Platinum</AppText>
@@ -1437,27 +1404,31 @@ const MobileDashboard: React.FC = () => {
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="store-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>Priya&apos;s Collection</AppText>
+                                        <AppText style={s.profileDetailText}>{storeDisplayName}</AppText>
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="phone-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>+91 98765 43210</AppText>
+                                        <AppText style={s.profileDetailText}>{profile?.mobile || "—"}</AppText>
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="email-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>priyasharma@gmail.com</AppText>
+                                        <AppText style={s.profileDetailText}>{profile?.email || "—"}</AppText>
                                     </View>
                                 </View>
                                 <View style={s.ratingBox}>
                                     <AppText style={s.ratingLabel}>Rating</AppText>
                                     <View style={s.ratingRow}>
-                                        <AppText style={s.ratingVal}>4.8</AppText>
+                                        <AppText style={s.ratingVal}>{profileRating}</AppText>
                                         <Ionicons name="star" size={16} color={C.yellow} style={{ marginLeft: 3 }} />
                                     </View>
-                                    <AppText style={s.ratingReviews}>(312)</AppText>
-                                    <View style={s.excellentBadge}>
-                                        <AppText style={s.excellentText}>Excellent</AppText>
-                                    </View>
+                                    <AppText style={s.ratingReviews}>
+                                        ({profileReviewCount} {profileReviewCount === 1 ? "review" : "reviews"})
+                                    </AppText>
+                                    {averageRating > 0 ? (
+                                        <View style={s.excellentBadge}>
+                                            <AppText style={s.excellentText}>{ratingLabel}</AppText>
+                                        </View>
+                                    ) : null}
                                 </View>
                             </View>
                             <TouchableOpacity style={s.editProfileBtn} onPress={() => router.push("/(main)/Profile")}>
@@ -1471,7 +1442,12 @@ const MobileDashboard: React.FC = () => {
                  
 
                 {/* ── REFERRAL ── */}
-                <ReferralSection />
+                <ReferralSection
+                    referralCode={profile?.referralCode ?? ""}
+                    goal={profile?.referralGoal ?? 6}
+                    totalReferred={profile?.referralTotalReferred ?? 0}
+                    qualified={profile?.referralQualifiedReferred ?? 0}
+                />
 
                 {/* ── TODAY'S OVERVIEW ── */}
                 <View style={s.section}>
@@ -1483,7 +1459,7 @@ const MobileDashboard: React.FC = () => {
                         </TouchableOpacity>
                     </View>
                     <View style={s.overviewGrid}>
-                        {OVERVIEW_STATS.map((st, i) => (
+                        {overviewStatsView.map((st, i) => (
                             <View key={i} style={s.overviewCard}>
                                 <View style={[s.overviewIconBox, { backgroundColor: st.color + "18" }]}>
                                     {st.iconLib === "mci"
@@ -1513,7 +1489,7 @@ const MobileDashboard: React.FC = () => {
                         </TouchableOpacity>
                     </View>
                     <View style={s.orderRow}>
-                        {ORDER_SUMMARY.map((o, i) => (
+                        {orderSummaryView.map((o, i) => (
                             <View key={i} style={s.orderItem}>
                                 <View style={[s.orderIconBox, { backgroundColor: o.color + "18" }]}>
                                     <MaterialCommunityIcons name={o.icon as any} size={23} color={o.color} />
@@ -1602,7 +1578,9 @@ const MobileDashboard: React.FC = () => {
                             <View style={{ flex: 1 }}>
                                 <MiniChart points={salesData.points} color={C.purple} />
                                 <View style={s.chartXAxis}>
-                                    {salesData.labels.map(l => <AppText key={l} style={s.chartXLabel}>{l}</AppText>)}
+                                    {salesData.labels.map((l, i) => (
+                                        <AppText key={`sales-x-${i}-${l}`} style={s.chartXLabel}>{l}</AppText>
+                                    ))}
                                 </View>
                             </View>
                         </View>
@@ -1679,7 +1657,9 @@ const MobileDashboard: React.FC = () => {
                             <View style={{ flex: 1 }}>
                                 <MiniChart points={productsData.points} color={C.green} />
                                 <View style={s.chartXAxis}>
-                                    {productsData.labels.map(l => <AppText key={l} style={s.chartXLabel}>{l}</AppText>)}
+                                    {productsData.labels.map((l, i) => (
+                                        <AppText key={`products-x-${i}-${l}`} style={s.chartXLabel}>{l}</AppText>
+                                    ))}
                                 </View>
                             </View>
                         </View>
@@ -1696,7 +1676,7 @@ const MobileDashboard: React.FC = () => {
                                 <Ionicons name="chevron-forward" size={15} color={C.purple} />
                             </TouchableOpacity>
                         </View>
-                        {TOP_PRODUCTS.map((p, i) => (
+                        {topProductsView.map((p, i) => (
                             <View key={i} style={s.topProductRow}>
                                 <Image source={{ uri: p.image }} style={s.topProductThumb} resizeMode="cover" />
                                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1743,7 +1723,7 @@ const MobileDashboard: React.FC = () => {
                     {[
                         { icon: "home-outline", iconActive: "home", label: "Home", active: true, color: "#2563EB", colorMuted: "#60A5FA", route: "/(main)/dashboard" },
                         { icon: "shopping-outline", iconActive: "shopping", label: "Products", active: false, color: "#7C3AED", colorMuted: "#A78BFA", route: "/(main)/productmanagement" },
-                        { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
+                        { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: (orderSummaryView?.find((o) => o.label === "Pending")?.count ?? 0) || undefined },
                         { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
                     ].map((tab, i) => (
                         <TouchableOpacity 
@@ -1773,10 +1753,23 @@ const MobileDashboard: React.FC = () => {
             )}
 
             {/* ── SIDE DRAWER (rendered last so it overlays everything) ── */}
-            <SideDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+            <SideDrawer
+                visible={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                sellerName={sellerDisplayName}
+                storeName={storeDisplayName}
+                rating={profileRating}
+                pendingOrders={orderSummaryView?.find((o) => o.label === "Pending")?.count ?? 0}
+            />
 
             <AllProductsModal visible={showAllProducts} onClose={() => setShowAllProducts(false)} />
-            <OrdersSummaryModal visible={showOrdersSummary} onClose={() => setShowOrdersSummary(false)} />
+            <OrdersSummaryModal
+                visible={showOrdersSummary}
+                onClose={() => setShowOrdersSummary(false)}
+                totalProducts={totalProductsCount}
+                totalOrders={totalOrders}
+                orderSummary={orderSummaryView}
+            />
             <AllStatsModal visible={showAllStats} onClose={() => setShowAllStats(false)} />
         </View>
     );

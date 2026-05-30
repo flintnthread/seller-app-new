@@ -3,7 +3,7 @@
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
  */
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { Checkbox } from "./_sellerComponents";
 import { fontFamilies } from "@/constants/fonts";
@@ -210,6 +212,7 @@ export default function SellerAddressInfo() {
   const router = useRouter();
   const { businessCategory } = useLocalSearchParams();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { profile, save } = useSellerProfile();
 
   // ── State (100% unchanged) ──
   const [streetAddress, setStreetAddress]         = useState("");
@@ -228,6 +231,23 @@ export default function SellerAddressInfo() {
   const [validationErrors, setValidationErrors]   = useState<ValidationError[]>([]);
   const [isLoading, setIsLoading]                 = useState(false);
   const [fieldPositions, setFieldPositions]       = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.address) setStreetAddress(profile.address);
+    if (profile.landmark) setLandmark(profile.landmark);
+    if (profile.city) setCity(profile.city);
+    if (profile.state) setState(profile.state);
+    if (profile.country) setCountry(profile.country);
+    if (profile.pincode) setPincode(profile.pincode);
+    if (profile.warehouseAddress) {
+      setWarehouse(true);
+      setWarehouseAddress(profile.warehouseAddress);
+      setWarehouseCity(profile.warehouseCity ?? "");
+      setWarehouseState(profile.warehouseState ?? "");
+      setWarehouseCountry(profile.warehouseCountry ?? "");
+    }
+  }, [profile]);
 
   // ── Logic (100% unchanged) ──
   const fieldRefs = {
@@ -295,7 +315,7 @@ export default function SellerAddressInfo() {
 
   const handleBack = () => router.push("/(main)/sellerbusinessinfo");
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const errors: ValidationError[] = [];
     if (!validations.streetAddress)    errors.push({ field: "streetAddress",    message: "Street address is required" });
     if (!validations.landmark)         errors.push({ field: "landmark",         message: "Landmark is required" });
@@ -313,10 +333,26 @@ export default function SellerAddressInfo() {
     }
     if (errors.length > 0) { setValidationErrors(errors); scrollToFirstError(); return; }
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await save({
+        address: streetAddress.trim(),
+        landmark: landmark.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        country: country.trim(),
+        pincode: pincode.trim(),
+        warehouseAddress: warehouse ? warehouseAddress.trim() : undefined,
+        warehouseCity: warehouse ? warehouseCity.trim() : undefined,
+        warehouseState: warehouse ? warehouseState.trim() : undefined,
+        warehouseCountry: warehouse ? warehouseCountry.trim() : undefined,
+        warehouseArea: warehouse ? warehouseLandmark.trim() : undefined,
+      });
       router.push({ pathname: "/(main)/sellerbanking", params: { businessCategory } });
-    }, 1000);
+    } catch {
+      showMessage({ message: "Failed to save address", type: "danger" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────

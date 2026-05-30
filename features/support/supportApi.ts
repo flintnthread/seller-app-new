@@ -1,10 +1,7 @@
-import Constants from "expo-constants";
-
 import { Platform } from "react-native";
 
-
-
-const API_PORT = 8080;
+import { resolveApiBaseUrl } from "@/lib/api/config";
+import { ensureSellerId } from "@/lib/api/sellerSession";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -12,54 +9,19 @@ const UPLOAD_TIMEOUT_MS = 90000;
 
 
 
-// TODO: Replace with actual seller ID from auth context
-
-const SELLER_ID = 51;
-
-
-
-function resolveApiHost(): string {
-  // Web browser: backend on same PC → localhost:8080
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "localhost";
-    }
-    return hostname;
+function requireSellerId(): number {
+  const id = ensureSellerId();
+  if (!id) {
+    throw new Error("Seller not logged in. Please log in again.");
   }
-
-  const candidates = [
-    Constants.expoConfig?.hostUri,
-    (Constants as any).expoGoConfig?.debuggerHost,
-    (Constants as any).manifest2?.extra?.expoClient?.hostUri,
-    (Constants as any).manifest?.debuggerHost,
-    (Constants as any).manifest?.hostUri,
-  ];
-
-  for (const uri of candidates) {
-    if (!uri || typeof uri !== "string") continue;
-    const host = uri.replace(/^https?:\/\//, "").split(":")[0];
-    if (host && host !== "localhost" && host !== "127.0.0.1") {
-      return host;
-    }
-  }
-
-  if (Platform.OS === "android" && !Constants.isDevice) {
-    return "10.0.2.2";
-  }
-  if (Platform.OS === "ios" && !Constants.isDevice) {
-    return "localhost";
-  }
-
-  return "192.168.0.19";
+  return id;
 }
 
 
 
 function getBaseUrl(): string {
-
-  return `http://${resolveApiHost()}:${API_PORT}/api/seller/support`;
-
+  const base = resolveApiBaseUrl().replace(/\/$/, "");
+  return `${base}/api/seller/support`;
 }
 
 
@@ -76,11 +38,9 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
 
   }
 
-  const host = resolveApiHost();
-
+  const base = resolveApiBaseUrl().replace(/\/$/, "");
   const path = url.startsWith("/") ? url : `/${url}`;
-
-  return `http://${host}:${API_PORT}${path}`;
+  return `${base}${path}`;
 
 }
 
@@ -161,26 +121,18 @@ async function fetchWithTimeout(
 
   } catch (err: any) {
 
-    const host = resolveApiHost();
+    const base = resolveApiBaseUrl();
 
     if (err?.name === "AbortError") {
-
       throw new Error(
-
-        `Cannot reach server at http://${host}:${API_PORT}. Start the backend (mvn spring-boot:run), ensure MySQL is running, and allow port 8080 in Windows Firewall.`
-
+        `Cannot reach server at ${base}. Start the backend (mvn spring-boot:run), ensure MySQL is running, and allow port 8080 in Windows Firewall.`
       );
-
     }
 
     throw new Error(
-
       err?.message?.includes("Network request failed")
-
-        ? `Cannot reach http://${host}:${API_PORT}. Same Wi-Fi as PC? Backend running?`
-
+        ? `Cannot reach ${base}. Same Wi-Fi as PC? Backend running?`
         : err?.message || "Network request failed"
-
     );
 
   } finally {
@@ -283,17 +235,17 @@ export interface CreateTicketPayload {
 
 export function getSellerId(): number {
 
-  return SELLER_ID;
+  return requireSellerId();
 
 }
 
 
 
-export { getBaseUrl, resolveApiHost };
+export { getBaseUrl };
 
 /** Call on Help screen load to verify phone can reach the backend */
 export async function checkServerConnection(): Promise<{ ok: boolean; url: string; error?: string }> {
-  const url = `${getBaseUrl()}/tickets/seller/${SELLER_ID}`;
+  const url = `${getBaseUrl()}/tickets/seller/${requireSellerId()}`;
   try {
     const res = await fetchWithTimeout(url, {}, 8000);
     return { ok: res.ok, url };
@@ -316,7 +268,7 @@ export async function createTicketWithImage(
 
   const formData = new FormData();
 
-  formData.append("sellerId", String(SELLER_ID));
+  formData.append("sellerId", String(requireSellerId()));
 
   formData.append("subject", payload.subject);
 
@@ -402,7 +354,7 @@ export async function createTicket(payload: CreateTicketPayload): Promise<Ticket
 
     body: JSON.stringify({
 
-      sellerId: SELLER_ID,
+      sellerId: requireSellerId(),
 
       ...payload,
 
@@ -430,9 +382,9 @@ export async function getTickets(status?: string): Promise<TicketResponse[]> {
 
   const url = status
 
-    ? `${getBaseUrl()}/tickets/seller/${SELLER_ID}/status/${status}`
+    ? `${getBaseUrl()}/tickets/seller/${requireSellerId()}/status/${status}`
 
-    : `${getBaseUrl()}/tickets/seller/${SELLER_ID}`;
+    : `${getBaseUrl()}/tickets/seller/${requireSellerId()}`;
 
 
 
@@ -458,7 +410,7 @@ export async function getTicketById(ticketId: number): Promise<TicketResponse> {
 
   const res = await fetchWithTimeout(
 
-    `${getBaseUrl()}/tickets/${ticketId}/seller/${SELLER_ID}`
+    `${getBaseUrl()}/tickets/${ticketId}/seller/${requireSellerId()}`
 
   );
 
@@ -520,7 +472,7 @@ export async function sendMessage(
 
       senderType: "seller",
 
-      senderId: SELLER_ID,
+      senderId: requireSellerId(),
 
       message: message.trim() || "Attachment",
 
@@ -564,7 +516,7 @@ export async function sendMessageWithImage(
 
   formData.append("senderType", "seller");
 
-  formData.append("senderId", String(SELLER_ID));
+  formData.append("senderId", String(requireSellerId()));
 
   if (message?.trim()) {
 
@@ -604,7 +556,7 @@ export async function closeTicket(ticketId: number): Promise<TicketResponse> {
 
   const res = await fetchWithTimeout(
 
-    `${getBaseUrl()}/tickets/${ticketId}/close?sellerId=${SELLER_ID}`,
+    `${getBaseUrl()}/tickets/${ticketId}/close?sellerId=${requireSellerId()}`,
 
     { method: "PATCH" }
 

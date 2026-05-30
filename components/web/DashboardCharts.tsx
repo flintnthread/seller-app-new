@@ -55,6 +55,7 @@ interface DashboardChartsProps {
     conversionRate: string; conversionRateChange: string;
     returns: string; returnsChange: string;
   }>;
+  reviewCount?: number;
 }
 
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({
@@ -62,6 +63,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   onSalesPeriodChange,
   salesData,
   allStatsData,
+  reviewCount = 0,
 }) => {
   const { width } = useWindowDimensions();
   const [chartWidth, setChartWidth] = useState(0);
@@ -382,12 +384,25 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
             <View style={styles.analyticsContent}>
               <AppText style={styles.analyticsLabel}>Average Rating</AppText>
               <AppText style={styles.analyticsValue}>
-                {currentStats.rating} <AppText style={styles.analyticsSub}>/ 5.0 (312 reviews)</AppText>
+                {currentStats.rating}{" "}
+                <AppText style={styles.analyticsSub}>
+                  / 5.0 ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+                </AppText>
               </AppText>
             </View>
-            <View style={styles.ratingBadge}>
-              <AppText style={styles.ratingBadgeText}>Excellent</AppText>
-            </View>
+            {Number(currentStats.rating) > 0 ? (
+              <View style={styles.ratingBadge}>
+                <AppText style={styles.ratingBadgeText}>
+                  {Number(currentStats.rating) >= 4.5
+                    ? "Excellent"
+                    : Number(currentStats.rating) >= 4
+                      ? "Great"
+                      : Number(currentStats.rating) >= 3
+                        ? "Good"
+                        : "Fair"}
+                </AppText>
+              </View>
+            ) : null}
           </View>
 
           {/* Average Order Value */}

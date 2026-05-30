@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from 'expo-router';
+import { useSellerProfile } from "@/hooks/useSellerProfile";
 
 import {
   Alert,
@@ -30,11 +31,22 @@ import { Modal, Text } from "react-native";
 
 
 export default function SellerProfileScreen() {
-
-  const [profileImage, setProfileImage] = useState('https://i.pravatar.cc/300');
+  const { profile, save } = useSellerProfile();
+  const displayName =
+    profile?.businessName?.trim() ||
+    profile?.fullName?.trim() ||
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
+    "Seller";
+  const sellerIdLabel = profile?.id != null ? `Seller ID: ${profile.id}` : "Seller ID: —";
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (profile?.profilePicUrl) setProfileImage(profile.profilePicUrl);
+    else if (profile?.profilePic) setProfileImage(profile.profilePic);
+  }, [profile]);
 
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 1024;
@@ -116,16 +128,22 @@ export default function SellerProfileScreen() {
             <View style={desktopStyles.sidebarProfileCard}>
               <View style={desktopStyles.sidebarAvatarWrap}>
                 <TouchableOpacity onPress={() => setModalVisible(true)}>
+                  {profileImage ? (
                   <Image
                     source={{ uri: profileImage }}
                     style={desktopStyles.sidebarAvatar}
                   />
+                  ) : (
+                  <View style={[desktopStyles.sidebarAvatar, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
+                    <Feather name="user" size={36} color="#9CA3AF" />
+                  </View>
+                  )}
                   <View style={desktopStyles.sidebarCameraOverlay}>
                     <Feather name="camera" size={14} color="#fff" />
                   </View>
                 </TouchableOpacity>
               </View>
-              <AppText style={desktopStyles.sidebarName}>Priya Sharma</AppText>
+              <AppText style={desktopStyles.sidebarName}>{displayName}</AppText>
               {/* <View style={desktopStyles.sidebarBadge}>
                 <Ionicons name="star" size={13} color="#c28b00" />
                 <AppText style={desktopStyles.sidebarBadgeText}>Gold Seller</AppText>
@@ -133,15 +151,15 @@ export default function SellerProfileScreen() {
               <View style={desktopStyles.sidebarInfoBlock}>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <Feather name="phone" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>+91 98765 43210</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{profile?.mobile || "—"}</AppText>
                 </View>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <MaterialIcons name="credit-card" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>SEL12345</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{sellerIdLabel}</AppText>
                 </View>
                 <View style={desktopStyles.sidebarInfoRow}>
                   <MaterialIcons name="email" size={13} color="#888" />
-                  <AppText style={desktopStyles.sidebarInfoText}>priyasharma@gmail.com</AppText>
+                  <AppText style={desktopStyles.sidebarInfoText}>{profile?.email || "—"}</AppText>
                 </View>
               </View>
              <TouchableOpacity
@@ -368,10 +386,16 @@ export default function SellerProfileScreen() {
           <View style={styles.profileTop}>
             <View style={styles.imageContainer}>
               <TouchableOpacity onPress={() => setModalVisible(true)}>
+                {profileImage ? (
                 <Image
                   source={{ uri: profileImage }}
                   style={styles.profileImage}
                 />
+                ) : (
+                <View style={[styles.profileImage, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
+                  <Feather name="user" size={44} color="#9CA3AF" />
+                </View>
+                )}
                 <View style={styles.cameraOverlay}>
                   <Feather name="camera" size={20} color="#fff" />
                 </View>
@@ -380,7 +404,7 @@ export default function SellerProfileScreen() {
 
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
-                <AppText style={styles.name}>Priya Sharma</AppText>
+                <AppText style={styles.name}>{displayName}</AppText>
                 {/* <View style={styles.badge}>
                   <Ionicons name="star" size={16} color="#c28b00" />
                   <AppText style={styles.badgeText}>Gold Seller</AppText>
@@ -389,17 +413,17 @@ export default function SellerProfileScreen() {
 
               <View style={styles.infoRow}>
                 <Feather name="phone" size={16} color="#666" />
-                <AppText style={styles.infoText}>+91 98765 43210</AppText>
+                <AppText style={styles.infoText}>{profile?.mobile || "—"}</AppText>
               </View>
 
               <View style={styles.infoRow}>
                 <MaterialIcons name="credit-card" size={16} color="#666" />
-                <AppText style={styles.infoText}>Seller ID: SEL12345</AppText>
+                <AppText style={styles.infoText}>{sellerIdLabel}</AppText>
               </View>
 
               <View style={styles.infoRow}>
                 <MaterialIcons name="email" size={16} color="#666" />
-                <AppText style={styles.infoText}>priyasharma@gmail.com</AppText>
+                <AppText style={styles.infoText}>{profile?.email || "—"}</AppText>
               </View>
             </View>
           </View>

@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
+import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardCharts } from "@/hooks/useDashboardCharts";
+import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { EMPTY_SALES_CHART } from "@/lib/dashboard/chartDefaults";
+import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
 import {
   View,
   StyleSheet,
@@ -56,93 +62,59 @@ const C = {
 };
 
 // ─── Import stats from shared logic ───
-const SALES_DATA: Record<SalesPeriod, {
-  points: number[];
-  labels: string[];
-  totalSales: string;
-  totalOrders: string;
-  salesChange: string;
-  ordersChange: string;
-}> = {
-  "Day": {
-    points: [20, 38, 30, 50, 42, 60, 48, 65, 55, 72, 60, 68, 58],
-    labels: ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm"],
-    totalSales: "₹12,540", totalOrders: "28", salesChange: "8%", ordersChange: "5%",
-  },
-  "Week": {
-    points: [18, 35, 25, 45, 30, 55, 40, 60, 45, 70, 50, 65, 55],
-    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    totalSales: "₹86,540", totalOrders: "156", salesChange: "18%", ordersChange: "14%",
-  },
-  "Month": {
-    points: [30, 42, 55, 38, 60, 70, 65, 80, 72, 90, 85, 78, 95],
-    labels: ["1", "5", "10", "15", "20", "25", "30"],
-    totalSales: "₹3,12,800", totalOrders: "589", salesChange: "24%", ordersChange: "19%",
-  },
-  "Year": {
-    points: [45, 60, 55, 78, 65, 90, 80, 95, 85, 100, 92, 110],
-    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    totalSales: "₹28,45,000", totalOrders: "5,430", salesChange: "36%", ordersChange: "31%",
-  },
-};
-
-const ALL_STATS_DATA = {
-  "Day": {
-    orders: "28", ordersChange: "+12%",
-    sales: "₹12,450", salesChange: "+8%",
-    views: "1,245", viewsChange: "+15%",
-    rating: "4.8", ratingChange: "+0.2",
-    newCustomers: "14", newCustomersChange: "+5%",
-    avgOrderValue: "₹444", avgOrderValueChange: "+3%",
-    conversionRate: "2.2%", conversionRateChange: "+0.4%",
-    returns: "1", returnsChange: "-1",
-  },
-  "Week": {
-    orders: "156", ordersChange: "+14%",
-    sales: "₹86,540", salesChange: "+18%",
-    views: "7,820", viewsChange: "+22%",
-    rating: "4.8", ratingChange: "+0.1",
-    newCustomers: "68", newCustomersChange: "+9%",
-    avgOrderValue: "₹555", avgOrderValueChange: "+4%",
-    conversionRate: "2.0%", conversionRateChange: "+0.3%",
-    returns: "4", returnsChange: "-2",
-  },
-  "Month": {
-    orders: "589", ordersChange: "+19%",
-    sales: "₹3,12,800", salesChange: "+24%",
-    views: "29,400", viewsChange: "+31%",
-    rating: "4.7", ratingChange: "+0.1",
-    newCustomers: "210", newCustomersChange: "+16%",
-    avgOrderValue: "₹531", avgOrderValueChange: "+5%",
-    conversionRate: "2.0%", conversionRateChange: "+0.2%",
-    returns: "18", returnsChange: "-5",
-  },
-  "Year": {
-    orders: "5,430", ordersChange: "+31%",
-    sales: "₹28,45,000", salesChange: "+36%",
-    views: "3,12,000", viewsChange: "+40%",
-    rating: "4.8", ratingChange: "+0.3",
-    newCustomers: "1,850", newCustomersChange: "+28%",
-    avgOrderValue: "₹524", avgOrderValueChange: "+6%",
-    conversionRate: "1.7%", conversionRateChange: "+0.2%",
-    returns: "142", returnsChange: "-18",
-  },
-};
-
-
-
 export const DesktopDashboard: React.FC = () => {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1200;
+  const { data, reviewCount } = useDashboardData();
+  const widgets = useDashboardWidgets();
+  const { profile } = useSellerProfile();
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
+  const { salesChart } = useDashboardCharts(salesPeriod);
 
+  const salesDataMerged = useMemo(() => {
+    const chart = salesChart ?? EMPTY_SALES_CHART;
+    return {
+      Day: chart,
+      Week: chart,
+      Month: chart,
+      Year: chart,
+    };
+  }, [salesChart]);
+
+  const { allStatsData } = useDashboardStatsByPeriod(true);
+
+  const activeTrackingOrder = useMemo(() => {
+    const o = widgets.recentOrders[0];
+    if (!o) return null;
+    return {
+      id: o.id,
+      status: o.status,
+      customerName: o.customer?.name,
+      productName: o.items[0]?.productName,
+      awb: o.shiprocket?.awb,
+      courier: o.shiprocket?.courier,
+      steps: o.steps.map((s) => ({
+        label: s.label,
+        status: s.status === "done" ? "done" as const : s.status === "active" ? "active" as const : "pending" as const,
+      })),
+    };
+  }, [widgets.recentOrders]);
 
   return (
     <View style={styles.container}>
       {/* ── 1. SMART WELCOME HEADER ── */}
-      <SmartWelcomeHeader name="Priya" />
+      <SmartWelcomeHeader
+        name={widgets.sellerName}
+        totalOrders={widgets.overview?.orders ?? 0}
+        salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
+        pendingOrders={widgets.orderSummary?.pending ?? 0}
+        views={widgets.overview?.views ?? 0}
+        referralCode={profile?.referralCode ?? ""}
+        referralGoal={profile?.referralGoal ?? 6}
+        referralTotalReferred={profile?.referralTotalReferred ?? 0}
+      />
 
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>
@@ -151,28 +123,33 @@ export const DesktopDashboard: React.FC = () => {
         <View style={[styles.leftCol, isDesktop ? { width: "70%" } : { width: "100%" }]}>
           
           {/* Advanced KPI Cards Row */}
-          <DashboardAnalytics period={salesPeriod} allStatsData={ALL_STATS_DATA} />
+          <DashboardAnalytics
+            period={salesPeriod}
+            allStatsData={allStatsData}
+            orderSummary={data?.orderSummary ?? null}
+          />
 
           {/* Interactive Multi-Chart Visuals */}
           <DashboardCharts
             salesPeriod={salesPeriod}
             onSalesPeriodChange={setSalesPeriod}
-            salesData={SALES_DATA}
-            allStatsData={ALL_STATS_DATA}
+            salesData={salesDataMerged}
+            allStatsData={allStatsData}
+            reviewCount={reviewCount}
           />
 
           {/* Sales Heatmap & Live Tracking */}
           <View style={styles.flexRow}>
             <View style={{ flex: 1, minWidth: 280 }}>
-              <SalesHeatmap />
+              <SalesHeatmap points={widgets.weekSalesPoints} />
             </View>
             <View style={{ flex: 1, minWidth: 280 }}>
-              <LiveOrderTrackingPanel />
+              <LiveOrderTrackingPanel order={activeTrackingOrder} />
             </View>
           </View>
 
           {/* Top Selling Products Performance Table */}
-          <TopProductsPerformance />
+          <TopProductsPerformance items={widgets.topProducts} />
 
           {/* Marketing Center & Financial Reconciliation */}
           <View style={styles.flexRow}>
@@ -192,22 +169,33 @@ export const DesktopDashboard: React.FC = () => {
         <View style={[styles.rightCol, isDesktop ? { width: "30%" } : { width: "100%" }]}>
           
           {/* Seller Performance Score Dial */}
-          <SellerPerformanceScore />
+          <SellerPerformanceScore
+            rating={widgets.overview?.rating ?? 0}
+            orders={widgets.overview?.orders ?? 0}
+            returns={widgets.orderSummary?.returns ?? 0}
+            views={widgets.overview?.views ?? 0}
+          />
 
-          {/* Smart Notification Center */}
-          <SmartNotificationCenter />
+          <SmartNotificationCenter alerts={widgets.alertNotifications} />
 
-          {/* Real-time Event activity log */}
-          <RealTimeActivityFeed />
+          <RealTimeActivityFeed activities={widgets.activities} />
 
-          {/* AI Store recommendation matrix */}
-          <AIBusinessInsights />
+          <AIBusinessInsights
+            lowStock={widgets.lowStock}
+            topProducts={widgets.topProducts}
+          />
 
-          {/* Smart inventory monitor (Health & recommendations) */}
-          <SmartInventoryMonitoring />
+          <SmartInventoryMonitoring
+            lowStock={widgets.lowStock}
+            totalProducts={widgets.totalProducts}
+          />
 
-          {/* Repeat Cohort customer LTV metric */}
-          <CustomerAnalytics />
+          <CustomerAnalytics
+            rating={widgets.overview?.rating ?? 0}
+            views={widgets.overview?.views ?? 0}
+            orders={widgets.overview?.orders ?? 0}
+            salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
+          />
 
 
         </View>

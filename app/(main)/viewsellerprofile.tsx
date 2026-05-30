@@ -5,7 +5,8 @@
  * - Mobile layout: UNCHANGED
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSellerProfile } from '@/hooks/useSellerProfile';
 import {
   View,
   Text,
@@ -405,11 +406,20 @@ const KYC_ITEMS = [
 export default function SellerProfileScreen() {
   const { width } = useWindowDimensions();
   const isDesktop  = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const { profile } = useSellerProfile();
 
-  const [photoUri, setPhotoUri] = useState(null);
-  const [address,  setAddress]  = useState('PickCell,B-506,Radha Vallabh, Near D mart, 150 Feet Road, Bhayndar West 401101');
-  const [road,     setRoad]     = useState('150 Feet Road');
-  const [landmark, setLandmark] = useState('Dmart');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [address,  setAddress]  = useState('');
+  const [road,     setRoad]     = useState('');
+  const [landmark, setLandmark] = useState('');
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.profilePicUrl) setPhotoUri(profile.profilePicUrl);
+    if (profile.address) setAddress(profile.address);
+    if (profile.roadNumber) setRoad(profile.roadNumber);
+    if (profile.landmark) setLandmark(profile.landmark);
+  }, [profile]);
 
   if (!isDesktop) {
     return (

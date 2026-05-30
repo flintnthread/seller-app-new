@@ -61,7 +61,7 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             deliveryOption: detail.delivery?.estimated ?? "Standard Delivery",
             minDays: detail.deliveryTimeMin != null ? String(detail.deliveryTimeMin) : "3",
             maxDays: detail.deliveryTimeMax != null ? String(detail.deliveryTimeMax) : "7",
-            deliveryInfo: detail.deliveryInfo ?? detail.delivery?.estimated ?? "",
+            deliveryInfo: detail.delivery?.estimated ?? "",
             codEnabled: detail.acceptCod,
             onlinePayEnabled: true,
             warranty: detail.warranty === "No Warranty" ? "" : detail.warranty,

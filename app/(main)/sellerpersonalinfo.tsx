@@ -35,6 +35,7 @@ import {
   InputField, PrimaryButton, SecondaryButton,
   UploadBox, ProgressBar, SectionTitle,
 } from "./_sellerComponents";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
 
 // ─── Design tokens (shared with Screen 2) ────────────────────
 const T = {
@@ -152,6 +153,7 @@ export default function SellerPersonalInfo() {
   // True when running on web AND viewport is wide enough for 2-col layout
   const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
 
+  const { profile, save } = useSellerProfile();
   const [image, setImage] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -160,12 +162,18 @@ export default function SellerPersonalInfo() {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldPositions, setFieldPositions] = useState<Record<string, number>>({});
 
-  // Auto-fill from signup params
   useEffect(() => {
-    if (routerParams.fullName) setName(routerParams.fullName as string);
-    if (routerParams.mobile)   setMobile(routerParams.mobile as string);
-    if (routerParams.email)    setEmail(routerParams.email as string);
-  }, [routerParams]);
+    if (profile) {
+      setName(profile.fullName ?? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim());
+      setMobile(profile.mobile ?? "");
+      setEmail(profile.email ?? "");
+      if (profile.profilePicUrl) setImage(profile.profilePicUrl);
+    } else {
+      if (routerParams.fullName) setName(routerParams.fullName as string);
+      if (routerParams.mobile)   setMobile(routerParams.mobile as string);
+      if (routerParams.email)    setEmail(routerParams.email as string);
+    }
+  }, [profile, routerParams]);
 
   const fieldRefs = {
     name:   useRef<TextInput>(null),
@@ -221,19 +229,28 @@ export default function SellerPersonalInfo() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const parts = name.trim().split(/\s+/);
+      await save({
+        firstName: parts[0] ?? name,
+        lastName: parts.slice(1).join(" ") || undefined,
+        profilePic: image ?? undefined,
+      });
       router.push("/(main)/sellerbusinessinfo");
-    }, 1000);
+    } catch {
+      showMessage({ message: "Failed to save profile", type: "danger" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ── Personal info fields config ──────────────────────────
   const personalFields = [
-    { key: "name",   label: "Full Name",       value: name   || "Sri Raj Dodda",      iconName: "user"     },
-    { key: "mobile", label: "Mobile Number",   value: mobile ? `+91 ${mobile}` : "9876543210", iconName: "phone"    },
-    { key: "email",  label: "Email Address",   value: email  || "sriraj@gmail.com",   iconName: "envelope" },
+    { key: "name",   label: "Full Name",       value: name   || "—",      iconName: "user"     },
+    { key: "mobile", label: "Mobile Number",   value: mobile ? `+91 ${mobile}` : "—", iconName: "phone"    },
+    { key: "email",  label: "Email Address",   value: email  || "—",   iconName: "envelope" },
   ];
 
   // ── Render personal fields: 2-col on web, 1-col on mobile ─

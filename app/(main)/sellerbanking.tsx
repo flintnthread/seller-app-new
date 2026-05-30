@@ -3,7 +3,7 @@
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
  */
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { lookupIfsc } from "@/services/utilApi";
+import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { fontFamilies } from "@/constants/fonts";
 
@@ -76,19 +79,6 @@ const validateAccountHolderName = (name: string): string => {
   if (!name.trim()) return "Account holder name is required";
   if (name.length < 3) return "Name must be at least 3 characters";
   return "";
-};
-
-// ─── Mock IFSC lookup (100% unchanged) ───────────────────────
-const lookupIfscDetails = (ifsc: string): { bank: string; branch: string } => {
-  const ifscData: Record<string, { bank: string; branch: string }> = {
-    SBIN0000001: { bank: "State Bank of India",  branch: "New Delhi Main Branch" },
-    HDFC0000001: { bank: "HDFC Bank",            branch: "Mumbai Corporate Branch" },
-    ICIC0000001: { bank: "ICICI Bank",           branch: "Bangalore Main Branch" },
-    PUNB0000001: { bank: "Punjab National Bank", branch: "Chandigarh Branch" },
-    UBIN0532089: { bank: "Union Bank of India",  branch: "Hyderabad Branch" },
-    KARB0000001: { bank: "Karnataka Bank",       branch: "Mangalore Branch" },
-  };
-  return ifscData[ifsc.toUpperCase().trim()] || { bank: "", branch: "" };
 };
 
 // ─── SectionCard — exact Screen 1 pattern ────────────────────
@@ -318,6 +308,7 @@ export default function SellerBanking() {
   const router = useRouter();
   const { businessCategory } = useLocalSearchParams();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { profile, save } = useSellerProfile();
 
   // ── State (100% unchanged) ──
   const [ifscCode,             setIfscCode]             = useState("");
@@ -329,6 +320,18 @@ export default function SellerBanking() {
   const [validationErrors,     setValidationErrors]     = useState<{ field: string; message: string }[]>([]);
   const [fieldValid, setFieldValid] = useState<Record<string, boolean>>({});
   const [fieldSuccess, setFieldSuccess] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.ifscCode) setIfscCode(profile.ifscCode);
+    if (profile.bankName) setBankName(profile.bankName);
+    if (profile.branchName) setBranchName(profile.branchName);
+    if (profile.accountHolder) setAccountHolderName(profile.accountHolder);
+    if (profile.accountNumber) {
+      setAccountNumber(profile.accountNumber);
+      setConfirmAccountNumber(profile.accountNumber);
+    }
+  }, [profile]);
 
   // ── Helpers (100% unchanged) ──
   const getError = (field: string) =>
@@ -362,9 +365,22 @@ export default function SellerBanking() {
       else { clearError("ifscCode"); setFieldValid(prev => ({ ...prev, ifscCode: true })); }
     }
     if (upper.length === 11) {
-      const details = lookupIfscDetails(upper);
-      setBankName(details.bank);
-      setBranchName(details.branch);
+      lookupIfsc(upper)
+        .then((res) => {
+          if (res.found) {
+            setBankName(res.bank || "");
+            setBranchName(res.branch || "");
+          } else {
+            setBankName("");
+            setBranchName("");
+            setError("ifscCode", "IFSC code not found");
+          }
+        })
+        .catch(() => {
+          setBankName("");
+          setBranchName("");
+          setError("ifscCode", "Could not look up IFSC. Check the code and try again.");
+        });
     } else {
       setBankName("");
       setBranchName("");
@@ -374,7 +390,7 @@ export default function SellerBanking() {
   const autoFilled = bankName.length > 0 && branchName.length > 0;
 
   // ── Submit (100% unchanged) ──
-  const handleNext = () => {
+  const handleNext = async () => {
     const errors: { field: string; message: string }[] = [];
     const ifscErr    = validateIfscCode(ifscCode);
     const accErr     = validateAccountNumber(accountNumber);
@@ -389,7 +405,18 @@ export default function SellerBanking() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
-    router.push({ pathname: "/(main)/sellerdocuments", params: { businessCategory } });
+    try {
+      await save({
+        ifscCode: ifscCode.trim().toUpperCase(),
+        bankName: bankName.trim(),
+        branchName: branchName.trim(),
+        accountHolder: accountHolderName.trim(),
+        accountNumber: accountNumber.trim(),
+      });
+      router.push({ pathname: "/(main)/sellerdocuments", params: { businessCategory } });
+    } catch {
+      showMessage({ message: "Failed to save banking details", type: "danger" });
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────

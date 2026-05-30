@@ -3,6 +3,7 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, Platform, StatusBar, SafeAreaView, Switch,
     Dimensions, Modal, Animated, Image, Alert, ActivityIndicator,
+    type LayoutChangeEvent,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
@@ -17,6 +18,8 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
+import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 import {
     createProduct,
     fetchProductFormCatalog,
@@ -24,11 +27,16 @@ import {
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 
+/** React 19 + RN Animated typing compatibility */
+const AnimatedView = Animated.View as React.ComponentType<
+    React.ComponentProps<typeof Animated.View>
+>;
+
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
 
 /** Set false before production to start with empty forms */
-const PREFILL_WITH_DUMMY = true;
+const PREFILL_WITH_DUMMY = false;
 
 const DUMMY_PRIMARY_IMAGE_URI =
     "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80";
@@ -89,11 +97,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
     "Home & Living": ["Furniture", "Decor", "Kitchen", "Bedding"],
     "Books": ["Fiction", "Non-Fiction", "Academic", "Comics"],
 };
-const MATERIAL_TYPES = [
-    "Cotton", "Polyester", "Silk", "Wool", "Linen", "Nylon", "Leather", "Denim",
-    "Rayon", "Acrylic", "Velvet", "Satin", "Chiffon", "Spandex", "Metal",
-    "Plastic", "Wood", "Glass", "Ceramic", "Rubber", "Paper", "Mixed Fabric",
-];
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
 const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
@@ -155,7 +158,7 @@ const ConfettiDot = ({
     }, []);
 
     return (
-        <Animated.View
+        <AnimatedView
             style={{
                 position: "absolute",
                 width: 8,
@@ -180,7 +183,7 @@ const CONFETTI_DOTS = [
     { color: "#10B981", dx: 72, dy: 14, delay: 200 },
 ];
 
-const SweetAlert: React.FC<SweetAlertProps> = ({
+const SweetAlert = ({
     visible,
     stage,
     productName,
@@ -189,7 +192,7 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
     onConfirm,
     onCancel,
     onDone,
-}) => {
+}: SweetAlertProps) => {
     // ── Overlay fade
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     // ── Card scale + fade
@@ -278,8 +281,8 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
 
     return (
         <Modal visible transparent animationType="none" onRequestClose={onCancel}>
-            <Animated.View style={[sa.overlay, { opacity: overlayOpacity }]}>
-                <Animated.View
+            <AnimatedView style={[sa.overlay, { opacity: overlayOpacity }]}>
+                <AnimatedView
                     style={[
                         sa.card,
                         {
@@ -293,7 +296,7 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                         <>
                             {/* Icon */}
                             <View style={sa.iconWrap}>
-                                <Animated.View
+                                <AnimatedView
                                     style={[
                                         sa.iconRing,
                                         { transform: [{ scale: ringScale }], opacity: ringOpacity },
@@ -371,13 +374,13 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
 
                             {/* Animated icon */}
                             <View style={sa.iconWrap}>
-                                <Animated.View
+                                <AnimatedView
                                     style={[
                                         sa.iconCircleSuccess,
                                         { transform: [{ scale: iconBgScale }] },
                                     ]}
                                 >
-                                    <Animated.View
+                                    <AnimatedView
                                         style={{
                                             opacity: checkOpacity,
                                             transform: [{ scale: checkScale }],
@@ -388,12 +391,12 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                                             size={38}
                                             color="#fff"
                                         />
-                                    </Animated.View>
-                                </Animated.View>
+                                    </AnimatedView>
+                                </AnimatedView>
                             </View>
 
                             {/* Text */}
-                            <Animated.View
+                            <AnimatedView
                                 style={{
                                     opacity: textOpacity,
                                     transform: [{ translateY: textSlide }],
@@ -427,10 +430,10 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                                         </View>
                                     ))}
                                 </View>
-                            </Animated.View>
+                            </AnimatedView>
 
                             {/* Done button */}
-                            <Animated.View style={{ opacity: textOpacity, width: "100%", marginTop: 24 }}>
+                            <AnimatedView style={{ opacity: textOpacity, width: "100%", marginTop: 24 }}>
                                 <TouchableOpacity
                                     style={sa.doneBtn}
                                     onPress={() => animateOut(onDone)}
@@ -439,11 +442,11 @@ const SweetAlert: React.FC<SweetAlertProps> = ({
                                     <AppText style={sa.doneTxt}>Go to Products</AppText>
                                     <Ionicons name="arrow-forward" size={17} color="#fff" />
                                 </TouchableOpacity>
-                            </Animated.View>
+                            </AnimatedView>
                         </>
                     )}
-                </Animated.View>
-            </Animated.View>
+                </AnimatedView>
+            </AnimatedView>
         </Modal>
     );
 };
@@ -703,7 +706,7 @@ const ToastBubble = ({ item, onRemove }: { item: ToastItem; onRemove: (id: numbe
     const bg = item.type === "error" ? C.toastErr : C.accent5;
 
     return (
-        <Animated.View style={[ts.bubble, { backgroundColor: bg, transform: [{ translateX }], opacity }]}>
+        <AnimatedView style={[ts.bubble, { backgroundColor: bg, transform: [{ translateX }], opacity }]}>
             <View style={ts.iconWrap}>
                 <MaterialCommunityIcons
                     name={item.type === "error" ? "alert-circle-outline" : "check-circle-outline"}
@@ -711,7 +714,7 @@ const ToastBubble = ({ item, onRemove }: { item: ToastItem; onRemove: (id: numbe
                 />
             </View>
             <AppText style={ts.msg} numberOfLines={2}>{item.message}</AppText>
-        </Animated.View>
+        </AnimatedView>
     );
 };
 
@@ -868,7 +871,9 @@ const Hint = ({ text }: { text: string }) => <AppText style={at.hint}>{text}</Ap
 const CC = ({ cur, max }: { cur: number; max: number }) => <AppText style={at.cc}>{cur}/{max}</AppText>;
 
 // ─── Picker Modal ─────────────────────────────────────────────
-const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
+const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
+    const items = uniquePickerOptions(options ?? []);
+    return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <TouchableOpacity style={pm.overlay} activeOpacity={1} onPress={onClose} />
         <View style={pm.sheet}>
@@ -880,8 +885,8 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
                 </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-                {options.map((opt: string) => (
-                    <TouchableOpacity key={opt} style={[pm.item, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
+                {items.map((opt: string, index: number) => (
+                    <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
                         <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
                         {selected === opt && <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>}
                     </TouchableOpacity>
@@ -889,7 +894,8 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => (
             </ScrollView>
         </View>
     </Modal>
-);
+    );
+};
 
 const pm = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.22)" },
@@ -922,6 +928,7 @@ const InlinePicker = ({
     onClose: () => void;
 }) => {
     if (!visible) return null;
+    const items = uniquePickerOptions(options ?? []);
     return (
         <View style={fp.inlinePickerWrap} pointerEvents="box-none">
             <TouchableOpacity style={fp.inlinePickerBackdrop} activeOpacity={1} onPress={onClose} />
@@ -933,9 +940,9 @@ const InlinePicker = ({
                     </TouchableOpacity>
                 </View>
                 <ScrollView style={fp.inlinePickerList} bounces={false} keyboardShouldPersistTaps="handled">
-                    {options.map((opt) => (
+                    {items.map((opt, index) => (
                         <TouchableOpacity
-                            key={opt}
+                            key={`${title}-${index}-${opt}`}
                             style={[fp.inlinePickerItem, selected === opt && fp.inlinePickerItemOn]}
                             onPress={() => {
                                 onSelect(opt);
@@ -1555,14 +1562,16 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
-    const categoryOptions =
-        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES;
+    const categoryOptions = uniquePickerOptions(
+        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
+    );
     const selectedCategory = catalog?.categories?.find(
         (c: { name: string }) => c.name === data.category
     );
-    const subcats =
+    const subcats = uniquePickerOptions(
         selectedCategory?.subcategories?.map((s: { name: string }) => s.name) ??
-        (data.category ? SUBCATEGORIES[data.category] || [] : []);
+            (data.category ? SUBCATEGORIES[data.category] || [] : [])
+    );
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
@@ -1611,7 +1620,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                                 maxLength={8}
                             />
                         </View>
-                        <Hint text="4–8 digit Harmonized Code" />
+                        <Hint text="Auto-filled from material; edit if your product uses a different HSN" />
                     </View>
                 </View>
             </Card>
@@ -1733,7 +1742,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                         <View style={at.custTogRow}>
                             <Switch
                                 value={data.custAllowPhoto}
-                                onValueChange={v => onChange("custAllowPhoto", v)}
+                                onValueChange={(v: boolean) => onChange("custAllowPhoto", v)}
                                 trackColor={{ false: C.border, true: C.accent5 }}
                                 thumbColor={C.white}
                             />
@@ -1771,7 +1780,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                         <View style={at.custTogRow}>
                             <Switch
                                 value={data.custAllowText}
-                                onValueChange={v => onChange("custAllowText", v)}
+                                onValueChange={(v: boolean) => onChange("custAllowText", v)}
                                 trackColor={{ false: C.border, true: C.accent5 }}
                                 thumbColor={C.white}
                             />
@@ -1859,7 +1868,18 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 }}
                 onClose={() => setSubPick(false)}
             />
-            <PM visible={matPick} title="Select Material" options={MATERIAL_TYPES} selected={data.materialType} onSelect={(v: string) => onChange("materialType", v)} onClose={() => setMatPick(false)} />
+            <PM
+                visible={matPick}
+                title="Select Material"
+                options={MATERIAL_TYPES}
+                selected={data.materialType}
+                onSelect={(v: string) => {
+                    onChange("materialType", v);
+                    const hsn = getHsnForMaterial(v);
+                    if (hsn) onChange("hsnCode", hsn);
+                }}
+                onClose={() => setMatPick(false)}
+            />
         </ScrollView>
     );
 };
@@ -2463,7 +2483,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <Hint text="Select all payment methods available for this product." />
                 {([["codEnabled", "Cash on Delivery (COD)"], ["onlinePayEnabled", "Online Payment — Razorpay"]] as [string, string][]).map(([key, label]) => (
                     <View key={key} style={dt.togRow}>
-                        <Switch value={(data as any)[key]} onValueChange={v => onChange(key, v)} trackColor={{ false: C.border, true: C.navy }} thumbColor={C.white} />
+                        <Switch value={(data as any)[key]} onValueChange={(v: boolean) => onChange(key, v)} trackColor={{ false: C.border, true: C.navy }} thumbColor={C.white} />
                         <AppText style={dt.togLbl}>{label}</AppText>
                     </View>
                 ))}
@@ -2556,7 +2576,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                             title="Select Category"
                             options={chartCategoryOptions}
                             selected={chartCategory}
-                            onSelect={(v) => {
+                            onSelect={(v: string) => {
                                 setChartCategory(v);
                                 setChartSubcategory(CHART_SUB_ALL);
                             }}
@@ -2634,7 +2654,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                                                 placeholder={col.placeholder}
                                                 placeholderTextColor={C.textPlaceholder}
                                                 value={row[col.key]}
-                                                onChangeText={(v) => updateChartRow(row.id, col.key, v)}
+                                                onChangeText={(v: string) => updateChartRow(row.id, col.key, v)}
                                             />
                                         </View>
                                     ))}
@@ -2722,7 +2742,7 @@ const StepProgressBar = ({
     return (
         <View
             style={[sp.wrapper, isDesktop && ds.hStepBar]}
-            onLayout={e => setBarW(e.nativeEvent.layout.width)}
+            onLayout={(e: LayoutChangeEvent) => setBarW(e.nativeEvent.layout.width)}
         >
             {STEPS.map((_, i) => {
                 if (i === 0) return null;

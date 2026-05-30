@@ -3,7 +3,7 @@
  * Navy blue & orange premium onboarding UI
  */
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -23,6 +23,9 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { verifyGstNumber } from "@/services/utilApi";
+import { showMessage } from "react-native-flash-message";
 import Icon from "react-native-vector-icons/FontAwesome";
 const { width: SW } = Dimensions.get("window");
 
@@ -368,6 +371,7 @@ const sc = StyleSheet.create({
 export default function SellerBusinessInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { profile, save } = useSellerProfile();
 
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -387,6 +391,21 @@ export default function SellerBusinessInfo() {
   const [aadharError, setAadharError] = useState("");
   const [panValid, setPanValid] = useState(false);
   const [aadharValid, setAadharValid] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.sellerCategory) setBusinessCategory(profile.sellerCategory.toUpperCase());
+    if (profile.businessName) setBusinessName(profile.businessName);
+    if (profile.businessType) setBusinessType(profile.businessType);
+    if (profile.hasGst != null) setHasGST(profile.hasGst);
+    if (profile.gstType) setGstType(profile.gstType);
+    if (profile.gstNumber) {
+      setGstNumber(profile.gstNumber);
+      setGstVerified(true);
+    }
+    if (profile.panNumber) setPanNumber(profile.panNumber);
+    if (profile.aadhaarNumber) setAadharNumber(formatAadhaar(profile.aadhaarNumber));
+  }, [profile]);
 
   const businessTypes = ["Sole Proprietorship", "Partnership", "Private Limited", "Public Limited", "LLP"];
   const gstTypes = ["Regular", "Composition", "Consumer"];
@@ -455,16 +474,31 @@ export default function SellerBusinessInfo() {
     }
   }, []);
 
-  const handleGSTVerify = useCallback(() => {
+  const handleGSTVerify = useCallback(async () => {
     const err = validateGST(gstNumber);
     if (err) { setGstError(err); return; }
     setIsLoading(true);
-    setTimeout(() => { setGstVerified(true); setIsLoading(false); clearFieldError("gstNumber"); }, 1800);
+    try {
+      const result = await verifyGstNumber(gstNumber);
+      if (result.valid) {
+        setGstVerified(true);
+        clearFieldError("gstNumber");
+        showMessage({ message: result.message || "GST verified", type: "success" });
+      } else {
+        setGstVerified(false);
+        setGstError(result.message || "Invalid GST number");
+      }
+    } catch {
+      setGstVerified(false);
+      setGstError("Could not verify GST. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [gstNumber]);
 
   const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const gstErr = businessCategory && hasGST ? validateGST(gstNumber) : "";
     const panErr = validatePAN(panNumber);
     const aadErr = validateAadhaar(aadharNumber);
@@ -484,7 +518,24 @@ export default function SellerBusinessInfo() {
 
     if (errors.length > 0) { setValidationErrors(errors); return; }
     setValidationErrors([]);
-    router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
+    setIsLoading(true);
+    try {
+      await save({
+        sellerCategory: businessCategory.toLowerCase(),
+        businessName: businessName.trim(),
+        businessType,
+        hasGst: hasGST,
+        gstType: hasGST ? gstType : undefined,
+        gstNumber: hasGST ? gstNumber.trim().toUpperCase() : undefined,
+        panNumber: panNumber.trim().toUpperCase(),
+        aadhaarNumber: aadharNumber.replace(/\s/g, ""),
+      });
+      router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
+    } catch {
+      showMessage({ message: "Failed to save business info", type: "danger" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,44 +8,44 @@ import {
   Modal,
   TextInput,
   Animated,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
+import { fetchProductReviews, replyToReview } from "@/services/reviewApi";
 
-const initialReviews = [
-  {
-    id: "1",
-    product: "Leather Handbag",
-    rating: 4,
-    comment: "Amazing quality! Loved the stitching and design.",
-    customer: "Ananya Sharma",
-    date: "12 Aug 2026",
-    reply: "",
-  },
-  {
-    id: "2",
-    product: "Canvas Tote Bag",
-    rating: 5,
-    comment: "Perfect for daily use. Highly recommend!",
-    customer: "Riya Patel",
-    date: "10 Aug 2026",
-    reply: "",
-  },
-  {
-    id: "3",
-    product: "Mini Sling Bag",
-    rating: 3,
-    comment: "Good but size is smaller than expected.",
-    customer: "Sneha Reddy",
-    date: "08 Aug 2026",
-    reply: "",
-  },
-];
+const initialReviews: {
+  id: string;
+  product: string;
+  rating: number;
+  comment: string;
+  customer: string;
+  date: string;
+  reply: string;
+}[] = [];
 
 const ReviewsScreen = () => {
   const router = useRouter();
   const [reviews, setReviews] = useState(initialReviews);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProductReviews()
+      .then((rows) => {
+        setReviews(rows.map((r) => ({
+          id: String(r.id),
+          product: r.productName,
+          rating: r.rating,
+          comment: r.description,
+          customer: r.customerName,
+          date: r.date,
+          reply: r.sellerReply || "",
+        })));
+      })
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
+  }, []);
   const [replyVisible, setReplyVisible] = useState(false);
   const [selectedReview, setSelectedReview] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
@@ -83,19 +83,23 @@ const ReviewsScreen = () => {
     ));
   };
 
-  const handleSendReply = () => {
-    const updatedReviews = reviews.map((rev) => {
-      if (rev.id === selectedReview.id) {
-        return { ...rev, reply: replyText };
-      }
-      return rev;
-    });
-
-    setReviews(updatedReviews);
-    setReplyVisible(false);
-    setReplyText("");
-
-    triggerToast(); // ✅ Modern toast instead of alert
+  const handleSendReply = async () => {
+    if (!selectedReview || !replyText.trim()) return;
+    try {
+      const updated = await replyToReview(Number(selectedReview.id), replyText.trim());
+      setReviews((prev) =>
+        prev.map((rev) =>
+          rev.id === selectedReview.id
+            ? { ...rev, reply: updated.sellerReply || replyText.trim() }
+            : rev
+        )
+      );
+      setReplyVisible(false);
+      setReplyText("");
+      triggerToast();
+    } catch {
+      Alert.alert("Error", "Failed to send reply. Please try again.");
+    }
   };
 
   const renderItem = ({ item }: any) => (
@@ -124,6 +128,7 @@ const ReviewsScreen = () => {
           style={styles.replyBtn}
           onPress={() => {
             setSelectedReview(item);
+            setReplyText(item.reply || "");
             setReplyVisible(true);
           }}
         >
