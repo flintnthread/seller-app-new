@@ -17,6 +17,7 @@ import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEdit
 import { fetchProductDetail, updateProduct, fetchProductFormCatalog, type ProductFormCatalog } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
+import { applyDeliverySelection, applyReturnPolicySelection } from "@/lib/products/policyPresets";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 
 const { width: SW } = Dimensions.get("window");
@@ -1742,8 +1743,8 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
             </Card>
 
             <PM visible={sizePick} title="Size Chart" options={sizeChartOptions} selected={data.sizeChart} onSelect={(v: string) => onChange("sizeChart", v)} onClose={() => setSizePick(false)} />
-            <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => onChange("returnPolicy", v)} onClose={() => setRetPick(false)} />
-            <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => onChange("deliveryOption", v)} onClose={() => setDelPick(false)} />
+            <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
+            <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => applyDeliverySelection(v, onChange)} onClose={() => setDelPick(false)} />
 
             <FormPopupModal
                 visible={createSizeOpen}

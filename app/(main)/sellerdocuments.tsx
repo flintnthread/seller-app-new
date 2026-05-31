@@ -554,6 +554,8 @@ export default function SellerDocuments() {
   const [iecCertificate, setIecCertificate] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([]);
   const [success, setSuccess] = useState(false);
+  const [submitStatusMessage, setSubmitStatusMessage] = useState("");
+  const [submitStatusTitle, setSubmitStatusTitle] = useState("Verification in Progress");
   const [fileTypes, setFileTypes] = useState<Record<string, "image" | "pdf">>({});
   const [sourceModalVisible, setSourceModalVisible] = useState(false);
   const [pendingDocumentType, setPendingDocumentType] = useState<string>("");
@@ -802,6 +804,8 @@ export default function SellerDocuments() {
         return;
       }
       setIsProfileCompleted(true);
+      setSubmitStatusMessage(result.message || "Your seller profile has been submitted for verification.");
+      setSubmitStatusTitle(result.accountStatus?.title || "Pending Review");
       showSuccess(result.message || "Profile submitted successfully.");
       setSuccess(true);
       modalOpacity.value = withTiming(1, { duration: 400 });
@@ -1268,10 +1272,10 @@ export default function SellerDocuments() {
             </View>
             <View style={s.modalAccent} />
             <AppText style={s.modalTitle}>Profile Submitted!</AppText>
-            <AppText style={s.modalDesc}>Your seller profile has been submitted for verification. Our team will review your documents within 24 hours.</AppText>
+            <AppText style={s.modalDesc}>{submitStatusMessage}</AppText>
             <View style={s.statusChip}>
               <View style={s.statusDot} />
-              <AppText style={s.statusText}>Verification in Progress</AppText>
+              <AppText style={s.statusText}>{submitStatusTitle}</AppText>
             </View>
             <TouchableOpacity onPress={closeModal} style={s.modalBtn} activeOpacity={0.85}>
               <LinearGradient colors={[T.orange, T.orangeDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.modalBtnInner}>

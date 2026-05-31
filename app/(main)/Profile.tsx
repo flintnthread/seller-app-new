@@ -18,10 +18,11 @@ import { useSweetAlert } from "@/components/common/SweetAlert";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import { clearSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { getProfileMenuRoute } from "@/lib/profile/profileMenuRoutes";
+import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 import {
   fetchSellerProfile,
   getApiErrorMessage,
-  resolveDocumentDisplayUrl,
   uploadProfilePhoto,
   type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
@@ -76,8 +77,7 @@ export default function SellerProfileScreen() {
       setBusinessName(profile.business?.businessName?.trim() || "");
       setProfileCompletedLocal(profile.profileCompleted);
       setIsProfileCompleted(profile.profileCompleted);
-      const pic = profile.personal?.profilePicUrl;
-      setProfileImage(pic ? resolveDocumentDisplayUrl(pic) : null);
+      setProfileImage(resolveProfilePicUrl(profile));
     },
     [setIsProfileCompleted]
   );
@@ -87,7 +87,7 @@ export default function SellerProfileScreen() {
     (async () => {
       try {
         await hydrateSellerSession();
-        const profile = await fetchSellerProfile();
+        const profile = await fetchSellerProfile(true);
         if (active) applyProfile(profile);
       } catch (e) {
         if (active) {
@@ -193,6 +193,12 @@ export default function SellerProfileScreen() {
   const openViewProfile = () => router.push("/viewsellerprofile");
   const openCompleteProfile = () => router.push("/(main)/sellerpersonalinfo");
 
+  const navigateMenuItem = (title: string) => {
+    setSelectedItem(title);
+    const route = getProfileMenuRoute(title);
+    if (route) router.push(route);
+  };
+
   // ─── DESKTOP LAYOUT ───────────────────────────────────────────────────────
   if (isDesktop) {
     return (
@@ -297,7 +303,7 @@ export default function SellerProfileScreen() {
                     desktopStyles.sidebarNavItem,
                     selectedItem === item.label && desktopStyles.sidebarNavItemActive,
                   ]}
-                  onPress={() => setSelectedItem(item.label)}
+                  onPress={() => navigateMenuItem(item.label)}
                 >
                   <Feather name={item.icon as any} size={18} color={selectedItem === item.label ? '#FF6B35' : item.color} />
                   <AppText style={[
@@ -357,7 +363,7 @@ export default function SellerProfileScreen() {
                       color={item.color}
                       title={item.title}
                       selectedItem={selectedItem}
-                      setSelectedItem={setSelectedItem}
+                      setSelectedItem={navigateMenuItem}
                     />
                   ))}
                 </View>
@@ -377,7 +383,7 @@ export default function SellerProfileScreen() {
                       color={item.color}
                       title={item.title}
                       selectedItem={selectedItem}
-                      setSelectedItem={setSelectedItem}
+                      setSelectedItem={navigateMenuItem}
                     />
                   ))}
                 </View>
@@ -397,7 +403,7 @@ export default function SellerProfileScreen() {
                       color={item.color}
                       title={item.title}
                       selectedItem={selectedItem}
-                      setSelectedItem={setSelectedItem}
+                      setSelectedItem={navigateMenuItem}
                     />
                   ))}
                 </View>  */}
@@ -416,7 +422,7 @@ export default function SellerProfileScreen() {
                       color={item.color}
                       title={item.title}
                       selectedItem={selectedItem}
-                      setSelectedItem={setSelectedItem}
+                      setSelectedItem={navigateMenuItem}
                     />
                   ))}
                 </View>
@@ -549,30 +555,30 @@ export default function SellerProfileScreen() {
             <AppText style={styles.sellerHubTitle}>Seller Hub</AppText>
             <View style={styles.sellerHubUnderline} />
           </View>
-          <ListItem icon="shopping-bag" color="#ff4d79" title="My Store" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="box" color="#4caf50" title="Products" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="shopping-cart" color="#2196f3" title="Orders" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="bar-chart-2" color="#4caf50" title="Earnings" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="credit-card" color="#9c27b0" title="Payouts" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
+          <ListItem icon="shopping-bag" color="#ff4d79" title="My Store" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="box" color="#4caf50" title="Products" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="shopping-cart" color="#2196f3" title="Orders" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="bar-chart-2" color="#4caf50" title="Earnings" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="credit-card" color="#9c27b0" title="Payouts" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* STORE MANAGEMENT */}
         <SectionTitle title="Store Management" />
         <View style={styles.card}>
-          <ListItem icon="grid" color="#2196f3" title="Store Dashboard" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="box" color="#4caf50" title="Manage Products" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="shopping-cart" color="#2196f3" title="Orders Management" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="bar-chart-2" color="#9c27b0" title="Store Analytics" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="settings" color="#666" title="Store Settings" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
+          <ListItem icon="grid" color="#2196f3" title="Store Dashboard" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="box" color="#4caf50" title="Manage Products" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="shopping-cart" color="#2196f3" title="Orders Management" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="bar-chart-2" color="#9c27b0" title="Store Analytics" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="settings" color="#666" title="Store Settings" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* EARNINGS */}
         <SectionTitle title="Earnings & Finance" />
         <View style={styles.card}>
-          <ListItem icon="dollar-sign" color="#4caf50" title="Earnings Overview" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="credit-card" color="#9c27b0" title="Payouts & Withdrawals" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="file-text" color="#f5a623" title="Transactions History" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="home" color="#2196f3" title="Payout Settings" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
+          <ListItem icon="dollar-sign" color="#4caf50" title="Earnings Overview" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="credit-card" color="#9c27b0" title="Payouts & Withdrawals" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="file-text" color="#f5a623" title="Transactions History" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="home" color="#2196f3" title="Payout Settings" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* GROWTH */}
@@ -587,9 +593,9 @@ export default function SellerProfileScreen() {
         {/* SUPPORT */}
         <SectionTitle title="Support & Help" />
         <View style={styles.card}>
-          <ListItem icon="headphones" color="#9c27b0" title="Help & Support" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="file-text" color="#2196f3" title="Privacy & Support" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
-          <ListItem icon="help-circle" color="#f5a623" title="FAQs" selectedItem={selectedItem} setSelectedItem={setSelectedItem} />
+          <ListItem icon="headphones" color="#9c27b0" title="Help & Support" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="file-text" color="#2196f3" title="Privacy & Support" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
+          <ListItem icon="help-circle" color="#f5a623" title="FAQs" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* LOGOUT */}

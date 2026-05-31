@@ -1,4 +1,4 @@
-﻿import { Platform } from "react-native";
+import { Platform } from "react-native";
 import { resolveApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/client";
 
@@ -61,6 +61,8 @@ export type LoginResult = {
     emailVerified: boolean;
     profileCompleted: boolean;
     status: string;
+    accessToken: string;
+    expiresIn: number;
 };
 
 type LoginApiResponse = {
@@ -73,6 +75,8 @@ type LoginApiResponse = {
     emailVerified: boolean;
     profileCompleted: boolean;
     status: string;
+    accessToken: string;
+    expiresIn?: number;
 };
 
 export async function loginSeller(identifier: string, password: string): Promise<LoginResult> {
@@ -80,6 +84,9 @@ export async function loginSeller(identifier: string, password: string): Promise
         method: "POST",
         body: JSON.stringify({ identifier: identifier.trim(), password }),
     });
+    if (!body.accessToken?.trim()) {
+        throw new ApiError("Login succeeded but no session token was returned. Please try again.");
+    }
     return {
         sellerId: body.sellerId,
         email: body.email ?? "",
@@ -90,6 +97,8 @@ export async function loginSeller(identifier: string, password: string): Promise
         emailVerified: body.emailVerified === true,
         profileCompleted: body.profileCompleted === true,
         status: body.status ?? "pending",
+        accessToken: body.accessToken.trim(),
+        expiresIn: body.expiresIn ?? 86400,
     };
 }
 
@@ -202,16 +211,28 @@ export type EmailVerificationResult = {
     message: string;
     verified: boolean;
     email?: string | null;
+    sellerId?: number | null;
 };
 
 export async function verifyEmailOtp(
     email: string,
     otp: string
 ): Promise<EmailVerificationResult> {
-    return authFetch<EmailVerificationResult>("/api/auth/verify-email-otp", {
+    const body = await authFetch<{
+        message: string;
+        verified: boolean;
+        email?: string | null;
+        sellerId?: number | null;
+    }>("/api/auth/verify-email-otp", {
         method: "POST",
         body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
     });
+    return {
+        message: body.message,
+        verified: body.verified === true,
+        email: body.email ?? null,
+        sellerId: body.sellerId ?? null,
+    };
 }
 
 export async function resendEmailVerificationOtp(email: string): Promise<string> {

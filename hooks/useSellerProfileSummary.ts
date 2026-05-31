@@ -2,10 +2,12 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
 import { useProfileStatus } from "@/hooks/useProfileStatus";
+import { ApiError } from "@/lib/api/client";
 import { clearSellerId, getSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 import {
     fetchSellerProfile,
-    resolveDocumentDisplayUrl,
+    type SellerAccountStatus,
     type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
 
@@ -21,6 +23,7 @@ export type SellerProfileSummary = {
     profilePicUrl: string | null;
     profileCompleted: boolean;
     kycCompleted: boolean;
+    accountStatus: SellerAccountStatus | null;
 };
 
 function formatMobileDisplay(mobile: string): string {
@@ -36,7 +39,7 @@ export function profileToSummary(profile: SellerProfileResponse): SellerProfileS
         "Seller";
     const businessName = profile.business?.businessName?.trim() || "";
     const mobile = profile.mobile?.replace(/\D/g, "").slice(-10) || "";
-    const pic = profile.personal?.profilePicUrl;
+    const pic = resolveProfilePicUrl(profile);
 
     return {
         sellerId: String(profile.sellerId),
@@ -47,9 +50,10 @@ export function profileToSummary(profile: SellerProfileResponse): SellerProfileS
         mobile,
         mobileDisplay: formatMobileDisplay(mobile),
         email: profile.email || "",
-        profilePicUrl: pic ? resolveDocumentDisplayUrl(pic) : null,
+        profilePicUrl: pic,
         profileCompleted: profile.profileCompleted,
         kycCompleted: profile.kycCompleted,
+        accountStatus: profile.accountStatus ?? null,
     };
 }
 
@@ -75,14 +79,22 @@ export function useSellerProfileSummary() {
             }
 
             try {
-                const profile = await fetchSellerProfile();
+                const profile = await fetchSellerProfile(true);
                 if (!active) return;
+                const currentSellerId = getSellerId();
+                if (currentSellerId && profile.sellerId !== currentSellerId) {
+                    await clearSellerId();
+                    router.replace("/(auth)/login");
+                    return;
+                }
                 setSummary(profileToSummary(profile));
                 setIsProfileCompleted(profile.profileCompleted);
-            } catch {
+            } catch (e) {
                 if (!active) return;
-                await clearSellerId();
-                router.replace("/(auth)/login");
+                if (e instanceof ApiError && e.status === 401) {
+                    await clearSellerId();
+                    router.replace("/(auth)/login");
+                }
             } finally {
                 if (active) setLoading(false);
             }

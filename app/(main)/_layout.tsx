@@ -1,25 +1,22 @@
-import { Tabs, Slot } from "expo-router";
+import { Tabs, Slot, usePathname } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { HapticTab } from "@/components/haptic-tab";
-import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { WebLayout } from "@/components/web/WebLayout";
+import { SellerTopNav } from "@/components/common/SellerTopNav";
+import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
-  if (Platform.OS === 'web') {
-    return (
-      <WebLayout>
-        <Slot />
-      </WebLayout>
-    );
-  }
+function MobileMainLayout() {
+  const pathname = usePathname();
+  const showNav = shouldShowSellerTopNav(pathname);
 
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      {showNav ? <SellerTopNav /> : null}
+      <View style={{ flex: 1 }}>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
@@ -90,6 +87,24 @@ export default function TabLayout() {
       <Tabs.Screen name="colors" options={{ href: null }} />
       <Tabs.Screen name="sizes" options={{ href: null }} />
       <Tabs.Screen name="categoryrequest" options={{ href: null }} />
+      <Tabs.Screen name="settingsModule" options={{ href: null }} />
+      <Tabs.Screen name="viewsellerprofile" options={{ href: null }} />
     </Tabs>
+      </View>
+    </View>
   );
+}
+
+export default function TabLayout() {
+  useColorScheme();
+
+  if (Platform.OS === "web") {
+    return (
+      <WebLayout>
+        <Slot />
+      </WebLayout>
+    );
+  }
+
+  return <MobileMainLayout />;
 }

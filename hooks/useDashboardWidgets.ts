@@ -6,8 +6,8 @@ import { fetchEarnings } from "@/services/earningsApi";
 import { fetchTopSellingProducts } from "@/services/earningsApi";
 import { fetchProducts } from "@/services/productApi";
 import { fetchDashboardCharts } from "@/services/dashboardApi";
-import { loadOrdersFromApi, getLiveOrders } from "@/app/(main)/_ordersStore";
-import type { OrderDetail } from "@/app/(main)/_ordersData";
+import { loadOrdersFromApi, getLiveOrders } from "@/lib/orders/ordersStore";
+import type { OrderDetail } from "@/lib/orders/ordersData";
 
 export type WidgetTopProduct = {
     id: string;

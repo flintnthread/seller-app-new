@@ -21,6 +21,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { DashboardTables } from "./DashboardTables";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { AccountStatusBanner } from "@/components/AccountStatusBanner";
 import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
 import {
@@ -109,10 +110,10 @@ export function DesktopDashboard({
     };
   }, [widgets.recentOrders]);
 
-  return (
-    <View style={styles.container}>
-      {/* ── 1. SMART WELCOME HEADER ── */}
-      <SmartWelcomeHeader
+    return (
+        <View style={styles.container}>
+            {/* ── 1. SMART WELCOME HEADER ── */}
+            <SmartWelcomeHeader
         name={welcomeName}
         totalOrders={widgets.overview?.orders ?? 0}
         salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
@@ -122,6 +123,14 @@ export function DesktopDashboard({
         referralGoal={6}
         referralTotalReferred={0}
       />
+
+      <View style={{ marginBottom: 12 }}>
+        <AccountStatusBanner
+          accountStatus={profile?.accountStatus}
+          loading={profileLoading}
+          compact
+        />
+      </View>
 
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>

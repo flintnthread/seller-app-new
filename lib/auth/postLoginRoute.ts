@@ -24,9 +24,30 @@ export function buildOnboardingParams(input: OnboardingParamsInput): Record<stri
     return params;
 }
 
-/** After login, always open the dashboard. Profile steps are optional from Profile. */
-export function getPostLoginRoute(_result?: LoginResult): Href {
+/** Existing user: dashboard when profile is done; otherwise resume onboarding. */
+export function getPostLoginRoute(result?: LoginResult): Href {
+    if (result && !result.profileCompleted) {
+        return getPostEmailVerifyRoute({
+            email: result.email,
+            firstName: result.firstName,
+            lastName: result.lastName,
+            mobile: result.mobile,
+        });
+    }
     return "/(main)/dashboard";
+}
+
+/** New user after email verification: start seller onboarding. */
+export function getPostEmailVerifyRoute(input: {
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    mobile?: string | null;
+}): Href {
+    return {
+        pathname: "/(main)/sellerpersonalinfo",
+        params: buildOnboardingParams(input),
+    };
 }
 
 /** Voluntary navigation when the seller chooses to complete their profile. */

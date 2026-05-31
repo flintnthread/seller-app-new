@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useRouter } from 'expo-router';
 
 export function DesktopHeader({ 
   isSidebarOpen, 
@@ -10,6 +11,8 @@ export function DesktopHeader({
   isSidebarOpen?: boolean; 
   onToggleSidebar?: () => void; 
 }) {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       {!isSidebarOpen && onToggleSidebar && (
@@ -35,14 +38,18 @@ export function DesktopHeader({
       </View>
       
       <View style={styles.rightSection}>
-        <Pressable style={styles.iconButton}>
+        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/notifications')}>
           <IconSymbol name="bell.fill" size={20} color="#666666" />
           <View style={styles.notificationBadge} />
         </Pressable>
+
+        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/settingsModule')}>
+          <Ionicons name="settings-outline" size={20} color="#666666" />
+        </Pressable>
         
-        <View style={styles.avatar}>
+        <Pressable style={styles.avatar} onPress={() => router.push('/Profile')}>
           <Text style={styles.avatarText}>P</Text>
-        </View>
+        </Pressable>
       </View>
     </View>
   );

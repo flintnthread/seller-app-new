@@ -1359,13 +1359,19 @@ const WebHeroSection: React.FC<{
             <Text style={s.stockChipText}>{p.stock} units</Text>
           </View>
         </View>
-        <View style={wh.thumbRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          contentContainerStyle={wh.thumbScrollContent}
+          style={wh.thumbRow}
+        >
           {heroImages.filter(Boolean).map((img, i) => (
             <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
               <Image source={{ uri: img }} style={wh.thumbImg} resizeMode="cover" />
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       <View style={wh.detailsSection}>
@@ -1695,13 +1701,19 @@ const ProductDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        <View style={s.thumbRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          contentContainerStyle={s.thumbScrollContent}
+          style={s.thumbRow}
+        >
           {heroImages.filter(Boolean).map((img, i) => (
             <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[s.thumb, i === activeImg && s.thumbActive]}>
               <Image source={{ uri: img }} style={s.thumbImg} resizeMode="cover" />
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <View style={s.heroCard}>
           <View style={s.catPill}><Text style={s.catPillText}>{p.category} · {p.subcategory}</Text></View>
@@ -1931,7 +1943,8 @@ const wh = StyleSheet.create({
   imageSection:   { width: 420, flexShrink: 0 },
   heroImageWrap:  { borderRadius: 16, overflow: "hidden", position: "relative", backgroundColor: "#F3F4F8" },
   heroImage:      { width: "100%", height: 380 },
-  thumbRow:       { flexDirection: "row", gap: 8, marginTop: 10 },
+  thumbRow:           { marginTop: 10 },
+  thumbScrollContent: { flexDirection: "row", gap: 8 },
   thumb:          { width: 72, height: 72, borderRadius: 10, overflow: "hidden", borderWidth: 2, borderColor: C.border },
   thumbActive:    { borderColor: C.navy, borderWidth: 2.5 },
   thumbImg:       { width: "100%", height: "100%" },

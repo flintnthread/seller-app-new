@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { LogBox, Platform } from "react-native";
 import NotificationsProvider from "@/app/providers/NotificationsProvider";
-import { clearSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
@@ -25,11 +25,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    // Require fresh login on every app launch. Block UI until clear finishes so
-    // a slow clearSellerId() cannot wipe the id set right after login.
-    void clearSellerId()
-      .then(() => hydrateSellerSession())
-      .finally(() => setSessionReady(true));
+    void hydrateSellerSession().finally(() => setSessionReady(true));
   }, []);
 
   useEffect(() => {

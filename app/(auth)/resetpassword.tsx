@@ -31,15 +31,34 @@ const C = {
     orangeLight: "#FB923C",
 };
 
+const validateStrongPassword = (password: string): string | null => {
+    if (password.length < 8) return "Password must be at least 8 characters.";
+    if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter.";
+    if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter.";
+    if (!/\d/.test(password)) return "Password must contain at least one number.";
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+        return "Password must contain at least one special character.";
+    }
+    return null;
+};
+
 export default function ResetPasswordScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isDesktop } = useResponsive();
     const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
-    const params = useLocalSearchParams<{ token?: string | string[] }>();
+    const params = useLocalSearchParams<{ token?: string | string[]; error?: string | string[] }>();
 
     const tokenParam = params.token;
     const token = Array.isArray(tokenParam) ? tokenParam[0] : tokenParam ?? "";
+
+    const errorParam = params.error;
+    const linkError =
+        typeof errorParam === "string"
+            ? decodeURIComponent(errorParam)
+            : Array.isArray(errorParam) && errorParam[0]
+              ? decodeURIComponent(errorParam[0])
+              : "";
 
     const [validating, setValidating] = useState(true);
     const [tokenValid, setTokenValid] = useState(false);
@@ -51,6 +70,13 @@ export default function ResetPasswordScreen() {
     const [fieldError, setFieldError] = useState("");
 
     useEffect(() => {
+        if (linkError) {
+            setValidating(false);
+            setTokenValid(false);
+            setFieldError(linkError);
+            return;
+        }
+
         if (!token) {
             setValidating(false);
             setTokenValid(false);
@@ -81,7 +107,7 @@ export default function ResetPasswordScreen() {
         return () => {
             cancelled = true;
         };
-    }, [token]);
+    }, [token, linkError]);
 
     const handleReset = async () => {
         setFieldError("");
@@ -89,12 +115,13 @@ export default function ResetPasswordScreen() {
             setFieldError("Please fill in both password fields.");
             return;
         }
-        if (newPassword.length < 8) {
-            setFieldError("Password must be at least 8 characters.");
-            return;
-        }
         if (newPassword !== confirmPassword) {
             setFieldError("Passwords do not match.");
+            return;
+        }
+        const passwordError = validateStrongPassword(newPassword);
+        if (passwordError) {
+            setFieldError(passwordError);
             return;
         }
 

@@ -43,7 +43,7 @@ export default function CheckEmailScreen() {
                 <AppText style={styles.email}>{email}</AppText>
                 <AppText style={styles.hint}>
                     Open your email and click &quot;Verify my email&quot;. You will receive a 6-digit code after
-                    clicking the link.
+                    clicking the link. After verification, log in with your registered email and password.
                 </AppText>
                 <AppText style={styles.subHint}>
                     Did not receive it? Check spam folder or tap Resend link below.
