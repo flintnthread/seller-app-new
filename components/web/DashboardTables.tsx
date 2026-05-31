@@ -9,8 +9,8 @@ import {
   getLiveOrders,
   loadOrdersFromApi,
   subscribeToOrderChanges,
-} from "@/app/(main)/_ordersStore";
-import type { OrderStatus } from "@/app/(main)/_ordersData";
+} from "@/lib/orders/ordersStore";
+import type { OrderStatus } from "@/lib/orders/ordersData";
 
 const C = {
   navy: "#1E2B6B",

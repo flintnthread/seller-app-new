@@ -5,7 +5,7 @@
 
 import React from "react";
 import Svg, { Path, Circle } from "react-native-svg";
-import { TEXT_SEC, SUCCESS, ERROR, PRIMARY, PRIMARY_D, PRIMARY_L } from "./_sellerDesignTokens";
+import { TEXT_SEC, SUCCESS, ERROR, PRIMARY, PRIMARY_D, PRIMARY_L } from "./sellerDesignTokens";
 
 // Field Icons (18x18)
 export const IconPerson = () => (

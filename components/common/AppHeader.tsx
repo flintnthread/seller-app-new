@@ -2,7 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
+import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
 
 interface AppHeaderProps {
   title: string;
@@ -18,10 +19,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   rightActions,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
 
   // On Web/Desktop, the header is handled globally by DesktopHeader in WebLayout.
-  // Returning null here prevents duplicate stacked headers on web.
   if (Platform.OS === "web") {
+    return null;
+  }
+
+  // Mobile: SellerTopNav already shows title + nav on main screens.
+  if (shouldShowSellerTopNav(pathname)) {
     return null;
   }
 

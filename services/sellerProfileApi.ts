@@ -2,7 +2,25 @@ import { Platform } from "react-native";
 import { apiRequest, ApiError } from "@/lib/api/client";
 import { apiUpload, appendFileToFormData, buildUploadPart } from "@/lib/api/multipart";
 import { resolveApiBaseUrl } from "@/lib/api/config";
-import { ensureSellerId, setSellerId } from "@/lib/api/sellerSession";
+import { ensureAccessToken, ensureSellerId } from "@/lib/api/sellerSession";
+import {
+    getCachedSellerProfile,
+    invalidateSellerProfileCache,
+    saveSellerProfileCache,
+} from "@/lib/profile/profileCache";
+
+export type SellerAccountStatus = {
+    status: string;
+    approvalState: string;
+    title: string;
+    message: string;
+    profileLabel: string;
+    kycLabel: string;
+    canManageProducts: boolean;
+    canReceiveOrders: boolean;
+    reviewEstimateHours?: number | null;
+    rejectionReason?: string | null;
+};
 
 export type SellerProfileResponse = {
     sellerId: number;
@@ -14,6 +32,7 @@ export type SellerProfileResponse = {
     profileCompleted: boolean;
     kycCompleted: boolean;
     kycSubmittedAt?: string | null;
+    accountStatus?: SellerAccountStatus | null;
     personal: { profilePicUrl?: string | null };
     business: {
         businessCategory?: string | null;
@@ -72,6 +91,7 @@ export type ProfileSubmitResponse = {
     profileCompleted: boolean;
     message: string;
     errors: string[];
+    accountStatus?: SellerAccountStatus | null;
 };
 
 export type GstVerifyResponse = {
@@ -164,17 +184,46 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
     return fallback;
 }
 
-export async function fetchSellerProfile(): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
-    return apiRequest<SellerProfileResponse>("/api/seller/profile");
+export { invalidateSellerProfileCache } from "@/lib/profile/profileCache";
+
+function saveProfileCache(profile: SellerProfileResponse): SellerProfileResponse {
+    return saveSellerProfileCache(profile);
+}
+
+function assertProfileMatchesSession(profile: SellerProfileResponse, sellerId: number): void {
+    if (profile.sellerId !== sellerId) {
+        invalidateSellerProfileCache();
+        throw new ApiError("Profile data does not match your account. Please log in again.", 403);
+    }
+}
+
+export async function fetchSellerProfile(force = false): Promise<SellerProfileResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError("Seller not logged in. Please log in again.", 401);
+    }
+
+    if (!force) {
+        const cached = getCachedSellerProfile(sellerId);
+        if (cached) return cached;
+    }
+
+    const profile = await apiRequest<SellerProfileResponse>("/api/seller/profile");
+    assertProfileMatchesSession(profile, sellerId);
+    return saveProfileCache(profile);
 }
 
 export async function uploadProfilePhoto(localUri: string): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError("Seller not logged in. Please log in again.", 401);
+    }
     const part = await buildUploadPart(localUri, { name: guessProfilePhotoName(localUri) });
     const formData = new FormData();
     appendFileToFormData(formData, "file", part);
-    return apiUpload<SellerProfileResponse>("/api/seller/profile/personal/photo", formData);
+    const updated = await apiUpload<SellerProfileResponse>("/api/seller/profile/personal/photo", formData);
+    assertProfileMatchesSession(updated, sellerId);
+    return saveProfileCache(updated);
 }
 
 function guessProfilePhotoName(uri: string): string {
@@ -184,38 +233,58 @@ function guessProfilePhotoName(uri: string): string {
 }
 
 export async function updateBusinessProfile(payload: BusinessProfilePayload): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
-    return apiRequest<SellerProfileResponse>("/api/seller/profile/business", {
+    const sellerId = ensureSellerId();
+    const updated = await apiRequest<SellerProfileResponse>("/api/seller/profile/business", {
         method: "PUT",
         body: JSON.stringify({
             ...payload,
             businessCategory: toApiBusinessCategory(payload.businessCategory),
         }),
     });
+    if (sellerId) {
+        assertProfileMatchesSession(updated, sellerId);
+        return saveProfileCache(updated);
+    }
+    return updated;
 }
 
 export async function updateAddressProfile(payload: AddressProfilePayload): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
-    return apiRequest<SellerProfileResponse>("/api/seller/profile/address", {
+    const sellerId = ensureSellerId();
+    const updated = await apiRequest<SellerProfileResponse>("/api/seller/profile/address", {
         method: "PUT",
         body: JSON.stringify(payload),
     });
+    if (sellerId) {
+        assertProfileMatchesSession(updated, sellerId);
+        return saveProfileCache(updated);
+    }
+    return updated;
 }
 
 export async function updateBankingProfile(payload: BankingProfilePayload): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
-    return apiRequest<SellerProfileResponse>("/api/seller/profile/banking", {
+    const sellerId = ensureSellerId();
+    const updated = await apiRequest<SellerProfileResponse>("/api/seller/profile/banking", {
         method: "PUT",
         body: JSON.stringify(payload),
     });
+    if (sellerId) {
+        assertProfileMatchesSession(updated, sellerId);
+        return saveProfileCache(updated);
+    }
+    return updated;
 }
 
 export async function updateCompanyPan(companyPanNumber: string): Promise<SellerProfileResponse> {
-    await ensureSellerIdForProfileApi();
-    return apiRequest<SellerProfileResponse>("/api/seller/profile/company-pan", {
+    const sellerId = ensureSellerId();
+    const updated = await apiRequest<SellerProfileResponse>("/api/seller/profile/company-pan", {
         method: "PUT",
         body: JSON.stringify({ companyPanNumber }),
     });
+    if (sellerId) {
+        assertProfileMatchesSession(updated, sellerId);
+        return saveProfileCache(updated);
+    }
+    return updated;
 }
 
 export async function uploadSellerDocument(
@@ -223,7 +292,6 @@ export async function uploadSellerDocument(
     localUri: string,
     fileName?: string
 ): Promise<DocumentUploadResponse> {
-    await ensureSellerIdForProfileApi();
     const part = await buildUploadPart(localUri, { name: fileName });
     const formData = new FormData();
     appendFileToFormData(formData, "file", part);
@@ -233,7 +301,6 @@ export async function uploadSellerDocument(
 }
 
 export async function verifyGstNumber(gstNumber: string): Promise<GstVerifyResponse> {
-    await ensureSellerIdForProfileApi();
     return apiRequest<GstVerifyResponse>("/api/seller/profile/gst/verify", {
         method: "POST",
         body: JSON.stringify({ gstNumber: gstNumber.trim().toUpperCase() }),
@@ -241,20 +308,23 @@ export async function verifyGstNumber(gstNumber: string): Promise<GstVerifyRespo
 }
 
 export async function lookupIfscCode(ifscCode: string): Promise<IfscLookupResponse> {
-    await ensureSellerIdForProfileApi();
     const code = encodeURIComponent(ifscCode.trim().toUpperCase());
     return apiRequest<IfscLookupResponse>(`/api/seller/profile/ifsc/${code}`);
 }
 
 export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
-    await ensureSellerIdForProfileApi();
     const sellerId = ensureSellerId();
     if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.");
+        throw new ApiError("Seller not logged in. Please log in again.", 401);
     }
 
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}/api/seller/profile/submit`;
+
+    const accessToken = ensureAccessToken();
+    if (!accessToken) {
+        throw new ApiError("Seller not logged in. Please log in again.", 401);
+    }
 
     let res: Response;
     try {
@@ -263,6 +333,7 @@ export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
             headers: {
                 Accept: "application/json",
                 "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
                 "X-Seller-Id": String(sellerId),
             },
         });
@@ -272,6 +343,7 @@ export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
 
     const body = (await res.json()) as ProfileSubmitResponse;
     if (res.ok) {
+        invalidateSellerProfileCache();
         return body;
     }
     if (res.status === 400 && body && typeof body.submitted === "boolean") {
@@ -300,18 +372,4 @@ export function resolveDocumentDisplayUrl(value: string | null | undefined): str
         return `${base}/uploads/sellers/${value}`;
     }
     return `${base}/uploads/sellers/${value}`;
-}
-
-async function ensureSellerIdForProfileApi() {
-    if (ensureSellerId()) return;
-
-    const raw = process.env.EXPO_PUBLIC_DEV_SELLER_ID;
-    if (!raw) return;
-
-    const devId = Number(raw);
-    if (Number.isFinite(devId) && devId > 0) {
-        await setSellerId(devId);
-    } else {
-        // if env var exists but is invalid, do nothing and let apiRequest throw a clear error
-    }
 }

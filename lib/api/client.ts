@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { resolveApiBaseUrl } from "./config";
-import { ensureSellerId } from "./sellerSession";
+import { ensureAccessToken, ensureSellerId, touchSessionActivity } from "./sellerSession";
+import { refreshSessionIfActive } from "./sessionRefresh";
 
 export class ApiError extends Error {
     constructor(
@@ -14,9 +15,12 @@ export class ApiError extends Error {
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const sellerId = ensureSellerId();
-    if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.");
+    const accessToken = ensureAccessToken();
+    if (!sellerId || !accessToken) {
+        throw new ApiError("Seller not logged in. Please log in again.", 401);
     }
+
+    touchSessionActivity();
 
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
@@ -28,6 +32,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
             headers: {
                 "Content-Type": "application/json",
                 Accept: "application/json",
+                Authorization: `Bearer ${accessToken}`,
                 "X-Seller-Id": String(sellerId),
                 ...(init?.headers ?? {}),
             },
@@ -58,8 +63,10 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     }
 
     if (res.status === 204) {
+        void refreshSessionIfActive();
         return undefined as T;
     }
 
+    void refreshSessionIfActive();
     return res.json() as Promise<T>;
 }

@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Order domain types for the seller app.
- * Live order data is loaded from the API via `_ordersStore` and `orderApi`.
+ * Live order data is loaded from the API via `ordersStore` and `orderApi`.
  */
 
 // â”€â”€â”€ Shared Status Type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -6,21 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
-  Image,
-  TextInput,
   StyleSheet,
+  Alert,
+  Platform,
+  TextInput,
 } from "react-native";
+import { Image } from "expo-image";
 import { AppText } from "@/components/AppText";
-import { fontFamilies, fontSizes } from "@/constants/fonts";
+import { fontFamilies } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  Ionicons,
-  MaterialIcons,
-  Feather,
-  FontAwesome5,
-} from "@expo/vector-icons";
-import { AppHeader } from "@/components/common/AppHeader";
+import { Ionicons, Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { clearSellerId } from "@/lib/api/sellerSession";
 
 interface SettingItem {
   id: string;
@@ -31,6 +29,7 @@ interface SettingItem {
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { profile } = useSellerProfile();
   const sellerName =
     profile?.businessName?.trim() ||
@@ -44,6 +43,84 @@ export default function SettingsScreen() {
   const [vacationMode, setVacationMode] = useState(false);
   const [biometric, setBiometric] = useState(true);
   const [search, setSearch] = useState("");
+
+  const handleItemPress = useCallback(
+    (item: SettingItem) => {
+      switch (item.id) {
+        case "1":
+          router.push("/(auth)/forgot-password" as any);
+          break;
+        case "2":
+          router.push("/(main)/sellerbanking");
+          break;
+        case "3":
+          router.push("/(main)/sellerbusinessinfo");
+          break;
+        case "4":
+          router.push("/(main)/sellerbusinessinfo");
+          break;
+        case "6":
+          Alert.alert("Two-Factor Authentication", "Contact support to enable 2FA on your account.");
+          break;
+        case "7":
+          Alert.alert("Connected Devices", "Device management will be available in a future update.");
+          break;
+        case "10":
+          router.push("/(main)/payoutrequest");
+          break;
+        case "12":
+          Alert.alert("Shipping Preferences", "Configure shipping in product delivery settings.");
+          break;
+        case "13":
+          Alert.alert("Auto Reply", "Auto reply settings will be available soon.");
+          break;
+        case "14":
+        case "15":
+          router.push("/(main)/helpsupport");
+          break;
+        case "16":
+          router.push("/(main)/helpsupport");
+          break;
+        case "17":
+          if (Platform.OS === "web") {
+            if (window.confirm("Are you sure you want to logout?")) {
+              void clearSellerId().then(() => router.replace("/(auth)/login"));
+            }
+          } else {
+            Alert.alert("Logout", "Are you sure you want to logout?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Logout",
+                style: "destructive",
+                onPress: () => {
+                  void clearSellerId().then(() => router.replace("/(auth)/login"));
+                },
+              },
+            ]);
+          }
+          break;
+        case "18":
+          Alert.alert("Delete Account", "Please contact support to delete your seller account.");
+          break;
+        default:
+          break;
+      }
+    },
+    [router]
+  );
+
+  const filterItems = useCallback(
+    (items: SettingItem[]) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return items;
+      return items.filter(
+        (item) =>
+          item.title.toLowerCase().includes(q) ||
+          item.subtitle?.toLowerCase().includes(q)
+      );
+    },
+    [search]
+  );
 
   useEffect(() => {
     fetchSellerSettings()
@@ -212,14 +289,15 @@ export default function SettingsScreen() {
   );
 
   const renderItem = (item: SettingItem) => {
+    const isToggle = item.type === "toggle";
     return (
       <TouchableOpacity
-        activeOpacity={0.85}
+        activeOpacity={isToggle ? 1 : 0.85}
         key={item.id}
-        style={[
-          styles.settingCard,
-          item.type === "danger" && styles.dangerCard,
-        ]}
+        style={[styles.settingCard, item.type === "danger" && styles.dangerCard]}
+        onPress={() => {
+          if (!isToggle) handleItemPress(item);
+        }}
       >
         <View style={styles.settingLeft}>
           <View
@@ -290,14 +368,16 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-
-        <AppHeader title="Settings" subtitle="Manage your seller account" showBackButton />
+        <View style={styles.pageTitleWrap}>
+          <AppText style={styles.pageTitle}>Settings</AppText>
+          <AppText style={styles.pageSubtitle}>Manage your seller account</AppText>
+        </View>
 
         {/* Profile Card */}
 
@@ -308,7 +388,7 @@ export default function SettingsScreen() {
           <View style={styles.profileTop}>
             <View style={styles.profileRow}>
               {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
               ) : (
                 <View style={[styles.avatar, { backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }]}>
                   <Ionicons name="person" size={28} color="#9CA3AF" />
@@ -340,7 +420,7 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity style={styles.editButton} onPress={() => router.push("/viewsellerprofile")}>
               <Feather name="edit-2" size={16} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -367,10 +447,9 @@ export default function SettingsScreen() {
 
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#64748b" />
-
           <TextInput
             placeholder="Search settings..."
-            placeholderTextColor={"#94a3b8"}
+            placeholderTextColor="#94a3b8"
             value={search}
             onChangeText={setSearch}
             style={styles.searchInput}
@@ -381,25 +460,25 @@ export default function SettingsScreen() {
 
         <AppText style={styles.sectionTitle}>Account Settings</AppText>
 
-        {accountSettings.map(renderItem)}
+        {filterItems(accountSettings).map(renderItem)}
 
         {/* Security */}
 
         <AppText style={styles.sectionTitle}>Security</AppText>
 
-        {securitySettings.map(renderItem)}
+        {filterItems(securitySettings).map(renderItem)}
 
         {/* Notifications */}
 
         <AppText style={styles.sectionTitle}>Notifications</AppText>
 
-        {notificationSettings.map(renderItem)}
+        {filterItems(notificationSettings).map(renderItem)}
 
         {/* Store Settings */}
 
         <AppText style={styles.sectionTitle}>Store Settings</AppText>
 
-        {storeSettings.map(renderItem)}
+        {filterItems(storeSettings).map(renderItem)}
 
         {/* App Preferences */}
 
@@ -433,12 +512,12 @@ export default function SettingsScreen() {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingCard}>
+        <TouchableOpacity style={styles.settingCard} onPress={() => Alert.alert("Language", "English (India) is the only language available right now.")}>
           <View style={styles.settingLeft}>
             <View style={styles.iconContainer}>
-              <FontAwesome5
-                name="language"
-                size={18}
+              <Ionicons
+                name="language-outline"
+                size={20}
                 color="#2563eb"
               />
             </View>
@@ -463,7 +542,7 @@ export default function SettingsScreen() {
 
         <AppText style={styles.sectionTitle}>Support & Help</AppText>
 
-        {supportSettings.map(renderItem)}
+        {filterItems(supportSettings).map(renderItem)}
 
         {/* App Info */}
 
@@ -477,7 +556,7 @@ export default function SettingsScreen() {
 
         <AppText style={styles.dangerHeading}></AppText>
 
-        {dangerZone.map(renderItem)}
+        {filterItems(dangerZone).map(renderItem)}
       </ScrollView>
     </SafeAreaView>
   );
@@ -487,7 +566,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  pageTitleWrap: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  pageTitle: {
+    fontSize: 24,
+    fontFamily: fontFamilies.bold,
+    color: "#0f172a",
+  },
+  pageSubtitle: {
+    color: "#64748b",
+    marginTop: 4,
+    fontSize: 13,
   },
 
   header: {
@@ -709,7 +805,7 @@ const styles = StyleSheet.create({
   },
 
   infoValue: {
-    color: "#                                                                                                                 0f172a",
+    color: "#0f172a",
     fontFamily: fontFamilies.bold,
   },
 

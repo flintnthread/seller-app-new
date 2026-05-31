@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
     ActivityIndicator,
@@ -32,11 +32,15 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ email?: string }>();
     const insets = useSafeAreaInsets();
     const { isDesktop } = useResponsive();
-    const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
+    const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
 
-    const [email, setEmail] = useState("");
+    const [email, setEmail] = useState(() => {
+        const raw = params.email;
+        return typeof raw === "string" && raw.includes("@") ? raw.trim() : "";
+    });
     const [sent, setSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [fieldError, setFieldError] = useState("");
@@ -57,7 +61,7 @@ export default function ForgotPasswordScreen() {
         try {
             const message = await requestPasswordReset(value);
             setSent(true);
-            showSuccess(message, "Check your email");
+            showSuccess(message, "Reset link sent");
         } catch (e) {
             const message =
                 e instanceof ApiError
@@ -65,7 +69,13 @@ export default function ForgotPasswordScreen() {
                     : e instanceof Error
                       ? e.message
                       : "Could not send reset link. Please try again.";
-            showError(message);
+            if (e instanceof ApiError && e.status === 404) {
+                showWarning(message, "Account not found");
+            } else if (e instanceof ApiError && e.status === 403) {
+                showWarning(message, "Cannot reset password");
+            } else {
+                showError(message);
+            }
         } finally {
             setLoading(false);
         }
@@ -107,8 +117,8 @@ export default function ForgotPasswordScreen() {
                 </AppText>
                 <AppText style={[styles.subtitle, isDesktop && styles.subtitleDesktop]}>
                     {sent
-                        ? "We sent a reset link to your email if an account exists with that address."
-                        : "Enter your registered email and we will send you a secure reset link."}
+                        ? "A reset link has been sent to your registered seller email. Check your inbox and spam folder."
+                        : "Enter the email address you used during seller registration. Password reset works only for registered seller accounts."}
                 </AppText>
             </View>
 

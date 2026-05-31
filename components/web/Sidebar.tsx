@@ -41,6 +41,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           title: 'ACCOUNT',
           items: [
             { name: 'Profile', path: '/Profile', icon: 'person.crop.circle' as const, iconColor: '#EC4899' },
+            { name: 'Settings', path: '/settingsModule', icon: 'gearshape.fill' as const, iconColor: '#64748B' },
             { name: 'Logout', path: 'logout', icon: 'arrow.right.to.line' as const, iconColor: '#EF4444' },
           ],
         },

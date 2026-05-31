@@ -739,6 +739,30 @@ const SellerSignUpScreen: React.FC = () => {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  const redirectToLoginForExistingAccount = useCallback(
+    (identifier: string, message: string) => {
+      showMessage({
+        message: `${message} Please log in to continue.`,
+        type: "info",
+        icon: "info",
+        ...toastConfig,
+      });
+      router.replace({
+        pathname: "/(auth)/login",
+        params: {
+          email: identifier.trim(),
+          message,
+        },
+      });
+    },
+    [router]
+  );
+
+  const isExistingAccountError = (err: unknown) =>
+    err instanceof ApiError &&
+    (err.status === 409 ||
+      /already registered|already exists|already in use/i.test(err.message));
+
   const handleSendOtp = useCallback(async () => {
     if (!mobile || mobile.replace(/\D/g, "").length < 10) {
       showMessage({
@@ -770,6 +794,13 @@ const SellerSignUpScreen: React.FC = () => {
         ...toastConfig,
       });
     } catch (err) {
+      if (isExistingAccountError(err)) {
+        redirectToLoginForExistingAccount(
+          mobile,
+          err instanceof ApiError ? err.message : "This mobile number is already registered."
+        );
+        return;
+      }
       showMessage({
         message: err instanceof ApiError ? err.message : "Failed to send OTP",
         type: "danger",
@@ -779,7 +810,7 @@ const SellerSignUpScreen: React.FC = () => {
     } finally {
       setSendingOtp(false);
     }
-  }, [mobile]);
+  }, [mobile, redirectToLoginForExistingAccount]);
 
   const handleVerifyOtp = useCallback(async () => {
     if (!otp || otp.trim().length < 4) {
@@ -874,6 +905,8 @@ const SellerSignUpScreen: React.FC = () => {
         confirmPassword,
       });
 
+      await clearSellerId();
+
       const registeredEmail = email.trim().toLowerCase();
 
       showMessage({
@@ -886,9 +919,20 @@ const SellerSignUpScreen: React.FC = () => {
 
       router.replace({
         pathname: "/(auth)/check-email",
-        params: { email: registeredEmail },
+        params: {
+          email: registeredEmail,
+          fullName: trimmedName,
+          mobile,
+        },
       });
     } catch (err) {
+      if (isExistingAccountError(err)) {
+        redirectToLoginForExistingAccount(
+          email.trim(),
+          err instanceof ApiError ? err.message : "An account with this email already exists."
+        );
+        return;
+      }
       showMessage({
         message: err instanceof ApiError ? err.message : "Registration failed",
         type: "danger",
@@ -910,6 +954,7 @@ const SellerSignUpScreen: React.FC = () => {
     mobile,
     email,
     mobileVerificationToken,
+    redirectToLoginForExistingAccount,
   ]);
 
   const pwdMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;

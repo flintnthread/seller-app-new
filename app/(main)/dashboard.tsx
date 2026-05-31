@@ -50,6 +50,7 @@ import {
     useSellerProfileSummary,
     type SellerProfileSummary,
 } from "@/hooks/useSellerProfileSummary";
+import { AccountStatusBanner } from "@/components/AccountStatusBanner";
 import { clearSellerId } from "@/lib/api/sellerSession";
 import type { TextProps } from 'react-native';
 import {
@@ -189,7 +190,6 @@ const MENU_CARDS = [
     { id: "categories", label: "Categories", icon: "shape-outline", color: C.pink },
     { id: "colors", label: "Colors", icon: "palette-outline", color: C.teal },
     { id: "sizes", label: "Sizes", icon: "format-size", color: C.indigo },
-    { id: "request", label: "Request ", icon: "tag-plus-outline", color: C.teal },
     { id: "support", label: "Support", icon: "headset", color: C.indigo },
     { id: "logout", label: "Logout", icon: "logout", color: C.red },
 ];
@@ -1273,8 +1273,6 @@ const MobileDashboard: React.FC<{
             router.push("/(main)/colors");
         } else if (id === "sizes") {
             router.push("/(main)/sizes");
-        } else if (id === "request") {
-            router.push("/(main)/sellerticketrise");
         } else if (id === "support") {
             router.push("/(main)/helpsupport");
         } else if (id === "logout") {
@@ -1323,7 +1321,6 @@ const MobileDashboard: React.FC<{
         categories: "Browse product categories",
         colors: "Manage colour options",
         sizes: "Manage size options",
-        request: "Submit a category request",
         support: "Help & support centre",
         logout: "See you soon!",
     };
@@ -1331,80 +1328,8 @@ const MobileDashboard: React.FC<{
 
     return (
         <View style={s.root}>
-            <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
-
-            <AppHeader title={activeLabel} subtitle={activeSubtitle} showBackButton={false} />
-
             <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} bounces={false}
                 contentContainerStyle={{ paddingBottom: 100 }}>
-
-
-                {/* ── HORIZONTAL MENU CARDS (TOGGLE MENU FIELDS) ── */}
-                {Platform.OS !== 'web' && (
-                    <View style={s.menuCardsContainer}>
-                        <View style={s.tabBorderBottomLine} />
-                        <ScrollView 
-                            horizontal 
-                            showsHorizontalScrollIndicator={false} 
-                            contentContainerStyle={s.menuCardsScroll}
-                            style={{ overflow: "visible", zIndex: 1 }}
-                        >
-                            {MENU_CARDS.map((item, index) => {
-                                const isActive = activeMenuCard === item.id;
-                                return isActive ? (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[s.menuCardTab, s.menuCardTabActive]}
-                                        onPress={() => handleCardPress(item.id)}
-                                        activeOpacity={0.9}
-                                    >
-                                        <TabShape isActive={true} />
-                                        <View style={[s.tabIconContainer, { backgroundColor: item.color + "1A" }]}>
-                                            {item.badge && (
-                                                <View style={s.menuCardBadge}>
-                                                    <AppText style={s.menuCardBadgeText}>{item.badge}</AppText>
-                                                </View>
-                                            )}
-                                            <MaterialCommunityIcons
-                                                name={item.icon as any}
-                                                size={18}
-                                                color={item.color}
-                                            />
-                                        </View>
-                                        <AppText style={[s.menuCardLabel, s.menuCardLabelActive]} numberOfLines={1}>
-                                            {item.label}
-                                        </AppText>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[s.menuCardTab, s.menuCardTabInactive]}
-                                        onPress={() => handleCardPress(item.id)}
-                                        activeOpacity={0.85}
-                                    >
-                                        <TabShape isActive={false} />
-                                        <View style={[s.tabIconContainer, { backgroundColor: "rgba(255,255,255,0.7)" }]}>
-                                            {item.badge && (
-                                                <View style={s.menuCardBadge}>
-                                                    <AppText style={s.menuCardBadgeText}>{item.badge}</AppText>
-                                                </View>
-                                            )}
-                                            <MaterialCommunityIcons
-                                                name={item.icon as any}
-                                                size={16}
-                                                color={item.color + "CC"}
-                                            />
-                                        </View>
-                                        <AppText style={s.menuCardLabel} numberOfLines={1}>
-                                            {item.label}
-                                        </AppText>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
-                )}
-
                 {/* ── PROFILE ── */}
                 <View style={s.section}>
                     <View style={s.profileCard}>
@@ -1434,12 +1359,19 @@ const MobileDashboard: React.FC<{
                                         <AppText style={s.profileName}>{displayName}</AppText>
                                         <View style={s.platinumBadge}>
                                             <MaterialCommunityIcons
-                                                name={profile?.profileCompleted ? "check-decagram" : "clock-outline"}
+                                                name={
+                                                    profile?.accountStatus?.approvalState === "approved"
+                                                        ? "check-decagram"
+                                                        : profile?.accountStatus?.approvalState === "rejected"
+                                                          ? "close-circle"
+                                                          : "clock-outline"
+                                                }
                                                 size={12}
                                                 color="#fff"
                                             />
                                             <AppText style={s.platinumText}>
-                                                {profile?.profileCompleted ? "Verified" : "Pending"}
+                                                {profile?.accountStatus?.title ??
+                                                    (profile?.profileCompleted ? "Verified" : "Pending")}
                                             </AppText>
                                         </View>
                                     </View>
@@ -1477,6 +1409,13 @@ const MobileDashboard: React.FC<{
                                 <AppText style={s.editProfileText}>Edit Seller Profile</AppText>
                             </TouchableOpacity>
                         </LinearGradient>
+                    </View>
+                    <View style={s.accountStatusWrap}>
+                        <AccountStatusBanner
+                            accountStatus={profile?.accountStatus}
+                            loading={profileLoading}
+                            compact
+                        />
                     </View>
                 </View>
 
@@ -1818,6 +1757,11 @@ const MobileDashboard: React.FC<{
 // ─── Styles ─────────────────────────────────────────────────
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
+    headerSticky: { zIndex: 20, elevation: 20 },
+    accountStatusWrap: {
+        paddingHorizontal: 0,
+        paddingTop: 0,
+    },
     navSafe: { backgroundColor: C.navyDeep, marginTop: 32 },
     navBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, height: 60, minHeight: 60 },
     navTitleContainer: { flex: 1, marginHorizontal: 12 },

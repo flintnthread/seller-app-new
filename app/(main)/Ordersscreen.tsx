@@ -32,7 +32,7 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
-import type { Order, OrderStatus } from "./_ordersData";
+import type { Order, OrderStatus } from "@/lib/orders/ordersData";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import {
   getLiveOrder,
@@ -42,7 +42,7 @@ import {
   loadOrdersFromApi,
   refreshOrdersFromApi,
   subscribeToOrderChanges,
-} from "./_ordersStore";
+} from "@/lib/orders/ordersStore";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens

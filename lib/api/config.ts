@@ -58,6 +58,9 @@ export function getDevSellerId(): number {
 }
 
 export const SELLER_ID_STORAGE_KEY = "sellerId";
+export const AUTH_TOKEN_STORAGE_KEY = "sellerAccessToken";
+export const SESSION_EXPIRES_AT_KEY = "sellerSessionExpiresAt";
+export const SESSION_LAST_ACTIVE_KEY = "sellerSessionLastActive";
 
 export function getApiDebugInfo(): { baseUrl: string; platform: string; isEmulator: boolean } {
     return {

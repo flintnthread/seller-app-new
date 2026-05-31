@@ -141,6 +141,9 @@ export default function VerifyEmailScreen() {
             const result = await verifyEmailOtp(email, otp.trim());
             setSuccess(result.verified);
             setMessage(result.message);
+            if (result.verified) {
+                setSuccess(true);
+            }
         } catch (err) {
             setMessage(err instanceof ApiError ? err.message : "Verification failed.");
         } finally {
@@ -237,7 +240,7 @@ export default function VerifyEmailScreen() {
                     <View style={styles.successBox}>
                         <AppText style={styles.successText}>{message}</AppText>
                         <AppText style={styles.redirectHint}>
-                            Redirecting to login in {countdown}s…
+                            {`Redirecting to login in ${countdown}s…`}
                         </AppText>
                         <TouchableOpacity style={styles.button} onPress={goToLogin}>
                             <AppText style={styles.buttonText}>Go to login now</AppText>

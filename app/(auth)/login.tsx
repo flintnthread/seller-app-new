@@ -24,7 +24,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import { ApiError } from "@/lib/api/client";
-import { setSellerId } from "@/lib/api/sellerSession";
+import { setSellerSession } from "@/lib/api/sellerSession";
 import { getPostLoginRoute } from "@/lib/auth/postLoginRoute";
 import { loginSeller } from "@/services/authApi";
 
@@ -183,6 +183,12 @@ export default function SellerLogin() {
           ? `We sent a verification link to ${emailParam}.`
           : "We sent a verification link to your email."
       );
+    } else if (infoMessage) {
+      setBannerType("info");
+      setBannerMessage(infoMessage);
+      if (emailParam) {
+        setEmail(emailParam);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when opened from signup/verify-email
   }, []);
@@ -270,7 +276,7 @@ export default function SellerLogin() {
     setLoading(true);
     try {
       const result = await loginSeller(email.trim(), password);
-      await setSellerId(result.sellerId);
+      await setSellerSession(result.sellerId, result.accessToken, result.expiresIn);
       setIsProfileCompleted(result.profileCompleted);
 
       showSuccess(
@@ -278,7 +284,7 @@ export default function SellerLogin() {
         "Login successful"
       );
 
-      router.replace(getPostLoginRoute());
+      router.replace(getPostLoginRoute(result));
     } catch (e) {
       const message =
         e instanceof ApiError
@@ -459,7 +465,20 @@ export default function SellerLogin() {
         )}
 
         <Pressable
-          onPress={() => router.push("/(auth)/forgotpassword")}
+          onPress={() => {
+            const trimmed = email.trim();
+            if (trimmed.includes("@")) {
+              router.push({
+                pathname: "/(auth)/forgotpassword",
+                params: { email: trimmed },
+              });
+            } else {
+              showWarning(
+                "Password reset is available only for your registered email address. Enter your email on the login screen, or use the email you used during seller registration.",
+                "Use registered email"
+              );
+            }
+          }}
           style={styles.forgetWrap}
         >
           <AppText style={[styles.forget, isDesktop && styles.forgetDesktop]}>
