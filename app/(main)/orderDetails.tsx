@@ -169,6 +169,324 @@ async function refreshShiprocketFromApi(orderKey: string): Promise<ShiprocketDat
   return buildShiprocketData(refreshed);
 }
 
+function printWebLabel(order: OrderDetail) {
+  if (Platform.OS !== "web") return;
+  const srData = buildShiprocketData(order);
+  const gstNumber = order.gstNumber || order.gstRecords?.[0]?.gstNumber || "—";
+  const invoiceNo = order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g, "").slice(-5) || "00001"}`;
+  const totalTax = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
+  const weight = totalItemWeight(order);
+  const dimensions = primaryItemDimensions(order);
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+
+  const html = `
+    <html>
+      <head>
+        <title>Shipping Label - Order #${order.id}</title>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #fff;
+            display: flex;
+            justify-content: center;
+          }
+          .card {
+            width: 450px;
+            border: 1px solid #111;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 1px solid #111;
+          }
+          .logo {
+            width: 100%;
+            max-height: 80px;
+            object-fit: contain;
+          }
+          .band {
+            background: #F97316;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 6px 0;
+            letter-spacing: 1px;
+            text-align: center;
+          }
+          .courier-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 12px;
+            border-bottom: 1px solid #111;
+          }
+          .courier-name {
+            font-size: 13px;
+            font-weight: 700;
+          }
+          .gst-pill {
+            background: #F97316;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 3px;
+          }
+          .barcode-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #111;
+          }
+          .awb-label {
+            font-size: 8px;
+            font-weight: 600;
+            color: #666;
+            letter-spacing: 0.5px;
+          }
+          .barcode-wrap {
+            display: flex;
+            align-items: flex-end;
+            height: 40px;
+            margin-top: 4px;
+          }
+          .bar {
+            background: #111;
+            margin-right: 1px;
+          }
+          .awb-number {
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: 4px;
+            letter-spacing: 1px;
+          }
+          .qr-box {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #111;
+            padding: 2px;
+          }
+          .qr-inner {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+          }
+          .qr-dot {
+            width: 6px;
+            height: 6px;
+          }
+          .divider {
+            border-bottom: 1px solid #111;
+          }
+          .section {
+            padding: 10px 12px;
+          }
+          .section-title {
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            background: #F0F0F0;
+            padding: 2px 4px;
+            display: inline-block;
+          }
+          .ship-to-name {
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 3px;
+          }
+          .ship-to-address {
+            font-size: 10px;
+            line-height: 15px;
+            color: #333;
+            margin-bottom: 3px;
+          }
+          .ship-to-pin {
+            font-size: 10px;
+            font-weight: 800;
+          }
+          .meta-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 4px;
+            font-size: 9px;
+            padding: 10px 12px;
+          }
+          .meta-key {
+            font-weight: 600;
+            color: #666;
+          }
+          .meta-val {
+            font-weight: 500;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+            margin-top: 6px;
+          }
+          th {
+            background: #F5F7FA;
+            font-weight: 700;
+            text-align: left;
+            padding: 4px;
+            border-bottom: 1px solid #111;
+          }
+          td {
+            padding: 4px;
+            border-bottom: 1px solid #eee;
+          }
+          .total-row {
+            font-weight: 700;
+            background: #FAFAFA;
+            border-top: 1px solid #111;
+          }
+          .return-section {
+            padding: 10px 12px;
+            background: #FFF9F5;
+            font-size: 9px;
+          }
+          .return-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            margin-bottom: 4px;
+          }
+          .footer {
+            background: #F5F5F5;
+            padding: 8px;
+            text-align: center;
+            font-size: 8px;
+            color: #333;
+            border-top: 1px solid #111;
+          }
+          @media print {
+            body { padding: 0; }
+            .card { border: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="header">
+            <img class="logo" src="https://flintandthread.in/assets/images/logo.jpg" onerror="this.src=''" alt="Logo" />
+            <div class="band">SHIPPING LABEL FOR FLINT & THREAD</div>
+          </div>
+          <div class="courier-row">
+            <div class="courier-name">${srData.courier}</div>
+            <div class="gst-pill">GST: ${gstNumber}</div>
+          </div>
+          <div class="barcode-section">
+            <div>
+              <div class="awb-label">AWB NUMBER</div>
+              <div class="barcode-wrap">
+                ${Array.from({length: 40}).map((_, i) => `
+                  <div class="bar" style="width: ${i % 5 === 0 ? '3px' : '1px'}; height: ${i % 7 === 0 ? '40px' : '34px'};"></div>
+                `).join('')}
+              </div>
+              <div class="awb-number">${srData.awb}</div>
+            </div>
+            <div class="qr-box">
+              <div class="qr-inner">
+                ${Array.from({length: 49}).map((_, i) => {
+                  const r = Math.floor(i / 7);
+                  const c = i % 7;
+                  const corner = (r < 2 && c < 2) || (r < 2 && c > 4) || (r > 4 && c < 2);
+                  const filled = corner || (r === 3 && c % 2 === 0) || (c === 3 && r % 2 === 1) || ((r + c) % 3 === 0);
+                  return `<div class="qr-dot" style="background: ${filled ? '#111' : '#fff'};"></div>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-title">SHIP TO</div>
+            <div class="ship-to-name">${order.customer.name}</div>
+            <div class="ship-to-address">${order.customer.address}</div>
+            <div class="ship-to-pin">PIN: ${order.customer.address.match(/\d{6}/)?.[0] ?? "000000"}</div>
+          </div>
+          <div class="divider"></div>
+          <div class="meta-grid">
+            <div class="meta-key">Order #:</div><div class="meta-val">${order.id}</div>
+            <div class="meta-key">AWB #:</div><div class="meta-val">${srData.awb}</div>
+            <div class="meta-key">Invoice:</div><div class="meta-val">${invoiceNo}</div>
+            <div class="meta-key">Date:</div><div class="meta-val">${order.date}</div>
+            <div class="meta-key">Payment:</div><div class="meta-val">${order.payment.method} ${order.pricing.total}</div>
+            <div class="meta-key">Weight:</div><div class="meta-val">${weight}</div>
+            <div class="meta-key">Dimensions:</div><div class="meta-val">${dimensions}</div>
+          </div>
+          <div class="divider"></div>
+          <div class="section">
+            <div class="section-title">PRODUCT DETAILS</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th style="text-align: center;">HSN</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Price</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(itm => {
+                  const p = Number((itm.price ?? "₹0").replace(/[₹,]/g, ""));
+                  const lineTax = itm.tax ?? Math.round(p * 0.05);
+                  const base = p - lineTax;
+                  return `
+                    <tr>
+                      <td><strong>${itm.name}</strong><br/><span style="color: #666; font-size: 8px;">${itm.variant}</span></td>
+                      <td style="text-align: center;">${itm.hsnCode || '—'}</td>
+                      <td style="text-align: center;">${itm.qty}</td>
+                      <td style="text-align: right;">₹${base}</td>
+                      <td style="text-align: right;"><strong>₹${p}</strong></td>
+                    </tr>
+                  `;
+                }).join('')}
+                <tr class="total-row">
+                  <td colspan="3"><strong>TOTAL:</strong></td>
+                  <td style="text-align: right;">Tax: ${order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</td>
+                  <td style="text-align: right;"><strong>${order.pricing.total}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="return-section">
+            <div class="section-title">RETURN ADDRESS</div>
+            <div class="return-header">
+              <div>PICKCELL</div>
+              <div class="gst-pill">GST: ${gstNumber}</div>
+            </div>
+            <div>B-706, Radha Vallabh, Near Dmart, 150 Feet Road, City Bhayndar West, Thane, Mumbai, Maharashtra, India - 401101</div>
+            <div style="font-weight: 600; margin-top: 4px;">Ph: +91 93215 02225</div>
+          </div>
+          <div class="footer">
+            <div style="font-weight: 700; margin-bottom: 2px;">GST/Tax: ${order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</div>
+            <div style="font-weight: 600;">AUTO-GENERATED LABEL — NO SIGNATURE REQUIRED</div>
+            <div style="color: #F97316; font-weight: 700; margin-top: 2px;">Powered By: Flint & Thread</div>
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── SHARED ATOMS ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1206,8 +1524,14 @@ export default function OrderDetailsScreen() {
     if (openLabel === "1" || openLabel === "true") setLabelModalVisible(true);
   }, [openLabel]);
 
-  const handlePrintLabel = () =>
-    Alert.alert("Label Downloaded", `Shipping label for ${orderId} has been saved.`);
+  const handlePrintLabel = () => {
+    if (!order) return;
+    if (Platform.OS === "web") {
+      printWebLabel(order);
+    } else {
+      Alert.alert("Label Downloaded", `Shipping label for ${orderId} has been saved.`);
+    }
+  };
 
   // Not found fallback (same for both platforms)
   if (!order) {

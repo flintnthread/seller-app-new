@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
+import { useSellerProfile } from '@/hooks/useSellerProfile';
+import { useSweetAlert } from '@/components/common/SweetAlert';
+import { clearSellerId } from '@/lib/api/sellerSession';
 
 export function DesktopHeader({ 
   isSidebarOpen, 
@@ -12,6 +15,27 @@ export function DesktopHeader({
   onToggleSidebar?: () => void; 
 }) {
   const router = useRouter();
+  const { profile } = useSellerProfile();
+  const { showSuccess, confirmAction, SweetAlertHost } = useSweetAlert();
+  const [isHovered, setIsHovered] = useState(false);
+
+  const firstLetter = profile?.firstName?.trim()?.charAt(0)?.toUpperCase() || "P";
+
+  const handleLogout = async () => {
+    setIsHovered(false);
+    const confirmed = await confirmAction(
+      "Confirm Logout",
+      "Are you sure you want to sign out from your seller account?",
+      "Logout"
+    );
+    if (confirmed) {
+      await clearSellerId();
+      showSuccess("You have been signed out successfully.", "Logged Out");
+      setTimeout(() => {
+        router.replace("/(auth)/login");
+      }, 1500);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -47,10 +71,48 @@ export function DesktopHeader({
           <Ionicons name="settings-outline" size={20} color="#666666" />
         </Pressable>
         
-        <Pressable style={styles.avatar} onPress={() => router.push('/Profile')}>
-          <Text style={styles.avatarText}>P</Text>
-        </Pressable>
+        {/* Profile Avatar with Dropdown */}
+        <View 
+          // @ts-ignore
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          style={styles.avatarWrapper}
+        >
+          <Pressable style={styles.avatar} onPress={() => router.push('/Profile')}>
+            <Text style={styles.avatarText}>{firstLetter}</Text>
+          </Pressable>
+          
+          {isHovered && (
+            <View style={styles.dropdownMenu}>
+              <Pressable 
+                onPress={() => {
+                  setIsHovered(false);
+                  router.push('/Profile');
+                }}
+                // @ts-ignore
+                style={({ hovered }) => [
+                  styles.dropdownItem,
+                  hovered && styles.dropdownItemHovered
+                ]}
+              >
+                <Text style={styles.dropdownText}>View Profile</Text>
+              </Pressable>
+              
+              <Pressable 
+                onPress={handleLogout}
+                // @ts-ignore
+                style={({ hovered }) => [
+                  styles.dropdownItem,
+                  hovered && styles.dropdownItemHovered
+                ]}
+              >
+                <Text style={[styles.dropdownText, { color: '#ef4444' }]}>Logout</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
+      <SweetAlertHost />
     </View>
   );
 }
@@ -140,5 +202,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
+  },
+  avatarWrapper: {
+    position: 'relative',
+    zIndex: 100,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 6,
+    minWidth: 150,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+    zIndex: 200,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    width: '100%',
+  },
+  dropdownItemHovered: {
+    backgroundColor: '#f3f4f6',
+  },
+  dropdownText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+    fontFamily: 'Poppins_500Medium',
   },
 });

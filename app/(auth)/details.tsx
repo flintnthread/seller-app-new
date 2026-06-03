@@ -54,12 +54,12 @@ const URL = "https://flintnthread.in/seller/login";
 
 // ─── Data ─────────────────────────────────────────────────
 const SELLER_TYPES = [
-  { icon: "account-tie",       title: "Individuals",    sub: "Artisans & Creators",  color: "#F97316", bg: "#FFF3E8" },
-  { icon: "store-outline",     title: "Boutiques",      sub: "Curated Fashion",      color: "#7C3AED", bg: "#F5F3FF" },
-  { icon: "shopping-outline",  title: "Retailers",      sub: "Multi-category Shops", color: "#0EA5E9", bg: "#F0F9FF" },
-  { icon: "package-variant",   title: "Wholesalers",    sub: "Bulk & B2B",           color: "#10B981", bg: "#ECFDF5" },
-  { icon: "hanger",            title: "Fashion Brands", sub: "Style & Lifestyle",    color: "#EC4899", bg: "#FDF2F8" },
-  { icon: "factory",           title: "Manufacturers",  sub: "Scale Production",     color: "#1E3A6E", bg: "#EEF3FF" },
+  { icon: "account-tie",       title: "Individuals",    sub: "Turn your passion into profit by selling handmade or unique items.",  color: "#F97316", bg: "#FFF3E8" },
+  { icon: "store-outline",     title: "Boutiques",      sub: "Curate unique collections and build a loyal customer base online.",      color: "#7C3AED", bg: "#F5F3FF" },
+  { icon: "shopping-outline",  title: "Retailers",      sub: "Expand your product range and reach new customer segments.", color: "#0EA5E9", bg: "#F0F9FF" },
+  { icon: "package-variant",   title: "Wholesalers",    sub: "Connect with retailers and bulk buyers through our B2B marketplace features.",           color: "#10B981", bg: "#ECFDF5" },
+  { icon: "hanger",            title: "Fashion Brands", sub: "Launch your fashion line and connect with style-conscious customers worldwide.",    color: "#EC4899", bg: "#FDF2F8" },
+  { icon: "factory",           title: "Manufacturers",  sub: "Scale your production and reach B2B and B2C customers through our platform.",     color: "#1E3A6E", bg: "#EEF3FF" },
 ];
 
 const WHY = [
@@ -211,6 +211,28 @@ const FOOTER_SOCIAL = [
   { icon: "whatsapp",  color: "#25D366", url: "https://wa.me/919063499092"                              },
 ] as const;
 
+const openFooterEmail = async () => {
+  const email = "support@flintnthread.in";
+  const subject = encodeURIComponent("Seller Support Inquiry");
+  const body = encodeURIComponent("Dear Flint & Thread Team,\n\n");
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
+  const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+
+  try {
+    if (Platform.OS === "web") {
+      await Linking.openURL(gmailUrl);
+    } else {
+      await Linking.openURL(mailtoUrl);
+    }
+  } catch {
+    try {
+      await Linking.openURL(mailtoUrl);
+    } catch {
+      // Ignore
+    }
+  }
+};
+
 const DetailsFooter: React.FC<{
   isDesktop: boolean;
   onNavPress: (key: SectionKey) => void;
@@ -283,7 +305,7 @@ const DetailsFooter: React.FC<{
         <Text style={fs.colHeading}>Contact Info</Text>
         <TouchableOpacity
           style={fs.footerLink}
-          onPress={() => Linking.openURL("mailto:support@flintnthread.in")}
+          onPress={() => openFooterEmail()}
           activeOpacity={0.7}
         >
           <MaterialCommunityIcons name="email-outline" size={16} color={C.orange} />
@@ -334,14 +356,7 @@ const StepJourneyCard: React.FC<{
         <Text style={ss.stepNumText}>{index + 1}</Text>
       </LinearGradient>
     )}
-    <View
-      style={[
-        showStepNumber ? ss.stepIconCorner : ss.stepIconInline,
-        { backgroundColor: step.color + "1A" },
-      ]}
-    >
-      <MaterialCommunityIcons name={step.icon as any} size={22} color={step.color} />
-    </View>
+
     <View style={ss.stepCardBody}>
       <Text style={[ss.stepTitle, titleStyle]}>{step.title}</Text>
       <Text style={[ss.stepDesc, descStyle]}>{step.desc}</Text>
@@ -484,7 +499,7 @@ const SellerLanding: React.FC = () => {
               width: "100%",
             },
             heroLeft: { flex: 1, maxWidth: 620, minWidth: 320, flexShrink: 1 },
-            heroRight: { flex: 1, alignItems: "flex-end" as const, justifyContent: "center" as const, maxWidth: 440 },
+            heroRight: { flex: 1, alignItems: "flex-end" as const, justifyContent: "center" as const, maxWidth: 440, paddingTop: 72 },
             heroStatPanel: {
               width: "100%",
               maxWidth: 400,
@@ -1175,9 +1190,6 @@ const SellerLanding: React.FC = () => {
 
                     {isLeft ? (
                       <View style={[s.tlCard, s.tlCardLeft, { borderLeftColor: step.color, borderLeftWidth: 3 }]}>
-                        <View style={[s.tlIconWrap, { backgroundColor: step.color + "1A" }]}>
-                          <MaterialCommunityIcons name={step.icon as any} size={21} color={step.color} />
-                        </View>
                         <Text style={s.tlTitle}>{step.title}</Text>
                         <Text style={s.tlDesc}>{step.desc}</Text>
                       </View>
@@ -1192,9 +1204,6 @@ const SellerLanding: React.FC = () => {
 
                     {!isLeft ? (
                       <View style={[s.tlCard, s.tlCardRight, { borderRightColor: step.color, borderRightWidth: 3 }]}>
-                        <View style={[s.tlIconWrap, { backgroundColor: step.color + "1A" }]}>
-                          <MaterialCommunityIcons name={step.icon as any} size={21} color={step.color} />
-                        </View>
                         <Text style={s.tlTitle}>{step.title}</Text>
                         <Text style={s.tlDesc}>{step.desc}</Text>
                       </View>
@@ -1229,7 +1238,7 @@ const SellerLanding: React.FC = () => {
             isWhyGrid && (ds?.section ?? tabletDs?.section),
             isWhyGrid && (ds?.content ?? tabletDs?.content),
             isWhyGrid && (ds?.whySection ?? tabletDs?.whySection),
-            { backgroundColor: C.softBlue },
+            { backgroundColor: C.white },
           ]}
           onLayout={(e) => recordSectionOffset("features", e.nativeEvent.layout.y)}
         >
@@ -1358,14 +1367,7 @@ const SellerLanding: React.FC = () => {
                   <Text style={[s.bannerSub, ds?.bannerSub]}>
                     Thousands of sellers are already earning on Flint & Thread. Your store could be next.
                   </Text>
-                  <View style={[s.bannerStats, ds?.bannerStats]}>
-                    {[{ val: "10K+", label: "Sellers" }, { val: "1M+", label: "Customers" }, { val: "50K+", label: "Products" }].map((st, i) => (
-                      <View key={st.label} style={[s.bannerStat, i < 2 && { borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.12)" }]}>
-                        <Text style={s.bannerStatVal}>{st.val}</Text>
-                        <Text style={s.bannerStatLabel}>{st.label}</Text>
-                      </View>
-                    ))}
-                  </View>
+
                 </View>
                 <View style={ds?.finalBannerRight}>
                   <TouchableOpacity
@@ -1385,14 +1387,7 @@ const SellerLanding: React.FC = () => {
             <>
               <Text style={s.bannerH}>Ready to Grow{"\n"}Your Business?</Text>
               <Text style={s.bannerSub}>Thousands of sellers are already earning on Flint & Thread. Your store could be next.</Text>
-              <View style={s.bannerStats}>
-                {[{ val: "10K+", label: "Sellers" }, { val: "1M+", label: "Customers" }, { val: "50K+", label: "Products" }].map((st, i) => (
-                  <View key={st.label} style={[s.bannerStat, i < 2 && { borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.12)" }]}>
-                    <Text style={s.bannerStatVal}>{st.val}</Text>
-                    <Text style={s.bannerStatLabel}>{st.label}</Text>
-                  </View>
-                ))}
-              </View>
+
               <TouchableOpacity onPress={() => goToSelling()} activeOpacity={0.88} style={s.bannerCtaWrap}>
                 <LinearGradient colors={[C.orange, C.orangeLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.bannerCta}>
                   <Text style={s.bannerCtaText}>Start Selling Now</Text>

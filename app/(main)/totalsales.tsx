@@ -16,7 +16,9 @@ import {
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
+  Platform,
+  useWindowDimensions
 } from 'react-native';
 import { AppHeader } from "@/components/common/AppHeader";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -87,6 +89,7 @@ const CHANNEL_OPTIONS: string[] = [
 ];
 
 const { width: SW } = Dimensions.get('window');
+const CELL_SIZE = Platform.OS === 'web' ? 42 : Math.floor((SW - 48) / 7);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -191,9 +194,24 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, end
 
   const handleDayPress = (day: number) => {
     const pressed = new Date(viewYear, viewMonth, day);
-    if (mode === 'single') { setSelStart(pressed); setSelEnd(pressed); return; }
-    if (picking === 'start') { setSelStart(pressed); setSelEnd(pressed); setPicking('end'); }
-    else { pressed < selStart ? (setSelStart(pressed), setPicking('end')) : (setSelEnd(pressed), setPicking('start')); }
+    if (mode === 'single') {
+      setSelStart(pressed);
+      setSelEnd(pressed);
+      return;
+    }
+    if (picking === 'start') {
+      setSelStart(pressed);
+      setSelEnd(pressed);
+      setPicking('end');
+    } else {
+      if (pressed < selStart) {
+        setSelStart(pressed);
+        setPicking('end');
+      } else {
+        setSelEnd(pressed);
+        setPicking('start');
+      }
+    }
   };
 
   const prevMonth = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
@@ -204,8 +222,6 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, end
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: totalDays }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const CELL_SIZE = Math.floor((SW - 48) / 7);
-
   const gridRef = useRef<View | null>(null);
   const [gridPos, setGridPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
@@ -214,6 +230,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, end
   };
 
   const handleTouchAt = (pageX: number, pageY: number) => {
+    if (Platform.OS === 'web') return; // Click handlers are used on Web
     const relX = pageX - gridPos.x;
     const relY = pageY - gridPos.y;
     if (relX < 0 || relY < 0) return;
@@ -232,74 +249,95 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ visible, startDate, end
   const onResponderMove = (evt: any) => { handleTouchAt(evt.nativeEvent.pageX, evt.nativeEvent.pageY); };
   const onResponderRelease = () => { setPicking('start'); };
 
+  const hasRange = mode === 'range' && selStart && selEnd && !isSameDay(selStart, selEnd);
+
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={cal.backdrop} />
-      </TouchableWithoutFeedback>
-      <View style={cal.sheet}>
-        <View style={cal.sheetHeader}>
-          <Text style={cal.sheetTitle}>Select Date{mode === 'range' ? ' Range' : ''}</Text>
-          <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={C.textDark} /></TouchableOpacity>
-        </View>
-        {mode === 'range' && (
-          <View style={cal.rangeDisplay}>
-            <TouchableOpacity style={[cal.rangeBox, picking === 'start' && cal.rangeBoxActive]} onPress={() => setPicking('start')}>
-              <Text style={cal.rangeLabel}>From</Text>
-              <Text style={[cal.rangeValue, picking === 'start' && cal.rangeValueActive]}>{formatDateDisplay(selStart)}</Text>
-            </TouchableOpacity>
-            <View style={cal.rangeDivider}><Ionicons name="arrow-forward" size={16} color={C.textLight} /></View>
-            <TouchableOpacity style={[cal.rangeBox, picking === 'end' && cal.rangeBoxActive]} onPress={() => setPicking('end')}>
-              <Text style={cal.rangeLabel}>To</Text>
-              <Text style={[cal.rangeValue, picking === 'end' && cal.rangeValueActive]}>{formatDateDisplay(selEnd)}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        <View style={cal.monthNav}>
-          <TouchableOpacity style={cal.navBtn} onPress={prevMonth}><Ionicons name="chevron-back" size={20} color={C.navy} /></TouchableOpacity>
-          <Text style={cal.monthTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
-          <TouchableOpacity style={cal.navBtn} onPress={nextMonth}><Ionicons name="chevron-forward" size={20} color={C.navy} /></TouchableOpacity>
-        </View>
-        <View style={cal.dayNamesRow}>{DAY_NAMES.map(d => <Text key={d} style={cal.dayName}>{d}</Text>)}</View>
-        <View ref={gridRef} onLayout={measureGrid} style={cal.grid}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={onResponderGrant}
-          onResponderMove={onResponderMove}
-          onResponderRelease={onResponderRelease}
-        >
-          {cells.map((day, idx) => {
-            if (!day) return <View key={`e-${idx}`} style={cal.cell} />;
-            const thisDate = new Date(viewYear, viewMonth, day);
-            const isStart = isSameDay(thisDate, selStart);
-            const isEnd = mode === 'range' && isSameDay(thisDate, selEnd);
-            const inRange = isInRange(thisDate);
-            return (
-              <TouchableOpacity key={idx} activeOpacity={0.7}
-                style={[cal.cell, inRange && cal.cellInRange, (isStart || isEnd) && cal.cellSelected,
-                  isStart && mode === 'range' && cal.cellStart, isEnd && mode === 'range' && cal.cellEnd]}
-                onPress={() => handleDayPress(day)}>
-                <Text style={[cal.cellText, inRange && cal.cellTextInRange, (isStart || isEnd) && cal.cellTextSelected]}>{day}</Text>
+        <View style={cal.modalContainer}>
+          <TouchableWithoutFeedback onPress={() => { /* prevent close when clicking dialog content */ }}>
+            <View style={cal.sheet}>
+              <View style={cal.sheetHeader}>
+                <Text style={cal.sheetTitle}>Select Date{mode === 'range' ? ' Range' : ''}</Text>
+                <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={C.textDark} /></TouchableOpacity>
+              </View>
+              {mode === 'range' && (
+                <View style={cal.rangeDisplay}>
+                  <TouchableOpacity style={[cal.rangeBox, picking === 'start' && cal.rangeBoxActive]} onPress={() => setPicking('start')}>
+                    <Text style={cal.rangeLabel}>From</Text>
+                    <Text style={[cal.rangeValue, picking === 'start' && cal.rangeValueActive]}>{formatDateDisplay(selStart)}</Text>
+                  </TouchableOpacity>
+                  <View style={cal.rangeDivider}><Ionicons name="arrow-forward" size={16} color={C.textLight} /></View>
+                  <TouchableOpacity style={[cal.rangeBox, picking === 'end' && cal.rangeBoxActive]} onPress={() => setPicking('end')}>
+                    <Text style={cal.rangeLabel}>To</Text>
+                    <Text style={[cal.rangeValue, picking === 'end' && cal.rangeValueActive]}>{formatDateDisplay(selEnd)}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={cal.monthNav}>
+                <TouchableOpacity style={cal.navBtn} onPress={prevMonth}><Ionicons name="chevron-back" size={20} color={C.navy} /></TouchableOpacity>
+                <Text style={cal.monthTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+                <TouchableOpacity style={cal.navBtn} onPress={nextMonth}><Ionicons name="chevron-forward" size={20} color={C.navy} /></TouchableOpacity>
+              </View>
+              <View style={cal.dayNamesRow}>{DAY_NAMES.map(d => <Text key={d} style={cal.dayName}>{d}</Text>)}</View>
+              <View ref={gridRef} onLayout={measureGrid} style={cal.grid}
+                onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => true}
+                onMoveShouldSetResponder={Platform.OS === 'web' ? undefined : () => true}
+                onResponderGrant={Platform.OS === 'web' ? undefined : onResponderGrant}
+                onResponderMove={Platform.OS === 'web' ? undefined : onResponderMove}
+                onResponderRelease={Platform.OS === 'web' ? undefined : onResponderRelease}
+              >
+                {cells.map((day, idx) => {
+                  if (!day) return <View key={`e-${idx}`} style={cal.cell} />;
+                  const thisDate = new Date(viewYear, viewMonth, day);
+                  const isStart = isSameDay(thisDate, selStart);
+                  const isEnd = mode === 'range' && isSameDay(thisDate, selEnd);
+                  const inRange = isInRange(thisDate);
+                  return (
+                    <TouchableOpacity key={idx} activeOpacity={0.7}
+                      style={[
+                        cal.cell,
+                        inRange && cal.cellInRange,
+                      ]}
+                      onPress={() => handleDayPress(day)}>
+                      {hasRange && isStart && <View style={cal.rangeConnectRight} />}
+                      {hasRange && isEnd && <View style={cal.rangeConnectLeft} />}
+                      <View style={[
+                        cal.cellContent,
+                        (isStart || isEnd) && cal.cellSelected,
+                      ]}>
+                        <Text style={[
+                          cal.cellText,
+                          inRange && cal.cellTextInRange,
+                          (isStart || isEnd) && cal.cellTextSelected
+                        ]}>
+                          {day}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity style={cal.confirmBtn} onPress={() => { onConfirm(selStart, selEnd); onClose(); }} activeOpacity={0.85}>
+                <Text style={cal.confirmText}>{mode === 'range' ? 'Apply Date Range' : 'Apply Date'}</Text>
               </TouchableOpacity>
-            );
-          })}
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-        <TouchableOpacity style={cal.confirmBtn} onPress={() => { onConfirm(selStart, selEnd); onClose(); }} activeOpacity={0.85}>
-          <Text style={cal.confirmText}>{mode === 'range' ? 'Apply Date Range' : 'Apply Date'}</Text>
-        </TouchableOpacity>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
 
 // ─── Sales Trend Chart ────────────────────────────────────────────────────────
 
-const SalesTrendChart: React.FC<{ range: string; customFrom?: Date; customTo?: Date }> = ({
+const SalesTrendChart: React.FC<{ range: string; customFrom?: Date | undefined; customTo?: Date | undefined }> = ({
   range,
   customFrom,
   customTo,
 }) => {
-  const W = SW - 32 - 46 - 12;
+  const [chartWidth, setChartWidth] = useState(SW - 32 - 46 - 12);
+  const W = chartWidth;
   const H = 170;
   const P = 10;
 
@@ -364,7 +402,7 @@ const SalesTrendChart: React.FC<{ range: string; customFrom?: Date; customTo?: D
       <View style={s.yAxis}>
         {yLabels.map(t => <Text key={t} style={s.yAxisLabel}>{t}</Text>)}
       </View>
-      <View style={s.flex1}>
+      <View style={s.flex1} onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}>
         <View style={s.trendChartWrap}>
           <Svg width={W} height={H}>
             <Defs>
@@ -623,7 +661,7 @@ const CHANNEL_DOT_COLORS: Record<string, string> = {
   'UPI': '#0B3D91', 'Card': '#10B981', 'COD': '#8B5CF6', 'Net Banking': '#F59E0B',
 };
 
-const ChannelDropdown: React.FC<{ selected: string; onSelect: (opt: string) => void }> = ({ selected, onSelect }) => {
+const ChannelDropdown: React.FC<{ selected: string; onSelect: (opt: string) => void; style?: any }> = ({ selected, onSelect, style }) => {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<View>(null);
   const [pos, setPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
@@ -632,7 +670,7 @@ const ChannelDropdown: React.FC<{ selected: string; onSelect: (opt: string) => v
 
   return (
     <>
-      <TouchableOpacity ref={btnRef} activeOpacity={0.7} style={s.filterItem} onPress={measureBtn}>
+      <TouchableOpacity ref={btnRef} activeOpacity={0.7} style={[s.filterItem, style]} onPress={measureBtn}>
         <View style={s.filterRight}><Text style={s.filterText}>{selected}</Text></View>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={C.textLight} />
       </TouchableOpacity>
@@ -668,6 +706,15 @@ const ChannelDropdown: React.FC<{ selected: string; onSelect: (opt: string) => v
 const TotalSalesScreen: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isWebLayout = isWeb && windowWidth >= 800;
+
+  // KPI card width on Web
+  const kpiWidth = isWeb
+    ? (windowWidth >= 1024 ? '31.8%' : windowWidth >= 640 ? '48%' : '100%')
+    : undefined;
+
   const [selectedRange, setSelectedRange] = useState('Last 7 days');
   const [selectedChannel, setSelectedChannel] = useState('All Channels');
   const [filterStart, setFilterStart] = useState(new Date(2026, 4, 20));
@@ -715,7 +762,7 @@ const TotalSalesScreen: React.FC = () => {
             label: m.label,
             value: m.value,
             pct: m.pct,
-            color: PAYMENT_COLORS[m.label] ?? PAYMENT_COLORS.Other,
+            color: PAYMENT_COLORS[m.label] ?? '#6B7280',
           }))
         );
       })
@@ -765,6 +812,150 @@ const TotalSalesScreen: React.FC = () => {
   const paymentTotal = paymentMethods.reduce((sum, item) => sum + item.value, 0);
   const dateRangeLabel = `${formatDateShort(filterStart)} – ${formatDateShort(filterEnd)} ${filterEnd.getFullYear()}`;
 
+  const kpiItems = [
+    { label: "Total Sales", value: `₹${formatInr(channelData.total)}`, icon: "wallet-outline", color: C.navy, bg: '#EEF4FF', iconBg: '#DDE8FF', delta: "12.5%", deltaUp: true },
+    { label: "Total Orders", value: String(channelData.orders), icon: "bag-handle-outline", color: C.green, bg: '#EFFBF5', iconBg: '#DDF8E9', delta: "8.3%", deltaUp: true },
+    { label: "Average Order Value", value: `₹${formatInr(channelData.aov)}`, icon: "cart-outline", color: "#7C3AED", bg: '#F6F0FF', iconBg: '#EEE0FF', delta: "7.2%", deltaUp: true },
+    { label: "Returns", value: String(channelData.returns), icon: "refresh-outline", color: "#F59E0B", bg: '#FFF7ED', iconBg: '#FFE7CC', delta: "33.3%", deltaUp: false },
+    { label: "Cancels", value: String(channelData.cancels), icon: "close-circle-outline", color: "#E11D48", bg: '#FFF1F2', iconBg: '#FFE0E3', delta: "16.7%", deltaUp: false },
+    { label: "Replacements", value: String(channelData.replacements), icon: "swap-horizontal-outline", color: "#16A34A", bg: '#F0FDF4', iconBg: '#DCFCE7', delta: "20.0%", deltaUp: true },
+  ];
+
+  const renderContent = () => (
+    <>
+      {/* ── Sales Overview ── */}
+      <View style={s.card}>
+        <View style={s.rowBetween}>
+          <Text style={s.sectionTitle}>Sales Overview</Text>
+          <TouchableOpacity activeOpacity={0.7} style={s.linkBtn} onPress={() => router.push('/(main)/earning')}>
+            <Text style={s.linkText}>View Analytics</Text>
+            <Ionicons name="chevron-forward" size={14} color={C.navyDeep} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.overviewGrid}>
+          {kpiItems.map((item, idx) => (
+            <View key={idx} style={[s.overviewBox, { backgroundColor: item.bg }, kpiWidth ? { width: kpiWidth as any } : null]}>
+              <View style={[s.overviewIcon, { backgroundColor: item.iconBg }]}>
+                <Ionicons name={item.icon as any} size={22} color={item.color} />
+              </View>
+              <Text style={s.overviewLabel}>{item.label}</Text>
+              <Text style={s.overviewValue}>{item.value}</Text>
+              <View style={s.deltaRow}>
+                <Ionicons name={item.deltaUp ? "caret-up" : "caret-down"} size={12} color={item.deltaUp ? C.green : C.red} />
+                <Text style={[s.deltaText, { color: item.deltaUp ? C.green : C.red }]}>{item.delta}</Text>
+                <Text style={s.deltaVs}>vs last 7 days</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Row 2: Sales Trend + Payment Method */}
+      <View style={isWebLayout ? s.rowWeb : null}>
+        <View style={isWebLayout ? s.colWeb60 : { width: '100%' }}>
+          {/* ── Sales Trend ── */}
+          <View style={[s.card, { flex: 1 }]}>
+            <View style={s.rowBetween}>
+              <Text style={s.sectionTitle}>Sales Trend</Text>
+              <RangeDropdown
+                selected={selectedRange}
+                onSelect={setSelectedRange}
+                onCustomRange={() => setShowTrendCal(true)}
+              />
+            </View>
+            <SalesTrendChart
+              range={selectedRange}
+              customFrom={selectedRange === 'Custom Date Range' ? filterStart : undefined}
+              customTo={selectedRange === 'Custom Date Range' ? filterEnd : undefined}
+            />
+          </View>
+        </View>
+
+        <View style={isWebLayout ? s.colWeb40 : { width: '100%' }}>
+          {/* ── Sales by Payment Method ── */}
+          <View style={[s.card, { flex: 1 }]}>
+            <Text style={s.sectionTitle}>Sales by Payment Method</Text>
+            <Text style={s.tapHint}>Tap a segment to see its label</Text>
+            <View style={s.paymentCardCenter}>
+              <PaymentDonut methods={paymentMethods} total={paymentTotal} />
+            </View>
+            <View style={s.channelList}>
+              {paymentMethods.map((pm, idx) => (
+                <View key={pm.label} style={[s.channelItem, idx !== paymentMethods.length - 1 && s.channelItemBorder]}>
+                  <View style={s.channelLeft}>
+                    <View style={[s.dot, { backgroundColor: pm.color }]} />
+                    <Text style={s.channelLabel}>{pm.label}</Text>
+                  </View>
+                  <View style={s.channelMiddle}>
+                    <Text style={s.channelValue}>₹{formatInr(pm.value)}</Text>
+                  </View>
+                  <View style={s.channelRight}>
+                    <Text style={s.channelPct}>{pm.pct.toFixed(1)}%</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Row 3: Top Selling Products + Weekly Summary */}
+      <View style={isWebLayout ? s.rowWeb : null}>
+        <View style={isWebLayout ? s.colWeb60 : { width: '100%' }}>
+          {/* ── Top Selling Products ── */}
+          <View style={[s.card, { flex: 1 }]}>
+            <View style={s.rowBetween}>
+              <Text style={s.sectionTitle}>Top Selling Products</Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(main)/Topsellingproducts')}>
+                <Text style={s.linkText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            {products.map((p, idx) => (
+              <View key={p.name} style={[s.productRow, idx !== 0 && s.productBorder]}>
+                <Image source={{ uri: p.uri }} style={s.productImage} />
+                <View style={s.productMid}>
+                  <Text style={s.productName}>{p.name}</Text>
+                  <Text style={s.productQty}>Qty: {p.qty}</Text>
+                </View>
+                <View style={s.productRight}>
+                  <Text style={s.productPrice}>₹{formatInr(p.value)}</Text>
+                  <View style={s.pctPill}><Text style={s.pctText}>{p.pct.toFixed(1)}%</Text></View>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={isWebLayout ? s.colWeb40 : { width: '100%' }}>
+          {/* ── This Week Summary ── */}
+          <View style={[s.summaryCard, { flex: 1 }]}>
+            <View style={s.summaryLeft}>
+              <View style={s.summaryIcon}>
+                <MaterialCommunityIcons name="file-document-outline" size={22} color={C.navy} />
+              </View>
+              <View style={s.flex1}>
+                <Text style={s.summaryTitle}>This Week Summary</Text>
+                <Text style={s.summaryText}>
+                  You&apos;ve made ₹{formatInr(channelData.total)} sales
+                  {selectedChannel !== 'All Channels' ? ` via ${selectedChannel}` : ''} this week.
+                  That&apos;s 12.5% more than the previous 7 days.
+                </Text>
+              </View>
+            </View>
+            <View style={s.summaryRight}>
+              <View style={s.summaryPctRow}>
+                <Ionicons name="trending-up" size={18} color={C.green} />
+                <Text style={s.summaryPct}>12.5%</Text>
+              </View>
+              <Text style={s.summaryVs}>vs last 7 days</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </>
+  );
+
   return (
     <SafeAreaView style={s.container} edges={['left', 'right', 'bottom']}>
       {/* Filter bar calendar */}
@@ -782,217 +973,60 @@ const TotalSalesScreen: React.FC = () => {
         onConfirm={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
         onClose={() => setShowTrendCal(false)} mode="range" />
 
-      {/* ── Header ── */}
-      <View style={s.headerShell}>
-        <AppHeader
-          title="Total Sales"
-          showBackButton
-          rightActions={
-            <TouchableOpacity activeOpacity={0.7} style={s.headerIconBtn} onPress={() => setShowHeaderCal(true)}>
-              <Ionicons name="calendar-outline" size={22} color="#ffffff" />
-            </TouchableOpacity>
-          }
-        />
-
-        {/* ── Filters ── */}
-        <View style={s.filterCard}>
-          <TouchableOpacity activeOpacity={0.7} style={s.filterItem} onPress={() => setShowFilterCal(true)}>
-            <View style={s.filterLeft}>
-              <Ionicons name="calendar-outline" size={18} color={C.textLight} />
-              <Text style={s.filterText}>{dateRangeLabel}</Text>
-            </View>
-            <Ionicons name="chevron-down" size={18} color={C.textLight} />
-          </TouchableOpacity>
-          <ChannelDropdown selected={selectedChannel} onSelect={setSelectedChannel} />
-        </View>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
-
-        {/* ── Sales Overview ── */}
-        <View style={s.card}>
-          <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Sales Overview</Text>
-            <TouchableOpacity activeOpacity={0.7} style={s.linkBtn}>
-              <Text style={s.linkText}>View Analytics</Text>
-              <Ionicons name="chevron-forward" size={14} color={C.navyDeep} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 1 */}
-          <View style={s.overviewRow}>
-            <View style={[s.overviewBox, { backgroundColor: '#EEF4FF' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#DDE8FF' }]}>
-                <Ionicons name="wallet-outline" size={22} color={C.navy} />
-              </View>
-              <Text style={s.overviewLabel}>Total Sales</Text>
-              <Text style={s.overviewValue}>₹{formatInr(channelData.total)}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-up" size={12} color={C.green} />
-                <Text style={[s.deltaText, { color: C.green }]}>12.5%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-            <View style={[s.overviewBox, { backgroundColor: '#EFFBF5' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#DDF8E9' }]}>
-                <Ionicons name="bag-handle-outline" size={22} color={C.green} />
-              </View>
-              <Text style={s.overviewLabel}>Total Orders</Text>
-              <Text style={s.overviewValue}>{channelData.orders}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-up" size={12} color={C.green} />
-                <Text style={[s.deltaText, { color: C.green }]}>8.3%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Row 2 */}
-          <View style={s.overviewRow}>
-            <View style={[s.overviewBox, { backgroundColor: '#F6F0FF' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#EEE0FF' }]}>
-                <Ionicons name="cart-outline" size={22} color="#7C3AED" />
-              </View>
-              <Text style={s.overviewLabel}>Average Order Value</Text>
-              <Text style={s.overviewValue}>₹{formatInr(channelData.aov)}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-up" size={12} color={C.green} />
-                <Text style={[s.deltaText, { color: C.green }]}>7.2%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-            <View style={[s.overviewBox, { backgroundColor: '#FFF7ED' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#FFE7CC' }]}>
-                <Ionicons name="refresh-outline" size={22} color="#F59E0B" />
-              </View>
-              <Text style={s.overviewLabel}>Returns</Text>
-              <Text style={s.overviewValue}>{channelData.returns}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-down" size={12} color={C.red} />
-                <Text style={[s.deltaText, { color: C.red }]}>33.3%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Row 3 */}
-          <View style={s.overviewRow}>
-            <View style={[s.overviewBox, { backgroundColor: '#FFF1F2' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#FFE0E3' }]}>
-                <Ionicons name="close-circle-outline" size={22} color="#E11D48" />
-              </View>
-              <Text style={s.overviewLabel}>Cancels</Text>
-              <Text style={s.overviewValue}>{channelData.cancels}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-down" size={12} color={C.green} />
-                <Text style={[s.deltaText, { color: C.green }]}>16.7%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-            <View style={[s.overviewBox, { backgroundColor: '#F0FDF4' }]}>
-              <View style={[s.overviewIcon, { backgroundColor: '#DCFCE7' }]}>
-                <Ionicons name="swap-horizontal-outline" size={22} color="#16A34A" />
-              </View>
-              <Text style={s.overviewLabel}>Replacements</Text>
-              <Text style={s.overviewValue}>{channelData.replacements}</Text>
-              <View style={s.deltaRow}>
-                <Ionicons name="caret-up" size={12} color={C.green} />
-                <Text style={[s.deltaText, { color: C.green }]}>20.0%</Text>
-                <Text style={s.deltaVs}>vs last 7 days</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Sales Trend ── */}
-        <View style={s.card}>
-          <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Sales Trend</Text>
-            {/* ── UPDATED: pass onCustomRange to open the CalendarPicker ── */}
-            <RangeDropdown
-              selected={selectedRange}
-              onSelect={setSelectedRange}
-              onCustomRange={() => setShowTrendCal(true)}
-            />
-          </View>
-          <SalesTrendChart
-            range={selectedRange}
-            customFrom={selectedRange === 'Custom Date Range' ? filterStart : undefined}
-            customTo={selectedRange === 'Custom Date Range' ? filterEnd : undefined}
+      {/* ── Header on Mobile only ── */}
+      {Platform.OS !== 'web' && (
+        <View style={s.headerShell}>
+          <AppHeader
+            title="Total Sales"
+            showBackButton
+            rightActions={
+              <TouchableOpacity activeOpacity={0.7} style={s.headerIconBtn} onPress={() => setShowHeaderCal(true)}>
+                <Ionicons name="calendar-outline" size={22} color="#ffffff" />
+              </TouchableOpacity>
+            }
           />
-        </View>
 
-        {/* ── Sales by Payment Method ── */}
-        <View style={s.card}>
-          <Text style={s.sectionTitle}>Sales by Payment Method</Text>
-          <Text style={s.tapHint}>Tap a segment to see its label</Text>
-          <View style={s.paymentCardCenter}>
-            {/* ── UPDATED: larger donut with tap-to-show arrow labels ── */}
-            <PaymentDonut methods={paymentMethods} total={paymentTotal} />
-          </View>
-          <View style={s.channelList}>
-            {paymentMethods.map((pm, idx) => (
-              <View key={pm.label} style={[s.channelItem, idx !== paymentMethods.length - 1 && s.channelItemBorder]}>
-                <View style={s.channelLeft}>
-                  <View style={[s.dot, { backgroundColor: pm.color }]} />
-                  <Text style={s.channelLabel}>{pm.label}</Text>
-                </View>
-                <View style={s.channelMiddle}>
-                  <Text style={s.channelValue}>₹{formatInr(pm.value)}</Text>
-                </View>
-                <View style={s.channelRight}>
-                  <Text style={s.channelPct}>{pm.pct.toFixed(1)}%</Text>
-                </View>
+          {/* ── Filters ── */}
+          <View style={s.filterCard}>
+            <TouchableOpacity activeOpacity={0.7} style={s.filterItem} onPress={() => setShowFilterCal(true)}>
+              <View style={s.filterLeft}>
+                <Ionicons name="calendar-outline" size={18} color={C.textLight} />
+                <Text style={s.filterText}>{dateRangeLabel}</Text>
               </View>
-            ))}
+              <Ionicons name="chevron-down" size={18} color={C.textLight} />
+            </TouchableOpacity>
+            <ChannelDropdown selected={selectedChannel} onSelect={setSelectedChannel} />
           </View>
         </View>
+      )}
 
-        {/* ── Top Selling Products ── */}
-        <View style={s.card}>
-          <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Top Selling Products</Text>
-            <TouchableOpacity activeOpacity={0.7}><Text style={s.linkText}>View All</Text></TouchableOpacity>
-          </View>
-          {products.map((p, idx) => (
-            <View key={p.name} style={[s.productRow, idx !== 0 && s.productBorder]}>
-              <Image source={{ uri: p.uri }} style={s.productImage} />
-              <View style={s.productMid}>
-                <Text style={s.productName}>{p.name}</Text>
-                <Text style={s.productQty}>Qty: {p.qty}</Text>
+      {Platform.OS === 'web' ? (
+        <View style={s.scrollContent}>
+          <View style={s.webWrapper}>
+            {/* ── Header on Web only ── */}
+            <View style={s.webHeaderRow}>
+              <View style={s.webHeaderLeft}>
+                <Text style={s.webPageTitle}>Total Sales</Text>
+                <Text style={s.webPageSubtitle}>Analyze your business performance and revenue breakdown</Text>
               </View>
-              <View style={s.productRight}>
-                <Text style={s.productPrice}>₹{formatInr(p.value)}</Text>
-                <View style={s.pctPill}><Text style={s.pctText}>{p.pct.toFixed(1)}%</Text></View>
+              <View style={s.webHeaderRight}>
+                <TouchableOpacity activeOpacity={0.7} style={s.webFilterItem} onPress={() => setShowFilterCal(true)}>
+                  <Ionicons name="calendar-outline" size={16} color={C.textMid} />
+                  <Text style={s.webFilterText}>{dateRangeLabel}</Text>
+                  <Ionicons name="chevron-down" size={14} color={C.textLight} />
+                </TouchableOpacity>
+                <ChannelDropdown selected={selectedChannel} onSelect={setSelectedChannel} style={s.webChannelDropdown} />
               </View>
             </View>
-          ))}
-        </View>
 
-        {/* ── This Week Summary ── */}
-        <View style={s.summaryCard}>
-          <View style={s.summaryLeft}>
-            <View style={s.summaryIcon}>
-              <MaterialCommunityIcons name="file-document-outline" size={22} color={C.navy} />
-            </View>
-            <View style={s.flex1}>
-              <Text style={s.summaryTitle}>This Week Summary</Text>
-              <Text style={s.summaryText}>
-                You&apos;ve made ₹{formatInr(channelData.total)} sales
-                {selectedChannel !== 'All Channels' ? ` via ${selectedChannel}` : ''} this week.
-                That&apos;s 12.5% more than the previous 7 days.
-              </Text>
-            </View>
-          </View>
-          <View style={s.summaryRight}>
-            <View style={s.summaryPctRow}>
-              <Ionicons name="trending-up" size={18} color={C.green} />
-              <Text style={s.summaryPct}>12.5%</Text>
-            </View>
-            <Text style={s.summaryVs}>vs last 7 days</Text>
+            {renderContent()}
           </View>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+          {renderContent()}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -1001,14 +1035,45 @@ export default TotalSalesScreen;
 
 // ─── Calendar Styles ──────────────────────────────────────────────────────────
 
-const CELL_SIZE = Math.floor((SW - 48) / 7);
-
 const cal = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    ...Platform.select({
+      web: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        // @ts-ignore
+        backdropFilter: 'blur(8px)',
+      },
+      default: {
+        justifyContent: 'flex-end',
+      }
+    })
+  },
   sheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 20, paddingBottom: 36, paddingTop: 20,
+    backgroundColor: C.white,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    paddingTop: 20,
+    ...Platform.select({
+      web: {
+        width: 360,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      default: {
+        width: '100%',
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+      }
+    })
   },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: C.textDark },
@@ -1020,16 +1085,49 @@ const cal = StyleSheet.create({
   rangeValue: { fontSize: 13, fontWeight: '700', color: C.textDark },
   rangeValueActive: { color: C.navy },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  navBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF4FF' },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
   monthTitle: { fontSize: 16, fontWeight: '800', color: C.textDark },
-  dayNamesRow: { flexDirection: 'row', marginBottom: 6 },
+  dayNamesRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    width: CELL_SIZE * 7,
+    alignSelf: 'center',
+    justifyContent: 'space-between',
+  },
   dayName: { width: CELL_SIZE, textAlign: 'center', fontSize: 12, fontWeight: '700', color: C.textLight },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center' },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: CELL_SIZE * 7,
+    alignSelf: 'center',
+  },
+  cell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   cellInRange: { backgroundColor: '#EEF4FF' },
-  cellSelected: { backgroundColor: C.navy, borderRadius: CELL_SIZE / 2 },
-  cellStart: { borderTopLeftRadius: CELL_SIZE / 2, borderBottomLeftRadius: CELL_SIZE / 2 },
-  cellEnd: { borderTopRightRadius: CELL_SIZE / 2, borderBottomRightRadius: CELL_SIZE / 2 },
+  rangeConnectLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    right: '50%',
+    backgroundColor: '#EEF4FF',
+  },
+  rangeConnectRight: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#EEF4FF',
+  },
+  cellContent: {
+    width: CELL_SIZE - 4,
+    height: CELL_SIZE - 4,
+    borderRadius: (CELL_SIZE - 4) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  cellSelected: { backgroundColor: C.navy },
   cellText: { fontSize: 14, fontWeight: '600', color: C.textDark },
   cellTextInRange: { color: C.navy, fontWeight: '700' },
   cellTextSelected: { color: C.white, fontWeight: '800' },
@@ -1060,7 +1158,21 @@ const s = StyleSheet.create({
   filterLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
   filterRight: { flex: 1, paddingRight: 8 },
   filterText: { flexShrink: 1, fontSize: 13, lineHeight: 16, color: C.textDark, fontWeight: '600' },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+  scrollContent: {
+    ...Platform.select({
+      web: {
+        paddingHorizontal: 0,
+        marginHorizontal: -14, // Offsets WebLayout's padding to set side margins to exactly 10px
+        paddingTop: 0,
+        paddingBottom: 24,
+      },
+      default: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 24,
+      }
+    })
+  },
   card: {
     backgroundColor: C.white, borderRadius: 20, padding: 16, marginBottom: 16,
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3,
@@ -1072,10 +1184,27 @@ const s = StyleSheet.create({
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   linkText: { color: C.navyDeep, fontWeight: '800', fontSize: 13 },
   overviewRow: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  overviewBox: { flex: 1, borderRadius: 18, padding: 14 },
+  overviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 14,
+  },
+  overviewBox: {
+    borderRadius: 18,
+    padding: 14,
+    ...Platform.select({
+      web: {
+        // Controlled dynamically in JS for responsive 3-column / 2-column formatting
+      },
+      default: {
+        width: (SW - 32 - 12) / 2,
+      }
+    })
+  },
   overviewIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   overviewLabel: { marginTop: 12, fontSize: 12, fontWeight: '700', color: C.textMid },
-  overviewValue: { marginTop: 6, fontSize: 12, fontWeight: '800', color: C.textDark },
+  overviewValue: { marginTop: 6, fontSize: 20, fontWeight: '800', color: C.textDark },
   deltaRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   deltaText: { fontSize: 12, fontWeight: '800' },
   deltaVs: { fontSize: 12, color: C.textLight, fontWeight: '600' },
@@ -1113,21 +1242,27 @@ const s = StyleSheet.create({
   xAxisLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '700' },
   channelRow: { flexDirection: 'row', gap: 14, marginTop: 12, alignItems: 'center' },
   paymentCardCenter: { alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 8 },
-  // ── UPDATED: enlarged donut box to fit labels + arrows ──
-donutBox: {
-  width: 520,
-  height: 350,
-  paddingTop: 0,
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'visible',
-  alignSelf: 'center',
-  backgroundColor: 'transparent',
-},  
-donutSvg: {},
+  donutBox: {
+    ...Platform.select({
+      web: {
+        width: 380,
+        height: 320,
+      },
+      default: {
+        width: 260,
+        height: 220,
+      }
+    }),
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+    alignSelf: 'center',
+    backgroundColor: 'transparent',
+  },
+  donutSvg: {},
   donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   donutCenterLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '700' },
-  donutCenterValue: { marginTop: 4, fontSize: 14, fontWeight: '900', color: C.textDark },
+  donutCenterValue: { marginTop: 4, fontSize: Platform.OS === 'web' ? 16 : 13, fontWeight: '900', color: C.textDark },
   channelList: { marginTop: 16 },
   channelItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, justifyContent: 'space-between' },
   channelItemBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(15, 23, 42, 0.08)' },
@@ -1160,4 +1295,100 @@ donutSvg: {},
   summaryPctRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   summaryPct: { fontSize: 22, fontWeight: '900', color: C.green },
   summaryVs: { marginTop: 3, fontSize: 11, fontWeight: '700', color: '#94A3B8' },
-});
+  webWrapper: {
+    width: '100%',
+    gap: 16,
+    ...Platform.select({
+      web: {
+        marginTop: -14, // Offsets WebLayout top padding to exactly 10px
+      },
+      default: {}
+    })
+  },
+  rowWeb: {
+    ...Platform.select({
+      web: {
+        flexDirection: 'row',
+        gap: 16,
+        marginBottom: 16,
+      },
+      default: {},
+    }),
+  },
+  colWeb60: {
+    ...Platform.select({
+      web: {
+        flex: 1.5,
+      },
+      default: {
+        width: '100%',
+      },
+    }),
+  },
+  colWeb40: {
+    ...Platform.select({
+      web: {
+        flex: 1,
+      },
+      default: {
+        width: '100%',
+      },
+    }),
+  },
+  webHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  webHeaderLeft: {
+    flex: 1,
+    minWidth: 300,
+  },
+  webPageTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: C.navyDeep,
+  },
+  webPageSubtitle: {
+    fontSize: 14,
+    color: C.textLight,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  webHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  webFilterItem: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.white,
+    minHeight: 38,
+  },
+  webFilterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.textDark,
+  },
+  webChannelDropdown: {
+    flex: 0,
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.white,
+    minHeight: 38,
+  },
+});

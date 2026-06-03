@@ -21,6 +21,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 
 type TopProductRow = {
@@ -269,6 +271,47 @@ export default function TopSellingProducts() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  const sortBtnRef = useRef<View>(null);
+  const filterBtnRef = useRef<View>(null);
+  const categoryBtnRef = useRef<View>(null);
+
+  const [sortBtnPos, setSortBtnPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [filterBtnPos, setFilterBtnPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [categoryBtnPos, setCategoryBtnPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const openSortDropdown = () => {
+    if (Platform.OS === 'web') {
+      sortBtnRef.current?.measureInWindow((x, y, w, h) => {
+        setSortBtnPos({ x, y, w, h });
+        setSortModal(true);
+      });
+    } else {
+      setSortModal(true);
+    }
+  };
+
+  const openFilterDropdown = () => {
+    if (Platform.OS === 'web') {
+      filterBtnRef.current?.measureInWindow((x, y, w, h) => {
+        setFilterBtnPos({ x, y, w, h });
+        setFilterModal(true);
+      });
+    } else {
+      setFilterModal(true);
+    }
+  };
+
+  const openCategoryDropdown = () => {
+    if (Platform.OS === 'web') {
+      categoryBtnRef.current?.measureInWindow((x, y, w, h) => {
+        setCategoryBtnPos({ x, y, w, h });
+        setCategoryModal(true);
+      });
+    } else {
+      setCategoryModal(true);
+    }
+  };
+
   const categoryOptions = useMemo(() => {
     const cats = new Set<string>();
     for (const p of products) {
@@ -294,7 +337,9 @@ export default function TopSellingProducts() {
 
   const formatDate = (d: Date | null) => {
     if (!d) return 'Select';
-    return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
+    const m = MONTHS[d.getMonth()];
+    const mStr = m ? m.slice(0, 3) : '';
+    return `${d.getDate()} ${mStr} ${d.getFullYear()}`;
   };
 
   const toggleWishlist = (id: number) => {
@@ -327,113 +372,256 @@ export default function TopSellingProducts() {
     return data;
   }, [products, searchText, selectedSort, selectedFilter, selectedCategory]);
 
-  const renderSortModal = () => (
-    <Modal transparent animationType="slide" visible={sortModal}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Sort Products</Text>
-            <TouchableOpacity onPress={() => setSortModal(false)}>
-              <Ionicons name="close" size={24} color="#0A2A66" />
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={sortOptions}
-            keyExtractor={item => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.optionItem, selectedSort === item && styles.selectedOption]}
-                onPress={() => { setSelectedSort(item); setSortModal(false); }}>
-                <Text style={[styles.optionText, selectedSort === item && { color: '#fff' }]}>{item}</Text>
-                {selectedSort === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+  const renderSortModal = () => {
+    if (Platform.OS === 'web') {
+      return (
+        <Modal transparent visible={sortModal} animationType="fade" onRequestClose={() => setSortModal(false)}>
+          <TouchableWithoutFeedback onPress={() => setSortModal(false)}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+          <View style={[
+            styles.webDropdownMenu,
+            {
+              top: sortBtnPos.y + sortBtnPos.h + 6,
+              left: sortBtnPos.x,
+              width: Math.max(sortBtnPos.w, 240),
+            }
+          ]}>
+            <View style={styles.webDropdownHeader}>
+              <Text style={styles.webDropdownTitle}>Sort Products</Text>
+              <TouchableOpacity onPress={() => setSortModal(false)}>
+                <Ionicons name="close" size={18} color="#0A2A66" />
               </TouchableOpacity>
-            )}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderFilterModal = () => (
-    <Modal transparent animationType="slide" visible={filterModal}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContainer, { maxHeight: '85%' }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter Products</Text>
-            <TouchableOpacity onPress={() => { setFilterModal(false); setShowCalendar(false); }}>
-              <Ionicons name="close" size={24} color="#0A2A66" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {filterOptions.map(item => (
-              <View key={item}>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+              {sortOptions.map(item => (
                 <TouchableOpacity
-                  style={[styles.optionItem, selectedFilter === item && styles.selectedOption]}
-                  onPress={() => {
-                    setSelectedFilter(item);
-                    if (item === 'Custom Date Range') { setShowCalendar(true); }
-                    else { setShowCalendar(false); setFilterModal(false); }
-                  }}>
-                  <Text style={[styles.optionText, selectedFilter === item && { color: '#fff' }]}>{item}</Text>
-                  {selectedFilter === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+                  key={item}
+                  style={[styles.webOptionItem, selectedSort === item && styles.webSelectedOption]}
+                  onPress={() => { setSelectedSort(item); setSortModal(false); }}>
+                  <Text style={[styles.webOptionText, selectedSort === item && { color: '#fff' }]}>{item}</Text>
+                  {selectedSort === item && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
                 </TouchableOpacity>
-                {item === 'Custom Date Range' && showCalendar && selectedFilter === 'Custom Date Range' && (
-                  <View style={styles.calendarWrapper}>
-                    <View style={styles.dateRangeRow}>
-                      <View style={[styles.dateBox, dateRangeStart && styles.dateBoxActive]}>
-                        <Text style={styles.dateBoxLabel}>From</Text>
-                        <Text style={styles.dateBoxValue}>{formatDate(dateRangeStart)}</Text>
-                      </View>
-                      <Ionicons name="arrow-forward" size={18} color="#0A2A66" />
-                      <View style={[styles.dateBox, dateRangeEnd && styles.dateBoxActive]}>
-                        <Text style={styles.dateBoxLabel}>To</Text>
-                        <Text style={styles.dateBoxValue}>{formatDate(dateRangeEnd)}</Text>
-                      </View>
-                    </View>
-                    <CalendarPicker startDate={dateRangeStart} endDate={dateRangeEnd} onRangeChange={handleRangeChange} />
-                    {dateRangeStart && dateRangeEnd && (
-                      <TouchableOpacity style={styles.applyDateBtn} onPress={() => { setShowCalendar(false); setFilterModal(false); }}>
-                        <Text style={styles.applyDateText}>Apply: {formatDate(dateRangeStart)} → {formatDate(dateRangeEnd)}</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity style={styles.clearDateBtn} onPress={() => { setDateRangeStart(null); setDateRangeEnd(null); }}>
-                      <Text style={styles.clearDateText}>Clear Dates</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      );
+    }
 
-  const renderCategoryModal = () => (
-    <Modal transparent animationType="slide" visible={categoryModal}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Category</Text>
-            <TouchableOpacity onPress={() => setCategoryModal(false)}>
-              <Ionicons name="close" size={24} color="#0A2A66" />
-            </TouchableOpacity>
-          </View>
-          <View>
-            {categoryOptions.map(item => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.optionItem, selectedCategory === item && styles.selectedOption]}
-                onPress={() => { setSelectedCategory(item); setCategoryModal(false); }}>
-                <Text style={[styles.optionText, selectedCategory === item && { color: '#fff' }]}>{item}</Text>
-                {selectedCategory === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+    return (
+      <Modal transparent animationType="slide" visible={sortModal} onRequestClose={() => setSortModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sort Products</Text>
+              <TouchableOpacity onPress={() => setSortModal(false)}>
+                <Ionicons name="close" size={24} color="#0A2A66" />
               </TouchableOpacity>
-            ))}
+            </View>
+            <FlatList
+              data={sortOptions}
+              keyExtractor={item => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.optionItem, selectedSort === item && styles.selectedOption]}
+                  onPress={() => { setSelectedSort(item); setSortModal(false); }}>
+                  <Text style={[styles.optionText, selectedSort === item && { color: '#fff' }]}>{item}</Text>
+                  {selectedSort === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+                </TouchableOpacity>
+              )}
+            />
           </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
+
+  const renderFilterModal = () => {
+    if (Platform.OS === 'web') {
+      return (
+        <Modal transparent visible={filterModal} animationType="fade" onRequestClose={() => { setFilterModal(false); setShowCalendar(false); }}>
+          <TouchableWithoutFeedback onPress={() => { setFilterModal(false); setShowCalendar(false); }}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+          <View style={[
+            styles.webDropdownMenu,
+            {
+              top: filterBtnPos.y + filterBtnPos.h + 6,
+              left: filterBtnPos.x,
+              width: Math.max(filterBtnPos.w, 320),
+            }
+          ]}>
+            <View style={styles.webDropdownHeader}>
+              <Text style={styles.webDropdownTitle}>Filter Products</Text>
+              <TouchableOpacity onPress={() => { setFilterModal(false); setShowCalendar(false); }}>
+                <Ionicons name="close" size={18} color="#0A2A66" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+              {filterOptions.map(item => (
+                <View key={item}>
+                  <TouchableOpacity
+                    style={[styles.webOptionItem, selectedFilter === item && styles.webSelectedOption]}
+                    onPress={() => {
+                      setSelectedFilter(item);
+                      if (item === 'Custom Date Range') { setShowCalendar(true); }
+                      else { setShowCalendar(false); setFilterModal(false); }
+                    }}>
+                    <Text style={[styles.webOptionText, selectedFilter === item && { color: '#fff' }]}>{item}</Text>
+                    {selectedFilter === item && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
+                  </TouchableOpacity>
+                  {item === 'Custom Date Range' && showCalendar && selectedFilter === 'Custom Date Range' && (
+                    <View style={styles.calendarWrapper}>
+                      <View style={styles.dateRangeRow}>
+                        <View style={[styles.dateBox, dateRangeStart && styles.dateBoxActive]}>
+                          <Text style={styles.dateBoxLabel}>From</Text>
+                          <Text style={styles.dateBoxValue}>{formatDate(dateRangeStart)}</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={18} color="#0A2A66" />
+                        <View style={[styles.dateBox, dateRangeEnd && styles.dateBoxActive]}>
+                          <Text style={styles.dateBoxLabel}>To</Text>
+                          <Text style={styles.dateBoxValue}>{formatDate(dateRangeEnd)}</Text>
+                        </View>
+                      </View>
+                      <CalendarPicker startDate={dateRangeStart} endDate={dateRangeEnd} onRangeChange={handleRangeChange} />
+                      {dateRangeStart && dateRangeEnd && (
+                        <TouchableOpacity style={styles.applyDateBtn} onPress={() => { setShowCalendar(false); setFilterModal(false); }}>
+                          <Text style={styles.applyDateText}>Apply: {formatDate(dateRangeStart)} → {formatDate(dateRangeEnd)}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity style={styles.clearDateBtn} onPress={() => { setDateRangeStart(null); setDateRangeEnd(null); }}>
+                        <Text style={styles.clearDateText}>Clear Dates</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      );
+    }
+
+    return (
+      <Modal transparent animationType="slide" visible={filterModal} onRequestClose={() => { setFilterModal(false); setShowCalendar(false); }}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Products</Text>
+              <TouchableOpacity onPress={() => { setFilterModal(false); setShowCalendar(false); }}>
+                <Ionicons name="close" size={24} color="#0A2A66" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {filterOptions.map(item => (
+                <View key={item}>
+                  <TouchableOpacity
+                    style={[styles.optionItem, selectedFilter === item && styles.selectedOption]}
+                    onPress={() => {
+                      setSelectedFilter(item);
+                      if (item === 'Custom Date Range') { setShowCalendar(true); }
+                      else { setShowCalendar(false); setFilterModal(false); }
+                    }}>
+                    <Text style={[styles.optionText, selectedFilter === item && { color: '#fff' }]}>{item}</Text>
+                    {selectedFilter === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+                  </TouchableOpacity>
+                  {item === 'Custom Date Range' && showCalendar && selectedFilter === 'Custom Date Range' && (
+                    <View style={styles.calendarWrapper}>
+                      <View style={styles.dateRangeRow}>
+                        <View style={[styles.dateBox, dateRangeStart && styles.dateBoxActive]}>
+                          <Text style={styles.dateBoxLabel}>From</Text>
+                          <Text style={styles.dateBoxValue}>{formatDate(dateRangeStart)}</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={18} color="#0A2A66" />
+                        <View style={[styles.dateBox, dateRangeEnd && styles.dateBoxActive]}>
+                          <Text style={styles.dateBoxLabel}>To</Text>
+                          <Text style={styles.dateBoxValue}>{formatDate(dateRangeEnd)}</Text>
+                        </View>
+                      </View>
+                      <CalendarPicker startDate={dateRangeStart} endDate={dateRangeEnd} onRangeChange={handleRangeChange} />
+                      {dateRangeStart && dateRangeEnd && (
+                        <TouchableOpacity style={styles.applyDateBtn} onPress={() => { setShowCalendar(false); setFilterModal(false); }}>
+                          <Text style={styles.applyDateText}>Apply: {formatDate(dateRangeStart)} → {formatDate(dateRangeEnd)}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity style={styles.clearDateBtn} onPress={() => { setDateRangeStart(null); setDateRangeEnd(null); }}>
+                        <Text style={styles.clearDateText}>Clear Dates</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const renderCategoryModal = () => {
+    if (Platform.OS === 'web') {
+      return (
+        <Modal transparent visible={categoryModal} animationType="fade" onRequestClose={() => setCategoryModal(false)}>
+          <TouchableWithoutFeedback onPress={() => setCategoryModal(false)}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+          <View style={[
+            styles.webDropdownMenu,
+            {
+              top: categoryBtnPos.y + categoryBtnPos.h + 6,
+              left: categoryBtnPos.x,
+              width: Math.max(categoryBtnPos.w, 240),
+            }
+          ]}>
+            <View style={styles.webDropdownHeader}>
+              <Text style={styles.webDropdownTitle}>Select Category</Text>
+              <TouchableOpacity onPress={() => setCategoryModal(false)}>
+                <Ionicons name="close" size={18} color="#0A2A66" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+              {categoryOptions.map(item => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.webOptionItem, selectedCategory === item && styles.webSelectedOption]}
+                  onPress={() => { setSelectedCategory(item); setCategoryModal(false); }}>
+                  <Text style={[styles.webOptionText, selectedCategory === item && { color: '#fff' }]}>{item}</Text>
+                  {selectedCategory === item && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      );
+    }
+
+    return (
+      <Modal transparent animationType="slide" visible={categoryModal} onRequestClose={() => setCategoryModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Category</Text>
+              <TouchableOpacity onPress={() => setCategoryModal(false)}>
+                <Ionicons name="close" size={24} color="#0A2A66" />
+              </TouchableOpacity>
+            </View>
+            <View>
+              {categoryOptions.map(item => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.optionItem, selectedCategory === item && styles.selectedOption]}
+                  onPress={() => { setSelectedCategory(item); setCategoryModal(false); }}>
+                  <Text style={[styles.optionText, selectedCategory === item && { color: '#fff' }]}>{item}</Text>
+                  {selectedCategory === item && <Ionicons name="checkmark-circle" size={22} color="#fff" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   const renderProduct = ({ item }: { item: TopProductRow }) => (
     <View style={styles.card}>
@@ -511,17 +699,17 @@ export default function TopSellingProducts() {
       {/* ── Sort/Filter/Category bar sits OUTSIDE FlatList — always sticky ── */}
       <View style={styles.stickyBar}>
         <View style={styles.filterRow}>
-          <TouchableOpacity style={styles.filterBox} onPress={() => setSortModal(true)}>
+          <TouchableOpacity ref={sortBtnRef} style={styles.filterBox} onPress={openSortDropdown}>
             <Feather name="sliders" size={18} color="#0A2A66" />
             <Text style={styles.filterText}>Sort</Text>
             <Ionicons name="chevron-down" size={18} color="#0A2A66" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.filterBox} onPress={() => setFilterModal(true)}>
+          <TouchableOpacity ref={filterBtnRef} style={styles.filterBox} onPress={openFilterDropdown}>
             <Feather name="filter" size={18} color="#0A2A66" />
             <Text style={styles.filterText}>Filter</Text>
             <Ionicons name="chevron-down" size={18} color="#0A2A66" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.filterBox} onPress={() => setCategoryModal(true)}>
+          <TouchableOpacity ref={categoryBtnRef} style={styles.filterBox} onPress={openCategoryDropdown}>
             <MaterialIcons name="category" size={18} color="#0A2A66" />
             <Text style={styles.filterText}>Category</Text>
             <Ionicons name="chevron-down" size={18} color="#0A2A66" />
@@ -550,28 +738,30 @@ export default function TopSellingProducts() {
       />
       )}
 
-      <View style={styles.bottomTab}>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="home-outline" size={24} color="#0A2A66" />
-          <Text style={styles.tabText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="grid-outline" size={24} color="#0A2A66" />
-          <Text style={styles.tabText}>Categories</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.activeTab}>
-          <Ionicons name="clipboard" size={24} color="#0A2A66" />
-          <Text style={styles.activeTabText}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="chatbubble-outline" size={24} color="#0A2A66" />
-          <Text style={styles.tabText}>Messages</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="person-outline" size={24} color="#0A2A66" />
-          <Text style={styles.tabText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      {Platform.OS !== 'web' && (
+        <View style={styles.bottomTab}>
+          <TouchableOpacity style={styles.tabItem}>
+            <Ionicons name="home-outline" size={24} color="#0A2A66" />
+            <Text style={styles.tabText}>Home</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem}>
+            <Ionicons name="grid-outline" size={24} color="#0A2A66" />
+            <Text style={styles.tabText}>Categories</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.activeTab}>
+            <Ionicons name="clipboard" size={24} color="#0A2A66" />
+            <Text style={styles.activeTabText}>Orders</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem}>
+            <Ionicons name="chatbubble-outline" size={24} color="#0A2A66" />
+            <Text style={styles.tabText}>Messages</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem}>
+            <Ionicons name="person-outline" size={24} color="#0A2A66" />
+            <Text style={styles.tabText}>Profile</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {renderSortModal()}
       {renderFilterModal()}
@@ -700,8 +890,45 @@ headerIcons: {
   tabText: { color: '#0A2A66', marginTop: 4, fontWeight: '600' },
   activeTab: { alignItems: 'center', backgroundColor: '#EAF1FF', paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20 },
   activeTabText: { color: '#0A2A66', marginTop: 4, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '55%' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    ...Platform.select({
+      web: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        // @ts-ignore
+        backdropFilter: 'blur(8px)',
+      },
+      default: {
+        justifyContent: 'flex-end',
+      }
+    })
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    ...Platform.select({
+      web: {
+        width: 380,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 10 },
+        maxHeight: '85%',
+      },
+      default: {
+        width: '100%',
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        maxHeight: '55%',
+      }
+    })
+  },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { color: '#0A2A66', fontSize: 20, fontWeight: '700' },
   optionItem: {
@@ -720,4 +947,45 @@ headerIcons: {
   applyDateText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   clearDateBtn: { borderWidth: 1, borderColor: '#0A2A66', borderRadius: 14, paddingVertical: 11, alignItems: 'center', marginTop: 8 },
   clearDateText: { color: '#0A2A66', fontWeight: '700', fontSize: 14 },
+  webDropdownMenu: {
+    position: 'absolute',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    zIndex: 1000,
+  },
+  webDropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  webDropdownTitle: {
+    color: '#0A2A66',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  webOptionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 4,
+    backgroundColor: '#F4F7FF',
+  },
+  webSelectedOption: {
+    backgroundColor: '#0A2A66',
+  },
+  webOptionText: {
+    color: '#0A2A66',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });

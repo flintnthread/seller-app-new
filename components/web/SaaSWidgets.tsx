@@ -120,7 +120,10 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       {/* ── LEFT: Greeting + Quick Actions ── */}
       <View style={welcomeStyles.leftCol}>
         <View style={welcomeStyles.heroText}>
-          <AppText style={welcomeStyles.title}>{greeting}, {name} 👋</AppText>
+          <AppText style={welcomeStyles.title}>
+            {greeting},{" "}
+            <AppText style={[welcomeStyles.title, { color: C.purple }]}>{name}</AppText> 👋
+          </AppText>
           <AppText style={welcomeStyles.subtitle}>
             You have <AppText style={welcomeStyles.highlight}>{totalOrders} orders</AppText> and{" "}
             <AppText style={welcomeStyles.highlight}>{salesFormatted}</AppText> in total sales.
@@ -404,10 +407,13 @@ const welcomeStyles = StyleSheet.create({
     justifyContent: "space-between",
     ...Platform.select({
       web: {
-        backgroundColor: "#FFF7ED",
-        borderRadius: 10,
-        padding: 10,
-        marginLeft: 0,
+        backgroundColor: "#FFF8F2",
+        borderRadius: 12,
+        padding: 18,
+        marginLeft: 16,
+        borderWidth: 1.5,
+        borderColor: "#F97316",
+        boxShadow: "0 8px 24px rgba(249, 115, 22, 0.12)",
       },
     }),
   },
@@ -490,12 +496,18 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.white,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#F59E0B",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
+      },
+      default: {},
+    }),
   },
   refCodeLabel: {
     fontSize: 8,

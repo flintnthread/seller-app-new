@@ -317,19 +317,29 @@ function mapCategoryToHelpTopic(cat: FaqCategoryResponse, index: number): HelpTo
   };
 }
 
-/** Opens the device default mail app (Gmail, Outlook, Apple Mail, etc.) */
+/** Opens Gmail compose on web, or the default mail app on mobile */
 async function openSupportEmail(address: string) {
   const email = address.trim();
   const subject = encodeURIComponent("Seller Support Request");
   const body = encodeURIComponent(
     `Hi Flint & Thread Support,\n\nSeller ID: ${getSellerId()}\n\n`
   );
-  const url = `mailto:${email}?subject=${subject}&body=${body}`;
+
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
+  const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
 
   try {
-    await Linking.openURL(url);
+    if (Platform.OS === "web") {
+      await Linking.openURL(gmailUrl);
+    } else {
+      await Linking.openURL(mailtoUrl);
+    }
   } catch {
-    Alert.alert("Email Support", `Could not open your mail app. Please email us at ${email}`);
+    try {
+      await Linking.openURL(mailtoUrl);
+    } catch {
+      Alert.alert("Email Support", `Could not open your mail app. Please email us at ${email}`);
+    }
   }
 }
 
@@ -996,6 +1006,7 @@ const LiveChatModal: React.FC<{
   contactConfig: SupportContactConfig | null;
 }> = ({ visible, onClose, contactConfig }) => {
   const sellerId = getSellerId();
+  const { isDesktop } = useResponsive();
   const WELCOME: ChatMessage = {
     id: "welcome",
     text: "Hi 👋 Welcome to Flint & Thread support!\nHow can I help you today?",
@@ -1091,13 +1102,13 @@ const LiveChatModal: React.FC<{
       { key: "products", label: "🛍️ Products" },
       { key: "account", label: "👤 Account" },
       { key: "delivery", label: "🚚 Delivery" },
-      { key: "human", label: "🙋 Talk to Human" },
+      { key: "human", label: "🙋 Talk to Executive" },
     ];
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={cs.overlay}>
-        <Animated.View style={[cs.sheet, { transform: [{ translateY: slideAnim }] }]}>
+      <View style={[cs.overlay, isDesktop && cs.overlayDesktop]}>
+        <Animated.View style={[cs.sheet, isDesktop && cs.sheetDesktop, { transform: [{ translateY: slideAnim }] }]}>
 
           {/* Header */}
           <View style={cs.header}>
@@ -1162,7 +1173,7 @@ const LiveChatModal: React.FC<{
                 <Ionicons name="logo-whatsapp" size={14} color="#25D366" />
                 <Text style={[cs.escalateBtnTxt, { fontFamily: F.semiBold }]}>WhatsApp</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={cs.escalateBtn} onPress={() => Linking.openURL(`mailto:${supportEmail}`)} activeOpacity={0.8}>
+              <TouchableOpacity style={cs.escalateBtn} onPress={() => openSupportEmail(supportEmail)} activeOpacity={0.8}>
                 <Ionicons name="mail-outline" size={14} color={C.navyLight} />
                 <Text style={[cs.escalateBtnTxt, { fontFamily: F.semiBold }]}>Email Us</Text>
               </TouchableOpacity>
@@ -2534,7 +2545,28 @@ const sm = StyleSheet.create({
 
 const cs = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.52)", justifyContent: "flex-end" },
+  overlayDesktop: {
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+    paddingRight: 24,
+    paddingBottom: 24,
+  },
   sheet: { backgroundColor: "#F7F8FB", borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", minHeight: "60%", overflow: "hidden" },
+  sheetDesktop: {
+    width: 420,
+    height: 650,
+    maxHeight: "85%",
+    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
 
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.navyDeep, paddingHorizontal: 16, paddingVertical: 14, paddingTop: Platform.OS === "ios" ? 52 : 16 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },

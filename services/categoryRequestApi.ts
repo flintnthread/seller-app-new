@@ -51,3 +51,24 @@ export async function createCategoryRequest(
     });
     return toRecord(row);
 }
+
+export async function updateCategoryRequest(
+    id: string,
+    payload: CategoryRequestPayload
+): Promise<CategoryRequestRecord> {
+    const row = await apiRequest<ApiCategoryRequest>(`/api/category-requests/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+            categoryName: payload.categoryName,
+            description: payload.description,
+            reason: payload.reason,
+        }),
+    });
+    return toRecord(row);
+}
+
+export async function deleteCategoryRequest(id: string): Promise<void> {
+    await apiRequest<void>(`/api/category-requests/${id}`, {
+        method: "DELETE",
+    });
+}

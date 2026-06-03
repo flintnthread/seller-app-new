@@ -1326,7 +1326,7 @@ export default function OrdersScreen() {
               <MaterialCommunityIcons name="clipboard-list-outline" size={18} color={C.navy} />
             </View>
             <View>
-              <Text style={deskStyles.inlineStatLabel}>Order Products</Text>
+              <Text style={deskStyles.inlineStatLabel}>Total Orders</Text>
               <Text style={deskStyles.inlineStatValue}>{orderStats.totalLineItems}</Text>
             </View>
           </View>

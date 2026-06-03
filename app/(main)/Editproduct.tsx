@@ -3,6 +3,7 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, Platform, StatusBar, SafeAreaView, Switch,
     Dimensions, Modal, Animated, Image, Alert, ActivityIndicator,
+    LayoutChangeEvent,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
@@ -70,17 +71,80 @@ const C = {
 };
 
 // ─── Data ────────────────────────────────────────────────────
-const CATEGORIES = ["Clothing", "Electronics", "Footwear", "Bags", "Accessories", "Sports", "Home & Living", "Books"];
 const SUBCATEGORIES: Record<string, string[]> = {
-    "Clothing": ["T-Shirts", "Shirts", "Jeans", "Dresses", "Jackets"],
-    "Electronics": ["Mobiles", "Laptops", "Headphones", "Cameras", "Tablets"],
-    "Footwear": ["Sneakers", "Sandals", "Formal", "Sports", "Boots"],
-    "Bags": ["Backpacks", "Handbags", "Wallets", "Travel Bags"],
-    "Accessories": ["Watches", "Sunglasses", "Jewelry", "Belts"],
+    "Clothing": [
+        "T-Shirts", "Shirts", "Jeans", "Dresses", "Jackets", "Shorts", "Innerwear", 
+        "Capris", "Clothing Set", "Dungarees & Jumpsuits", "Ethnic Wear", "Kurta Set", 
+        "Leggings", "Lehenga-Cholis", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants",
+        "Saree Fall", "Poplin"
+    ],
+    "Electronics": ["Mobiles", "Laptops", "Headphones", "Cameras", "Tablets", "Audio", "Wearables"],
+    "Footwear": [
+        "Sneakers", "Sandals", "Formal", "Sports", "Boots", 
+        "Ballet Flats", "Casual Shoes", "Flats", "Heels", "Wedges",
+        "Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes",
+        "Flip Flops", "Formal Shoes", "Loafers", "Booties", "Flats Shoes", "School Shoes", "Socks"
+    ],
+    "Bags": ["Backpacks", "Handbags", "Wallets", "Travel Bags", "Laptop Bags", "Lunch Carry Bags", "Sling Bags", "Wallets & Clutches"],
+    "Accessories": [
+        "Watches", "Sunglasses", "Jewelry", "Belts", 
+        "Wallets", "Eyewear", "Headwear", "Caps", "Fitness Gloves", "Gym Bags", "Sweatbands", "Water Bottles",
+        "Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"
+    ],
     "Sports": ["Cricket", "Football", "Tennis", "Yoga", "Gym"],
-    "Home & Living": ["Furniture", "Decor", "Kitchen", "Bedding"],
+    "Home & Living": [
+        "Furniture", "Decor", "Kitchen", "Bedding",
+        "Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle",
+        "Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"
+    ],
     "Books": ["Fiction", "Non-Fiction", "Academic", "Comics"],
+    "Jewellery": [
+        "Anklets", "Anti Tarnish Chains", "Bangles", "Bracelet", "Bridal Necklace", 
+        "Chains", "Couple Bracelets", "Customized Name Pendants", "Earrings", "Jewellery Set", 
+        "Key-lock Couple Sets", "Necklaces", "Nose Pins", "Pearl Necklace Set", "Pendants", "Rings", "Vaddanam"
+    ],
+    "Innerwear & Nightwear": ["Briefs & Boxers", "Loungewear", "Sleepwear", "Thermals", "Trunks", "Vests"],
+    "Gadgets Accessories": ["Clothing Accessories"],
+    "Other Accessories": ["Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"],
+    "Belts & Caps": ["Belts", "Caps", "Gloves", "Goggles", "Hats", "Sunglasses"],
+    "Women s Footwear": ["Ballet Flats", "Boots", "Casual Shoes", "Flats", "Heels", "Wedges"],
+    "Milk Sweets": ["Gulab Jamun", "Kalakand"],
+    "Preschool Furniture": ["Chairs", "Dustbins"],
+    "Women s Sportswear": ["Gym Wear", "Leggings", "Shorts", "Sports Bras", "Sports Tops", "Tracksuits", "Yoga Pants"],
+    "Everyday Utility ": ["Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle"],
+    "Wearable & Personal Gifts": ["Caps", "Customized T-Shirts", "Hoodies", "Mask", "Personalized Towels & Handkerchiefs"],
+    "Skincare Tools & Devices": ["Facial Devices"],
+    "Art & Creative Gifts": ["Canvas Painting Prints", "Minimalist Line Art", "Pencil Sketches"],
+    "Kids & Baby Gifts": ["Baby Name Frames", "Cartoon-Theme Photo Frames", "Growth Charts", "Soft Toys with Name"],
+    "Home Decor Gifits": ["Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"],
+    "Formal Wear": ["Formal Shirts", "Suits & Blazers", "Ties"],
+    "Sports Footwear": ["Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes"],
+    "Watches": ["Fitness Bands", "Men s Watches", "Women s Watches"],
+    " Girls Clothing": [
+        "Capris", "Clothing Set", "Dresses", "Dungarees & Jumpsuits", "Ethnic Wear", "Jackets", 
+        "Kurta Set", "Leggings", "Lehenga-Cholis", "Shorts", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants"
+    ],
+    "Bottom Wear": ["Cargo Pants", "Casual Trousers", "Jeans", "Joggers", "Shorts / Bermudas", "Track Pants / Lower Wear", "Trousers (Formal / Regular)"],
+    "Lingerie & Sleepwear": ["Bottom Wear Inners", "Bras", "Camisoles", "Nightwear", "Panties", "Shapewear", "Swimwear", "Top Wear Inners"],
+    "Boys  Clothing": ["Clothing Set", "Ethnic Wear", "Jackets", "Jeans", "Nightwear", "Pyjamas", "Shorts", "Sweaters", "Sweatshirts", "T-Shirts", "Trousers"],
+    "Western Wear": ["Dresses", "Jeans", "Jeggings", "Jumpsuits", "Skirts & Shorts", "T-Shirts", "Tops", "Trousers"],
+    "Spiritual & Festival Gifts": ["Customized Temple Frames", "Festival Hampers", "God Photo Frames"],
+    "Dry Sweets": ["Boondhi Laddu", "Dryfruit Laddu", "Sununda"],
+    "Pre Indoor Play Items": ["Rocking Toys", "Slides"],
+    "Men s Sportswear": ["Compression Wear", "Jerseys", "Shorts", "T-Shirts", "Track Pants"],
+    "School Essentials": ["Bags", "Lunch Boxes", "School Uniforms", "Water Bottles"],
+    "Corporate & Promotional Gifts": ["Company Logo Frames", "Diaries", "Medal", "Pens", "Trophies", "Welcome Combo Kits"],
+    "Winter Wear": ["Cardigans", "Coats", "Jackets", "Shawls", "Sweaters"],
+    "Women s Clothing": ["Leggings", "Poplin", "Saree Fall"],
+    "Top Wear": ["Casual Shirts", "Coats", "Couple Wear", "Hoodies & Sweatshirts", "Jackets", "Polo Shirts", "Rain Jackets", "Shirts", "Sweaters", "T-Shirts"],
+    "Gifts for Couples": ["Explosion Gift Boxes", "Gift Items Novelties", "Love Scrapbooks"],
+    "Ethnic Wear": ["Dress Material", "Embroidery Work Blouse", "JUMPSUITS", "Kurtas & Kurtis", "Kurtha Set With Duppatta", "Lehenga Cholis", "Long Frock", "Salwar Suits", "Sarees", "Slik-Dupattas"],
+    "Educational Materials": ["Building Blocks/Block Construction Set", "Lacing & Threading Toys", "Linking Toys", "Shape Sorter & Stacking Toys"],
+    "Men s Footwear": ["Casual Shoes", "Flip Flops", "Formal Shoes", "Loafers", "Sandals", "Sneakers"],
+    "Kids  Footwear": ["Booties", "Casual Shoes", "Flats Shoes", "Flip Flops", "Heels", "Sandals", "School Shoes", "Socks"],
+    "Event-Based Gifts": ["Birthday Combo Hampers", "Gifits Hampers"]
 };
+const CATEGORIES = Object.keys(SUBCATEGORIES);
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
 const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
@@ -800,10 +864,85 @@ const ipg = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
+
+    const scrollRef = useRef<ScrollView>(null);
+    const cardLayouts = useRef<Record<string, number>>({});
+    const fieldLayouts = useRef<Record<string, number>>({});
+    const fieldRefs = useRef<Record<string, any>>({});
+
+    useEffect(() => {
+        if (errors && errors.length > 0) {
+            const getFieldKeyFromError = (error: string): string | null => {
+                const err = error.toLowerCase();
+                if (err.includes("product name") || err.includes("name is required")) return "name";
+                if (err.includes("subcategory")) return "subcategory";
+                if (err.includes("category")) return "category";
+                if (err.includes("material")) return "materialType";
+                if (err.includes("hsn")) return "hsnCode";
+                if (err.includes("short description")) return "shortDesc";
+                if (err.includes("full description")) return "fullDesc";
+                if (err.includes("length")) return "length";
+                if (err.includes("width")) return "width";
+                if (err.includes("height")) return "height";
+                if (err.includes("weight")) return "weight";
+                if (err.includes("customization title")) return "custTitle";
+                if (err.includes("customization instructions")) return "custInstructions";
+                if (err.includes("image upload label")) return "custImageLabel";
+                if (err.includes("text field label") || err.includes("custom text")) return "custTextLabel";
+                return null;
+            };
+
+            const firstErr = errors[0];
+            const fieldKey = getFieldKeyFromError(firstErr);
+            if (fieldKey) {
+                const targetRef = fieldRefs.current[fieldKey];
+                const containerRef = scrollRef.current;
+
+                const fallbackScroll = () => {
+                    let cardKey = '';
+                    if (['name', 'category', 'subcategory', 'materialType', 'hsnCode'].includes(fieldKey)) {
+                        cardKey = 'identity';
+                    } else if (['shortDesc', 'fullDesc'].includes(fieldKey)) {
+                        cardKey = 'desc';
+                    } else if (['length', 'width', 'height'].includes(fieldKey)) {
+                        cardKey = 'dimensions';
+                    } else if (['weight'].includes(fieldKey)) {
+                        cardKey = 'weight';
+                    } else if (['custTitle', 'custInstructions', 'custImageLabel', 'custTextLabel'].includes(fieldKey)) {
+                        cardKey = 'custom';
+                    }
+
+                    const cardY = cardLayouts.current[cardKey] || 0;
+                    const fieldY = fieldLayouts.current[fieldKey] || 0;
+                    const targetY = Math.max(0, cardY + fieldY - 15);
+                    containerRef?.scrollTo({ y: targetY, animated: true });
+                };
+
+                if (targetRef && containerRef) {
+                    try {
+                        targetRef.measureLayout(
+                            containerRef,
+                            (x: number, y: number) => {
+                                const targetY = Math.max(0, y - 15);
+                                containerRef.scrollTo({ y: targetY, animated: true });
+                            },
+                            () => {
+                                fallbackScroll();
+                            }
+                        );
+                    } catch (e) {
+                        fallbackScroll();
+                    }
+                } else {
+                    fallbackScroll();
+                }
+            }
+        }
+    }, [errors, validationTrigger]);
 
     const categoryOptions = uniquePickerOptions(
         catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
@@ -819,6 +958,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
@@ -829,28 +969,38 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 <View style={eb.idStatus}><Text style={eb.idStatusTxt}>● Active</Text></View>
             </View>
 
-            <Card>
+            <Card onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['identity'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
                 <Divider />
-                <Lbl text="Product Name" required />
-                <Field placeholder="Enter product name" value={data.name} onChangeText={(v: string) => onChange("name", v)} hasError={hasErr("product name")} />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View ref={el => { fieldRefs.current['name'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['name'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Product Name" required />
+                    <Field placeholder="Enter product name" value={data.name} onChangeText={(v: string) => onChange("name", v)} hasError={hasErr("product name")} />
+                </View>
+                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['category'] = y;
+                    fieldLayouts.current['subcategory'] = y;
+                }}>
+                    <View ref={el => { fieldRefs.current['category'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Category" required />
                         <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Subcategory" required />
                         <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} />
                     </View>
                 </View>
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['materialType'] = y;
+                    fieldLayouts.current['hsnCode'] = y;
+                }}>
+                    <View ref={el => { fieldRefs.current['materialType'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Material Type" required />
                         <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} />
                         <Hint text="Primary material of the product" />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View ref={el => { fieldRefs.current['hsnCode'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="HSN Code" required />
                         <View style={[at.hsnWrap, hasErr("hsn") && at.fieldError]}>
                             <MaterialCommunityIcons name="barcode-scan" size={15} color={C.navyLight} style={{ marginRight: 6 }} />
@@ -869,23 +1019,32 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['desc'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="text-box-edit-outline" title="Descriptions" accent={C.accent2} />
                 <Divider />
-                <Lbl text="Short Description" required />
-                <RichEditor placeholder="Short, punchy summary…" value={data.shortDesc} onChangeText={(v: string) => onChange("shortDesc", v)} maxLength={250} hasError={hasErr("short description")} />
+                <View ref={el => { fieldRefs.current['shortDesc'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['shortDesc'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Short Description" required />
+                    <RichEditor placeholder="Short, punchy summary…" value={data.shortDesc} onChangeText={(v: string) => onChange("shortDesc", v)} maxLength={250} hasError={hasErr("short description")} />
+                </View>
                 <View style={{ height: 14 }} />
-                <Lbl text="Full Description" required />
-                <RichEditor placeholder="Full product description…" value={data.fullDesc} onChangeText={(v: string) => onChange("fullDesc", v)} maxLength={2000} hasError={hasErr("full description")} />
+                <View ref={el => { fieldRefs.current['fullDesc'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['fullDesc'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Full Description" required />
+                    <RichEditor placeholder="Full product description…" value={data.fullDesc} onChangeText={(v: string) => onChange("fullDesc", v)} maxLength={2000} hasError={hasErr("full description")} />
+                </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['dimensions'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="cube-scan" title="Product Dimensions" accent={C.accent3} />
                 <Divider />
                 <Text style={at.cardHint}>Enter gross dimensions (including packaging)</Text>
-                <View style={at.row3}>
+                <View style={at.row3} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['length'] = y;
+                    fieldLayouts.current['width'] = y;
+                    fieldLayouts.current['height'] = y;
+                }}>
                     {([["Length cm", "length", "30"], ["Width cm", "width", "20"], ["Height cm", "height", "10"]] as [string, string, string][]).map(([lbl, key, ph]) => (
-                        <View key={key} style={{ flex: 1 }}>
+                        <View key={key} ref={el => { fieldRefs.current[key] = el; }} style={{ flex: 1 }}>
                             <Lbl text={lbl} required />
                             <Field placeholder={ph} value={data[key]} onChangeText={(v: string) => onChange(key, v)} keyboardType="numeric" hasError={hasErr(key)} />
                         </View>
@@ -893,12 +1052,14 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['weight'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="weight-kilogram" title="Weight & Delivery" accent={C.accent4} />
                 <Divider />
                 <Text style={at.cardHint}>Enter gross weight (including packaging)</Text>
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                    fieldLayouts.current['weight'] = e.nativeEvent.layout.y;
+                }}>
+                    <View ref={el => { fieldRefs.current['weight'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Weight (kg)" required />
                         <Field placeholder="e.g. 0.5" value={data.weight} onChangeText={(v: string) => onChange("weight", v)} keyboardType="decimal-pad" hasError={hasErr("weight")} />
                         <Hint text="Auto-calculates delivery charges" />
@@ -922,7 +1083,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 <Hint text="Mark if special protective packaging is required" />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="palette-outline" title="Customization" accent={C.accent5} />
                 <Divider />
                 <TouchableOpacity style={at.customRow} onPress={() => onChange("customized", !data.customized)} activeOpacity={0.7}>
@@ -938,10 +1099,14 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 {data.customized && (
                     <View style={at.custExpandWrap}>
                         <Divider />
-                        <Lbl text="Customization Title" required />
-                        <Field placeholder="e.g. Personalised Name Engraving" value={data.custTitle} onChangeText={(v: string) => onChange("custTitle", v)} maxLength={100} hasError={hasErr("customization title")} />
-                        <Lbl text="Instructions for Buyer" required />
-                        <Field placeholder="Instructions for the buyer…" value={data.custInstructions} onChangeText={(v: string) => onChange("custInstructions", v)} multiline lines={3} maxLength={500} hasError={hasErr("customization instructions")} />
+                        <View ref={el => { fieldRefs.current['custTitle'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTitle'] = e.nativeEvent.layout.y; }}>
+                            <Lbl text="Customization Title" required />
+                            <Field placeholder="e.g. Personalised Name Engraving" value={data.custTitle} onChangeText={(v: string) => onChange("custTitle", v)} maxLength={100} hasError={hasErr("customization title")} />
+                        </View>
+                        <View ref={el => { fieldRefs.current['custInstructions'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custInstructions'] = e.nativeEvent.layout.y; }}>
+                            <Lbl text="Instructions for Buyer" required />
+                            <Field placeholder="Instructions for the buyer…" value={data.custInstructions} onChangeText={(v: string) => onChange("custInstructions", v)} multiline lines={3} maxLength={500} hasError={hasErr("customization instructions")} />
+                        </View>
                         <CC cur={(data.custInstructions || "").length} max={500} />
 
                         <Lbl text="Allow Reference Image Upload" />
@@ -953,7 +1118,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                             </View>
                         </View>
                         {data.custAllowPhoto && (
-                            <View style={at.custSubField}>
+                            <View ref={el => { fieldRefs.current['custImageLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custImageLabel'] = e.nativeEvent.layout.y; }}>
                                 <View style={at.custSubFieldBar} />
                                 <View style={{ flex: 1 }}>
                                     <Lbl text="Image Upload Label" required />
@@ -975,7 +1140,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                             </View>
                         </View>
                         {data.custAllowText && (
-                            <View style={at.custSubField}>
+                            <View ref={el => { fieldRefs.current['custTextLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTextLabel'] = e.nativeEvent.layout.y; }}>
                                 <View style={at.custSubFieldBar} />
                                 <View style={{ flex: 1 }}>
                                     <Lbl text="Text Field Label" required />
@@ -1138,13 +1303,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                         </View>
                         <Field placeholder="0" value={v.discount} onChangeText={(val: string) => upVariant(v.id, "discount", val)} keyboardType="numeric" />
                     </View>
-                    <Divider />
-                    <Lbl text="Variant Video (optional)" />
-                    <TouchableOpacity style={vt.fileRow}>
-                        <MaterialCommunityIcons name="file-video-outline" size={18} color={C.navyLight} />
-                        <Text style={vt.fileTxt}>No file chosen</Text>
-                        <View style={vt.browseBtn}><Text style={vt.browseTxt}>Browse</Text></View>
-                    </TouchableOpacity>
+
                 </Card>
             ))}
 
@@ -1183,6 +1342,7 @@ const StepImages = ({
     const [newImages, setNewImages] = useState<string[]>([]);
     const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
     const [srcModal, setSrcModal] = useState(false);
+    const [srcModalVideo, setSrcModalVideo] = useState(false);
     const [manageImagesOpen, setManageImagesOpen] = useState(false);
     const loadedImagesKey = useRef("");
     const userEditedRef = useRef(false);
@@ -1197,12 +1357,37 @@ const StepImages = ({
         const primaryImage = all[primaryIndex] ?? null;
         const additionalImages = all.filter((_, i) => i !== primaryIndex);
         if (onImagesChange) {
-            onImagesChange({ primaryImage, additionalImages });
+            onImagesChange({ primaryImage, additionalImages, video: data.video });
         } else {
             onChange("primaryImage", primaryImage);
             onChange("additionalImages", additionalImages);
         }
-    }, [existingImages, newImages, primaryIndex, onChange, onImagesChange]);
+    }, [existingImages, newImages, primaryIndex, onChange, onImagesChange, data.video]);
+
+    const pickVideo = async (source: "camera" | "gallery") => {
+        setSrcModalVideo(false);
+        if (source === "camera") {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed to record a video."); return; }
+            const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 0.85 });
+            const assets = result.assets ?? [];
+            const uri = assets[0]?.uri;
+            if (!result.canceled && uri) {
+                userEditedRef.current = true;
+                onChange("video", uri);
+            }
+        } else {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed."); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 0.85 });
+            const assets = result.assets ?? [];
+            const uri = assets[0]?.uri;
+            if (!result.canceled && uri) {
+                userEditedRef.current = true;
+                onChange("video", uri);
+            }
+        }
+    };
 
     useEffect(() => {
         const urls = imagesFromData(data);
@@ -1390,6 +1575,71 @@ const StepImages = ({
                     </TouchableOpacity>
                 )}
                 <Text style={[si.sectionCount, { marginTop: 10, textAlign: "right" }]}>{totalCount}/{MAX_TOTAL} images</Text>
+                <View style={{ height: 20 }} />
+                <Lbl text="Product Video (Optional)" />
+                <Hint text="Upload a video to show your product in action. Max 20 MB." />
+                {data.video ? (
+                    <View style={si.videoPreviewWrap}>
+                        <View style={si.videoIconWrap}>
+                            <MaterialCommunityIcons name="video" size={26} color={C.navy} />
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={si.videoTitle} numberOfLines={1}>
+                                {data.video.split("/").pop() || "product_video.mp4"}
+                            </Text>
+                            <Text style={si.videoSub}>Video ready for upload</Text>
+                        </View>
+                        <TouchableOpacity style={si.videoChangeBtn} onPress={() => setSrcModalVideo(true)}>
+                            <MaterialCommunityIcons name="pencil" size={15} color={C.navy} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={si.videoRemoveBtn} onPress={() => { onChange("video", null); userEditedRef.current = true; }}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={15} color={C.red} />
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={si.videoBox}
+                        onPress={() => setSrcModalVideo(true)}
+                        activeOpacity={0.75}
+                    >
+                        <View style={si.videoIconWrapLarge}>
+                            <MaterialCommunityIcons name="video-plus-outline" size={28} color={C.navyLight} />
+                        </View>
+                        <Text style={si.videoBoxTitle}>Tap to upload product video</Text>
+                        <Text style={si.videoBoxSub}>MP4 · MOV · WebM · Max 20 MB</Text>
+                    </TouchableOpacity>
+                )}
+                <Modal visible={srcModalVideo} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={() => setSrcModalVideo(false)}>
+                    <View style={[cp.modalOverlay, isDesktop && cp.modalOverlayCenter]}>
+                        <TouchableOpacity style={cp.modalBackdrop} activeOpacity={1} onPress={() => setSrcModalVideo(false)} />
+                        <View style={[cp.modalSheet, isDesktop && cp.modalPopup]}>
+                            {!isDesktop && <View style={cp.modalDrag} />}
+                            {isDesktop ? (
+                                <View style={cp.modalHeaderRow}>
+                                    <Text style={[cp.modalTitle, cp.modalTitleDesktop]}>Add Video</Text>
+                                    <TouchableOpacity style={cp.modalCloseBtn} onPress={() => setSrcModalVideo(false)}>
+                                        <Ionicons name="close" size={20} color={C.textMid} />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <Text style={cp.modalTitle}>Add Video</Text>
+                            )}
+                            <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickVideo("camera")}>
+                                <View style={[cp.modalIconWrap, { backgroundColor: "#EEF1FA" }]}><MaterialCommunityIcons name="camera-outline" size={22} color={C.navy} /></View>
+                                <View style={{ flex: 1 }}><Text style={cp.modalOptTitle}>Take a Video</Text><Text style={cp.modalOptSub}>Record using camera</Text></View>
+                                <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[cp.modalOption, isDesktop && cp.modalOptionDesktop]} onPress={() => pickVideo("gallery")}>
+                                <View style={[cp.modalIconWrap, { backgroundColor: "#EDFAF4" }]}><MaterialCommunityIcons name="image-multiple-outline" size={22} color={C.accent5} /></View>
+                                <View style={{ flex: 1 }}><Text style={cp.modalOptTitle}>Choose from Gallery</Text><Text style={cp.modalOptSub}>Pick a video from your library</Text></View>
+                                <Ionicons name="chevron-forward" size={16} color={C.textLight} />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[cp.modalCancel, isDesktop && cp.modalCancelDesktop]} onPress={() => setSrcModalVideo(false)}>
+                                <Text style={cp.modalCancelTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
             </Card>
 
             <FormPopupModal visible={manageImagesOpen} onClose={() => setManageImagesOpen(false)} title="Manage Product Images" wide accentHeader headerIcon="image-multiple-outline">
@@ -1550,6 +1800,16 @@ const si = StyleSheet.create({
     deleteConfirmTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.white },
     deleteCancelBtn: { width: "100%", backgroundColor: C.navyGhost, borderRadius: 13, paddingVertical: 13, alignItems: "center" },
     deleteCancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
+    videoBox: { marginTop: 12, borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 24, gap: 6, backgroundColor: C.inputBg },
+    videoIconWrapLarge: { width: 56, height: 56, borderRadius: 14, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    videoBoxTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid, textAlign: "center" },
+    videoBoxSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, textAlign: "center" },
+    videoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, backgroundColor: C.navyGhost, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.navyBorder },
+    videoIconWrap: { width: 44, height: 44, borderRadius: 10, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    videoTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark },
+    videoSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginTop: 2 },
+    videoChangeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    videoRemoveBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.redPale, alignItems: "center", justifyContent: "center" },
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -1669,7 +1929,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
             <Card style={{ marginTop: 12 }}>
                 <SecHead icon="truck-fast-outline" title="Delivery" accent={C.accent4} />
                 <Divider />
-                <View style={[at.row2, { alignItems: "flex-end" }]}>
+                <View style={[at.row2, { alignItems: "flex-end", marginBottom: 12 }]}>
                     <View style={{ flex: 2 }}>
                         <Lbl text="Delivery Option" required />
                         <Drop placeholder="Select option" value={data.deliveryOption} onPress={() => setDelPick(true)} hasError={hasErr("delivery option")} />
@@ -1708,7 +1968,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <Divider />
                 <Lbl text="Product Features" />
                 {features.map((f, i) => (
-                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
                         <View style={{ flex: 1 }}>
                             <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; setFeatures(arr); }} />
                         </View>
@@ -2249,12 +2509,14 @@ const EditProduct: React.FC = () => {
     const [successPopup, setSuccessPopup] = useState(false);
     const [loadingProduct, setLoadingProduct] = useState(!!productId);
     const [saving, setSaving] = useState(false);
+    const [validationTrigger, setValidationTrigger] = useState(0);
 
     const [basicData, setBasicData] = useState({ ...EMPTY_BASIC });
     const [variants, setVariants] = useState<Variant[]>([]);
-    const [imagesData, setImagesData] = useState<{ primaryImage: string | null; additionalImages?: string[] }>({
+    const [imagesData, setImagesData] = useState<{ primaryImage: string | null; additionalImages?: string[]; video?: string | null }>({
         primaryImage: null,
         additionalImages: [],
+        video: null,
     });
     const [detailsData, setDetailsData] = useState({ ...EMPTY_DETAILS });
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
@@ -2322,13 +2584,17 @@ const EditProduct: React.FC = () => {
     const markDirty = () => { if (!isDirty) setIsDirty(true); };
 
     const upBasic = (k: string, v: any) => {
-        setBasicData(p => ({ ...p, [k]: v }));
+        let cleanVal = v;
+        if (["weight", "length", "width", "height"].includes(k)) {
+            cleanVal = v.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+        }
+        setBasicData(p => ({ ...p, [k]: cleanVal }));
         setBasicErrors(prev => prev.filter(e => !e.toLowerCase().includes(k.toLowerCase())));
         markDirty();
     };
     const upDetails = (k: string, v: any) => { setDetailsData(p => ({ ...p, [k]: v })); markDirty(); };
-    const upImages = (next: { primaryImage: string | null; additionalImages: string[] }) => {
-        setImagesData(next);
+    const upImages = (next: { primaryImage: string | null; additionalImages: string[]; video?: string | null }) => {
+        setImagesData(prev => ({ ...prev, ...next }));
         markDirty();
     };
     const rmVariant = (id: string) => { setVariants(p => p.filter(v => v.id !== id)); markDirty(); };
@@ -2343,6 +2609,7 @@ const EditProduct: React.FC = () => {
         if (step === 0) {
             const errors = validateBasicInfo(basicData);
             setBasicErrors(errors);
+            setValidationTrigger(prev => prev + 1);
             if (errors.length > 0) { showErrors(errors); return; }
             setBasicErrors([]);
         }
@@ -2445,7 +2712,16 @@ const EditProduct: React.FC = () => {
 
     const stepContent = (
         <>
-            {step === 0 && <StepBasicInfo data={basicData} onChange={upBasic} errors={basicErrors} catalog={catalog} isDesktop={isDesktop} />}
+            {step === 0 && (
+                <StepBasicInfo
+                    data={basicData}
+                    onChange={upBasic}
+                    errors={basicErrors}
+                    validationTrigger={validationTrigger}
+                    catalog={catalog}
+                    isDesktop={isDesktop}
+                />
+            )}
             {step === 1 && (
                 <StepVariants
                     variants={variants}

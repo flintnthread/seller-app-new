@@ -3,25 +3,18 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { Sidebar } from './Sidebar';
 import { DesktopHeader } from './DesktopHeader';
 import { ActiveHeaderProvider } from './HeaderContext';
-import { SellerTopNav } from '@/components/common/SellerTopNav';
-import { usePathname } from 'expo-router';
-import { shouldShowSellerTopNav } from '@/lib/navigation/sellerNavConfig';
 
 function WebMainContent({ children, isSidebarOpen, onToggleSidebar }: {
   children: React.ReactNode;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
 }) {
-  const pathname = usePathname();
-  const showNav = shouldShowSellerTopNav(pathname);
-
   return (
     <View style={styles.mainArea}>
       <DesktopHeader
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={onToggleSidebar}
       />
-      {showNav ? <SellerTopNav compact /> : null}
       <ScrollView 
             style={styles.contentScroll} 
             contentContainerStyle={styles.contentContainer}

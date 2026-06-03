@@ -43,6 +43,7 @@ type VariantRow = {
 type ImagesData = {
     primaryImage: string | null;
     additionalImages?: string[];
+    video?: string | null;
 };
 
 type DetailsData = {
@@ -141,7 +142,7 @@ export async function buildCreateProductPayload(input: {
         if (variant.sizeId != null) row.sizeId = variant.sizeId;
         const sku = variant.sku?.trim();
         if (sku) row.sku = sku;
-        const videoUrl = variant.videoUrl?.trim();
+        const videoUrl = images.video?.trim() || variant.videoUrl?.trim();
         if (videoUrl) row.videoUrl = videoUrl;
         variantPayloads.push(row);
     }

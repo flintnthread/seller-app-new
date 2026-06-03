@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     StatusBar,
     Platform,
     ActivityIndicator,
+    Pressable,
 } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useSweetAlert } from "@/components/common/SweetAlert";
@@ -26,6 +27,8 @@ import { ORANGE_BRAND } from "./catalogConfig";
 import {
     createCategoryRequest,
     fetchCategoryRequests,
+    updateCategoryRequest,
+    deleteCategoryRequest,
 } from "@/services/categoryRequestApi";
 
 export type CategoryRequestStatus = "Pending" | "Approved" | "Rejected";
@@ -64,6 +67,15 @@ export function CategoryRequestScreen() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+
+    // Ref for focusing the Category Name input
+    const categoryNameRef = useRef<TextInput>(null);
+
+    // Toolbar states for desktop filtering & sorting
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"All" | CategoryRequestStatus>("All");
+    const [sortBy, setSortBy] = useState<"latest" | "oldest">("latest");
 
     const [fontsLoaded] = useFonts({
         Outfit_400Regular,
@@ -113,6 +125,36 @@ export function CategoryRequestScreen() {
         if (confirmed) resetForm();
     };
 
+    const handleEditClick = (row: CategoryRequestRecord) => {
+        setEditingId(row.id);
+        setCategoryName(row.categoryName);
+        setDescription(row.description);
+        setReason(row.reason);
+        setNameError("");
+        categoryNameRef.current?.focus();
+    };
+
+    const handleDelete = async (row: CategoryRequestRecord) => {
+        const confirmed = await confirmAction(
+            "Delete request?",
+            `Are you sure you want to delete the request for "${row.categoryName}"? This action cannot be undone.`,
+            "Delete"
+        );
+        if (!confirmed) return;
+
+        try {
+            await deleteCategoryRequest(row.id);
+            setRequests((prev) => prev.filter((r) => r.id !== row.id));
+            if (editingId === row.id) {
+                setEditingId(null);
+                resetForm();
+            }
+            showSuccess("Category request deleted successfully.", "Request deleted!");
+        } catch (e) {
+            showError(e instanceof Error ? e.message : "Could not delete your request.");
+        }
+    };
+
     const handleSubmit = async () => {
         const name = categoryName.trim();
         if (!name) {
@@ -122,44 +164,82 @@ export function CategoryRequestScreen() {
         }
         setNameError("");
 
+        const actionText = editingId ? "Save changes to" : "Submit request for";
+        const confirmTitle = editingId ? "Save changes?" : "Submit request?";
+        const confirmBtnText = editingId ? "Save" : "Submit";
+
         const confirmed = await confirmAction(
-            "Submit request?",
-            `Submit a category request for "${name}"? Our team will review it within 2–3 business days.`,
-            "Submit"
+            confirmTitle,
+            `${actionText} "${name}"? Our team will review it within 2–3 business days.`,
+            confirmBtnText
         );
         if (!confirmed) return;
 
         setSubmitting(true);
         try {
-            const created = await createCategoryRequest({
-                categoryName: name,
-                description: description.trim(),
-                reason: reason.trim(),
-            });
-            setRequests((prev) => [created, ...prev]);
-            resetForm();
-            showSuccess(
-                "Your category request has been submitted. You will be notified once it is reviewed.",
-                "Request submitted!"
-            );
+            if (editingId) {
+                const updated = await updateCategoryRequest(editingId, {
+                    categoryName: name,
+                    description: description.trim(),
+                    reason: reason.trim(),
+                });
+                setRequests((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
+                setEditingId(null);
+                resetForm();
+                showSuccess(
+                    "Your category request has been updated successfully.",
+                    "Request updated!"
+                );
+            } else {
+                const created = await createCategoryRequest({
+                    categoryName: name,
+                    description: description.trim(),
+                    reason: reason.trim(),
+                });
+                setRequests((prev) => [created, ...prev]);
+                resetForm();
+                showSuccess(
+                    "Your category request has been submitted. You will be notified once it is reviewed.",
+                    "Request submitted!"
+                );
+            }
         } catch (e) {
-            showError(e instanceof Error ? e.message : "Could not submit your request.");
+            showError(e instanceof Error ? e.message : "Could not save your request.");
         } finally {
             setSubmitting(false);
         }
     };
 
+    // Memoize the filtered and sorted requests for desktop table view
+    const filteredRequests = React.useMemo(() => {
+        return requests
+            .filter((r) => {
+                const matchesSearch =
+                    (r.categoryName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (r.description || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (r.reason || "").toLowerCase().includes(searchQuery.toLowerCase());
+                const matchesStatus = statusFilter === "All" ? true : r.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            })
+            .sort((a, b) => {
+                const timeA = new Date(a.submittedAt).getTime();
+                const timeB = new Date(b.submittedAt).getTime();
+                return sortBy === "latest" ? timeB - timeA : timeA - timeB;
+            });
+    }, [requests, searchQuery, statusFilter, sortBy]);
+
     if (!fontsLoaded) return null;
 
     const formCard = (
-        <View style={pg.card}>
-            <Text style={pg.cardTitle}>Submit Category Request</Text>
+        <View style={[pg.card, isDesktop && pg.cardDesktop]}>
+            <Text style={pg.cardTitle}>{editingId ? "Edit Category Request" : "Submit Category Request"}</Text>
 
             <View style={pg.field}>
                 <Text style={pg.label}>
                     Category Name <Text style={pg.required}>*</Text>
                 </Text>
                 <TextInput
+                    ref={categoryNameRef}
                     style={[pg.input, nameError ? pg.inputError : null]}
                     placeholder="e.g., Smart Home Devices, Organic Foods, etc."
                     placeholderTextColor="#9CA3AF"
@@ -210,14 +290,28 @@ export function CategoryRequestScreen() {
             </View>
 
             <View style={pg.formActions}>
-                <TouchableOpacity
-                    style={[pg.resetBtn, submitting && pg.btnDisabled]}
-                    onPress={() => void handleReset()}
-                    activeOpacity={0.8}
-                    disabled={submitting}
-                >
-                    <Text style={pg.resetBtnTxt}>Reset</Text>
-                </TouchableOpacity>
+                {editingId ? (
+                    <TouchableOpacity
+                        style={[pg.resetBtn, submitting && pg.btnDisabled]}
+                        onPress={() => {
+                            setEditingId(null);
+                            resetForm();
+                        }}
+                        activeOpacity={0.8}
+                        disabled={submitting}
+                    >
+                        <Text style={pg.resetBtnTxt}>Cancel</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        style={[pg.resetBtn, submitting && pg.btnDisabled]}
+                        onPress={() => void handleReset()}
+                        activeOpacity={0.8}
+                        disabled={submitting}
+                    >
+                        <Text style={pg.resetBtnTxt}>Reset</Text>
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity
                     style={[pg.submitBtn, submitting && pg.btnDisabled]}
                     onPress={() => void handleSubmit()}
@@ -227,7 +321,7 @@ export function CategoryRequestScreen() {
                     {submitting ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
-                        <Text style={pg.submitBtnTxt}>Submit Request</Text>
+                        <Text style={pg.submitBtnTxt}>{editingId ? "Save Changes" : "Submit Request"}</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -235,7 +329,7 @@ export function CategoryRequestScreen() {
     );
 
     const guidelinesCard = (
-        <View style={[pg.card, pg.guidelinesCard]}>
+        <View style={[pg.card, pg.guidelinesCard, isDesktop && pg.guidelinesCardDesktop]}>
             <Text style={pg.guidelinesTitle}>Guidelines</Text>
             {GUIDELINES.map((line) => (
                 <View key={line} style={pg.bulletRow}>
@@ -251,36 +345,41 @@ export function CategoryRequestScreen() {
         </View>
     );
 
-    const requestRow = (row: CategoryRequestRecord, idx: number) => {
-        const st = statusStyle(row.status);
-        return (
-            <View key={row.id} style={[pg.tr, idx % 2 === 1 && pg.trAlt]}>
-                <Text style={[pg.td, pg.colName]} numberOfLines={2}>
-                    {row.categoryName}
-                </Text>
-                <Text style={[pg.tdLight, pg.colDate]}>{row.submittedAt}</Text>
-                <View style={pg.colStatus}>
-                    <View style={[pg.badge, { backgroundColor: st.bg }]}>
-                        <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
-                    </View>
-                </View>
-            </View>
-        );
-    };
+
 
     const requestCard = (row: CategoryRequestRecord) => {
         const st = statusStyle(row.status);
         return (
             <View key={row.id} style={pg.mobileRequestCard}>
                 <View style={pg.mobileCardTop}>
-                    <Text style={pg.mobileCardName} numberOfLines={2}>
-                        {row.categoryName}
-                    </Text>
-                    <View style={[pg.badge, { backgroundColor: st.bg }]}>
-                        <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={pg.mobileCardName} numberOfLines={2}>
+                            {row.categoryName}
+                        </Text>
+                        <Text style={pg.mobileCardDate}>Submitted: {row.submittedAt}</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 8 }}>
+                        <View style={[pg.badge, { backgroundColor: st.bg }]}>
+                            <Text style={[pg.badgeTxt, { color: st.color }]}>{row.status}</Text>
+                        </View>
+                        {row.status === "Pending" && (
+                            <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                                <TouchableOpacity
+                                    onPress={() => handleEditClick(row)}
+                                    activeOpacity={0.7}
+                                >
+                                    <MaterialCommunityIcons name="pencil-outline" size={18} color="#4B5563" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => void handleDelete(row)}
+                                    activeOpacity={0.7}
+                                >
+                                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="#DC2626" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
-                <Text style={pg.mobileCardDate}>Submitted: {row.submittedAt}</Text>
             </View>
         );
     };
@@ -295,26 +394,180 @@ export function CategoryRequestScreen() {
                     </TouchableOpacity>
                 ) : null}
             </View>
-            <View style={pg.tableCard}>
+
+            {isDesktop && (
+                <View style={pg.toolbar}>
+                    <View style={pg.searchContainer}>
+                        <MaterialCommunityIcons name="magnify" size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+                        <TextInput
+                            style={pg.toolbarSearchInput}
+                            placeholder="Search requests..."
+                            placeholderTextColor="#9CA3AF"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+                                <MaterialCommunityIcons name="close-circle" size={16} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={pg.toolbarActions}>
+                        <View style={pg.filterPills}>
+                            {(["All", "Pending", "Approved", "Rejected"] as const).map((status) => {
+                                const count = status === "All"
+                                    ? requests.length
+                                    : requests.filter((r) => r.status === status).length;
+                                const isActive = statusFilter === status;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={status}
+                                        style={[
+                                            pg.filterPill,
+                                            isActive && pg.filterPillActive,
+                                        ]}
+                                        onPress={() => setStatusFilter(status)}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text
+                                            style={[
+                                                pg.filterPillTxt,
+                                                isActive && pg.filterPillTxtActive,
+                                            ]}
+                                        >
+                                            {status}
+                                            <Text style={[pg.filterPillCount, isActive && pg.filterPillCountActive]}>
+                                                {`  ${count}`}
+                                            </Text>
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        <TouchableOpacity
+                            style={pg.sortBtn}
+                            onPress={() => setSortBy(prev => prev === "latest" ? "oldest" : "latest")}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialCommunityIcons
+                                name={sortBy === "latest" ? "sort-descending" : "sort-ascending"}
+                                size={16}
+                                color="#4B5563"
+                                style={{ marginRight: 6 }}
+                            />
+                            <Text style={pg.sortBtnTxt}>
+                                {sortBy === "latest" ? "Latest First" : "Oldest First"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+            <View style={[pg.tableCard, isDesktop && pg.tableCardDesktop]}>
                 {loading ? (
-                    <View style={pg.empty}>
+                    <View style={[pg.empty, isDesktop && pg.emptyDesktop]}>
                         <ActivityIndicator size="large" color={ORANGE_BRAND} />
-                        <Text style={pg.emptySub}>Loading your requests…</Text>
+                        <Text style={[pg.emptySub, isDesktop && pg.emptySubDesktop]}>Loading your requests…</Text>
                     </View>
                 ) : requests.length === 0 ? (
-                    <View style={pg.empty}>
-                        <MaterialCommunityIcons name="folder-open-outline" size={40} color="#D1D5DB" />
-                        <Text style={pg.emptyTitle}>No requests yet</Text>
-                        <Text style={pg.emptySub}>Submit your first category request above.</Text>
-                    </View>
+                    isDesktop ? (
+                        <View style={[pg.empty, isDesktop && pg.emptyDesktop]}>
+                            <MaterialCommunityIcons name="folder-open-outline" size={64} color="#E6E9F2" />
+                            <Text style={[pg.emptyTitle, isDesktop && pg.emptyTitleDesktop]}>No requests yet</Text>
+                            <Text style={[pg.emptySub, isDesktop && pg.emptySubDesktop]}>Submit your first category request to get started.</Text>
+                            <TouchableOpacity
+                                style={[pg.newRequestBtn, isDesktop && pg.newRequestBtnDesktop]}
+                                onPress={() => categoryNameRef.current?.focus()}
+                                activeOpacity={0.9}
+                            >
+                                <MaterialCommunityIcons name="plus" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+                                <Text style={pg.newRequestBtnTxt}>New Request</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={pg.empty}>
+                            <MaterialCommunityIcons name="folder-open-outline" size={40} color="#D1D5DB" />
+                            <Text style={pg.emptyTitle}>No requests yet</Text>
+                            <Text style={pg.emptySub}>Submit your first category request above.</Text>
+                        </View>
+                    )
                 ) : isDesktop ? (
                     <>
                         <View style={pg.tableHead}>
                             <Text style={[pg.th, pg.colName]}>Category Name</Text>
+                            <Text style={[pg.th, pg.colDescription]}>Description</Text>
+                            <Text style={[pg.th, pg.colReason]}>Reason</Text>
                             <Text style={[pg.th, pg.colDate]}>Submitted</Text>
                             <Text style={[pg.th, pg.colStatus]}>Status</Text>
+                            <Text style={[pg.th, pg.colActionsHeader]}>Actions</Text>
                         </View>
-                        {requests.map(requestRow)}
+                        {filteredRequests.length === 0 ? (
+                            <View style={pg.empty}>
+                                <MaterialCommunityIcons name="magnify-close" size={40} color="#D1D5DB" />
+                                <Text style={pg.emptyTitle}>No matching requests</Text>
+                                <Text style={pg.emptySub}>Try adjusting your search query or filters.</Text>
+                            </View>
+                        ) : (
+                            filteredRequests.map((row, idx) => {
+                                const st = statusStyle(row.status);
+                                return (
+                                    <Pressable
+                                        key={row.id}
+                                        style={({ hovered }) => [
+                                            pg.tr,
+                                            pg.trDesktop,
+                                            idx % 2 === 1 && pg.trAlt,
+                                            hovered && isWeb && pg.trHover,
+                                        ]}
+                                    >
+                                        <Text style={[pg.td, pg.colName]} numberOfLines={1}>
+                                            {row.categoryName}
+                                        </Text>
+                                        <Text style={[pg.tdLight, pg.colDescription]} numberOfLines={1}>
+                                            {row.description || "—"}
+                                        </Text>
+                                        <Text style={[pg.tdLight, pg.colReason]} numberOfLines={1}>
+                                            {row.reason || "—"}
+                                        </Text>
+                                        <Text style={[pg.tdLight, pg.colDate]} numberOfLines={1}>
+                                            {row.submittedAt}
+                                        </Text>
+                                        <View style={pg.colStatus}>
+                                            <View style={[pg.badge, { backgroundColor: st.bg }]}>
+                                                <Text style={[pg.badgeTxt, { color: st.color }]}>
+                                                    {row.status}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        <View style={pg.colActions}>
+                                            {row.status === "Pending" ? (
+                                                <>
+                                                    <TouchableOpacity
+                                                        onPress={() => handleEditClick(row)}
+                                                        style={pg.actionBtn}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <MaterialCommunityIcons name="pencil-outline" size={18} color="#4B5563" />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => void handleDelete(row)}
+                                                        style={pg.actionBtn}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#DC2626" />
+                                                    </TouchableOpacity>
+                                                </>
+                                            ) : (
+                                                <Text style={pg.actionDisabledTxt}>—</Text>
+                                            )}
+                                        </View>
+                                    </Pressable>
+                                );
+                            })
+                        )}
                     </>
                 ) : (
                     <View style={pg.mobileList}>{requests.map(requestCard)}</View>
@@ -324,14 +577,38 @@ export function CategoryRequestScreen() {
     );
 
     const pageBody = (
-        <View style={[pg.wrap, isWeb && pg.wrapWeb]}>
-            <View style={pg.pageHeader}>
-                <Text style={pg.pageTitle}>Category Request</Text>
-                <Text style={pg.pageSub}>
-                    Request a new product category for your catalog. Our team will review your
-                    submission within 2–3 business days.
-                </Text>
-            </View>
+        <View style={[
+            pg.wrap,
+            isWeb && pg.wrapWeb,
+            isDesktop && pg.wrapDesktop
+        ]}>
+            {isDesktop ? (
+                <View style={pg.desktopHeader}>
+                    <View style={pg.desktopHeaderLeft}>
+                        <Text style={pg.desktopHeaderTitle}>Category Request</Text>
+                        <Text style={pg.desktopHeaderSub}>
+                            Request a new product category for your catalog. Our team will review your
+                            submission within 2–3 business days.
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[pg.newRequestBtn, isDesktop && pg.newRequestBtnDesktop]}
+                        onPress={() => categoryNameRef.current?.focus()}
+                        activeOpacity={0.8}
+                    >
+                        <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={pg.newRequestBtnTxt}>New Request</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <View style={pg.pageHeader}>
+                    <Text style={pg.pageTitle}>Category Request</Text>
+                    <Text style={pg.pageSub}>
+                        Request a new product category for your catalog. Our team will review your
+                        submission within 2–3 business days.
+                    </Text>
+                </View>
+            )}
 
             <View style={[pg.topRow, isDesktop && pg.topRowDesktop]}>
                 <View style={pg.formCol}>{formCard}</View>
@@ -350,7 +627,11 @@ export function CategoryRequestScreen() {
     );
 
     if (isWeb) {
-        return <ScrollView showsVerticalScrollIndicator={isDesktop}>{content}</ScrollView>;
+        return (
+            <ScrollView showsVerticalScrollIndicator={isDesktop}>
+                <View style={[pg.webRoot, isDesktop && pg.webRootDesktop]}>{content}</View>
+            </ScrollView>
+        );
     }
 
     return (
@@ -373,6 +654,14 @@ const pg = StyleSheet.create({
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
     wrapWeb: { paddingHorizontal: 0, paddingTop: 0, maxWidth: 1100, width: "100%", alignSelf: "center" },
+    wrapDesktop: {
+        maxWidth: 1380,
+        width: "100%",
+        alignSelf: "center",
+        paddingHorizontal: 32,
+        paddingTop: 28,
+        paddingBottom: 48,
+    },
     pageHeader: { marginBottom: 20 },
     pageTitle: {
         fontFamily: "Outfit_700Bold",
@@ -387,11 +676,59 @@ const pg = StyleSheet.create({
         lineHeight: 19,
         maxWidth: 640,
     },
+    desktopHeader: {
+         flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 32,
+        gap: 24,
+        paddingBottom: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
+    desktopHeaderLeft: {
+        flex: 1,
+    },
+    desktopHeaderTitle: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 28,
+        color: "#111827",
+        marginBottom: 8,
+    },
+    desktopHeaderSub: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "#4B5563",
+        lineHeight: 20,
+        maxWidth: 700,
+    },
+     newRequestBtn: {
+flexDirection: "row",
+alignItems: "center",
+justifyContent: "center",
+backgroundColor: ORANGE_BRAND,
+paddingHorizontal: 22,
+paddingVertical: 12,
+borderRadius: 12,
+minWidth: 160,
+...Platform.select({
+web: {
+boxShadow:
+"0 6px 18px rgba(249, 115, 22, 0.25)" as unknown as undefined,
+},
+default: {},
+}),
+},
+    newRequestBtnTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 14,
+        color: "#FFFFFF",
+    },
     topRow: { gap: 16, marginBottom: 24 },
-    topRowDesktop: { flexDirection: "row", alignItems: "flex-start" },
+    topRowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
     formCol: { flex: 1, minWidth: 0 },
     sideCol: { width: "100%" },
-    sideColDesktop: { width: 300, flexShrink: 0 },
+    sideColDesktop: { width: 320, flexShrink: 0 },
     card: {
         backgroundColor: "#FFFFFF",
         borderRadius: 12,
@@ -403,7 +740,35 @@ const pg = StyleSheet.create({
             default: {},
         }),
     },
+     cardDesktop: {
+borderRadius: 20,
+padding: 30,
+borderColor: "#F3F4F6",
+backgroundColor: "#FFFFFF",
+...Platform.select({
+web: {
+boxShadow:
+"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+},
+default: {},
+}),
+},
     guidelinesCard: {},
+     guidelinesCardDesktop: {
+borderRadius: 20,
+padding: 28,
+borderColor: "#F3F4F6",
+backgroundColor: "#FFFFFF",
+...Platform.select({
+web: {
+boxShadow:
+"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+position: "sticky" as any,
+top: 28,
+},
+default: {},
+}),
+},
     cardTitle: {
         fontFamily: "Outfit_700Bold",
         fontSize: 18,
@@ -506,7 +871,7 @@ const pg = StyleSheet.create({
         flex: 1,
         fontFamily: "Outfit_400Regular",
         fontSize: 14,
-        color: "#4B5563",
+        color: "#6B7280",
         lineHeight: 20,
     },
     notifyBox: {
@@ -540,6 +905,109 @@ const pg = StyleSheet.create({
         fontSize: 14,
         color: ORANGE_BRAND,
     },
+   toolbar: {
+flexDirection: "row",
+alignItems: "center",
+justifyContent: "space-between",
+backgroundColor: "#FFFFFF",
+paddingHorizontal: 20,
+paddingVertical: 18,
+borderRadius: 18,
+borderWidth: 1,
+borderColor: "#EEF2F7",
+marginBottom: 18,
+gap: 18,
+flexWrap: "wrap",
+...Platform.select({
+web: {
+boxShadow:
+"0 4px 20px rgba(0,0,0,0.04)" as unknown as undefined,
+},
+default: {},
+}),
+},
+    searchContainer: {
+flexDirection: "row",
+alignItems: "center",
+borderWidth: 1,
+borderColor: "#E5E7EB",
+borderRadius: 12,
+paddingHorizontal: 14,
+height: 46,
+flex: 1,
+minWidth: 300,
+backgroundColor: "#FAFAFA",
+},
+    toolbarSearchInput: {
+        flex: 1,
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "#111827",
+        height: "100%",
+        padding: 0,
+    },
+    toolbarActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 16,
+        flexWrap: "wrap",
+    },
+    filterPills: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F3F4F6",
+        borderRadius: 8,
+        padding: 4,
+        gap: 2,
+    },
+    filterPill: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+    },
+   filterPillActive: {
+backgroundColor: "#FFFFFF",
+borderWidth: 1,
+borderColor: "#FED7AA",
+...Platform.select({
+web: {
+boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+},
+default: {},
+}),
+},
+    filterPillTxt: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 13,
+        color: "#4B5563",
+    },
+    filterPillTxtActive: {
+        color: ORANGE_BRAND,
+        fontFamily: "Outfit_600SemiBold",
+    },
+    filterPillCount: {
+        fontSize: 11,
+        color: "#9CA3AF",
+    },
+    filterPillCountActive: {
+        color: ORANGE_BRAND,
+        fontFamily: "Outfit_600SemiBold",
+    },
+    sortBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#D1D5DB",
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        height: 40,
+        backgroundColor: "#FFFFFF",
+    },
+    sortBtnTxt: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 13,
+        color: "#374151",
+    },
     tableCard: {
         backgroundColor: "#FFFFFF",
         borderRadius: 12,
@@ -547,14 +1015,26 @@ const pg = StyleSheet.create({
         borderColor: "#E5E7EB",
         overflow: "hidden",
     },
+     tableCardDesktop: {
+borderRadius: 20,
+borderColor: "#F3F4F6",
+backgroundColor: "#FFFFFF",
+...Platform.select({
+web: {
+boxShadow:
+"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+},
+default: {},
+}),
+},
     tableHead: {
-        flexDirection: "row",
-        backgroundColor: "#F9FAFB",
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: "#E5E7EB",
-    },
+flexDirection: "row",
+backgroundColor: "#FAFAFB",
+paddingVertical: 16,
+paddingHorizontal: 20,
+borderBottomWidth: 1,
+borderBottomColor: "#F3F4F6",
+},
     th: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 12,
@@ -570,12 +1050,63 @@ const pg = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#F3F4F6",
     },
+  trDesktop: {
+paddingVertical: 18,
+paddingHorizontal: 20,
+transitionDuration: "150ms" as any,
+},
     trAlt: { backgroundColor: "#FAFAFA" },
+   trHover: {
+backgroundColor: "#FFF7ED",
+cursor: "pointer" as any,
+},
     td: { fontFamily: "Outfit_500Medium", fontSize: 14, color: "#111827" },
     tdLight: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "#6B7280" },
-    colName: { flex: 2 },
+    colName: {
+        flex: 1.8,
+        paddingRight: 12,
+    },
+    colDescription: {
+        flex: 2.4,
+        paddingHorizontal: 12,
+    },
+    colReason: {
+        flex: 2.2,
+        paddingHorizontal: 12,
+    },
     colDate: { flex: 1 },
     colStatus: { flex: 1, alignItems: "flex-start" },
+    colActionsHeader: {
+        flex: 1,
+        textAlign: "right",
+        paddingRight: 8,
+    },
+    colActions: {
+        flex: 1,
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 12,
+        paddingRight: 8,
+    },
+    actionBtn: {
+        padding: 6,
+        borderRadius: 6,
+        backgroundColor: "#F3F4F6",
+        ...Platform.select({
+            web: {
+                transitionDuration: "150ms",
+                cursor: "pointer",
+            },
+            default: {},
+        }),
+    },
+    actionDisabledTxt: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 13,
+        color: "#9CA3AF",
+        paddingRight: 8,
+    },
     badge: {
         paddingHorizontal: 10,
         paddingVertical: 4,
@@ -608,8 +1139,13 @@ const pg = StyleSheet.create({
         fontSize: 12,
         color: "#6B7280",
     },
-    empty: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 24 },
-    emptyTitle: {
+    empty: {
+alignItems: "center",
+justifyContent: "center",
+paddingVertical: 60,
+paddingHorizontal: 24,
+},
+     emptyTitle: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 15,
         color: "#374151",
@@ -621,5 +1157,33 @@ const pg = StyleSheet.create({
         color: "#9CA3AF",
         marginTop: 4,
         textAlign: "center",
+    },
+    webRoot: {
+        width: "100%",
+    },
+    webRootDesktop: {
+        backgroundColor: "#F7F9FC",
+        paddingVertical: 28,
+        paddingHorizontal: 16,
+    },
+    emptyDesktop: {
+        paddingVertical: 80,
+        paddingHorizontal: 40,
+        gap: 18,
+    },
+    emptyTitleDesktop: {
+        fontSize: 20,
+        color: "#374151",
+        marginTop: 16,
+    },
+    emptySubDesktop: {
+        fontSize: 15,
+        color: "#9CA3AF",
+    },
+    newRequestBtnDesktop: {
+        marginTop: 18,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        minWidth: 180,
     },
 });

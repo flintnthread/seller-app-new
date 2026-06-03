@@ -79,7 +79,7 @@ export function DesktopDashboard({
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
   const { salesChart } = useDashboardCharts(salesPeriod);
-  const welcomeName = profile?.firstName ?? (profileLoading ? "…" : "Seller");
+  const welcomeName = profile?.fullName ?? (profileLoading ? "…" : "Seller");
 
   const salesDataMerged = useMemo(() => {
     const chart = salesChart ?? EMPTY_SALES_CHART;

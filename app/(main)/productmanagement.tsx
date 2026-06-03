@@ -934,7 +934,7 @@ const WebProductsScreen: React.FC = () => {
                 ) : null}
                 {/* Page header */}
                 <View style={wst.pageHeader}>
-                    <View>
+                    <View style={wst.titleContainer}>
                         <View style={wst.breadcrumb}>
                             <Text style={wst.breadcrumbDim}>Dashboard</Text>
                             <Ionicons name="chevron-forward" size={13} color={C.textLight} />
@@ -944,7 +944,6 @@ const WebProductsScreen: React.FC = () => {
                     </View>
                     
                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                        <Text style={[wst.pageSubtitle, { marginRight: 8 }]}>{totalCount} products total</Text>
                         <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
                             <MaterialCommunityIcons name="plus" size={16} color={C.white} />
                             <Text style={wst.navAddBtnTxt}>Add Product</Text>
@@ -1399,7 +1398,7 @@ const WebProductsScreen: React.FC = () => {
                                             return (
                                                 <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
-                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} />
+                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} resizeMode="contain" />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
                                                             <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                             <Text style={[wst.webGridStatusTxt, { color: st.color }]}>{product.status}</Text>
@@ -1477,8 +1476,14 @@ const wst = StyleSheet.create({
     navBulkBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(34,197,94,0.15)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1.5, borderColor: "rgba(34,197,94,0.3)" },
     navBulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.green },
     pageScroll: { flex: 1 },
-    pageContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 40 },
+    pageContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 40 },
     pageHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 },
+    titleContainer: {
+        borderLeftWidth: 4,
+        borderLeftColor: C.purple,
+        paddingLeft: 12,
+        marginVertical: 2,
+    },
     breadcrumb: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
     breadcrumbDim: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
     breadcrumbActive: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.navy },
@@ -1615,7 +1620,7 @@ const wst = StyleSheet.create({
     webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 16 },
     webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
     webGridImgWrap: { position: "relative" },
-    webGridImg: { width: "100%", height: 140, backgroundColor: C.bg },
+    webGridImg: { width: "100%", height: 240, backgroundColor: C.bg },
     webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
     webGridStatusTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
     webGridMoreBtn: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.93)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
@@ -2003,7 +2008,7 @@ const MobileProductsScreen: React.FC = () => {
                             const st = getStatusColor(product.status);
                             return (
                                 <TouchableOpacity key={product.id} style={s.gridCard} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.gridImage} />
+                                    <Image source={{ uri: product.image }} style={s.gridImage} resizeMode="contain" />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
                                     </View>

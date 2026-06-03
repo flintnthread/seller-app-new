@@ -51,6 +51,7 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
         images: {
             primaryImage: images[0] ?? null,
             additionalImages: images.slice(1),
+            video: detail.variants[0]?.videoUri || detail.variants[0]?.videoPath || null,
         },
         details: {
             sizeChart: "",
