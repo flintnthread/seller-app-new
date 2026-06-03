@@ -5,6 +5,7 @@ import {
   Modal, TextInput, Alert, ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import {
   useFonts, Outfit_400Regular, Outfit_500Medium,
   Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
@@ -460,6 +461,26 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showSizePicker,  setShowSizePicker]  = useState(false);
 
+  const handlePickVariantImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Gallery access is needed to pick an image.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert("Image Pick Error", "Unable to pick image. Please try again.");
+    }
+  };
+
   const sellingPriceExGst = mrp && discount ? parseFloat(mrp) * (1 - parseFloat(discount) / 100) : 0;
   const gstAmount         = sellingPriceExGst * (parseFloat(gst || "0") / 100);
   const sellingWithGst    = sellingPriceExGst + gstAmount;
@@ -621,6 +642,10 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
                 keyboardType="url"
               />
             </View>
+            <TouchableOpacity style={av.uploadBtn} onPress={handlePickVariantImage} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="upload-outline" size={16} color={C.navy} />
+              <Text style={av.uploadBtnTxt}>Upload Image</Text>
+            </TouchableOpacity>
             {imageUri ? (
               <View style={av.mediaPreview}>
                 <Image source={{ uri: imageUri }} style={av.mediaPreviewImg} resizeMode="cover" />
@@ -745,6 +770,8 @@ const av = StyleSheet.create({
   calcValue: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textDark },
   addBtn:    { backgroundColor: C.navy, borderRadius: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, marginBottom: 16 },
   addBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.white },
+  uploadBtn:  { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: C.navy, borderRadius: 12, backgroundColor: "#F8FAFF" },
+  uploadBtnTxt:{ fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.navy },
   pickerRoot:    { flex: 1, justifyContent: "flex-end" },
   pickerOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.3)" },
   pickerSheet:   { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "55%", paddingBottom: 32 },
@@ -773,10 +800,7 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
             </TouchableOpacity>
             <TouchableOpacity
               style={vr.gridDelBtn}
-              onPress={() => Alert.alert("Delete Variant", `Remove ${v.color} - ${v.size}?`, [
-                { text: "Cancel", style: "cancel" },
-                { text: "Delete", style: "destructive", onPress: () => onDelete(v.id) },
-              ])}
+              onPress={() => confirmVariantDelete(v.id, `Remove ${v.color} - ${v.size}?`, onDelete)}
             >
               <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.red} />
             </TouchableOpacity>
@@ -811,6 +835,10 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
 );
 
 // ─── VARIANTS LIST VIEW ───────────────────────────────────────
+const confirmVariantDelete = (variantId: string, message: string, onDelete: (id: string) => void) => {
+  onDelete(variantId);
+};
+
 const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
   <View style={{ gap: 8 }}>
     {variants.map(v => (
@@ -839,10 +867,7 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string) => vo
           </TouchableOpacity>
           <TouchableOpacity
             style={[vr.deleteBtn, { width: 30, height: 30 }]}
-            onPress={() => Alert.alert("Delete Variant", `Remove ${v.color} - ${v.size}?`, [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => onDelete(v.id) },
-            ])}
+            onPress={() => confirmVariantDelete(v.id, `Remove ${v.color} - ${v.size}?`, onDelete)}
           >
             <MaterialCommunityIcons name="trash-can-outline" size={14} color={C.white} />
           </TouchableOpacity>
@@ -916,10 +941,7 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string) => v
             </TouchableOpacity>
             <TouchableOpacity
               style={vr.deleteBtn}
-              onPress={() => Alert.alert("Delete Variant", `Remove ${v.color} - ${v.size}?`, [
-                { text: "Cancel", style: "cancel" },
-                { text: "Delete", style: "destructive", onPress: () => onDelete(v.id) },
-              ])}
+              onPress={() => confirmVariantDelete(v.id, `Remove ${v.color} - ${v.size}?`, onDelete)}
             >
               <MaterialCommunityIcons name="trash-can-outline" size={14} color={C.white} />
             </TouchableOpacity>
@@ -1342,36 +1364,53 @@ const WebHeroSection: React.FC<{
   variants: Variant[];
 }> = ({ p, activeImg, setActiveImg, variants }) => {
   const st = getStatusStyle(p.status);
+  const [variantImage, setVariantImage] = useState<string | null>(null);
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
   const galleryImages = p.images.filter(img => img && img.trim().length > 0);
   const heroImages = galleryImages.length > 0 ? galleryImages : [""];
   const safeActiveImg = Math.min(activeImg, heroImages.length - 1);
+  const hasMultipleImages = heroImages.length > 1;
+
+  const handlePrev = () => setActiveImg((safeActiveImg - 1 + heroImages.length) % heroImages.length);
+  const handleNext = () => setActiveImg((safeActiveImg + 1) % heroImages.length);
 
   return (
     <View style={wh.container}>
       <View style={wh.imageSection}>
         <View style={wh.heroImageWrap}>
-          <Image source={{ uri: heroImages[safeActiveImg] }} style={wh.heroImage} resizeMode="cover" />
+          <Image source={{ uri: variantImage ?? heroImages[safeActiveImg] }} style={wh.heroImage} resizeMode="cover" />
           <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
             <Text style={s.stockChipText}>{p.stock} units</Text>
           </View>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          nestedScrollEnabled
-          contentContainerStyle={wh.thumbScrollContent}
-          style={wh.thumbRow}
-        >
-          {heroImages.filter(Boolean).map((img, i) => (
-            <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
-              <Image source={{ uri: img }} style={wh.thumbImg} resizeMode="cover" />
+        <View style={wh.thumbNavRow}>
+          {hasMultipleImages && (
+            <TouchableOpacity style={wh.thumbNavBtn} onPress={handlePrev} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={18} color={C.navy} />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled
+            contentContainerStyle={wh.thumbScrollContent}
+            style={wh.thumbScroller}
+          >
+            {heroImages.filter(Boolean).map((img, i) => (
+              <TouchableOpacity key={i} onPress={() => { setVariantImage(null); setActiveImg(i); }} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
+                <Image source={{ uri: img }} style={wh.thumbImg} resizeMode="cover" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {hasMultipleImages && (
+            <TouchableOpacity style={wh.thumbNavBtn} onPress={handleNext} activeOpacity={0.8}>
+              <Ionicons name="chevron-forward" size={18} color={C.navy} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={wh.detailsSection}>
@@ -1404,13 +1443,18 @@ const WebHeroSection: React.FC<{
 
           <View style={wh.divider} />
 
-          <View style={wh.detailGrid}>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>Material</Text><Text style={wh.detailValue}>{p.material}</Text></View>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>Weight</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>HSN Code</Text><Text style={wh.detailValue}>{p.hsnCode}</Text></View>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>GST</Text><Text style={[wh.detailValue, { color: C.orange }]}>{p.gst}</Text></View>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>Return Policy</Text><Text style={[wh.detailValue, { color: C.green }]}>{p.returnPolicy}</Text></View>
-            <View style={wh.detailCell}><Text style={wh.detailLabel}>Warranty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{p.warranty}</Text></View>
+          <View style={wh.detailCard}>
+            <View style={wh.detailLine}>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Material</Text><Text style={wh.detailValue}>{p.material}</Text></View>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Weight</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>HSN Code</Text><Text style={wh.detailValue}>{p.hsnCode}</Text></View>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Warranty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{p.warranty}</Text></View>
+            </View>
+          </View>
+
+          <View style={wh.returnPolicyCard}>
+            <Text style={wh.detailLabel}>Return Policy</Text>
+            <Text style={[wh.detailValue, { color: C.green }]}>{p.returnPolicy}</Text>
           </View>
 
           <View style={wh.divider} />
@@ -1420,10 +1464,19 @@ const WebHeroSection: React.FC<{
               <Text style={wh.colorsLabel}>Available Colors</Text>
               <View style={wh.colorSwatches}>
                 {uniqueColors.map(v => (
-                  <View key={v.id} style={wh.swatchWrap}>
+                  <TouchableOpacity key={v.id} style={wh.swatchWrap} onPress={() => {
+                    if (v.imageUri) {
+                      // if variant image exists in product gallery, switch to its index, otherwise show variant image directly
+                      const idx = heroImages.findIndex(h => h === v.imageUri);
+                      if (idx >= 0) { setVariantImage(null); setActiveImg(idx); }
+                      else { setVariantImage(v.imageUri || null); }
+                    } else {
+                      setVariantImage(null);
+                    }
+                  }} activeOpacity={0.8}>
                     <View style={[wh.swatch, { backgroundColor: v.colorHex }, v.color === "White" && { borderWidth: 1.5, borderColor: C.border }]} />
                     <Text style={wh.swatchLabel}>{v.color}</Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
@@ -1476,6 +1529,10 @@ const ProductDetailScreen: React.FC = () => {
   const [showAddVariant, setShowAddVariant] = useState(false);
   const [showSizeChart,  setShowSizeChart]  = useState(false);
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [deleteAlertSubtitle, setDeleteAlertSubtitle] = useState("");
+  const [showAddAlert, setShowAddAlert] = useState(false);
+  const [addAlertSubtitle, setAddAlertSubtitle] = useState("");
 
   const [fontsLoaded] = useFonts({ Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold });
 
@@ -1521,6 +1578,9 @@ const ProductDetailScreen: React.FC = () => {
 
   const handleAddVariant = useCallback((v: Variant) => {
     setVariants(prev => [...prev, v]);
+    setAddAlertSubtitle(`${v.color} · Size ${v.size} variant added successfully.`);
+    setShowAddAlert(true);
+    setTimeout(() => setShowAddAlert(false), 1700);
   }, []);
 
   const handleDeleteVariant = useCallback(async (variantId: string) => {
@@ -1528,6 +1588,9 @@ const ProductDetailScreen: React.FC = () => {
     try {
       await deleteProductVariant(String(id), variantId);
       setVariants((prev) => prev.filter((v) => v.id !== variantId));
+      setDeleteAlertSubtitle("Variant removed successfully.");
+      setShowDeleteAlert(true);
+      setTimeout(() => setShowDeleteAlert(false), 1700);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Failed to delete variant.";
       Alert.alert("Error", msg);
@@ -1668,6 +1731,18 @@ const ProductDetailScreen: React.FC = () => {
           onSave={handleSaveVariant}
         />
         <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
+        <SweetAlert
+          visible={showDeleteAlert}
+          type="success"
+          title="Variant Deleted"
+          subtitle={deleteAlertSubtitle}
+        />
+        <SweetAlert
+          visible={showAddAlert}
+          type="success"
+          title="Variant Added"
+          subtitle={addAlertSubtitle}
+        />
       </View>
     );
   }
@@ -1834,6 +1909,12 @@ const ProductDetailScreen: React.FC = () => {
         onSave={handleSaveVariant}
       />
       <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
+      <SweetAlert
+        visible={showDeleteAlert}
+        type="success"
+        title="Variant Deleted"
+        subtitle={deleteAlertSubtitle}
+      />
     </SafeAreaView>
   );
 };
@@ -1889,6 +1970,7 @@ const s = StyleSheet.create({
   stockChip:     { position: "absolute", top: 14, right: 14, backgroundColor: "rgba(240,253,244,0.92)", borderWidth: 1, borderColor: C.green, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 4 },
   stockChipText: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.green },
   thumbRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white },
+  thumbScrollContent: { flexDirection: "row", gap: 8 },
   thumb:         { width: 60, height: 60, borderRadius: 10, overflow: "hidden", borderWidth: 2, borderColor: C.border },
   thumbActive:   { borderColor: C.navy, borderWidth: 2.5 },
   thumbImg:      { width: "100%", height: "100%" },
@@ -1943,11 +2025,14 @@ const wh = StyleSheet.create({
   imageSection:   { width: 420, flexShrink: 0 },
   heroImageWrap:  { borderRadius: 16, overflow: "hidden", position: "relative", backgroundColor: "#F3F4F8" },
   heroImage:      { width: "100%", height: 380 },
-  thumbRow:           { marginTop: 10 },
+  thumbRow:       { marginTop: 10 },
+  thumbNavRow:    { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  thumbScroller:  { flex: 1 },
   thumbScrollContent: { flexDirection: "row", gap: 8 },
   thumb:          { width: 72, height: 72, borderRadius: 10, overflow: "hidden", borderWidth: 2, borderColor: C.border },
   thumbActive:    { borderColor: C.navy, borderWidth: 2.5 },
   thumbImg:       { width: "100%", height: "100%" },
+  thumbNavBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.96)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 6 },
   detailsSection: { flex: 1, minWidth: 0 },
   detailsInner:   { flex: 1 },
   topRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
@@ -1957,12 +2042,14 @@ const wh = StyleSheet.create({
   price:          { fontFamily: "Outfit_800ExtraBold", fontSize: 32, color: C.orange },
   mrp:            { fontFamily: "Outfit_500Medium", fontSize: 16, color: C.textLight, textDecorationLine: "line-through" },
   priceNote:      { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
-  divider:        { borderTopWidth: 1, borderTopColor: "#F3F4F6", marginVertical: 14 },
-  detailGrid:     { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  detailCell:     { backgroundColor: C.bg, borderRadius: 10, padding: 10, minWidth: 120, flex: 1 },
-  detailLabel:    { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight, marginBottom: 4 },
-  detailValue:    { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textDark },
-  colorsSection:  {},
+  divider:            { borderTopWidth: 1, borderTopColor: "#F3F4F6", marginVertical: 14 },
+  detailCard:         { backgroundColor: C.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  detailLine:         { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  detailCellInline:   { flex: 1, minWidth: 120, backgroundColor: C.white, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border },
+  detailLabel:        { fontFamily: "Outfit_400Regular", fontSize: 10.5, color: C.textLight, marginBottom: 4 },
+  detailValue:        { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.textDark },
+  returnPolicyCard:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  colorsSection:      {},
   colorsLabel:    { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textLight, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   colorSwatches:  { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   swatchWrap:     { alignItems: "center", gap: 5 },
@@ -1973,6 +2060,10 @@ const wh = StyleSheet.create({
   sizePills:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   sizeChip:       { backgroundColor: C.purplePale, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: C.purpleLight },
   sizeChipTxt:    { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.navy },
+  navBtnLeft:     { position: "absolute", left: 14, top: "50%", transform: [{ translateY: -20 }], width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
+  navBtnRight:    { position: "absolute", right: 14, top: "50%", transform: [{ translateY: -20 }], width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
+  thumbCounter:   { position: "absolute", bottom: 12, left: "50%", transform: [{ translateX: -30 }], paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: C.border },
+  thumbCounterTxt:{ fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.navy },
   attrRow:        { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   descLabel:      { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.textMid, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   descText:       { fontFamily: "Outfit_400Regular", fontSize: 13.5, color: C.textMid, lineHeight: 22 },
