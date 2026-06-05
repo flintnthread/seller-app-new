@@ -130,6 +130,7 @@ const QUICK_ACTIONS = [
     { icon: "bullhorn-outline", label: "Marketing", sub: "Promotions & ad campaigns", iconColor: C.pink, bgColor: "#FDF2F8" },
     { icon: "cog-outline", label: "Store Settings", sub: "Store info & preferences", iconColor: C.teal, bgColor: "#F0FDFA" },
     { icon: "star-outline", label: "Reviews", sub: "Customer reviews", iconColor: C.yellow, bgColor: "#FFFBEB" },
+    { icon: "headset", label: "Support", sub: "Help & support tickets", iconColor: C.indigo, bgColor: "#EEF2FF" },
 ];
 
 function buildLinePath(pts: ChartPoint[], w: number, h: number): string {
@@ -1504,6 +1505,8 @@ const MobileDashboard: React.FC<{
                                             if (qa.label === "Earnings") router.push("/(main)/earning");
                                             if (qa.label === "Reviews") router.push("/(main)/reviewsScreen");
                                             if (qa.label === "Orders") router.push("/(main)/Ordersscreen");
+                                            if (qa.label === "Store Settings") router.push("/(main)/settingsModule");
+                                            if (qa.label === "Support") router.push("/(main)/helpsupport");
                                         }}
                                     >
                                         <View style={[s.qaIconBox, { backgroundColor: qa.bgColor }]}>

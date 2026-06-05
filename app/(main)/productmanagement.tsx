@@ -302,13 +302,6 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
         loadSettings();
     }, [loadSettings]);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            loadSettings(pincodeQuery.trim() || undefined);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [pincodeQuery, loadSettings]);
-
     const stateOptions = useMemo(() => {
         const states = Array.from(new Set(pincodeOptions.map((d) => d.state).filter(Boolean)));
         return ["All States", ...states];
@@ -336,8 +329,17 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
         let data = pincodeOptions;
         if (selectedState !== "All States") data = data.filter(d => d.state === selectedState);
         if (selectedCity  !== "All Cities") data = data.filter(d => d.city  === selectedCity);
+        const q = pincodeQuery.trim().toLowerCase();
+        if (q) {
+            data = data.filter(
+                (d) =>
+                    d.pincode.toLowerCase().includes(q) ||
+                    d.area.toLowerCase().includes(q) ||
+                    d.city.toLowerCase().includes(q)
+            );
+        }
         return data;
-    }, [pincodeOptions, selectedState, selectedCity]);
+    }, [pincodeOptions, selectedState, selectedCity, pincodeQuery]);
 
     const togglePincode = (pincodeId: number) => {
         setSelectedPincodeIds(prev => prev.includes(pincodeId) ? prev.filter(k => k !== pincodeId) : [...prev, pincodeId]);

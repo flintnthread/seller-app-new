@@ -25,7 +25,14 @@ import {
   MaterialIcons,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
+import {
+  confirmSellerBankDetails,
+  fetchMyPayoutRequests,
+  fetchPayoutSummary,
+  fetchSellerBankDetails,
+  submitPayoutRequest,
+  type PayoutSummary,
+} from "@/services/payoutApi";
 
 interface BankAccount {
   id: string;
@@ -129,49 +136,72 @@ export default function EnhancedPayoutRequest() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [bankLoading, setBankLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([fetchEarnings(), fetchPayouts()])
-      .then(([earnings, payouts]) => {
-        setAvailableBalance(Number(earnings.availableBalance ?? 0));
-        if (earnings.bankAccount?.bankName) {
-          setBanks([{
-            id: "1",
-            bankName: earnings.bankAccount.bankName ?? "Bank",
-            accountNumber: earnings.bankAccount.accountNumberMasked ?? "••••",
-            isDefault: true,
-            isVerified: earnings.bankAccount.verified,
-          }]);
-        }
-        setApiTransactions(payouts.map((p) => ({
-          id: p.id,
-          orderId: p.orderId,
-          amount: Number(p.amount),
-          date: p.date,
-          status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
+  const formatInr = (n: number) =>
+    `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+
+  const mapPayoutStatus = (status: string): Transaction["status"] => {
+    const s = status.toLowerCase();
+    if (s === "pending" || s === "approved") return "Pending";
+    if (s === "rejected" || s === "cancelled") return "Failed";
+    return "Completed";
+  };
+
+  const reloadPayoutData = useCallback(async () => {
+    setBankLoading(true);
+    try {
+      const [summary, bank, requests] = await Promise.all([
+        fetchPayoutSummary(),
+        fetchSellerBankDetails(),
+        fetchMyPayoutRequests(),
+      ]);
+      setPayoutSummary(summary);
+      setAvailableBalance(Number(summary.pendingAmount ?? 0));
+      const masked =
+        bank.accountNumber && bank.accountNumber.length > 4
+          ? `**** ${bank.accountNumber.slice(-4)}`
+          : "—";
+      setBanks([
+        {
+          id: "1",
+          bankName: bank.bankName || "Bank account",
+          accountNumber: masked,
+          isDefault: true,
+          isVerified: bank.bankVerified === true,
+        },
+      ]);
+      setApiTransactions(
+        requests.map((p) => ({
+          id: String(p.id),
+          orderId: String(p.orderId),
+          amount: Number(p.requestedAmount ?? 0),
+          date: p.requestedAt ?? p.updatedAt ?? new Date().toISOString(),
+          status: mapPayoutStatus(p.status),
           type: "Payout" as const,
-        })));
-      })
-      .catch(() => undefined);
+        }))
+      );
+    } catch {
+      setBanks([]);
+      setApiTransactions([]);
+    } finally {
+      setBankLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    reloadPayoutData();
+  }, [reloadPayoutData]);
+
   const handleOrderIdChange = (text: string) => {
-    const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const cleaned = text.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase();
     setOrderId(cleaned);
-    if (ORDER_DATABASE[cleaned]) {
-      setAmount(String(ORDER_DATABASE[cleaned]));
-    } else {
-      setAmount("");
-    }
   };
 
   const validateAmount = () => {
-    if (!orderId) return "Enter Order ID";
-    if (!ORDER_DATABASE[orderId]) return "Invalid Order ID";
-    const num = parseFloat(amount);
-    if (isNaN(num)) return "Invalid Amount";
-    if (num < 500) return "Minimum ₹500 required";
-    if (num > availableBalance) return "Insufficient balance";
+    if (!orderId.trim()) return "Enter order ID";
+    if (banks.length === 0) return "Add a bank account first";
     return "";
   };
 
@@ -186,53 +216,30 @@ export default function EnhancedPayoutRequest() {
     });
   }, [searchQuery, statusFilter, apiTransactions]);
 
-  const handleInitialRequest = () => {
+  const handleInitialRequest = async () => {
     if (errorMsg) {
       Alert.alert("Error", errorMsg);
       return;
     }
-    Alert.alert("OTP Sent", "OTP sent to your registered mobile number");
-    setShowOtpModal(true);
-  };
-
-  const verifyOtpAndRequest = async () => {
-    if (otp.length < 4) {
-      Alert.alert("Invalid OTP", "Please enter valid 4 digit OTP");
-      return;
-    }
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
-      Alert.alert("Error", "Enter a valid payout amount.");
-      return;
-    }
-    setShowOtpModal(false);
     setIsRequesting(true);
     try {
-      const result = await requestPayout({
-        amount: amt,
-        orderId: orderId.trim() || undefined,
-        otp,
-        description: "Seller payout request",
+      await submitPayoutRequest({
+        orderId: orderId.trim(),
+        sellerNote: amount.trim() ? `Requested amount note: ${amount}` : undefined,
       });
-      setAvailableBalance(Number(result.remainingBalance ?? availableBalance));
       setShowSuccessModal(true);
       setOrderId("");
       setAmount("");
-      setOtp("");
-      const payouts = await fetchPayouts();
-      setApiTransactions(payouts.map((p) => ({
-        id: p.id,
-        orderId: p.orderId,
-        amount: Number(p.amount),
-        date: p.date,
-        status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
-        type: "Payout" as const,
-      })));
+      await reloadPayoutData();
     } catch (e) {
       Alert.alert("Payout failed", e instanceof Error ? e.message : "Could not submit payout request.");
     } finally {
       setIsRequesting(false);
     }
+  };
+
+  const verifyOtpAndRequest = () => {
+    void handleInitialRequest();
   };
 
   const renderTransactionItem = useCallback(
@@ -377,10 +384,10 @@ export default function EnhancedPayoutRequest() {
         >
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
-            <DesktopStatCard label="Lifetime Earnings" value="₹1,25,400" icon="history" accent="#1a2b5e" />
-            <DesktopStatCard label="This Month" value="₹18,920" icon="calendar-month" accent="#f97316" />
-            <DesktopStatCard label="Highest Payout" value="₹25,000" icon="trending-up" accent="#22c55e" />
-            <DesktopStatCard label="Pending" value="₹1,500" icon="clock-outline" accent="#f59e0b" />
+            <DesktopStatCard label="Lifetime Earnings" value={formatInr(Number(payoutSummary?.lifetimeEarnings ?? 0))} icon="history" accent="#1a2b5e" />
+            <DesktopStatCard label="This Month" value={formatInr(Number(payoutSummary?.thisMonthEarnings ?? 0))} icon="calendar-month" accent="#f97316" />
+            <DesktopStatCard label="Highest Payout" value={formatInr(Number(payoutSummary?.highestPayout ?? 0))} icon="trending-up" accent="#22c55e" />
+            <DesktopStatCard label="Pending" value={formatInr(Number(payoutSummary?.pendingAmount ?? 0))} icon="clock-outline" accent="#f59e0b" />
           </View>
 
           {/* Two-column body */}
@@ -399,6 +406,17 @@ export default function EnhancedPayoutRequest() {
               <View style={desktopStyles.fieldBlock}>
                 <Text style={desktopStyles.fieldLabel}>Select Bank Account</Text>
                 <View style={desktopStyles.bankRow}>
+                  {bankLoading ? (
+                    <ActivityIndicator size="small" color="#f97316" />
+                  ) : banks.length === 0 ? (
+                    <TouchableOpacity
+                      style={desktopStyles.bankCard}
+                      onPress={() => router.push({ pathname: "/(main)/sellerbanking", params: { returnTo: "payout" } })}
+                    >
+                      <MaterialCommunityIcons name="bank-plus" size={22} color="#f97316" />
+                      <Text style={desktopStyles.bankName}>Add bank account</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   {banks.map((bank) => (
                     <TouchableOpacity
                       key={bank.id}
@@ -451,6 +469,16 @@ export default function EnhancedPayoutRequest() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                {banks.length > 0 ? (
+                  <TouchableOpacity
+                    style={{ marginTop: 8, alignSelf: "flex-start" }}
+                    onPress={() => router.push({ pathname: "/(main)/sellerbanking", params: { returnTo: "payout" } })}
+                  >
+                    <Text style={{ color: "#f97316", fontWeight: "600", fontSize: 13 }}>
+                      Manage bank account
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               {/* Order ID Input */}
@@ -693,7 +721,7 @@ export default function EnhancedPayoutRequest() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12 }}
               >
-                <StatCard label="Lifetime" value="₹1,25,400" icon="history" />
+                <StatCard label="Lifetime" value={formatInr(Number(payoutSummary?.lifetimeEarnings ?? 0))} icon="history" />
                 <StatCard label="This Month" value="₹18,920" icon="calendar-month" />
                 <StatCard label="Highest" value="₹25,000" icon="trending-up" />
               </ScrollView>

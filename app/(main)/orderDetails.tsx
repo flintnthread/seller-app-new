@@ -49,6 +49,14 @@ import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/
 const BP_TABLET  = 768;   // >= tablet: 2-col layout
 const BP_DESKTOP = 1100;  // >= desktop: wider columns, max-width container
 
+function openProductDetail(item: OrderItem) {
+  if (item.productId) {
+    router.push({ pathname: "/(main)/Productdetail", params: { id: String(item.productId) } });
+    return;
+  }
+  router.push("/(main)/productmanagement");
+}
+
 // ─── Color Palette (identical to original) ────────────────────────────────────
 const C = {
   navy:       "#1E2B6B",
@@ -320,7 +328,7 @@ const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
     <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`} />
     {order.items.map((item, idx) => (
       <View key={idx} style={[{ flexDirection:"row", gap:12 }, idx>0 && { marginTop:14, paddingTop:14, borderTopWidth:1, borderTopColor:C.border }]}>
-            <TouchableOpacity onPress={() => router.push("/(main)/productmanagement")} activeOpacity={0.85}>
+            <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
             <Image source={{ uri:item.image }} style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border }} />
         </TouchableOpacity>
         <View style={{ flex:1 }}>
@@ -1083,7 +1091,7 @@ const MobileLayout: React.FC<{
           {order.items.map((item,idx) => (
             <View key={idx}>
               <View style={[styles.itemRow,idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
-                <TouchableOpacity onPress={()=>router.push("/(main)/productmanagement")} activeOpacity={0.85}>
+                <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
                   <Image source={{uri:item.image}} style={styles.itemImage}/>
                 </TouchableOpacity>
                 <View style={styles.itemInfo}>

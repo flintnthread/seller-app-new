@@ -1009,7 +1009,7 @@ const LiveChatModal: React.FC<{
   const [showEscalate, setShowEscalate] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const flatRef = useRef<FlatList>(null);
-  const slideAnim = useRef(new Animated.Value(700)).current;
+  const slideAnim = useRef(new Animated.Value(420)).current;
 
   const loadChat = useCallback(async () => {
     setChatLoading(true);
@@ -1032,7 +1032,7 @@ const LiveChatModal: React.FC<{
       Animated.spring(slideAnim, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }).start();
       loadChat();
     } else {
-      Animated.timing(slideAnim, { toValue: 700, duration: 230, useNativeDriver: true }).start();
+      Animated.timing(slideAnim, { toValue: 420, duration: 230, useNativeDriver: true }).start();
     }
   }, [visible, loadChat]);
 
@@ -1097,7 +1097,7 @@ const LiveChatModal: React.FC<{
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={cs.overlay}>
-        <Animated.View style={[cs.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[cs.sheet, { transform: [{ translateX: slideAnim }] }]}>
 
           {/* Header */}
           <View style={cs.header}>
@@ -2533,8 +2533,28 @@ const sm = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const cs = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.52)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#F7F8FB", borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", minHeight: "60%", overflow: "hidden" },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.52)",
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+    padding: 16,
+    paddingBottom: 24,
+  },
+  sheet: {
+    width: 400,
+    maxWidth: "100%" as const,
+    backgroundColor: "#F7F8FB",
+    borderRadius: 16,
+    maxHeight: "88%",
+    minHeight: 420,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: -4, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 16,
+  },
 
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.navyDeep, paddingHorizontal: 16, paddingVertical: 14, paddingTop: Platform.OS === "ios" ? 52 : 16 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },

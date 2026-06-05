@@ -70,7 +70,7 @@ function mapOrdersToRows(): OrderRow[] {
       id: o.id,
       date: dateParts.slice(0, 3).join(" ") || o.date || "—",
       time: dateParts.slice(3).join(" ") || "—",
-      productName: item?.productName ?? "—",
+      productName: item?.name ?? item?.productName ?? "—",
       variant: variantParts.length ? variantParts.join(" • ") : "—",
       qty: item?.qty ?? 1,
       price: typeof priceNum === "number" ? priceNum : Number(priceNum) || 0,
@@ -187,7 +187,7 @@ export const DashboardTables: React.FC = () => {
       render: (item) => (
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() => router.push({ pathname: "/(main)/orderDetails", params: { id: item.id } })}
+          onPress={() => router.push({ pathname: "/(main)/orderDetails", params: { orderId: item.id } })}
           activeOpacity={0.7}
         >
           <AppText style={styles.actionBtnText}>Manage</AppText>
