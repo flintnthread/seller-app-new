@@ -141,7 +141,7 @@ const PINCODE_DATA = [
 
 const COUNTRIES = ["India"];
 const STATES_BY_COUNTRY: Record<string, string[]> = {
-    "India": ["All States","Delhi","Maharashtra","Telangana","Karnataka","Tamil Nadu","West Bengal","Gujarat","Rajasthan","Uttar Pradesh"],
+    "India": ["All States"],
 };
 const CITIES_BY_STATE: Record<string, string[]> = {
     "All States":    ["All Cities"],
@@ -303,19 +303,22 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
     }, [loadSettings]);
 
     const stateOptions = useMemo(() => {
-        const states = Array.from(new Set(pincodeOptions.map((d) => d.state).filter(Boolean)));
-        return ["All States", ...states];
-    }, [pincodeOptions]);
+        return STATES_BY_COUNTRY[selectedCountry] || ["All States"];
+    }, [selectedCountry]);
 
     const cityOptions = useMemo(() => {
-        let rows = pincodeOptions;
-        if (selectedState !== "All States") rows = rows.filter((d) => d.state === selectedState);
-        const cities = Array.from(new Set(rows.map((d) => d.city).filter(Boolean)));
-        return ["All Cities", ...cities];
-    }, [pincodeOptions, selectedState]);
+        return CITIES_BY_STATE[selectedState] || ["All Cities"];
+    }, [selectedState]);
 
-    const openSelector = (type: SelectorType, options: string[]) => {
-        setSelectorType(type); setSelectorOptions(options); setSelectorVisible(true);
+    const toggleSelector = (type: SelectorType, options: string[]) => {
+        if (selectorType === type && selectorVisible) {
+            setSelectorVisible(false);
+            setSelectorType(null);
+        } else {
+            setSelectorType(type);
+            setSelectorOptions(options);
+            setSelectorVisible(true);
+        }
     };
 
     const handleSelectorSelect = (val: string) => {
@@ -356,12 +359,36 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                 pincodeIds: deliverAll ? [] : selectedPincodeIds,
             });
             const count = selectedPincodeIds.length;
-            Alert.alert("✅ Delivery Locations Updated",
-                `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`,
-                [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+            const successMsg = `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`;
+            
+            if (Platform.OS === "web" && typeof window !== "undefined") {
+                onClose(); // Close the modal immediately so it doesn't stay in the background
+                const Swal = require('sweetalert2');
+                Swal.fire({
+                    title: 'Locations Updated!',
+                    html: successMsg.replace(/\n/g, '<br/>'),
+                    icon: 'success',
+                    confirmButtonText: 'Great',
+                    confirmButtonColor: C.orange,
+                    customClass: { popup: 'swal2-product-popup' }
+                });
+            } else {
+                Alert.alert("✅ Delivery Locations Updated", successMsg, [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+            }
         } catch (err) {
             const msg = err instanceof ApiError ? err.message : "Failed to save delivery settings.";
-            Alert.alert("Error", msg);
+            if (Platform.OS === "web" && typeof window !== "undefined") {
+                const Swal = require('sweetalert2');
+                Swal.fire({
+                    title: 'Error',
+                    text: msg,
+                    icon: 'error',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: C.orange
+                });
+            } else {
+                Alert.alert("Error", msg);
+            }
         } finally {
             setSaving(false);
         }
@@ -371,6 +398,13 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
 
     const ModalContent = () => (
         <View style={isWebPlatform ? dlp.popupCard : dlp.fullCard}>
+            {selectorVisible && (
+                <TouchableOpacity 
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                    activeOpacity={1} 
+                    onPress={() => setSelectorVisible(false)} 
+                />
+            )}
             <View style={dlp.header}>
                 <TouchableOpacity style={dlp.backBtn} onPress={onClose}>
                     <Ionicons name="arrow-back" size={20} color={C.white} />
@@ -395,27 +429,63 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                     <TouchableOpacity style={dlp.indiaWideBtn} onPress={() => setDeliverAll(true)}><Text style={dlp.indiaWideBtnTxt}>Set All</Text></TouchableOpacity>
                 </View>
 
-                <View style={dlp.dropdownsRow}>
-                    <View style={dlp.dropdownWrap}>
+                <View style={[dlp.dropdownsRow, { zIndex: selectorVisible ? 101 : 10 }]}>
+                    <View style={[dlp.dropdownWrap, { zIndex: selectorType === 'country' ? 10 : 1 }]}>
                         <Text style={dlp.dropdownLabel}>Country</Text>
-                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('country', COUNTRIES)}>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => toggleSelector('country', COUNTRIES)}>
                             <Text style={dlp.dropdownText}>{selectedCountry}</Text>
-                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                            <Ionicons name={selectorType === 'country' && selectorVisible ? "chevron-up" : "chevron-down"} size={14} color={C.textMid} />
                         </TouchableOpacity>
+                        {selectorVisible && selectorType === 'country' && (
+                            <View style={dlp.inlineDropdownMenu}>
+                                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                    {selectorOptions.map((opt, idx) => (
+                                        <TouchableOpacity key={idx} style={[dlp.inlineDropdownItem, opt === selectedCountry && dlp.inlineDropdownItemActive]} onPress={() => handleSelectorSelect(opt)}>
+                                            <Text style={[dlp.inlineDropdownText, opt === selectedCountry && dlp.inlineDropdownTextActive]}>{opt}</Text>
+                                            {opt === selectedCountry && <Ionicons name="checkmark" size={16} color={C.navy} />}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
                     </View>
-                    <View style={dlp.dropdownWrap}>
+                    <View style={[dlp.dropdownWrap, { zIndex: selectorType === 'state' ? 10 : 1 }]}>
                         <Text style={dlp.dropdownLabel}>State</Text>
-                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('state', stateOptions)}>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => toggleSelector('state', stateOptions)}>
                             <Text style={dlp.dropdownText}>{selectedState}</Text>
-                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                            <Ionicons name={selectorType === 'state' && selectorVisible ? "chevron-up" : "chevron-down"} size={14} color={C.textMid} />
                         </TouchableOpacity>
+                        {selectorVisible && selectorType === 'state' && (
+                            <View style={dlp.inlineDropdownMenu}>
+                                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                    {selectorOptions.map((opt, idx) => (
+                                        <TouchableOpacity key={idx} style={[dlp.inlineDropdownItem, opt === selectedState && dlp.inlineDropdownItemActive]} onPress={() => handleSelectorSelect(opt)}>
+                                            <Text style={[dlp.inlineDropdownText, opt === selectedState && dlp.inlineDropdownTextActive]}>{opt}</Text>
+                                            {opt === selectedState && <Ionicons name="checkmark" size={16} color={C.navy} />}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
                     </View>
-                    <View style={dlp.dropdownWrap}>
+                    <View style={[dlp.dropdownWrap, { zIndex: selectorType === 'city' ? 10 : 1 }]}>
                         <Text style={dlp.dropdownLabel}>City</Text>
-                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => openSelector('city', cityOptions)}>
+                        <TouchableOpacity style={dlp.dropdownInput} onPress={() => toggleSelector('city', cityOptions)}>
                             <Text style={dlp.dropdownText}>{selectedCity}</Text>
-                            <Ionicons name="chevron-down" size={14} color={C.textMid} />
+                            <Ionicons name={selectorType === 'city' && selectorVisible ? "chevron-up" : "chevron-down"} size={14} color={C.textMid} />
                         </TouchableOpacity>
+                        {selectorVisible && selectorType === 'city' && (
+                            <View style={dlp.inlineDropdownMenu}>
+                                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                    {selectorOptions.map((opt, idx) => (
+                                        <TouchableOpacity key={idx} style={[dlp.inlineDropdownItem, opt === selectedCity && dlp.inlineDropdownItemActive]} onPress={() => handleSelectorSelect(opt)}>
+                                            <Text style={[dlp.inlineDropdownText, opt === selectedCity && dlp.inlineDropdownTextActive]}>{opt}</Text>
+                                            {opt === selectedCity && <Ionicons name="checkmark" size={16} color={C.navy} />}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -474,28 +544,6 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                     {saving ? <ActivityIndicator size="small" color={C.white} /> : <Text style={dlp.applyBtnTxt}>Apply Selection</Text>}
                 </TouchableOpacity>
             </View>
-
-            <Modal visible={selectorVisible} transparent animationType="fade">
-                <View style={gs.overlay}>
-                    <View style={gs.content}>
-                        <View style={gs.headerRow}>
-                            <Text style={gs.headerTitle}>Select {selectorType === 'country' ? 'Country' : selectorType === 'state' ? 'State' : 'City'}</Text>
-                            <TouchableOpacity onPress={() => setSelectorVisible(false)}><Ionicons name="close" size={22} color={C.textDark} /></TouchableOpacity>
-                        </View>
-                        <ScrollView style={{ maxHeight: SH * 0.45 }}>
-                            {selectorOptions.map((opt, idx) => {
-                                const isActive = (selectorType === 'country' && opt === selectedCountry) || (selectorType === 'state' && opt === selectedState) || (selectorType === 'city' && opt === selectedCity);
-                                return (
-                                    <TouchableOpacity key={idx} style={[gs.item, isActive && gs.itemActive]} onPress={() => handleSelectorSelect(opt)}>
-                                        <Text style={[gs.itemText, isActive && gs.itemTextActive]}>{opt}</Text>
-                                        {isActive && <Ionicons name="checkmark-circle" size={18} color={C.navy} />}
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 
@@ -539,7 +587,12 @@ const dlp = StyleSheet.create({
     indiaWideBtn: { backgroundColor: C.orange, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5, alignSelf: "flex-start" },
     indiaWideBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.white },
     dropdownsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, marginBottom: 10 },
-    dropdownWrap: { flex: 1 },
+    dropdownWrap: { flex: 1, position: "relative" },
+    inlineDropdownMenu: { position: "absolute", top: 62, left: 0, right: 0, backgroundColor: C.white, borderRadius: 8, borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10, maxHeight: 180 },
+    inlineDropdownItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.bg, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    inlineDropdownItemActive: { backgroundColor: C.bluePale },
+    inlineDropdownText: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textDark },
+    inlineDropdownTextActive: { fontFamily: "Outfit_600SemiBold", color: C.navy },
     dropdownLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 10, color: C.textLight, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 },
     dropdownInput: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.white, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: C.border },
     dropdownText: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textDark, flex: 1 },
@@ -571,7 +624,7 @@ const dlp = StyleSheet.create({
 
 const gs = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-    content: { backgroundColor: C.white, width: "100%", borderRadius: 14, maxHeight: SH * 0.55, overflow: "hidden" },
+    content: { backgroundColor: C.white, width: 320, borderRadius: 14, maxHeight: SH * 0.55, overflow: "hidden" },
     headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
     headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.textDark },
     item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.bg },
@@ -791,6 +844,15 @@ const wp = StyleSheet.create({
     cancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
 });
 
+const truncateTitle = (title: string) => {
+    if (!title) return "";
+    const words = title.split(" ");
+    if (words.length > 3) {
+        return words.slice(0, 3).join(" ") + ".....";
+    }
+    return title;
+};
+
 // ─────────────────────────────────────────────────────────────
 // WEB DESKTOP SCREEN
 // ─────────────────────────────────────────────────────────────
@@ -936,23 +998,24 @@ const WebProductsScreen: React.FC = () => {
                 ) : null}
                 {/* Page header */}
                 <View style={wst.pageHeader}>
-                    <View>
+                    <View style={wst.titleContainer}>
                         <View style={wst.breadcrumb}>
-                            <Text style={wst.breadcrumbDim}>Dashboard</Text>
-                            <Ionicons name="chevron-forward" size={13} color={C.textLight} />
-                            <Text style={wst.breadcrumbActive}>Products</Text>
+                            <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
+                                <Text style={wst.breadcrumbDim}>Dashboard</Text>
+                            </TouchableOpacity>
+                            <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
+                            <Text style={wst.breadcrumbActive}>Product Management</Text>
                         </View>
                         <Text style={wst.pageTitle}>Product Management</Text>
                     </View>
                     
                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                        <Text style={[wst.pageSubtitle, { marginRight: 8 }]}>{totalCount} products total</Text>
                         <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="plus" size={16} color={C.white} />
+                            <MaterialCommunityIcons name="plus" size={18} color={C.navy} />
                             <Text style={wst.navAddBtnTxt}>Add Product</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={wst.navBulkBtn} onPress={() => router.push("/(main)/bulkupload")} activeOpacity={0.85}>
-                            <MaterialCommunityIcons name="cloud-upload-outline" size={14} color={C.green} />
+                            <MaterialCommunityIcons name="cloud-upload-outline" size={16} color={C.white} />
                             <Text style={wst.navBulkBtnTxt}>Bulk Upload</Text>
                         </TouchableOpacity>
                     </View>
@@ -1248,6 +1311,23 @@ const WebProductsScreen: React.FC = () => {
 
                     {/* RIGHT TABLE AREA */}
                     <View style={wst.tableArea}>
+                        {/* SEARCH BAR */}
+                        <View style={wst.searchBarWrap}>
+                            <Feather name="search" size={15} color={C.textLight} style={{ marginRight: 8 }} />
+                            <TextInput
+                                style={wst.searchBarInput}
+                                placeholder="Search by name, SKU or category..."
+                                placeholderTextColor={C.textLight}
+                                value={searchQuery}
+                                onChangeText={(v) => { setSearchQuery(v); setVisibleCount(20); }}
+                            />
+                            {searchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                                    <Ionicons name="close-circle" size={16} color={C.textLight} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
                         <View style={wst.tableToolbar}>
                             <View style={wst.tableToolbarLeft}>
                                 <Text style={wst.tableResultCount}>
@@ -1282,14 +1362,13 @@ const WebProductsScreen: React.FC = () => {
                             <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false}>
                                 {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
                                 <View style={wst.tableHead}>
-                                    <Text style={[wst.tableHeadCell, { flex: 3 }]}>Product</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>SKU</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1 }]}>Category</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1 }]}>Sub-Type</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.6 }]}>Size</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.8 }]}>Price</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 2.7 }]}>Product</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.6 }]}>SKU</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.5 }]}>Category</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.7 }]}>Size</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.9 }]}>Price</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.7 }]}>Stock</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.9 }]}>Status</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.0 }]}>Status</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.7, textAlign: "right" }]}>Actions</Text>
                                 </View>
                                 {visibleProducts.length === 0 ? (
@@ -1308,44 +1387,33 @@ const WebProductsScreen: React.FC = () => {
                                         return (
                                             <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
-                                                <View style={[wst.tableCell, { flex: 3 }]}>
+                                                <View style={[wst.tableCell, { flex: 2.7 }]}>
                                                     <Image source={{ uri: product.image }} style={wst.tableProductImg} />
                                                     <View style={{ flex: 1 }}>
-                                                        <Text style={wst.tableProductName} numberOfLines={1}>{product.name}</Text>
+                                                        <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.tableProductSub}>{product.color}</Text>
                                                         <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
                                                     </View>
                                                 </View>
                                                 {/* SKU */}
-                                                <View style={[wst.tableCell, { flex: 1.2 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.6 }]}>
                                                     <Text style={wst.tableCellSku}>{product.sku}</Text>
                                                 </View>
                                                 {/* ── WEB CHANGE 8a: Category col — only category + subcategory ── */}
-                                                <View style={[wst.tableCell, { flex: 1, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.5, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                                                     <View style={wst.categoryTag}>
                                                         <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
                                                     </View>
                                                     <Text style={wst.subcategoryTxt}>{product.subcategory}</Text>
                                                 </View>
-                                                {/* ── WEB CHANGE 8b: Sub-Type col — subSubcategory as its own distinct teal pill ── */}
-                                                <View style={[wst.tableCell, { flex: 1, flexDirection: "column", alignItems: "flex-start" }]}>
-                                                    {product.subSubcategory ? (
-                                                        <View style={wst.subSubPill}>
-                                                            <MaterialCommunityIcons name="tag-outline" size={9} color={C.teal} />
-                                                            <Text style={wst.subSubPillTxt}>{product.subSubcategory}</Text>
-                                                        </View>
-                                                    ) : (
-                                                        <Text style={wst.subSubEmpty}>—</Text>
-                                                    )}
-                                                </View>
                                                 {/* ── WEB CHANGE 8c: Size col — its own column ── */}
-                                                <View style={[wst.tableCell, { flex: 0.6, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.7, flexDirection: "column", alignItems: "flex-start" }]}>
                                                     <View style={wst.sizePill}>
                                                         <Text style={wst.sizePillTxt}>{product.size}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Price */}
-                                                <View style={[wst.tableCell, { flex: 0.8 }]}>
+                                                <View style={[wst.tableCell, { flex: 0.9 }]}>
                                                     <Text style={wst.tablePriceVal}>₹{product.price.toLocaleString()}</Text>
                                                 </View>
                                                 {/* Stock */}
@@ -1355,7 +1423,7 @@ const WebProductsScreen: React.FC = () => {
                                                     {product.stock === 0 && <Text style={wst.outStockHint}>Out</Text>}
                                                 </View>
                                                 {/* Status */}
-                                                <View style={[wst.tableCell, { flex: 0.9 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.0 }]}>
                                                     <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
                                                         <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                         <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
@@ -1401,7 +1469,7 @@ const WebProductsScreen: React.FC = () => {
                                             return (
                                                 <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
-                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} />
+                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} resizeMode="contain" />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
                                                             <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                             <Text style={[wst.webGridStatusTxt, { color: st.color }]}>{product.status}</Text>
@@ -1411,7 +1479,7 @@ const WebProductsScreen: React.FC = () => {
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={wst.webGridInfo}>
-                                                        <Text style={wst.webGridName} numberOfLines={2}>{product.name}</Text>
+                                                        <Text style={wst.webGridName} numberOfLines={2}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.webGridSku}>{product.sku}</Text>
                                                         <View style={wst.webGridMeta}>
                                                             <Text style={wst.webGridPrice}>₹{product.price.toLocaleString()}</Text>
@@ -1474,19 +1542,23 @@ const wst = StyleSheet.create({
     navRight: { flexDirection: "row", alignItems: "center", gap: 10 },
     navSearch: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", width: 260 },
     navSearchInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.white, outlineStyle: "none" as any },
-    navAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, shadowColor: C.purple, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
-    navAddBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
-    navBulkBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(34,197,94,0.15)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1.5, borderColor: "rgba(34,197,94,0.3)" },
-    navBulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.green },
+    navAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.white, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 },
+    navAddBtnTxt: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navy },
+    navBulkBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
+    navBulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.white },
     pageScroll: { flex: 1 },
-    pageContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 40 },
-    pageHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 },
-    breadcrumb: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
-    breadcrumbDim: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
-    breadcrumbActive: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.navy },
-    pageTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 22, color: C.navyDeep, letterSpacing: -0.4 },
-    pageSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight },
-    statsRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
+    pageContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 40 },
+    pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0, backgroundColor: C.navyDeep, paddingHorizontal: 32, paddingVertical: 28, paddingBottom: 68, borderRadius: 22, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, marginHorizontal: 2, marginTop: 12, shadowColor: C.navyDeep, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10 },
+    titleContainer: {
+        paddingLeft: 0,
+        marginVertical: 0,
+    },
+    breadcrumb: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+    breadcrumbDim: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "rgba(255,255,255,0.75)" },
+    breadcrumbActive: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
+    pageTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.white, letterSpacing: -0.5 },
+    pageSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "rgba(255,255,255,0.8)" },
+    statsRow: { flexDirection: "row", gap: 12, marginBottom: 18, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
     statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
     statCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
     statCardIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
@@ -1494,6 +1566,20 @@ const wst = StyleSheet.create({
     statCardLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid, marginBottom: 3 },
     statCardTrend: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
     contentArea: { flexDirection: "row", gap: 14, flex: 1, minHeight: 600 },
+
+    // ── SEARCH BAR ──
+    searchBarWrap: {
+        flexDirection: "row", alignItems: "center",
+        backgroundColor: C.white, borderRadius: 12,
+        paddingHorizontal: 14, paddingVertical: 10,
+        marginBottom: 10,
+        shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+        borderWidth: 1, borderColor: C.border,
+    },
+    searchBarInput: {
+        flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textDark,
+        ...(Platform.OS === "web" ? { outlineStyle: "none" } as any : {}),
+    },
 
     // ── FILTER PANEL ──
     filterPanel: { width: 240, backgroundColor: C.white, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
@@ -1579,11 +1665,11 @@ const wst = StyleSheet.create({
     viewBtn: { width: 28, height: 28, borderRadius: 5, alignItems: "center", justifyContent: "center" },
     viewBtnActive: { backgroundColor: C.navy },
     tableScroll: { flex: 1 },
-    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 11, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border },
+    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 11, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border, gap: 24 },
     tableHeadCell: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.5 },
-    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6", gap: 24 },
     tableRowAlt: { backgroundColor: "#FAFBFF" },
-    tableCell: { flexDirection: "row", alignItems: "center", paddingRight: 8, gap: 10 },
+    tableCell: { flexDirection: "row", alignItems: "center", gap: 10 },
     tableProductImg: { width: 44, height: 44, borderRadius: 9, backgroundColor: C.bg },
     tableProductName: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark, marginBottom: 2 },
     tableProductSub: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 1 },
@@ -1617,7 +1703,7 @@ const wst = StyleSheet.create({
     webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 16 },
     webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
     webGridImgWrap: { position: "relative" },
-    webGridImg: { width: "100%", height: 140, backgroundColor: C.bg },
+    webGridImg: { width: "100%", height: 240, backgroundColor: C.bg },
     webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
     webGridStatusTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
     webGridMoreBtn: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.93)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
@@ -2005,7 +2091,7 @@ const MobileProductsScreen: React.FC = () => {
                             const st = getStatusColor(product.status);
                             return (
                                 <TouchableOpacity key={product.id} style={s.gridCard} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.gridImage} />
+                                    <Image source={{ uri: product.image }} style={s.gridImage} resizeMode="contain" />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
                                     </View>

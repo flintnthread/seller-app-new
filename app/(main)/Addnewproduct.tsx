@@ -87,17 +87,80 @@ const C = {
 };
 
 // ─── Data ────────────────────────────────────────────────────
-const CATEGORIES = ["Clothing", "Electronics", "Footwear", "Bags", "Accessories", "Sports", "Home & Living", "Books"];
 const SUBCATEGORIES: Record<string, string[]> = {
-    "Clothing": ["T-Shirts", "Shirts", "Jeans", "Dresses", "Jackets"],
-    "Electronics": ["Mobiles", "Laptops", "Headphones", "Cameras", "Tablets"],
-    "Footwear": ["Sneakers", "Sandals", "Formal", "Sports", "Boots"],
-    "Bags": ["Backpacks", "Handbags", "Wallets", "Travel Bags"],
-    "Accessories": ["Watches", "Sunglasses", "Jewelry", "Belts"],
+    "Clothing": [
+        "T-Shirts", "Shirts", "Jeans", "Dresses", "Jackets", "Shorts", "Innerwear", 
+        "Capris", "Clothing Set", "Dungarees & Jumpsuits", "Ethnic Wear", "Kurta Set", 
+        "Leggings", "Lehenga-Cholis", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants",
+        "Saree Fall", "Poplin"
+    ],
+    "Electronics": ["Mobiles", "Laptops", "Headphones", "Cameras", "Tablets", "Audio", "Wearables"],
+    "Footwear": [
+        "Sneakers", "Sandals", "Formal", "Sports", "Boots", 
+        "Ballet Flats", "Casual Shoes", "Flats", "Heels", "Wedges",
+        "Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes",
+        "Flip Flops", "Formal Shoes", "Loafers", "Booties", "Flats Shoes", "School Shoes", "Socks"
+    ],
+    "Bags": ["Backpacks", "Handbags", "Wallets", "Travel Bags", "Laptop Bags", "Lunch Carry Bags", "Sling Bags", "Wallets & Clutches"],
+    "Accessories": [
+        "Watches", "Sunglasses", "Jewelry", "Belts", 
+        "Wallets", "Eyewear", "Headwear", "Caps", "Fitness Gloves", "Gym Bags", "Sweatbands", "Water Bottles",
+        "Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"
+    ],
     "Sports": ["Cricket", "Football", "Tennis", "Yoga", "Gym"],
-    "Home & Living": ["Furniture", "Decor", "Kitchen", "Bedding"],
+    "Home & Living": [
+        "Furniture", "Decor", "Kitchen", "Bedding",
+        "Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle",
+        "Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"
+    ],
     "Books": ["Fiction", "Non-Fiction", "Academic", "Comics"],
+    "Jewellery": [
+        "Anklets", "Anti Tarnish Chains", "Bangles", "Bracelet", "Bridal Necklace", 
+        "Chains", "Couple Bracelets", "Customized Name Pendants", "Earrings", "Jewellery Set", 
+        "Key-lock Couple Sets", "Necklaces", "Nose Pins", "Pearl Necklace Set", "Pendants", "Rings", "Vaddanam"
+    ],
+    "Innerwear & Nightwear": ["Briefs & Boxers", "Loungewear", "Sleepwear", "Thermals", "Trunks", "Vests"],
+    "Gadgets Accessories": ["Clothing Accessories"],
+    "Other Accessories": ["Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"],
+    "Belts & Caps": ["Belts", "Caps", "Gloves", "Goggles", "Hats", "Sunglasses"],
+    "Women s Footwear": ["Ballet Flats", "Boots", "Casual Shoes", "Flats", "Heels", "Wedges"],
+    "Milk Sweets": ["Gulab Jamun", "Kalakand"],
+    "Preschool Furniture": ["Chairs", "Dustbins"],
+    "Women s Sportswear": ["Gym Wear", "Leggings", "Shorts", "Sports Bras", "Sports Tops", "Tracksuits", "Yoga Pants"],
+    "Everyday Utility ": ["Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle"],
+    "Wearable & Personal Gifts": ["Caps", "Customized T-Shirts", "Hoodies", "Mask", "Personalized Towels & Handkerchiefs"],
+    "Skincare Tools & Devices": ["Facial Devices"],
+    "Art & Creative Gifts": ["Canvas Painting Prints", "Minimalist Line Art", "Pencil Sketches"],
+    "Kids & Baby Gifts": ["Baby Name Frames", "Cartoon-Theme Photo Frames", "Growth Charts", "Soft Toys with Name"],
+    "Home Decor Gifits": ["Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"],
+    "Formal Wear": ["Formal Shirts", "Suits & Blazers", "Ties"],
+    "Sports Footwear": ["Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes"],
+    "Watches": ["Fitness Bands", "Men s Watches", "Women s Watches"],
+    " Girls Clothing": [
+        "Capris", "Clothing Set", "Dresses", "Dungarees & Jumpsuits", "Ethnic Wear", "Jackets", 
+        "Kurta Set", "Leggings", "Lehenga-Cholis", "Shorts", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants"
+    ],
+    "Bottom Wear": ["Cargo Pants", "Casual Trousers", "Jeans", "Joggers", "Shorts / Bermudas", "Track Pants / Lower Wear", "Trousers (Formal / Regular)"],
+    "Lingerie & Sleepwear": ["Bottom Wear Inners", "Bras", "Camisoles", "Nightwear", "Panties", "Shapewear", "Swimwear", "Top Wear Inners"],
+    "Boys  Clothing": ["Clothing Set", "Ethnic Wear", "Jackets", "Jeans", "Nightwear", "Pyjamas", "Shorts", "Sweaters", "Sweatshirts", "T-Shirts", "Trousers"],
+    "Western Wear": ["Dresses", "Jeans", "Jeggings", "Jumpsuits", "Skirts & Shorts", "T-Shirts", "Tops", "Trousers"],
+    "Spiritual & Festival Gifts": ["Customized Temple Frames", "Festival Hampers", "God Photo Frames"],
+    "Dry Sweets": ["Boondhi Laddu", "Dryfruit Laddu", "Sununda"],
+    "Pre Indoor Play Items": ["Rocking Toys", "Slides"],
+    "Men s Sportswear": ["Compression Wear", "Jerseys", "Shorts", "T-Shirts", "Track Pants"],
+    "School Essentials": ["Bags", "Lunch Boxes", "School Uniforms", "Water Bottles"],
+    "Corporate & Promotional Gifts": ["Company Logo Frames", "Diaries", "Medal", "Pens", "Trophies", "Welcome Combo Kits"],
+    "Winter Wear": ["Cardigans", "Coats", "Jackets", "Shawls", "Sweaters"],
+    "Women s Clothing": ["Leggings", "Poplin", "Saree Fall"],
+    "Top Wear": ["Casual Shirts", "Coats", "Couple Wear", "Hoodies & Sweatshirts", "Jackets", "Polo Shirts", "Rain Jackets", "Shirts", "Sweaters", "T-Shirts"],
+    "Gifts for Couples": ["Explosion Gift Boxes", "Gift Items Novelties", "Love Scrapbooks"],
+    "Ethnic Wear": ["Dress Material", "Embroidery Work Blouse", "JUMPSUITS", "Kurtas & Kurtis", "Kurtha Set With Duppatta", "Lehenga Cholis", "Long Frock", "Salwar Suits", "Sarees", "Slik-Dupattas"],
+    "Educational Materials": ["Building Blocks/Block Construction Set", "Lacing & Threading Toys", "Linking Toys", "Shape Sorter & Stacking Toys"],
+    "Men s Footwear": ["Casual Shoes", "Flip Flops", "Formal Shoes", "Loafers", "Sandals", "Sneakers"],
+    "Kids  Footwear": ["Booties", "Casual Shoes", "Flats Shoes", "Flip Flops", "Heels", "Sandals", "School Shoes", "Socks"],
+    "Event-Based Gifts": ["Birthday Combo Hampers", "Gifits Hampers"]
 };
+const CATEGORIES = Object.keys(SUBCATEGORIES);
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
 const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
@@ -410,7 +473,7 @@ const SweetAlert = ({
                                         ? `"${productName}" has been submitted for review.`
                                         : "Your product has been submitted for review."}
                                     {savedProductId ? `\nProduct ID: ${savedProductId}` : ""}
-                                    {"\n"}You'll be notified once it goes live.
+                                    {"\n"}You&apos;ll be notified once it goes live.
                                 </AppText>
 
                                 {/* Stats row */}
@@ -726,6 +789,8 @@ const ts = StyleSheet.create({
     },
     containerDesktop: {
         top: 24,
+        left: "auto",
+        right: 0,
         paddingRight: 32,
         maxWidth: 420,
         alignSelf: "flex-end",
@@ -822,9 +887,9 @@ const validateDetails = (data: any): string[] => {
 // ─────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────
-const Card = ({ children, style }: any) => {
+const Card = ({ children, style, onLayout, zIndex, ...props }: any) => {
     const { isDesktop } = useResponsive();
-    return <View style={[at.card, isDesktop && ds.card, style]}>{children}</View>;
+    return <View onLayout={onLayout} style={[at.card, isDesktop && ds.card, style, Platform.OS === 'web' && zIndex !== undefined && { zIndex }]} {...props}>{children}</View>;
 };
 
 const SecHead = ({ icon, title, accent = C.accent1 }: { icon: string; title: string; accent?: string }) => (
@@ -860,12 +925,31 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
     );
 };
 
-const Drop = ({ placeholder, value, onPress, hasError }: any) => (
-    <TouchableOpacity style={[at.drop, hasError && at.fieldError]} onPress={onPress} activeOpacity={0.85}>
-        <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
-        <Ionicons name="chevron-down" size={15} color={C.textLight} />
-    </TouchableOpacity>
-);
+const Drop = ({ placeholder, value, onPress, hasError, options, onSelect }: any) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <View style={Platform.OS === 'web' ? { zIndex: open ? 99 : 1, position: 'relative' } : undefined}>
+            <TouchableOpacity style={[at.drop, hasError && at.fieldError, open && Platform.OS === 'web' && { borderColor: C.navy }]} onPress={() => { if(Platform.OS === 'web' && options) { setOpen(!open); } else { if(onPress) onPress(); } }} activeOpacity={0.85}>
+                <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
+                <Ionicons name={open && Platform.OS === 'web' ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
+            </TouchableOpacity>
+            {Platform.OS === 'web' && open && options && (
+                <>
+                    <TouchableOpacity style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={() => setOpen(false)} />
+                    <View style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5, zIndex: 101, maxHeight: 220 }}>
+                        <ScrollView style={{ paddingVertical: 8, maxHeight: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            {options.map((opt: string, idx: number) => (
+                                <TouchableOpacity key={idx} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : 'transparent' }} onPress={() => { if(onSelect) onSelect(opt); setOpen(false); }}>
+                                    <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </>
+            )}
+        </View>
+    );
+};
 
 const Divider = () => <View style={at.divider} />;
 const Hint = ({ text }: { text: string }) => <AppText style={at.hint}>{text}</AppText>;
@@ -873,26 +957,29 @@ const CC = ({ cur, max }: { cur: number; max: number }) => <AppText style={at.cc
 
 // ─── Picker Modal ─────────────────────────────────────────────
 const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
+    const { isDesktop } = useResponsive();
     const items = uniquePickerOptions(options ?? []);
     return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <TouchableOpacity style={pm.overlay} activeOpacity={1} onPress={onClose} />
-        <View style={pm.sheet}>
-            <View style={pm.drag} />
-            <View style={pm.hdr}>
-                <AppText style={pm.title}>{title}</AppText>
-                <TouchableOpacity onPress={onClose} style={pm.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons name="close" size={18} color={C.textMid} />
-                </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-                {items.map((opt: string, index: number) => (
-                    <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
-                        <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
-                        {selected === opt && <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>}
+    <Modal visible={visible} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={onClose}>
+        <View style={[pm.overlay, isDesktop && pm.overlayCenter]}>
+            <TouchableOpacity style={pm.backdrop} activeOpacity={1} onPress={onClose} />
+            <View style={[pm.sheet, isDesktop && pm.popup]}>
+                {!isDesktop && <View style={pm.drag} />}
+                <View style={pm.hdr}>
+                    <AppText style={pm.title}>{title}</AppText>
+                    <TouchableOpacity onPress={onClose} style={pm.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="close" size={18} color={C.textMid} />
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={isDesktop} bounces={false} style={isDesktop ? pm.listDesktop : undefined}>
+                    {items.map((opt: string, index: number) => (
+                        <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, isDesktop && pm.itemDesktop, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
+                            <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
+                            {selected === opt && <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
         </View>
     </Modal>
     );
@@ -900,12 +987,39 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
 
 const pm = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.22)" },
+    overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "rgba(10,20,60,0.35)" },
+    backdrop: { ...StyleSheet.absoluteFillObject },
     sheet: { position: "absolute", bottom: 0, left: 0, right: 0, maxHeight: "65%", backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
+    popup: {
+        position: "relative",
+        bottom: undefined,
+        left: undefined,
+        right: undefined,
+        width: "100%",
+        maxWidth: 380,
+        maxHeight: "75%",
+        borderRadius: 20,
+        paddingBottom: 16,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.22,
+        shadowRadius: 32,
+        elevation: 28,
+        zIndex: 2,
+        backgroundColor: C.white,
+        overflow: "hidden",
+    },
+    listDesktop: {
+        maxHeight: 280,
+    },
     drag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 6 },
     hdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
     title: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.textDark },
     closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
     item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
+    itemDesktop: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+    },
     itemOn: { backgroundColor: C.navyGhost },
     itemTxt: { fontFamily: fontFamilies.medium, fontSize: 14, color: C.textMid },
     itemTxtOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
@@ -1558,10 +1672,94 @@ const SIZE_TABLE_COLS = [
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
+
+    const scrollRef = useRef<ScrollView>(null);
+    const cardLayouts = useRef<Record<string, number>>({});
+    const fieldLayouts = useRef<Record<string, number>>({});
+    const fieldRefs = useRef<Record<string, any>>({});
+
+    useEffect(() => {
+        if (errors && errors.length > 0) {
+            const getFieldKeyFromError = (error: string): string | null => {
+                const err = error.toLowerCase();
+                if (err.includes("product name") || err.includes("name is required")) return "name";
+                if (err.includes("subcategory")) return "subcategory";
+                if (err.includes("category")) return "category";
+                if (err.includes("material")) return "materialType";
+                if (err.includes("hsn")) return "hsnCode";
+                if (err.includes("short description")) return "shortDesc";
+                if (err.includes("full description")) return "fullDesc";
+                if (err.includes("length")) return "length";
+                if (err.includes("width")) return "width";
+                if (err.includes("height")) return "height";
+                if (err.includes("weight")) return "weight";
+                if (err.includes("customization title")) return "custTitle";
+                if (err.includes("customization instructions")) return "custInstructions";
+                if (err.includes("image upload label")) return "custImageLabel";
+                if (err.includes("text field label") || err.includes("custom text")) return "custTextLabel";
+                return null;
+            };
+
+            const firstErr = errors[0];
+            const fieldKey = getFieldKeyFromError(firstErr);
+            if (fieldKey) {
+                const targetRef = fieldRefs.current[fieldKey];
+                const containerRef = scrollRef.current;
+
+                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
+                    try {
+                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    } catch (e) {
+                        // ignore and fallback
+                    }
+                }
+
+                const fallbackScroll = () => {
+                    let cardKey = '';
+                    if (['name', 'category', 'subcategory', 'materialType', 'hsnCode'].includes(fieldKey)) {
+                        cardKey = 'identity';
+                    } else if (['shortDesc', 'fullDesc'].includes(fieldKey)) {
+                        cardKey = 'desc';
+                    } else if (['length', 'width', 'height'].includes(fieldKey)) {
+                        cardKey = 'dimensions';
+                    } else if (['weight'].includes(fieldKey)) {
+                        cardKey = 'weight';
+                    } else if (['custTitle', 'custInstructions', 'custImageLabel', 'custTextLabel'].includes(fieldKey)) {
+                        cardKey = 'custom';
+                    }
+
+                    const cardY = cardLayouts.current[cardKey] || 0;
+                    const fieldY = fieldLayouts.current[fieldKey] || 0;
+                    const targetY = Math.max(0, cardY + fieldY - 15);
+                    containerRef?.scrollTo({ y: targetY, animated: true });
+                };
+
+                if (targetRef && containerRef) {
+                    try {
+                        targetRef.measureLayout(
+                            containerRef,
+                            (x: number, y: number) => {
+                                const targetY = Math.max(0, y - 15);
+                                containerRef.scrollTo({ y: targetY, animated: true });
+                            },
+                            () => {
+                                fallbackScroll();
+                            }
+                        );
+                    } catch (e) {
+                        fallbackScroll();
+                    }
+                } else {
+                    fallbackScroll();
+                }
+            }
+        }
+    }, [errors, validationTrigger]);
 
     const categoryOptions = uniquePickerOptions(
         catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
@@ -1577,37 +1775,48 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            <Card>
+            <Card zIndex={100} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['identity'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
                 <Divider />
-                <Lbl text="Product Name" required />
-                <Field
-                    placeholder="Enter product name"
-                    value={data.name}
-                    onChangeText={(v: string) => onChange("name", v)}
-                    hasError={hasErr("product name")}
-                />
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View ref={el => { fieldRefs.current['name'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['name'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Product Name" required />
+                    <Field
+                        placeholder="Enter product name"
+                        value={data.name}
+                        onChangeText={(v: string) => onChange("name", v)}
+                        hasError={hasErr("product name")}
+                    />
+                </View>
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['category'] = y;
+                    fieldLayouts.current['subcategory'] = y;
+                }}>
+                    <View ref={el => { fieldRefs.current['category'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Category" required />
-                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} />
+                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryOptions} onSelect={(v: string) => { const cat = catalog?.categories?.find((c: { name: string }) => c.name === v); onChange("category", v); onChange("categoryId", cat?.id ?? null); onChange("subcategory", ""); onChange("subcategoryId", null); }} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Subcategory" required />
-                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} />
+                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} options={subcats} onSelect={(v: string) => { const sub = selectedCategory?.subcategories?.find( (s: { name: string }) => s.name === v ); onChange("subcategory", v); onChange("subcategoryId", sub?.id ?? null); }} />
                     </View>
                 </View>
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['materialType'] = y;
+                    fieldLayouts.current['hsnCode'] = y;
+                }}>
+                    <View ref={el => { fieldRefs.current['materialType'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Material Type" required />
-                        <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} />
+                        <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} options={MATERIAL_TYPES} onSelect={(v: string) => { onChange("materialType", v); const hsn = getHsnForMaterial(v); if (hsn) onChange("hsnCode", hsn); }} />
                         <Hint text="Primary material of the product" />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View ref={el => { fieldRefs.current['hsnCode'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="HSN Code" required />
                         <View style={[at.hsnWrap, hasErr("hsn") && at.fieldError]}>
                             <MaterialCommunityIcons name="barcode-scan" size={15} color={C.navyLight} style={{ marginRight: 6 }} />
@@ -1626,35 +1835,44 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={90} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['desc'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="text-box-edit-outline" title="Descriptions" accent={C.accent2} />
                 <Divider />
-                <Lbl text="Short Description" required />
-                <RichEditor
-                    placeholder="Short, punchy summary of your product…"
-                    value={data.shortDesc}
-                    onChangeText={(v: string) => onChange("shortDesc", v)}
-                    maxLength={250}
-                    hasError={hasErr("short description")}
-                />
+                <View ref={el => { fieldRefs.current['shortDesc'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['shortDesc'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Short Description" required />
+                    <RichEditor
+                        placeholder="Short, punchy summary of your product…"
+                        value={data.shortDesc}
+                        onChangeText={(v: string) => onChange("shortDesc", v)}
+                        maxLength={250}
+                        hasError={hasErr("short description")}
+                    />
+                </View>
                 <View style={{ height: 14 }} />
-                <Lbl text="Full Description" required />
-                <RichEditor
-                    placeholder="Full product description, features, highlights…"
-                    value={data.fullDesc}
-                    onChangeText={(v: string) => onChange("fullDesc", v)}
-                    maxLength={2000}
-                    hasError={hasErr("full description")}
-                />
+                <View ref={el => { fieldRefs.current['fullDesc'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['fullDesc'] = e.nativeEvent.layout.y; }}>
+                    <Lbl text="Full Description" required />
+                    <RichEditor
+                        placeholder="Full product description, features, highlights…"
+                        value={data.fullDesc}
+                        onChangeText={(v: string) => onChange("fullDesc", v)}
+                        maxLength={2000}
+                        hasError={hasErr("full description")}
+                    />
+                </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={80} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['dimensions'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="cube-scan" title="Product Dimensions" accent={C.accent3} />
                 <Divider />
                 <AppText style={at.cardHint}>Enter gross dimensions (including packaging)</AppText>
-                <View style={at.row3}>
+                <View style={at.row3} onLayout={(e: LayoutChangeEvent) => {
+                    const y = e.nativeEvent.layout.y;
+                    fieldLayouts.current['length'] = y;
+                    fieldLayouts.current['width'] = y;
+                    fieldLayouts.current['height'] = y;
+                }}>
                     {([["Length cm", "length", "30"], ["Width cm", "width", "20"], ["Height cm", "height", "10"]] as [string, string, string][]).map(([lbl, key, ph]) => (
-                        <View key={key} style={{ flex: 1 }}>
+                        <View key={key} ref={el => { fieldRefs.current[key] = el; }} style={{ flex: 1 }}>
                             <Lbl text={lbl} required />
                             <Field
                                 placeholder={ph}
@@ -1668,12 +1886,14 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={70} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['weight'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="weight-kilogram" title="Weight & Delivery" accent={C.accent4} />
                 <Divider />
                 <AppText style={at.cardHint}>Enter gross weight (including packaging)</AppText>
-                <View style={at.row2}>
-                    <View style={{ flex: 1 }}>
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
+                    fieldLayouts.current['weight'] = e.nativeEvent.layout.y;
+                }}>
+                    <View ref={el => { fieldRefs.current['weight'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Weight (kg)" required />
                         <Field
                             placeholder="e.g. 0.5"
@@ -1703,7 +1923,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 <Hint text="Mark if special protective packaging is required" />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={60} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="palette-outline" title="Customization" accent={C.accent5} />
                 <Divider />
                 <TouchableOpacity style={at.customRow} onPress={() => onChange("customized", !data.customized)} activeOpacity={0.7}>
@@ -1719,24 +1939,28 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                 {data.customized && (
                     <View style={at.custExpandWrap}>
                         <Divider />
-                        <Lbl text="Customization Title" required />
-                        <Field
-                            placeholder="e.g. Personalised Name Engraving"
-                            value={data.custTitle}
-                            onChangeText={(v: string) => onChange("custTitle", v)}
-                            maxLength={100}
-                            hasError={hasErr("customization title")}
-                        />
-                        <Lbl text="Instructions for Buyer" required />
-                        <Field
-                            placeholder="e.g. Please share your name, preferred font, and colour preference…"
-                            value={data.custInstructions}
-                            onChangeText={(v: string) => onChange("custInstructions", v)}
-                            multiline
-                            lines={3}
-                            maxLength={500}
-                            hasError={hasErr("customization instructions")}
-                        />
+                        <View ref={el => { fieldRefs.current['custTitle'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTitle'] = e.nativeEvent.layout.y; }}>
+                            <Lbl text="Customization Title" required />
+                            <Field
+                                placeholder="e.g. Personalised Name Engraving"
+                                value={data.custTitle}
+                                onChangeText={(v: string) => onChange("custTitle", v)}
+                                maxLength={100}
+                                hasError={hasErr("customization title")}
+                            />
+                        </View>
+                        <View ref={el => { fieldRefs.current['custInstructions'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custInstructions'] = e.nativeEvent.layout.y; }}>
+                            <Lbl text="Instructions for Buyer" required />
+                            <Field
+                                placeholder="e.g. Please share your name, preferred font, and colour preference…"
+                                value={data.custInstructions}
+                                onChangeText={(v: string) => onChange("custInstructions", v)}
+                                multiline
+                                lines={3}
+                                maxLength={500}
+                                hasError={hasErr("customization instructions")}
+                            />
+                        </View>
                         <CC cur={(data.custInstructions || "").length} max={500} />
 
                         <Lbl text="Allow Reference Image Upload" />
@@ -1753,7 +1977,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                             </View>
                         </View>
                         {data.custAllowPhoto && (
-                            <View style={at.custSubField}>
+                            <View ref={el => { fieldRefs.current['custImageLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custImageLabel'] = e.nativeEvent.layout.y; }}>
                                 <View style={at.custSubFieldBar} />
                                 <View style={{ flex: 1 }}>
                                     <Lbl text="Image Upload Label" required />
@@ -1791,7 +2015,7 @@ const StepBasicInfo = ({ data, onChange, errors, catalog, isDesktop = false }: a
                             </View>
                         </View>
                         {data.custAllowText && (
-                            <View style={at.custSubField}>
+                            <View ref={el => { fieldRefs.current['custTextLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTextLabel'] = e.nativeEvent.layout.y; }}>
                                 <View style={at.custSubFieldBar} />
                                 <View style={{ flex: 1 }}>
                                     <Lbl text="Text Field Label" required />
@@ -2064,7 +2288,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
             {variants.map((v: Variant, idx: number) => (
-                <Card key={v.id} style={{ marginBottom: 12 }}>
+                <Card key={v.id} zIndex={100 - idx} style={{ marginBottom: 12 }}>
                     <View style={vt.hdr}>
                         <View style={vt.badge}><AppText style={vt.badgeTxt}>#{idx + 1}</AppText></View>
                         <AppText style={vt.title}>Variant</AppText>
@@ -2076,14 +2300,14 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                         )}
                     </View>
                     <Divider />
-                    <View style={at.row2}>
+                    <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Color" required />
-                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} />
+                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => upVariant(v.id, "color", val)} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Size" required />
-                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} />
+                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => upVariant(v.id, "size", val)} />
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -2129,15 +2353,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                         hasError={hasErr(v.id, "image")}
                         label="Add Photo"
                     />
-                    <View style={{ marginTop: 10 }}>
-                        <Lbl text="Variant Video (optional)" />
-                        <Hint text="Paste a YouTube, Vimeo, or direct MP4 URL if you want to add a video." />
-                        <Field
-                            placeholder="https://example.com/variant-video.mp4"
-                            value={v.videoUrl}
-                            onChangeText={(val: string) => upVariant(v.id, "videoUrl", val)}
-                        />
-                    </View>
+
                 </Card>
             ))}
 
@@ -2191,6 +2407,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
 // ─────────────────────────────────────────────────────────────
 const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
+    const [srcModal, setSrcModal] = useState(false);
 
     const pickPrimaryImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -2205,6 +2422,25 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
         });
         if (!result.canceled && result.assets?.[0]?.uri) {
             onChange("primaryImage", result.assets[0].uri);
+        }
+    };
+
+    const pickVideo = async (source: "camera" | "gallery") => {
+        setSrcModal(false);
+        if (source === "camera") {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed to record a video."); return; }
+            const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 0.85 });
+            if (!result.canceled && result.assets?.[0]?.uri) {
+                onChange("video", result.assets[0].uri);
+            }
+        } else {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed to pick a video."); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 0.85 });
+            if (!result.canceled && result.assets?.[0]?.uri) {
+                onChange("video", result.assets[0].uri);
+            }
         }
     };
 
@@ -2274,6 +2510,48 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
                     hasError={false}
                     label="Add More"
                 />
+                <View style={{ height: 20 }} />
+                <Lbl text="Product Video (Optional)" />
+                <Hint text="Upload a video to show your product in action. Max 20 MB." />
+                {data.video ? (
+                    <View style={ig.videoPreviewWrap}>
+                        <View style={ig.videoIconWrap}>
+                            <MaterialCommunityIcons name="video" size={26} color={C.navy} />
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                            <AppText style={ig.videoTitle} numberOfLines={1}>
+                                {data.video.split("/").pop() || "product_video.mp4"}
+                            </AppText>
+                            <AppText style={ig.videoSub}>Video ready for upload</AppText>
+                        </View>
+                        <TouchableOpacity style={ig.videoChangeBtn} onPress={() => setSrcModal(true)}>
+                            <MaterialCommunityIcons name="pencil" size={15} color={C.navy} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={ig.videoRemoveBtn} onPress={() => onChange("video", null)}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={15} color={C.red} />
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={ig.videoBox}
+                        onPress={() => setSrcModal(true)}
+                        activeOpacity={0.75}
+                    >
+                        <View style={ig.videoIconWrapLarge}>
+                            <MaterialCommunityIcons name="video-plus-outline" size={28} color={C.navyLight} />
+                        </View>
+                        <AppText style={ig.videoBoxTitle}>Tap to upload product video</AppText>
+                        <AppText style={ig.videoBoxSub}>MP4 · MOV · WebM · Max 20 MB</AppText>
+                    </TouchableOpacity>
+                )}
+                <ImageSourcePickerModal
+                    visible={srcModal}
+                    onClose={() => setSrcModal(false)}
+                    title="Add Video"
+                    onCamera={() => pickVideo("camera")}
+                    onGallery={() => pickVideo("gallery")}
+                    galleryHint="Pick a video from your library"
+                />
             </Card>
         </ScrollView>
     );
@@ -2296,12 +2574,62 @@ const ig = StyleSheet.create({
     slotTxt: { fontFamily: fontFamilies.medium, fontSize: 11, color: C.navyLight },
     selectedWrap: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: C.greenPale, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
     selectedTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.greenText },
+    videoBox: { marginTop: 12, borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 24, gap: 6, backgroundColor: C.inputBg },
+    videoIconWrapLarge: { width: 56, height: 56, borderRadius: 14, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    videoBoxTitle: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textMid, textAlign: "center" },
+    videoBoxSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight, textAlign: "center" },
+    videoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, backgroundColor: C.navyGhost, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.navyBorder },
+    videoIconWrap: { width: 44, height: 44, borderRadius: 10, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    videoTitle: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textDark },
+    videoSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight, marginTop: 2 },
+    videoChangeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    videoRemoveBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.redPale, alignItems: "center", justifyContent: "center" },
 });
 
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
+const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false }: any) => {
+    const scrollRef = useRef<ScrollView>(null);
+    const fieldRefs = useRef<Record<string, any>>({});
+
+    useEffect(() => {
+        if (validationTrigger > 0 && errors && errors.length > 0) {
+            const getFieldKeyFromError = (error: string): string | null => {
+                const err = error.toLowerCase();
+                if (err.includes("return policy")) return "returnPolicy";
+                if (err.includes("delivery option")) return "deliveryOption";
+                return null;
+            };
+
+            const firstErr = errors[0];
+            const fieldKey = getFieldKeyFromError(firstErr);
+            if (fieldKey) {
+                const targetRef = fieldRefs.current[fieldKey];
+
+                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
+                    try {
+                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    } catch (e) {
+                        // ignore and fallback
+                    }
+                }
+
+                if (targetRef && scrollRef.current) {
+                    try {
+                        targetRef.measureLayout(
+                            scrollRef.current as any,
+                            (x: number, y: number) => {
+                                scrollRef.current?.scrollTo({ y: Math.max(0, y - 15), animated: true });
+                            },
+                            () => {}
+                        );
+                    } catch (e) {}
+                }
+            }
+        }
+    }, [errors, validationTrigger]);
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
     const [delPick, setDelPick] = useState(false);
@@ -2410,17 +2738,18 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            <Card>
+            <Card zIndex={100}>
                 <SecHead icon="ruler-square" title="Size Chart" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Select Size Chart" />
-                <View style={[twoCol, isDesktop && { alignItems: "flex-end" }]}>
+                <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }, isDesktop && { alignItems: "flex-end" }]}>
                     <View style={fieldFlex}>
-                        <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} />
+                        <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} options={sizeChartOptions} onSelect={(v: string) => onChange("sizeChart", v)} />
                     </View>
                     <TouchableOpacity
                         style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
@@ -2433,13 +2762,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={90} style={{ marginTop: 12 }}>
                 <SecHead icon="refresh" title="Return Policy" accent={C.accent3} />
                 <Divider />
-                <View style={twoCol}>
-                    <View style={fieldFlex}>
+                <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }]}>
+                    <View style={fieldFlex} ref={el => { fieldRefs.current['returnPolicy'] = el; }}>
                         <Lbl text="Policy Template" required />
-                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} />
+                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICIES} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
@@ -2458,13 +2787,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <CC cur={(data.returnPolicyText || "").length} max={1000} />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={80} style={{ marginTop: 12 }}>
                 <SecHead icon="truck-fast-outline" title="Delivery" accent={C.accent4} />
                 <Divider />
-                <View style={[at.row2, { alignItems: "flex-end" }]}>
-                    <View style={{ flex: 2 }}>
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }, { alignItems: "flex-end", marginBottom: 12 }]}>
+                    <View style={{ flex: 2 }} ref={el => { fieldRefs.current['deliveryOption'] = el; }}>
                         <Lbl text="Delivery Option" required />
-                        <Drop placeholder="Select option" value={data.deliveryOption} onPress={() => setDelPick(true)} hasError={hasErr("delivery option")} />
+                        <Drop placeholder="Select option" value={data.deliveryOption} onPress={() => setDelPick(true)} hasError={hasErr("delivery option")} options={DELIVERY_OPTIONS} onSelect={(v: string) => applyDeliverySelection(v, onChange)} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Min Days" />
@@ -2478,7 +2807,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <Field placeholder="Extra delivery notes…" value={data.deliveryInfo} onChangeText={(v: string) => onChange("deliveryInfo", v)} multiline lines={3} maxLength={1000} />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={70} style={{ marginTop: 12 }}>
                 <SecHead icon="credit-card-outline" title="Payment Options" accent={C.accent5} />
                 <Divider />
                 <Hint text="Select all payment methods available for this product." />
@@ -2490,7 +2819,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 ))}
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={60} style={{ marginTop: 12 }}>
                 <SecHead icon="shield-check-outline" title="Warranty & Care" accent={C.accent2} />
                 <Divider />
                 <View style={at.row2}>
@@ -2507,12 +2836,14 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={50} style={{ marginTop: 12 }}>
                 <SecHead icon="format-list-bulleted" title="Features & Specs" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Product Features" />
                 {features.map((f, i) => (
-                    <Field key={i} placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; setFeatures(arr); }} />
+                    <View key={i} style={{ marginBottom: 10 }}>
+                        <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; setFeatures(arr); }} />
+                    </View>
                 ))}
                 <TouchableOpacity style={dt.addBtn} onPress={() => setFeatures(p => [...p, ""])}>
                     <Ionicons name="add" size={15} color={C.navy} />
@@ -2878,6 +3209,7 @@ const initImagesData = () => ({
               "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400&q=80",
           ]
         : ([] as string[]),
+    video: null as string | null,
 });
 
 const AddNewProduct: React.FC = () => {
@@ -2900,6 +3232,7 @@ const AddNewProduct: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [savedProductId, setSavedProductId] = useState<string | null>(null);
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
+    const [validationTrigger, setValidationTrigger] = useState(0);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
@@ -2951,7 +3284,11 @@ const AddNewProduct: React.FC = () => {
     );
 
     const upBasic = (k: string, v: any) => {
-        setBasicData(p => ({ ...p, [k]: v }));
+        let cleanVal = v;
+        if (["weight", "length", "width", "height"].includes(k)) {
+            cleanVal = v.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
+        }
+        setBasicData(p => ({ ...p, [k]: cleanVal }));
         setBasicErrors(prev => prev.filter(e => !e.toLowerCase().includes(k.toLowerCase())));
     };
     const upDetails = (k: string, v: any) => setDetailsData(p => ({ ...p, [k]: v }));
@@ -2973,6 +3310,7 @@ const AddNewProduct: React.FC = () => {
         if (step === 0) {
             const errors = validateBasicInfo(basicData);
             setBasicErrors(errors);
+            setValidationTrigger(prev => prev + 1);
             if (errors.length > 0) { showErrors(errors); return; }
             setBasicErrors([]);
         }
@@ -3008,6 +3346,7 @@ const AddNewProduct: React.FC = () => {
 
         if (allErrors.length > 0) {
             showErrors(allErrors);
+            setValidationTrigger(prev => prev + 1);
             return;
         }
 
@@ -3094,6 +3433,7 @@ const AddNewProduct: React.FC = () => {
                     data={basicData}
                     onChange={upBasic}
                     errors={basicErrors}
+                    validationTrigger={validationTrigger}
                     catalog={catalog}
                     isDesktop={isDesktop}
                 />
@@ -3109,7 +3449,7 @@ const AddNewProduct: React.FC = () => {
                 />
             )}
             {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
-            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} isDesktop={isDesktop} />}
+            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} validationTrigger={validationTrigger} isDesktop={isDesktop} />}
         </>
     );
 

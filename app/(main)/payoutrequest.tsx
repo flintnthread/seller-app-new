@@ -25,14 +25,8 @@ import {
   MaterialIcons,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-  confirmSellerBankDetails,
-  fetchMyPayoutRequests,
-  fetchPayoutSummary,
-  fetchSellerBankDetails,
-  submitPayoutRequest,
-  type PayoutSummary,
-} from "@/services/payoutApi";
+import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
+import { updateBankingProfile, lookupIfscCode } from "@/services/sellerProfileApi";
 
 interface BankAccount {
   id: string;
@@ -52,6 +46,13 @@ interface Transaction {
 }
 
 const THEME_COLOR = "#1a2b5edc";
+
+const ORDER_DATABASE: Record<string, number> = {
+  FNT10293: 1500,
+  FNT10294: 2500,
+  FNT10295: 5000,
+  FNT10296: 750,
+};
 
 // ─── SHARED SUB-COMPONENTS ────────────────────────────────────────────────────
 
@@ -136,72 +137,195 @@ export default function EnhancedPayoutRequest() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
-  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
-  const [bankLoading, setBankLoading] = useState(true);
 
-  const formatInr = (n: number) =>
-    `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-
-  const mapPayoutStatus = (status: string): Transaction["status"] => {
-    const s = status.toLowerCase();
-    if (s === "pending" || s === "approved") return "Pending";
-    if (s === "rejected" || s === "cancelled") return "Failed";
-    return "Completed";
-  };
-
-  const reloadPayoutData = useCallback(async () => {
-    setBankLoading(true);
-    try {
-      const [summary, bank, requests] = await Promise.all([
-        fetchPayoutSummary(),
-        fetchSellerBankDetails(),
-        fetchMyPayoutRequests(),
-      ]);
-      setPayoutSummary(summary);
-      setAvailableBalance(Number(summary.pendingAmount ?? 0));
-      const masked =
-        bank.accountNumber && bank.accountNumber.length > 4
-          ? `**** ${bank.accountNumber.slice(-4)}`
-          : "—";
-      setBanks([
-        {
-          id: "1",
-          bankName: bank.bankName || "Bank account",
-          accountNumber: masked,
-          isDefault: true,
-          isVerified: bank.bankVerified === true,
-        },
-      ]);
-      setApiTransactions(
-        requests.map((p) => ({
-          id: String(p.id),
-          orderId: String(p.orderId),
-          amount: Number(p.requestedAmount ?? 0),
-          date: p.requestedAt ?? p.updatedAt ?? new Date().toISOString(),
-          status: mapPayoutStatus(p.status),
-          type: "Payout" as const,
-        }))
-      );
-    } catch {
-      setBanks([]);
-      setApiTransactions([]);
-    } finally {
-      setBankLoading(false);
-    }
-  }, []);
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [modalAccountHolder, setModalAccountHolder] = useState("");
+  const [modalAccountNumber, setModalAccountNumber] = useState("");
+  const [modalConfirmAccountNumber, setModalConfirmAccountNumber] = useState("");
+  const [modalIfsc, setModalIfsc] = useState("");
+  const [modalBankName, setModalBankName] = useState("");
+  const [modalBranchName, setModalBranchName] = useState("");
+  const [isLookingUpIfsc, setIsLookingUpIfsc] = useState(false);
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    reloadPayoutData();
-  }, [reloadPayoutData]);
+    Promise.all([fetchEarnings(), fetchPayouts()])
+      .then(([earnings, payouts]) => {
+        setAvailableBalance(Number(earnings.availableBalance ?? 0));
+        if (earnings.bankAccount?.bankName) {
+          setBanks([{
+            id: "1",
+            bankName: earnings.bankAccount.bankName ?? "Bank",
+            accountNumber: earnings.bankAccount.accountNumberMasked ?? "••••",
+            isDefault: true,
+            isVerified: earnings.bankAccount.verified,
+          }]);
+        }
+        setApiTransactions(payouts.map((p) => ({
+          id: p.id,
+          orderId: p.orderId,
+          amount: Number(p.amount),
+          date: p.date,
+          status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
+          type: "Payout" as const,
+        })));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const handleDownloadTransactions = () => {
+    if (filteredTransactions.length === 0) {
+      Alert.alert("No Transactions", "There are no transactions to download.");
+      return;
+    }
+
+    const headers = ["Transaction ID", "Order ID", "Amount (INR)", "Date", "Status"];
+    const rows = filteredTransactions.map((t) => [
+      t.id,
+      t.orderId,
+      t.amount,
+      new Date(t.date).toLocaleDateString(),
+      t.status,
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+
+    if (Platform.OS === "web") {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `payout_transactions_${new Date().toISOString().split("T")[0]}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      try {
+        const FileSystem = require("expo-file-system");
+        const Sharing = require("expo-sharing");
+        const filename = `${FileSystem.documentDirectory}payout_transactions_${new Date().getTime()}.csv`;
+        void (async () => {
+          await FileSystem.writeAsStringAsync(filename, csvContent, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          const avail = await Sharing.isAvailableAsync();
+          if (avail) {
+            await Sharing.shareAsync(filename, {
+              mimeType: "text/csv",
+              dialogTitle: "Download Payout Transactions",
+              UTI: "public.comma-separated-values-text",
+            });
+          } else {
+            Alert.alert("Sharing Not Available", "Sharing is not available on this device.");
+          }
+        })();
+      } catch (error) {
+        Alert.alert("Error", "Could not export transaction history on this device.");
+      }
+    }
+  };
+
+  const validateAddBankForm = () => {
+    const errors: Record<string, string> = {};
+    if (!modalAccountHolder.trim()) errors.accountHolder = "Account holder name is required";
+    if (!modalAccountNumber.trim()) errors.accountNumber = "Account number is required";
+    if (!modalConfirmAccountNumber.trim()) errors.confirmAccountNumber = "Please confirm account number";
+    if (modalAccountNumber.trim() !== modalConfirmAccountNumber.trim()) errors.confirmAccountNumber = "Account numbers do not match";
+    if (!modalIfsc.trim()) {
+      errors.ifsc = "IFSC code is required";
+    } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(modalIfsc.toUpperCase())) {
+      errors.ifsc = "Invalid IFSC code format";
+    }
+    return errors;
+  };
+
+  const handleIfscLookup = async (text: string) => {
+    const upper = text.toUpperCase();
+    setModalIfsc(upper);
+    setModalErrors((prev) => ({ ...prev, ifsc: "" }));
+
+    if (upper.length === 11) {
+      setIsLookingUpIfsc(true);
+      try {
+        const res = await lookupIfscCode(upper);
+        if (res.found) {
+          setModalBankName(res.bankName);
+          setModalBranchName(res.branchName);
+        } else {
+          setModalBankName("");
+          setModalBranchName("");
+          setModalErrors((prev) => ({ ...prev, ifsc: "IFSC code not found" }));
+        }
+      } catch (e) {
+        setModalBankName("");
+        setModalBranchName("");
+        setModalErrors((prev) => ({ ...prev, ifsc: "IFSC lookup failed" }));
+      } finally {
+        setIsLookingUpIfsc(false);
+      }
+    } else {
+      setModalBankName("");
+      setModalBranchName("");
+    }
+  };
+
+  const handleSaveBank = async () => {
+    const errors = validateAddBankForm();
+    if (Object.keys(errors).length > 0) {
+      setModalErrors(errors);
+      return;
+    }
+    setModalErrors({});
+    setIsSavingBank(true);
+    try {
+      await updateBankingProfile({
+        ifscCode: modalIfsc.trim().toUpperCase(),
+        bankName: modalBankName.trim(),
+        branchName: modalBranchName.trim(),
+        accountHolderName: modalAccountHolder.trim(),
+        accountNumber: modalAccountNumber.trim(),
+      });
+      setBanks([{
+        id: "1",
+        bankName: modalBankName.trim(),
+        accountNumber: "•••• " + modalAccountNumber.trim().slice(-4),
+        isDefault: true,
+        isVerified: true,
+      }]);
+      setShowAddBankModal(false);
+      // Reset form
+      setModalAccountHolder("");
+      setModalAccountNumber("");
+      setModalConfirmAccountNumber("");
+      setModalIfsc("");
+      setModalBankName("");
+      setModalBranchName("");
+      Alert.alert("Success", "Bank account details updated successfully.");
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save bank details.");
+    } finally {
+      setIsSavingBank(false);
+    }
+  };
 
   const handleOrderIdChange = (text: string) => {
-    const cleaned = text.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase();
+    const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     setOrderId(cleaned);
+    if (ORDER_DATABASE[cleaned]) {
+      setAmount(String(ORDER_DATABASE[cleaned]));
+    } else {
+      setAmount("");
+    }
   };
 
   const validateAmount = () => {
-    if (!orderId.trim()) return "Enter order ID";
-    if (banks.length === 0) return "Add a bank account first";
+    if (!orderId) return "Enter Order ID";
+    if (!ORDER_DATABASE[orderId]) return "Invalid Order ID";
+    const num = parseFloat(amount);
+    if (isNaN(num)) return "Invalid Amount";
+    if (num < 500) return "Minimum ₹500 required";
+    if (num > availableBalance) return "Insufficient balance";
     return "";
   };
 
@@ -216,30 +340,56 @@ export default function EnhancedPayoutRequest() {
     });
   }, [searchQuery, statusFilter, apiTransactions]);
 
-  const handleInitialRequest = async () => {
+  const handleInitialRequest = () => {
     if (errorMsg) {
       Alert.alert("Error", errorMsg);
       return;
     }
+    Alert.alert("OTP Sent", "OTP sent to your registered mobile number");
+    setShowOtpModal(true);
+  };
+
+  const verifyOtpAndRequest = async () => {
+    if (otp.length < 4) {
+      Alert.alert("Invalid OTP", "Please enter valid 4 digit OTP");
+      return;
+    }
+    const amt = Number(amount);
+    if (!amt || amt <= 0) {
+      Alert.alert("Error", "Enter a valid payout amount.");
+      return;
+    }
+    setShowOtpModal(false);
     setIsRequesting(true);
     try {
-      await submitPayoutRequest({
-        orderId: orderId.trim(),
-        sellerNote: amount.trim() ? `Requested amount note: ${amount}` : undefined,
-      });
+      const payload: { amount: number; otp: string; description: string; orderId?: string } = {
+        amount: amt,
+        otp,
+        description: "Seller payout request",
+      };
+      if (orderId.trim()) {
+        payload.orderId = orderId.trim();
+      }
+      const result = await requestPayout(payload);
+      setAvailableBalance(Number(result.remainingBalance ?? availableBalance));
       setShowSuccessModal(true);
       setOrderId("");
       setAmount("");
-      await reloadPayoutData();
+      setOtp("");
+      const payouts = await fetchPayouts();
+      setApiTransactions(payouts.map((p) => ({
+        id: p.id,
+        orderId: p.orderId,
+        amount: Number(p.amount),
+        date: p.date,
+        status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
+        type: "Payout" as const,
+      })));
     } catch (e) {
       Alert.alert("Payout failed", e instanceof Error ? e.message : "Could not submit payout request.");
     } finally {
       setIsRequesting(false);
     }
-  };
-
-  const verifyOtpAndRequest = () => {
-    void handleInitialRequest();
   };
 
   const renderTransactionItem = useCallback(
@@ -333,6 +483,98 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showAddBankModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 460 }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%", alignItems: "center", marginBottom: 18 }}>
+              <Text style={[styles.modalTitle, { fontSize: 18 }]}>Add / Change Bank Account</Text>
+              <TouchableOpacity onPress={() => setShowAddBankModal(false)} style={{ padding: 4 }}>
+                <MaterialCommunityIcons name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ width: "100%", maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              {/* Account Holder Name */}
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Holder Name</Text>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: modalErrors.accountHolder ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                  value={modalAccountHolder}
+                  onChangeText={setModalAccountHolder}
+                  placeholder="e.g. John Doe"
+                  placeholderTextColor="#94a3b8"
+                />
+                {!!modalErrors.accountHolder && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountHolder}</Text>}
+              </View>
+
+              {/* IFSC Code */}
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>IFSC Code</Text>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: modalErrors.ifsc ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                  value={modalIfsc}
+                  onChangeText={handleIfscLookup}
+                  placeholder="e.g. SBIN0000345"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="characters"
+                  maxLength={11}
+                />
+                {isLookingUpIfsc && <ActivityIndicator size="small" color="#f97316" style={{ alignSelf: "flex-start", marginTop: 4 }} />}
+                {!!modalErrors.ifsc && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.ifsc}</Text>}
+                {!!modalBankName && (
+                  <View style={{ backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0", borderRadius: 8, padding: 8, marginTop: 6 }}>
+                    <Text style={{ color: "#16a34a", fontSize: 12, fontWeight: "600" }}>{modalBankName}</Text>
+                    <Text style={{ color: "#16a34a", fontSize: 11, marginTop: 2 }}>Branch: {modalBranchName}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Account Number */}
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Number</Text>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: modalErrors.accountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                  value={modalAccountNumber}
+                  onChangeText={setModalAccountNumber}
+                  placeholder="Enter Account Number"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  secureTextEntry
+                />
+                {!!modalErrors.accountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountNumber}</Text>}
+              </View>
+
+              {/* Confirm Account Number */}
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Confirm Account Number</Text>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: modalErrors.confirmAccountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                  value={modalConfirmAccountNumber}
+                  onChangeText={setModalConfirmAccountNumber}
+                  placeholder="Confirm Account Number"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  secureTextEntry
+                />
+                {!!modalErrors.confirmAccountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.confirmAccountNumber}</Text>}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.verifyBtn, { marginTop: 14 }]}
+              onPress={handleSaveBank}
+              disabled={isSavingBank}
+            >
+              {isSavingBank ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyBtnText}>Save Bank Details</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 
@@ -359,6 +601,11 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View> */}
 
+        <ScrollView
+          style={desktopStyles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={desktopStyles.scrollContent}
+        >
         {/* Hero Banner */}
         <View style={desktopStyles.hero}>
           <View style={desktopStyles.heroInner}>
@@ -377,17 +624,13 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View>
 
-        <ScrollView
-          style={desktopStyles.scroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={desktopStyles.scrollContent}
-        >
+
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
-            <DesktopStatCard label="Lifetime Earnings" value={formatInr(Number(payoutSummary?.lifetimeEarnings ?? 0))} icon="history" accent="#1a2b5e" />
-            <DesktopStatCard label="This Month" value={formatInr(Number(payoutSummary?.thisMonthEarnings ?? 0))} icon="calendar-month" accent="#f97316" />
-            <DesktopStatCard label="Highest Payout" value={formatInr(Number(payoutSummary?.highestPayout ?? 0))} icon="trending-up" accent="#22c55e" />
-            <DesktopStatCard label="Pending" value={formatInr(Number(payoutSummary?.pendingAmount ?? 0))} icon="clock-outline" accent="#f59e0b" />
+            <DesktopStatCard label="Lifetime Earnings" value="₹1,25,400" icon="history" accent="#1a2b5e" />
+            <DesktopStatCard label="This Month" value="₹18,920" icon="calendar-month" accent="#f97316" />
+            <DesktopStatCard label="Highest Payout" value="₹25,000" icon="trending-up" accent="#22c55e" />
+            <DesktopStatCard label="Pending" value="₹1,500" icon="clock-outline" accent="#f59e0b" />
           </View>
 
           {/* Two-column body */}
@@ -406,17 +649,6 @@ export default function EnhancedPayoutRequest() {
               <View style={desktopStyles.fieldBlock}>
                 <Text style={desktopStyles.fieldLabel}>Select Bank Account</Text>
                 <View style={desktopStyles.bankRow}>
-                  {bankLoading ? (
-                    <ActivityIndicator size="small" color="#f97316" />
-                  ) : banks.length === 0 ? (
-                    <TouchableOpacity
-                      style={desktopStyles.bankCard}
-                      onPress={() => router.push({ pathname: "/(main)/sellerbanking", params: { returnTo: "payout" } })}
-                    >
-                      <MaterialCommunityIcons name="bank-plus" size={22} color="#f97316" />
-                      <Text style={desktopStyles.bankName}>Add bank account</Text>
-                    </TouchableOpacity>
-                  ) : null}
                   {banks.map((bank) => (
                     <TouchableOpacity
                       key={bank.id}
@@ -468,17 +700,23 @@ export default function EnhancedPayoutRequest() {
                       )}
                     </TouchableOpacity>
                   ))}
-                </View>
-                {banks.length > 0 ? (
+
+                  {/* Add / Change Bank Account Card */}
                   <TouchableOpacity
-                    style={{ marginTop: 8, alignSelf: "flex-start" }}
-                    onPress={() => router.push({ pathname: "/(main)/sellerbanking", params: { returnTo: "payout" } })}
+                    style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }]}
+                    onPress={() => setShowAddBankModal(true)}
                   >
-                    <Text style={{ color: "#f97316", fontWeight: "600", fontSize: 13 }}>
-                      Manage bank account
-                    </Text>
+                    <View style={desktopStyles.bankCardLeft}>
+                      <View style={[desktopStyles.bankIconBox, { backgroundColor: "#fff4ec" }]}>
+                        <MaterialCommunityIcons name="plus" size={20} color="#f97316" />
+                      </View>
+                      <View>
+                        <Text style={desktopStyles.bankName}>Add / Change Bank</Text>
+                        <Text style={desktopStyles.bankAcc}>Setup payout details</Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
-                ) : null}
+                </View>
               </View>
 
               {/* Order ID Input */}
@@ -551,11 +789,21 @@ export default function EnhancedPayoutRequest() {
 
             {/* ── RIGHT: Transactions ── */}
             <View style={desktopStyles.txnPanel}>
-              <View style={desktopStyles.panelHeader}>
-                <View style={desktopStyles.panelIconBox}>
-                  <MaterialCommunityIcons name="history" size={18} color="#f97316" />
+              <View style={[desktopStyles.panelHeader, { justifyContent: "space-between", width: "100%" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={desktopStyles.panelIconBox}>
+                    <MaterialCommunityIcons name="history" size={18} color="#f97316" />
+                  </View>
+                  <Text style={desktopStyles.panelTitle}>Recent Transactions</Text>
                 </View>
-                <Text style={desktopStyles.panelTitle}>Recent Transactions</Text>
+                <TouchableOpacity
+                  style={desktopStyles.downloadBtn}
+                  onPress={handleDownloadTransactions}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="download" size={16} color="#f97316" style={{ marginRight: 6 }} />
+                  <Text style={desktopStyles.downloadBtnText}>Download</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Search & Filters */}
@@ -721,7 +969,7 @@ export default function EnhancedPayoutRequest() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12 }}
               >
-                <StatCard label="Lifetime" value={formatInr(Number(payoutSummary?.lifetimeEarnings ?? 0))} icon="history" />
+                <StatCard label="Lifetime" value="₹1,25,400" icon="history" />
                 <StatCard label="This Month" value="₹18,920" icon="calendar-month" />
                 <StatCard label="Highest" value="₹25,000" icon="trending-up" />
               </ScrollView>
@@ -759,6 +1007,15 @@ export default function EnhancedPayoutRequest() {
                     </Text>
                   </TouchableOpacity>
                 ))}
+
+                <TouchableOpacity
+                  style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
+                  onPress={() => setShowAddBankModal(true)}
+                >
+                  <MaterialCommunityIcons name="plus" size={24} color="#f97316" />
+                  <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Add / Change</Text>
+                  <Text style={styles.bankAcc}>Bank details</Text>
+                </TouchableOpacity>
               </ScrollView>
 
               <View style={styles.formContainer}>
@@ -808,8 +1065,16 @@ export default function EnhancedPayoutRequest() {
                 <Text style={styles.securityText}>Withdrawal requires OTP verification.</Text>
               </View>
 
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                <TouchableOpacity
+                  style={styles.downloadBtn}
+                  onPress={handleDownloadTransactions}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="download" size={16} color="#f97316" style={{ marginRight: 4 }} />
+                  <Text style={styles.downloadBtnText}>Download</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.searchContainer}>
@@ -933,13 +1198,15 @@ const desktopStyles = StyleSheet.create({
 
   // Hero
   hero: {
-    backgroundColor: "#1a2b5e",
-    paddingVertical: 32,
-    paddingHorizontal: 48,
+    backgroundColor: "#151D4F",
+    paddingHorizontal: 32,
+    paddingVertical: 28,
+    paddingBottom: 68,
+    borderRadius: 22,
+    marginHorizontal: 2,
+    marginTop: 12,
   },
   heroInner: {
-    maxWidth: 1200,
-    alignSelf: "center",
     width: "100%" as any,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -983,12 +1250,9 @@ const desktopStyles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    maxWidth: 1200,
-    width: "100%" as any,
-    alignSelf: "center",
-    paddingHorizontal: 48,
-    paddingTop: 32,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
 
   // Stats Row
@@ -996,6 +1260,9 @@ const desktopStyles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     marginBottom: 28,
+    marginTop: -42,
+    zIndex: 10,
+    marginHorizontal: 6,
   },
   statCard: {
     flex: 1,
@@ -1390,6 +1657,22 @@ const desktopStyles = StyleSheet.create({
     fontSize: 14,
     color: "#94a3b8",
     fontWeight: "600",
+  },
+  downloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff4ec",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    cursor: "pointer" as any,
+  },
+  downloadBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#f97316",
   },
 });
 
@@ -1857,5 +2140,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: THEME_COLOR,
     marginLeft: 4,
+  },
+  downloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(249, 115, 22, 0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(249, 115, 22, 0.2)",
+  },
+  downloadBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#f97316",
   },
 });

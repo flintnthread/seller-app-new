@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { Sidebar } from './Sidebar';
 import { DesktopHeader } from './DesktopHeader';
 import { ActiveHeaderProvider } from './HeaderContext';
+
 function WebMainContent({ children, isSidebarOpen, onToggleSidebar }: {
   children: React.ReactNode;
   isSidebarOpen: boolean;

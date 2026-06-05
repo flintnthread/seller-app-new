@@ -120,10 +120,9 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       {/* ── LEFT: Greeting + Quick Actions ── */}
       <View style={welcomeStyles.leftCol}>
         <View style={welcomeStyles.heroText}>
-          <AppText style={welcomeStyles.title}>{greeting}, {name} 👋</AppText>
-          <AppText style={welcomeStyles.subtitle}>
-            You have <AppText style={welcomeStyles.highlight}>{totalOrders} orders</AppText> and{" "}
-            <AppText style={welcomeStyles.highlight}>{salesFormatted}</AppText> in total sales.
+          <AppText style={welcomeStyles.title}>
+            {greeting},{" "}
+            <AppText style={[welcomeStyles.title, { color: C.purple }]}>{name}</AppText> 👋
           </AppText>
           <AppText style={welcomeStyles.motivation}>
             ✨ {pendingOrders > 0 ? `${pendingOrders} orders need your attention.` : "All caught up — no pending orders."}
@@ -138,11 +137,16 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
               // @ts-ignore
               style={({ hovered }) => [
                 welcomeStyles.actionCard,
-                { borderColor: act.color + "20" },
-                hovered && { transform: [{ translateY: -2 }], boxShadow: "0 6px 12px -2px rgba(21, 29, 79, 0.08)", borderColor: act.color + "50" }
+                { backgroundColor: act.bg, borderColor: act.color + "30" },
+                Platform.OS === "web" && { boxShadow: `0 4px 12px ${act.color}20` },
+                hovered && { 
+                  transform: [{ translateY: -3 }], 
+                  boxShadow: `0 8px 16px -4px ${act.color}40`, 
+                  borderColor: act.color,
+                }
               ]}
             >
-              <View style={[welcomeStyles.iconBox, { backgroundColor: act.bg }]}>
+              <View style={[welcomeStyles.iconBox, { backgroundColor: C.white }]}>
                 <MaterialCommunityIcons name={act.icon as any} size={20} color={act.color} />
               </View>
               <AppText style={welcomeStyles.actionLabel}>{act.label}</AppText>
@@ -152,6 +156,13 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
 
         {/* ── Today's Live Overview Strip ── */}
         <View style={welcomeStyles.statsStrip}>
+          <View style={welcomeStyles.statItem}>
+            <View style={[welcomeStyles.statDot, { backgroundColor: C.orange }]} />
+            <AppText style={welcomeStyles.statText}>
+              Total Orders: <AppText style={welcomeStyles.statValue}>{totalOrders}</AppText>
+            </AppText>
+          </View>
+          <View style={welcomeStyles.statDivider} />
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.green }]} />
             <AppText style={welcomeStyles.statText}>
@@ -302,7 +313,7 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Poppins_500Medium",
     color: C.teal,
-    marginTop: 5,
+    marginTop: 2,
     paddingHorizontal: 8,
     paddingVertical: 4,
     backgroundColor: C.tealPale,
@@ -326,9 +337,8 @@ const welcomeStyles = StyleSheet.create({
     minWidth: 148,
     ...Platform.select({
       web: {
-        transitionDuration: "180ms",
-        transitionProperty: "transform, box-shadow, border-color",
-        boxShadow: "0 1px 2px 0 rgba(0,0,0,0.04)",
+        transitionDuration: "200ms",
+        transitionProperty: "all",
       },
     }),
   },
@@ -404,10 +414,13 @@ const welcomeStyles = StyleSheet.create({
     justifyContent: "space-between",
     ...Platform.select({
       web: {
-        backgroundColor: "#FFF7ED",
-        borderRadius: 10,
-        padding: 10,
-        marginLeft: 0,
+        backgroundColor: "#FFF8F2",
+        borderRadius: 12,
+        padding: 18,
+        marginLeft: 16,
+        borderWidth: 1.5,
+        borderColor: "#F97316",
+        boxShadow: "0 8px 24px rgba(249, 115, 22, 0.12)",
       },
     }),
   },
@@ -490,12 +503,18 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.white,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#F59E0B",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
+      },
+      default: {},
+    }),
   },
   refCodeLabel: {
     fontSize: 8,

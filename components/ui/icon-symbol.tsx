@@ -34,6 +34,8 @@ const MAPPING = {
   'ruler.fill': 'straighten',
   'square.grid.2x2.fill': 'category',
   'arrow.right.to.line': 'logout',
+  'headphones': 'headset',
+  'gearshape.fill': 'settings',
 } satisfies IconMapping;
 
 /**
