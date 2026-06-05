@@ -1615,6 +1615,10 @@ const wl = StyleSheet.create({
   topNav:       { backgroundColor:C.navy, shadowColor:"#000", shadowOpacity:0.15, shadowOffset:{width:0,height:2}, shadowRadius:8, elevation:6, 
   borderBottomLeftRadius: 22,      
   borderBottomRightRadius: 22, 
+  borderTopLeftRadius: 22,
+  borderTopRightRadius: 22,
+  marginHorizontal: 6,
+  marginTop: 12,
   paddingBottom: 36,    //  (creates overlap space)
  },
   topNavInner:  { flexDirection:"row", alignItems:"center", paddingHorizontal:24, paddingVertical:14 },

@@ -12,9 +12,10 @@ import {
     ActivityIndicator,
     Pressable,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useSweetAlert } from "@/components/common/SweetAlert";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import {
     useFonts,
     Outfit_400Regular,
@@ -56,6 +57,7 @@ const statusStyle = (status: CategoryRequestStatus) => {
 };
 
 export function CategoryRequestScreen() {
+    const router = useRouter();
     const { isWeb, isDesktop } = useResponsive();
     const { showSuccess, showError, showWarning, confirmAction, SweetAlertHost } = useSweetAlert();
 
@@ -582,22 +584,21 @@ export function CategoryRequestScreen() {
             isWeb && pg.wrapWeb,
             isDesktop && pg.wrapDesktop
         ]}>
-            {isDesktop ? (
-                <View style={pg.desktopHeader}>
-                    <View style={pg.desktopHeaderLeft}>
-                        <Text style={pg.desktopHeaderTitle}>Category Request</Text>
-                        <Text style={pg.desktopHeaderSub}>
-                            Request a new product category for your catalog. Our team will review your
-                            submission within 2–3 business days.
-                        </Text>
+            {isWeb ? (
+                <View style={pg.pageHeaderWeb}>
+                    <View style={pg.titleContainerWeb}>
+                        <View style={pg.breadcrumbWeb}>
+                            <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
+                                <Text style={pg.breadcrumbDimWeb}>Dashboard</Text>
+                            </TouchableOpacity>
+                            <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
+                            <Text style={pg.breadcrumbActiveWeb}>Category Request</Text>
+                        </View>
+                        <Text style={pg.pageTitleWeb}>Category Request</Text>
                     </View>
-                    <TouchableOpacity
-                        style={[pg.newRequestBtn, isDesktop && pg.newRequestBtnDesktop]}
-                        onPress={() => categoryNameRef.current?.focus()}
-                        activeOpacity={0.8}
-                    >
-                        <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                        <Text style={pg.newRequestBtnTxt}>New Request</Text>
+                    <TouchableOpacity style={pg.addBtnWeb} onPress={() => categoryNameRef.current?.focus()} activeOpacity={0.85}>
+                        <Ionicons name="add" size={18} color="#151D4F" />
+                        <Text style={pg.addBtnTxtWeb}>New Request</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -628,9 +629,14 @@ export function CategoryRequestScreen() {
 
     if (isWeb) {
         return (
-            <ScrollView showsVerticalScrollIndicator={isDesktop}>
-                <View style={[pg.webRoot, isDesktop && pg.webRootDesktop]}>{content}</View>
-            </ScrollView>
+            <View style={{ flex: 1, flexDirection: "column", backgroundColor: "#F4F5FA", minHeight: "100%" as any }}>
+                <ScrollView 
+                    style={{ flex: 1 }} 
+                    showsVerticalScrollIndicator={isDesktop}
+                >
+                    {content}
+                </ScrollView>
+            </View>
         );
     }
 
@@ -653,13 +659,9 @@ const pg = StyleSheet.create({
     mobileRoot: { flex: 1, backgroundColor: "#F7F8FC" },
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
-    wrapWeb: { paddingHorizontal: 0, paddingTop: 0, maxWidth: 1100, width: "100%", alignSelf: "center" },
+    wrapWeb: { paddingHorizontal: 16, paddingTop: 10, width: "100%" },
     wrapDesktop: {
-        maxWidth: 1380,
         width: "100%",
-        alignSelf: "center",
-        paddingHorizontal: 32,
-        paddingTop: 28,
         paddingBottom: 48,
     },
     pageHeader: { marginBottom: 20 },
@@ -675,6 +677,60 @@ const pg = StyleSheet.create({
         color: "#6B7280",
         lineHeight: 19,
         maxWidth: 640,
+    },
+    pageHeaderWeb: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 0,
+        backgroundColor: "#151D4F",
+        paddingHorizontal: 32,
+        paddingVertical: 28,
+        paddingBottom: 68,
+        borderRadius: 22,
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
+        borderBottomLeftRadius: 22,
+        borderBottomRightRadius: 22,
+        marginHorizontal: 2,
+        marginTop: 12,
+        shadowColor: "#151D4F",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    titleContainerWeb: {
+        paddingLeft: 0,
+        marginVertical: 0,
+    },
+    breadcrumbWeb: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+    breadcrumbDimWeb: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "rgba(255,255,255,0.75)" },
+    breadcrumbActiveWeb: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: "#FFFFFF" },
+    pageTitleWeb: {
+        fontFamily: "Outfit_800ExtraBold",
+        fontSize: 26,
+        color: "#FFFFFF",
+        letterSpacing: -0.5,
+    },
+    addBtnWeb: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    addBtnTxtWeb: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 14,
+        color: "#151D4F",
     },
     desktopHeader: {
          flexDirection: "row",
@@ -724,7 +780,7 @@ default: {},
         fontSize: 14,
         color: "#FFFFFF",
     },
-    topRow: { gap: 16, marginBottom: 24 },
+    topRow: { gap: 16, marginBottom: 24, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
     topRowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
     formCol: { flex: 1, minWidth: 0 },
     sideCol: { width: "100%" },

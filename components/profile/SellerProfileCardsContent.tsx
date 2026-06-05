@@ -341,9 +341,17 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
 
             <InfoRow label="COMPANY PAN" value={profile.business?.companyPan || "—"} />
 
-            <DocImage label="BUSINESS PROOF" url={docs.businessProof} />
-
-            <DocImage label="PAN CARD" url={docs.panCard} />
+            {isDesktop ? (
+                <View style={{ flexDirection: "row", gap: 16 }}>
+                    <View style={{ flex: 1 }}><DocImage label="BUSINESS PROOF" url={docs.businessProof} /></View>
+                    <View style={{ flex: 1 }}><DocImage label="PAN CARD" url={docs.panCard} /></View>
+                </View>
+            ) : (
+                <>
+                    <DocImage label="BUSINESS PROOF" url={docs.businessProof} />
+                    <DocImage label="PAN CARD" url={docs.panCard} />
+                </>
+            )}
 
         </SectionCard>
 
@@ -462,11 +470,19 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
 
             <InfoRow label="KYC MESSAGE" value={profile.accountStatus?.message || "—"} />
 
-            <DocImage label="AADHAAR FRONT" url={docs.aadharFront} />
-
-            <DocImage label="AADHAAR BACK" url={docs.aadharBack} />
-
-            <DocImage label="LIVE SELFIE" url={profile.documents?.liveSelfieUrl || docs.liveSelfie} />
+            {isDesktop ? (
+                <View style={{ flexDirection: "row", gap: 16 }}>
+                    <View style={{ flex: 1 }}><DocImage label="AADHAAR FRONT" url={docs.aadharFront} /></View>
+                    <View style={{ flex: 1 }}><DocImage label="AADHAAR BACK" url={docs.aadharBack} /></View>
+                    <View style={{ flex: 1 }}><DocImage label="LIVE SELFIE" url={profile.documents?.liveSelfieUrl || docs.liveSelfie} /></View>
+                </View>
+            ) : (
+                <>
+                    <DocImage label="AADHAAR FRONT" url={docs.aadharFront} />
+                    <DocImage label="AADHAAR BACK" url={docs.aadharBack} />
+                    <DocImage label="LIVE SELFIE" url={profile.documents?.liveSelfieUrl || docs.liveSelfie} />
+                </>
+            )}
 
         </SectionCard>
 

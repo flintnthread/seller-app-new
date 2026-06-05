@@ -473,7 +473,7 @@ const SellerLanding: React.FC = () => {
     () =>
       isDesktop
         ? StyleSheet.create({
-            page: { width: "100%" as const, alignItems: "stretch" as const },
+            page: { width: "100%" as const, alignItems: "stretch" as const, ...(Platform.OS === 'web' ? { gap: 10 } : {}) },
             content: { width: "100%", maxWidth: CONTENT_MAX, alignSelf: "center" as const },
             heroWrap: { width: "100%", alignSelf: "stretch" as const },
             heroGrad: {
@@ -610,6 +610,7 @@ const SellerLanding: React.FC = () => {
             stepsSection: {
               width: "100%" as const,
               alignItems: "center" as const,
+              ...(Platform.OS === "web" ? { paddingBottom: 0 } : {}),
             },
             stepsSectionHeader: {
               maxWidth: 720,
@@ -644,7 +645,11 @@ const SellerLanding: React.FC = () => {
             stepTitle: { fontSize: 15 },
             stepDesc: { fontSize: 13, lineHeight: 20 },
             stepsCtaWrap: { alignSelf: "center" as const, minWidth: 320, marginTop: 36 },
-            whySection: { width: "100%" as const, alignItems: "center" as const },
+            whySection: { 
+              width: "100%" as const, 
+              alignItems: "center" as const,
+              ...(Platform.OS === "web" ? { paddingTop: 0 } : {}),
+            },
             whySectionHeader: {
               maxWidth: 720,
               alignSelf: "center" as const,
@@ -678,6 +683,7 @@ const SellerLanding: React.FC = () => {
               width: Platform.OS === "web" ? ("100%" as const) : whyCardWidth,
               marginBottom: 0,
             },
+            whySectionCard: { padding: 48, borderRadius: 24, width: "100%" as const },
             regSection: { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 0 },
             regCard: { flex: 1, maxWidth: CONTENT_MAX - 96 },
             regBodyRow: { flexDirection: "row" as const, gap: 40, padding: 36 },
@@ -794,6 +800,7 @@ const SellerLanding: React.FC = () => {
               gridTemplateColumns: "repeat(2, 1fr)",
             } as object,
             whyCard: { width: "100%", marginBottom: 0 },
+            whySectionCard: { padding: 40, borderRadius: 24, width: "100%" as const },
             sellerSection: { width: "100%", alignItems: "center" },
             sellerSectionHeader: {
               maxWidth: 640,
@@ -1242,62 +1249,64 @@ const SellerLanding: React.FC = () => {
           ]}
           onLayout={(e) => recordSectionOffset("features", e.nativeEvent.layout.y)}
         >
-          <View
-            style={
-              isWhyGrid
-                ? [ds?.whySectionHeader, tabletDs?.whySectionHeader]
-                : undefined
-            }
-          >
+          <View style={[s.whySectionCard, isWhyGrid && (ds?.whySectionCard ?? tabletDs?.whySectionCard)]}>
             <View
-              style={[
-                s.eyebrowPill,
-                isWhyGrid && { alignSelf: "center" },
-                { backgroundColor: "#EEF3FF", borderColor: "#C7D7FF" },
-              ]}
+              style={
+                isWhyGrid
+                  ? [ds?.whySectionHeader, tabletDs?.whySectionHeader]
+                  : undefined
+              }
             >
-              <Text style={[s.eyebrowText, { color: C.navyLight }]}>WHY CHOOSE US</Text>
-            </View>
-            <Text
-              style={[
-                s.sectionH,
-                isWhyGrid && (ds?.whySectionH ?? tabletDs?.whySectionH),
-                isWhyGrid && { textAlign: "center" },
-              ]}
-            >
-              {isWhyGrid ? "Everything You Need to Grow" : "Everything You\nNeed to Grow"}
-            </Text>
-            <Text
-              style={[
-                s.sectionSub,
-                isWhyGrid && (ds?.sectionSub ?? tabletDs?.sectionSub),
-                isWhyGrid && { textAlign: "center", alignSelf: "center" },
-              ]}
-            >
-              Tools, support, and reach — all in one platform designed for Indian sellers.
-            </Text>
-          </View>
-
-          <View style={isWhyGrid ? [ds?.whyGrid, tabletDs?.whyGrid] : undefined}>
-            {WHY.map((w) => (
               <View
-                key={w.title}
-                style={[s.whyCard, isWhyGrid && (ds?.whyCard ?? tabletDs?.whyCard)]}
+                style={[
+                  s.eyebrowPill,
+                  isWhyGrid && { alignSelf: "center" },
+                  { backgroundColor: "#EEF3FF", borderColor: "#C7D7FF" },
+                ]}
               >
-                <View style={s.whyTag}>
-                  <Text style={s.whyTagText}>{w.tag}</Text>
-                </View>
-                <View style={s.whyBody}>
-                  <LinearGradient colors={[C.navy, C.navyLight]} style={s.whyIconBox}>
-                    <MaterialCommunityIcons name={w.icon as any} size={23} color="#fff" />
-                  </LinearGradient>
-                  <View style={{ flex: 1, marginLeft: 14 }}>
-                    <Text style={s.whyTitle}>{w.title}</Text>
-                    <Text style={s.whyDesc}>{w.desc}</Text>
+                <Text style={[s.eyebrowText, { color: C.navyLight }]}>WHY CHOOSE US</Text>
+              </View>
+              <Text
+                style={[
+                  s.sectionH,
+                  isWhyGrid && (ds?.whySectionH ?? tabletDs?.whySectionH),
+                  isWhyGrid && { textAlign: "center" },
+                ]}
+              >
+                {isWhyGrid ? "Everything You Need to Grow" : "Everything You\nNeed to Grow"}
+              </Text>
+              <Text
+                style={[
+                  s.sectionSub,
+                  isWhyGrid && (ds?.sectionSub ?? tabletDs?.sectionSub),
+                  isWhyGrid && { textAlign: "center", alignSelf: "center" },
+                ]}
+              >
+                Tools, support, and reach — all in one platform designed for Indian sellers.
+              </Text>
+            </View>
+
+            <View style={isWhyGrid ? [ds?.whyGrid, tabletDs?.whyGrid] : undefined}>
+              {WHY.map((w) => (
+                <View
+                  key={w.title}
+                  style={[s.whyCard, isWhyGrid && (ds?.whyCard ?? tabletDs?.whyCard)]}
+                >
+                  <View style={s.whyTag}>
+                    <Text style={s.whyTagText}>{w.tag}</Text>
+                  </View>
+                  <View style={s.whyBody}>
+                    <LinearGradient colors={[C.navy, C.navyLight]} style={s.whyIconBox}>
+                      <MaterialCommunityIcons name={w.icon as any} size={23} color="#fff" />
+                    </LinearGradient>
+                    <View style={{ flex: 1, marginLeft: 14 }}>
+                      <Text style={s.whyTitle}>{w.title}</Text>
+                      <Text style={s.whyDesc}>{w.desc}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
         </View>
 
@@ -1547,6 +1556,7 @@ const s = StyleSheet.create({
 
   // Why cards
   whyCard: { backgroundColor: "#fff", borderRadius: 16, padding: 18, marginBottom: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  whySectionCard: { backgroundColor: "#F4F6FB", borderRadius: 22, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: "#F0F0F0", width: "100%" },
   whyTag: { alignSelf: "flex-start", backgroundColor: "rgba(249,115,22,0.12)", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 50, marginBottom: 12, borderWidth: 1, borderColor: "rgba(249,115,22,0.20)" },
   whyTagText: { fontFamily: "Outfit_700Bold", fontSize: 10, color: "#F97316", letterSpacing: 1.5 },
   whyBody: { flexDirection: "row", alignItems: "flex-start" },

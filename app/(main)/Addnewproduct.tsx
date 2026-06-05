@@ -887,9 +887,9 @@ const validateDetails = (data: any): string[] => {
 // ─────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────
-const Card = ({ children, style, ...props }: any) => {
+const Card = ({ children, style, onLayout, zIndex, ...props }: any) => {
     const { isDesktop } = useResponsive();
-    return <View style={[at.card, isDesktop && ds.card, style]} {...props}>{children}</View>;
+    return <View onLayout={onLayout} style={[at.card, isDesktop && ds.card, style, Platform.OS === 'web' && zIndex !== undefined && { zIndex }]} {...props}>{children}</View>;
 };
 
 const SecHead = ({ icon, title, accent = C.accent1 }: { icon: string; title: string; accent?: string }) => (
@@ -925,12 +925,31 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
     );
 };
 
-const Drop = ({ placeholder, value, onPress, hasError }: any) => (
-    <TouchableOpacity style={[at.drop, hasError && at.fieldError]} onPress={onPress} activeOpacity={0.85}>
-        <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
-        <Ionicons name="chevron-down" size={15} color={C.textLight} />
-    </TouchableOpacity>
-);
+const Drop = ({ placeholder, value, onPress, hasError, options, onSelect }: any) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <View style={Platform.OS === 'web' ? { zIndex: open ? 99 : 1, position: 'relative' } : undefined}>
+            <TouchableOpacity style={[at.drop, hasError && at.fieldError, open && Platform.OS === 'web' && { borderColor: C.navy }]} onPress={() => { if(Platform.OS === 'web' && options) { setOpen(!open); } else { if(onPress) onPress(); } }} activeOpacity={0.85}>
+                <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
+                <Ionicons name={open && Platform.OS === 'web' ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
+            </TouchableOpacity>
+            {Platform.OS === 'web' && open && options && (
+                <>
+                    <TouchableOpacity style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={() => setOpen(false)} />
+                    <View style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5, zIndex: 101, maxHeight: 220 }}>
+                        <ScrollView style={{ paddingVertical: 8, maxHeight: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            {options.map((opt: string, idx: number) => (
+                                <TouchableOpacity key={idx} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : 'transparent' }} onPress={() => { if(onSelect) onSelect(opt); setOpen(false); }}>
+                                    <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </>
+            )}
+        </View>
+    );
+};
 
 const Divider = () => <View style={at.divider} />;
 const Hint = ({ text }: { text: string }) => <AppText style={at.hint}>{text}</AppText>;
@@ -1691,6 +1710,15 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 const targetRef = fieldRefs.current[fieldKey];
                 const containerRef = scrollRef.current;
 
+                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
+                    try {
+                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    } catch (e) {
+                        // ignore and fallback
+                    }
+                }
+
                 const fallbackScroll = () => {
                     let cardKey = '';
                     if (['name', 'category', 'subcategory', 'materialType', 'hsnCode'].includes(fieldKey)) {
@@ -1752,7 +1780,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            <Card onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['identity'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={100} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['identity'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
                 <Divider />
                 <View ref={el => { fieldRefs.current['name'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['name'] = e.nativeEvent.layout.y; }}>
@@ -1764,28 +1792,28 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                         hasError={hasErr("product name")}
                     />
                 </View>
-                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]} onLayout={(e: LayoutChangeEvent) => {
                     const y = e.nativeEvent.layout.y;
                     fieldLayouts.current['category'] = y;
                     fieldLayouts.current['subcategory'] = y;
                 }}>
                     <View ref={el => { fieldRefs.current['category'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Category" required />
-                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} />
+                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryOptions} onSelect={(v: string) => { const cat = catalog?.categories?.find((c: { name: string }) => c.name === v); onChange("category", v); onChange("categoryId", cat?.id ?? null); onChange("subcategory", ""); onChange("subcategoryId", null); }} />
                     </View>
                     <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Subcategory" required />
-                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} />
+                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} options={subcats} onSelect={(v: string) => { const sub = selectedCategory?.subcategories?.find( (s: { name: string }) => s.name === v ); onChange("subcategory", v); onChange("subcategoryId", sub?.id ?? null); }} />
                     </View>
                 </View>
-                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
                     const y = e.nativeEvent.layout.y;
                     fieldLayouts.current['materialType'] = y;
                     fieldLayouts.current['hsnCode'] = y;
                 }}>
                     <View ref={el => { fieldRefs.current['materialType'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Material Type" required />
-                        <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} />
+                        <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} options={MATERIAL_TYPES} onSelect={(v: string) => { onChange("materialType", v); const hsn = getHsnForMaterial(v); if (hsn) onChange("hsnCode", hsn); }} />
                         <Hint text="Primary material of the product" />
                     </View>
                     <View ref={el => { fieldRefs.current['hsnCode'] = el; }} style={{ flex: 1 }}>
@@ -1807,7 +1835,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['desc'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={90} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['desc'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="text-box-edit-outline" title="Descriptions" accent={C.accent2} />
                 <Divider />
                 <View ref={el => { fieldRefs.current['shortDesc'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['shortDesc'] = e.nativeEvent.layout.y; }}>
@@ -1833,7 +1861,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['dimensions'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={80} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['dimensions'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="cube-scan" title="Product Dimensions" accent={C.accent3} />
                 <Divider />
                 <AppText style={at.cardHint}>Enter gross dimensions (including packaging)</AppText>
@@ -1858,11 +1886,11 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['weight'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={70} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['weight'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="weight-kilogram" title="Weight & Delivery" accent={C.accent4} />
                 <Divider />
                 <AppText style={at.cardHint}>Enter gross weight (including packaging)</AppText>
-                <View style={at.row2} onLayout={(e: LayoutChangeEvent) => {
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
                     fieldLayouts.current['weight'] = e.nativeEvent.layout.y;
                 }}>
                     <View ref={el => { fieldRefs.current['weight'] = el; }} style={{ flex: 1 }}>
@@ -1895,7 +1923,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 <Hint text="Mark if special protective packaging is required" />
             </Card>
 
-            <Card style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={60} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
                 <SecHead icon="palette-outline" title="Customization" accent={C.accent5} />
                 <Divider />
                 <TouchableOpacity style={at.customRow} onPress={() => onChange("customized", !data.customized)} activeOpacity={0.7}>
@@ -2260,7 +2288,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
             {variants.map((v: Variant, idx: number) => (
-                <Card key={v.id} style={{ marginBottom: 12 }}>
+                <Card key={v.id} zIndex={100 - idx} style={{ marginBottom: 12 }}>
                     <View style={vt.hdr}>
                         <View style={vt.badge}><AppText style={vt.badgeTxt}>#{idx + 1}</AppText></View>
                         <AppText style={vt.title}>Variant</AppText>
@@ -2272,14 +2300,14 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                         )}
                     </View>
                     <Divider />
-                    <View style={at.row2}>
+                    <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Color" required />
-                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} />
+                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => upVariant(v.id, "color", val)} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Size" required />
-                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} />
+                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => upVariant(v.id, "size", val)} />
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -2561,7 +2589,47 @@ const ig = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
+const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false }: any) => {
+    const scrollRef = useRef<ScrollView>(null);
+    const fieldRefs = useRef<Record<string, any>>({});
+
+    useEffect(() => {
+        if (validationTrigger > 0 && errors && errors.length > 0) {
+            const getFieldKeyFromError = (error: string): string | null => {
+                const err = error.toLowerCase();
+                if (err.includes("return policy")) return "returnPolicy";
+                if (err.includes("delivery option")) return "deliveryOption";
+                return null;
+            };
+
+            const firstErr = errors[0];
+            const fieldKey = getFieldKeyFromError(firstErr);
+            if (fieldKey) {
+                const targetRef = fieldRefs.current[fieldKey];
+
+                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
+                    try {
+                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    } catch (e) {
+                        // ignore and fallback
+                    }
+                }
+
+                if (targetRef && scrollRef.current) {
+                    try {
+                        targetRef.measureLayout(
+                            scrollRef.current as any,
+                            (x: number, y: number) => {
+                                scrollRef.current?.scrollTo({ y: Math.max(0, y - 15), animated: true });
+                            },
+                            () => {}
+                        );
+                    } catch (e) {}
+                }
+            }
+        }
+    }, [errors, validationTrigger]);
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
     const [delPick, setDelPick] = useState(false);
@@ -2670,17 +2738,18 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            <Card>
+            <Card zIndex={100}>
                 <SecHead icon="ruler-square" title="Size Chart" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Select Size Chart" />
-                <View style={[twoCol, isDesktop && { alignItems: "flex-end" }]}>
+                <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }, isDesktop && { alignItems: "flex-end" }]}>
                     <View style={fieldFlex}>
-                        <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} />
+                        <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} options={sizeChartOptions} onSelect={(v: string) => onChange("sizeChart", v)} />
                     </View>
                     <TouchableOpacity
                         style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
@@ -2693,13 +2762,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={90} style={{ marginTop: 12 }}>
                 <SecHead icon="refresh" title="Return Policy" accent={C.accent3} />
                 <Divider />
-                <View style={twoCol}>
-                    <View style={fieldFlex}>
+                <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }]}>
+                    <View style={fieldFlex} ref={el => { fieldRefs.current['returnPolicy'] = el; }}>
                         <Lbl text="Policy Template" required />
-                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} />
+                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICIES} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
@@ -2718,13 +2787,13 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <CC cur={(data.returnPolicyText || "").length} max={1000} />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={80} style={{ marginTop: 12 }}>
                 <SecHead icon="truck-fast-outline" title="Delivery" accent={C.accent4} />
                 <Divider />
-                <View style={[at.row2, { alignItems: "flex-end", marginBottom: 12 }]}>
-                    <View style={{ flex: 2 }}>
+                <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }, { alignItems: "flex-end", marginBottom: 12 }]}>
+                    <View style={{ flex: 2 }} ref={el => { fieldRefs.current['deliveryOption'] = el; }}>
                         <Lbl text="Delivery Option" required />
-                        <Drop placeholder="Select option" value={data.deliveryOption} onPress={() => setDelPick(true)} hasError={hasErr("delivery option")} />
+                        <Drop placeholder="Select option" value={data.deliveryOption} onPress={() => setDelPick(true)} hasError={hasErr("delivery option")} options={DELIVERY_OPTIONS} onSelect={(v: string) => applyDeliverySelection(v, onChange)} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Min Days" />
@@ -2738,7 +2807,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 <Field placeholder="Extra delivery notes…" value={data.deliveryInfo} onChangeText={(v: string) => onChange("deliveryInfo", v)} multiline lines={3} maxLength={1000} />
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={70} style={{ marginTop: 12 }}>
                 <SecHead icon="credit-card-outline" title="Payment Options" accent={C.accent5} />
                 <Divider />
                 <Hint text="Select all payment methods available for this product." />
@@ -2750,7 +2819,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 ))}
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={60} style={{ marginTop: 12 }}>
                 <SecHead icon="shield-check-outline" title="Warranty & Care" accent={C.accent2} />
                 <Divider />
                 <View style={at.row2}>
@@ -2767,7 +2836,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false }: any) => {
                 </View>
             </Card>
 
-            <Card style={{ marginTop: 12 }}>
+            <Card zIndex={50} style={{ marginTop: 12 }}>
                 <SecHead icon="format-list-bulleted" title="Features & Specs" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Product Features" />
@@ -3277,6 +3346,7 @@ const AddNewProduct: React.FC = () => {
 
         if (allErrors.length > 0) {
             showErrors(allErrors);
+            setValidationTrigger(prev => prev + 1);
             return;
         }
 
@@ -3379,7 +3449,7 @@ const AddNewProduct: React.FC = () => {
                 />
             )}
             {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
-            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} isDesktop={isDesktop} />}
+            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} validationTrigger={validationTrigger} isDesktop={isDesktop} />}
         </>
     );
 

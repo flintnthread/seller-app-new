@@ -601,6 +601,11 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View> */}
 
+        <ScrollView
+          style={desktopStyles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={desktopStyles.scrollContent}
+        >
         {/* Hero Banner */}
         <View style={desktopStyles.hero}>
           <View style={desktopStyles.heroInner}>
@@ -619,11 +624,7 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View>
 
-        <ScrollView
-          style={desktopStyles.scroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={desktopStyles.scrollContent}
-        >
+
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
             <DesktopStatCard label="Lifetime Earnings" value="₹1,25,400" icon="history" accent="#1a2b5e" />
@@ -1197,13 +1198,15 @@ const desktopStyles = StyleSheet.create({
 
   // Hero
   hero: {
-    backgroundColor: "#1a2b5e",
-    paddingVertical: 32,
-    paddingHorizontal: 48,
+    backgroundColor: "#151D4F",
+    paddingHorizontal: 32,
+    paddingVertical: 28,
+    paddingBottom: 68,
+    borderRadius: 22,
+    marginHorizontal: 2,
+    marginTop: 12,
   },
   heroInner: {
-    maxWidth: 1200,
-    alignSelf: "center",
     width: "100%" as any,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1247,12 +1250,9 @@ const desktopStyles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    maxWidth: 1200,
-    width: "100%" as any,
-    alignSelf: "center",
-    paddingHorizontal: 48,
-    paddingTop: 32,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 40,
   },
 
   // Stats Row
@@ -1260,6 +1260,9 @@ const desktopStyles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     marginBottom: 28,
+    marginTop: -42,
+    zIndex: 10,
+    marginHorizontal: 6,
   },
   statCard: {
     flex: 1,
