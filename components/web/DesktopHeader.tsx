@@ -67,6 +67,10 @@ export function DesktopHeader({
           <View style={styles.notificationBadge} />
         </Pressable>
 
+        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/helpsupport')}>
+          <Ionicons name="headset-outline" size={20} color="#666666" />
+        </Pressable>
+
         <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/settingsModule')}>
           <Ionicons name="settings-outline" size={20} color="#666666" />
         </Pressable>

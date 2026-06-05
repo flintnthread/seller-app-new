@@ -165,9 +165,12 @@ const styles = StyleSheet.create({
     borderRightColor: '#eaeaea',
     height: '100%',
     paddingVertical: 24,
+    flexShrink: 0,
+    overflow: 'hidden',
   },
   scrollContainer: {
     flex: 1,
+    minHeight: 0,
   },
   logoContainer: {
     paddingHorizontal: 24,

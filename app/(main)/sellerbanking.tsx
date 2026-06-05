@@ -22,12 +22,11 @@ import Icon from "react-native-vector-icons/FontAwesome";
 import { fontFamilies } from "@/constants/fonts";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { getApiErrorMessage, lookupIfscCode } from "@/services/sellerProfileApi";
 import {
-  fetchSellerProfile,
-  getApiErrorMessage,
-  lookupIfscCode,
-  updateBankingProfile,
-} from "@/services/sellerProfileApi";
+  fetchSellerBankDetails,
+  updateSellerBankDetails,
+} from "@/services/payoutApi";
 
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
@@ -311,8 +310,10 @@ const pair = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBanking() {
   const router = useRouter();
-  const { businessCategory: businessCategoryParam } = useLocalSearchParams();
-  const businessCategory = typeof businessCategoryParam === "string" ? businessCategoryParam : "";
+  const searchParams = useLocalSearchParams<{ businessCategory?: string; returnTo?: string }>();
+  const businessCategory =
+    typeof searchParams.businessCategory === "string" ? searchParams.businessCategory : "";
+  const returnTo = typeof searchParams.returnTo === "string" ? searchParams.returnTo : "";
   const scrollViewRef = useRef<ScrollView>(null);
   const { showError, SweetAlertHost } = useSweetAlert();
 
@@ -334,13 +335,12 @@ export default function SellerBanking() {
     (async () => {
       try {
         await hydrateSellerSession();
-        const profile = await fetchSellerProfile();
+        const bank = await fetchSellerBankDetails();
         if (!active) return;
-        const b = profile.banking;
-        if (b.ifscCode) setIfscCode(b.ifscCode.toUpperCase());
-        if (b.bankName) setBankName(b.bankName);
-        if (b.branchName) setBranchName(b.branchName);
-        if (b.accountHolderName) setAccountHolderName(b.accountHolderName);
+        if (bank.ifscCode) setIfscCode(bank.ifscCode.toUpperCase());
+        if (bank.bankName) setBankName(bank.bankName);
+        if (bank.branchName) setBranchName(bank.branchName);
+        if (bank.accountHolder) setAccountHolderName(bank.accountHolder);
       } catch {
         // keep empty form
       }
@@ -438,13 +438,17 @@ export default function SellerBanking() {
     setIsLoading(true);
     try {
       await hydrateSellerSession();
-      await updateBankingProfile({
+      await updateSellerBankDetails({
         ifscCode: ifscCode.trim().toUpperCase(),
         bankName: bankName.trim(),
         branchName: branchName.trim(),
-        accountHolderName: accountHolderName.trim(),
+        accountHolder: accountHolderName.trim(),
         accountNumber: accountNumber.trim(),
       });
+      if (returnTo === "payout") {
+        router.back();
+        return;
+      }
       router.push({
         pathname: "/(main)/sellerdocuments",
         params: businessCategory ? { businessCategory } : {},
