@@ -5,11 +5,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileStatus } from '@/hooks/useProfileStatus';
 import { clearSellerId } from '@/lib/api/sellerSession';
+import { useSweetAlert } from '@/components/common/SweetAlert';
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isProfileCompleted } = useProfileStatus();
+  const { confirmAction, SweetAlertHost } = useSweetAlert();
 
   // Dynamically define sections based on profile completion status
   const sections = isProfileCompleted
@@ -98,10 +100,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                 return (
                   <Pressable
                     key={item.path}
-                    onPress={() => {
+                    onPress={async () => {
                       if (item.path === 'logout') {
                         if (Platform.OS === 'web') {
-                          const confirmLogout = window.confirm("Are you sure you want to logout?");
+                          const confirmLogout = await confirmAction("Logout", "Are you sure you want to logout?", "Logout");
                           if (confirmLogout) {
                             void clearSellerId();
                             router.replace("/(auth)/login");
@@ -150,6 +152,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           </View>
         ))}
       </ScrollView>
+      <SweetAlertHost />
     </View>
   );
 }

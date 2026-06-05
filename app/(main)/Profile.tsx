@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "expo-router";
 
 import {
@@ -46,6 +46,86 @@ function formatMobileDisplay(mobile: string): string {
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
 
+let VideoElement: any;
+let CanvasElement: any;
+if (Platform.OS === 'web') {
+  // @ts-ignore
+  VideoElement = React.forwardRef((props, ref) => React.createElement('video', { ...props, ref }));
+  // @ts-ignore
+  CanvasElement = React.forwardRef((props, ref) => React.createElement('canvas', { ...props, ref }));
+}
+
+function WebCameraModal({ visible, onClose, onCapture }: { visible: boolean, onClose: () => void, onCapture: (uri: string) => void }) {
+  const videoRef = useRef<any>(null);
+  const canvasRef = useRef<any>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (visible && Platform.OS === 'web') {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(s => {
+          setStream(s);
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+            videoRef.current.play();
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          Alert.alert("Camera error", "Could not access camera.");
+          onClose();
+        });
+    } else {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        setStream(null);
+      }
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, [visible]);
+
+  const capture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.85);
+        onCapture(dataUri);
+        onClose();
+      }
+    }
+  };
+
+  if (!visible || Platform.OS !== 'web') return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: 640, height: 480, backgroundColor: '#000', borderRadius: 16, overflow: 'hidden' }}>
+          <VideoElement ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} autoPlay playsInline />
+          <CanvasElement ref={canvasRef} style={{ display: 'none' }} />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 20, marginTop: 24 }}>
+          <TouchableOpacity onPress={onClose} style={{ backgroundColor: '#4B5563', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontFamily: fontFamilies.medium }}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={capture} style={{ backgroundColor: '#FF6B35', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontFamily: fontFamilies.bold }}>Capture Photo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function SellerProfileScreen() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
@@ -58,6 +138,7 @@ export default function SellerProfileScreen() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [webCameraVisible, setWebCameraVisible] = useState(false);
   const router = useRouter();
   const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
   const { setIsProfileCompleted } = useProfileStatus();
@@ -123,6 +204,11 @@ export default function SellerProfileScreen() {
   };
 
   const handleSelectCamera = async () => {
+    if (Platform.OS === 'web') {
+      setModalVisible(false);
+      setWebCameraVisible(true);
+      return;
+    }
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
@@ -475,6 +561,13 @@ export default function SellerProfileScreen() {
       </View>
     </View>
 </Modal>
+        <WebCameraModal
+          visible={webCameraVisible}
+          onClose={() => setWebCameraVisible(false)}
+          onCapture={async (uri) => {
+            await uploadPickedImage(uri);
+          }}
+        />
         <SweetAlertHost />
 
       </View>
@@ -710,6 +803,13 @@ export default function SellerProfileScreen() {
     </View>
   </View>
 </Modal>
+      <WebCameraModal
+        visible={webCameraVisible}
+        onClose={() => setWebCameraVisible(false)}
+        onCapture={async (uri) => {
+          await uploadPickedImage(uri);
+        }}
+      />
       <SweetAlertHost />
     </View>
   );

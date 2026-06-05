@@ -139,7 +139,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "productName",
       title: "Product",
-      width: "22%",
+      width: "20%",
       render: (item) => (
         <View style={styles.productCol}>
           <AppText style={styles.productNameText}>{item.productName}</AppText>
@@ -150,7 +150,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "qty",
       title: "Qty",
-      width: "8%",
+      width: "6%",
       align: "left",
       render: (item) => (
         <AppText style={styles.qtyText}>{item.qty}</AppText>
@@ -159,7 +159,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "price",
       title: "Amount",
-      width: "11%",
+      width: "10%",
       align: "right",
       render: (item) => (
         <AppText style={styles.priceText}>₹{item.price.toLocaleString("en-IN")}</AppText>
@@ -168,7 +168,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "status",
       title: "Status",
-      width: "11%",
+      width: "14%",
       render: (item) => {
         const sc = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.Pending;
         return (
@@ -182,7 +182,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "actions",
       title: "Actions",
-      width: "12%",
+      width: "14%",
       align: "center",
       render: (item) => (
         <TouchableOpacity

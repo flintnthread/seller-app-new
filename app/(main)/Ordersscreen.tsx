@@ -2961,6 +2961,8 @@ const deskStyles = StyleSheet.create({
   desktopScrollView: {
     flex: 1,
     backgroundColor: C.bg,
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
 
   /* ── Toolbar overrides for desktop ── */
@@ -2972,8 +2974,9 @@ const deskStyles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     gap: 4,
-    borderBottomLeftRadius: 22,      
-  borderBottomRightRadius: 22,
+    borderRadius: 22,
+    marginHorizontal: 2,
+    marginTop: 12,
   },
   desktopTab: {
     flex: 1,

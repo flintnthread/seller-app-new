@@ -374,15 +374,30 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.pageTitleWrap}>
-          <AppText style={styles.pageTitle}>Settings</AppText>
-          <AppText style={styles.pageSubtitle}>Manage your seller account</AppText>
-        </View>
+        {Platform.OS === "web" ? (
+          <View style={styles.pageHeaderWeb}>
+            <View style={styles.titleContainerWeb}>
+              <View style={styles.breadcrumbWeb}>
+                <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
+                  <AppText style={styles.breadcrumbDimWeb}>Dashboard</AppText>
+                </TouchableOpacity>
+                <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
+                <AppText style={styles.breadcrumbActiveWeb}>Settings</AppText>
+              </View>
+              <AppText style={styles.pageTitleWeb}>Settings</AppText>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.pageTitleWrap}>
+            <AppText style={styles.pageTitle}>Settings</AppText>
+            <AppText style={styles.pageSubtitle}>Manage your seller account</AppText>
+          </View>
+        )}
 
         {/* Profile Card */}
 
         <LinearGradient
-          colors={["#bd7e11d7", "#d07a24dd", "#c88615ff"] as const}
+          colors={Platform.OS === "web" ? ["#3B82F6", "#2563EB", "#1E40AF"] : ["#bd7e11d7", "#d07a24dd", "#c88615ff"]}
           style={styles.profileCard}
         >
           <View style={styles.profileTop}>
@@ -565,10 +580,11 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: Platform.OS === "web" ? "#F1F5F9" : "#f8fafc",
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Platform.OS === "web" ? 16 : 20,
+    paddingTop: Platform.OS === "web" ? 10 : 0,
     paddingBottom: 40,
   },
   pageTitleWrap: {
@@ -584,6 +600,41 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 4,
     fontSize: 13,
+  },
+  pageHeaderWeb: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 0,
+    backgroundColor: "#151D4F",
+    paddingHorizontal: 32,
+    paddingVertical: 28,
+    paddingBottom: 68,
+    borderRadius: 22,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    marginHorizontal: 2,
+    marginTop: 12,
+    shadowColor: "#151D4F",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  titleContainerWeb: {
+    paddingLeft: 0,
+    marginVertical: 0,
+  },
+  breadcrumbWeb: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  breadcrumbDimWeb: { fontFamily: fontFamilies.medium, fontSize: 13, color: "rgba(255,255,255,0.75)" },
+  breadcrumbActiveWeb: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: "#FFFFFF" },
+  pageTitleWeb: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 26,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
 
   header: {
@@ -619,6 +670,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     marginBottom: 24,
+    marginTop: -42,
+    marginHorizontal: 6,
+    zIndex: 10,
   },
 
   profileTop: {
@@ -743,6 +797,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" as unknown as undefined,
+      },
+      default: {},
+    }),
   },
 
   dangerCard: {
@@ -797,6 +857,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: "row",
     justifyContent: "space-between",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" as unknown as undefined,
+      },
+      default: {},
+    }),
   },
 
   infoTitle: {
