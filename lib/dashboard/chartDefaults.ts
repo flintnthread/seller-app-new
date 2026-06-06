@@ -104,12 +104,14 @@ export function buildAllStatsFromPeriodStats(
         views: number;
         rating: number;
         returns: number;
+        newCustomers?: number;
+        conversionRate?: number;
     } | null | undefined
 ): AllStatsPeriodData {
     if (!stats) {
         return buildAllStatsFromOverview(null);
     }
-    return buildAllStatsFromOverview(
+    const base = buildAllStatsFromOverview(
         {
             orders: stats.orders,
             sales: stats.sales,
@@ -119,6 +121,11 @@ export function buildAllStatsFromPeriodStats(
         },
         stats.returns
     );
+    return {
+        ...base,
+        newCustomers: stats.newCustomers != null ? String(stats.newCustomers) : base.newCustomers,
+        conversionRate: stats.conversionRate != null ? `${stats.conversionRate}%` : base.conversionRate,
+    };
 }
 
 export function mapStatsByPeriodToUi(

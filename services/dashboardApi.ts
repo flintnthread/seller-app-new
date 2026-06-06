@@ -74,6 +74,8 @@ export type DashboardPeriodStats = {
     views: number;
     rating: number;
     returns: number;
+    newCustomers?: number;
+    conversionRate?: number;
 };
 
 export type DashboardStatsByPeriod = {

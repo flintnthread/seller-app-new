@@ -1207,6 +1207,8 @@ const MobileDashboard: React.FC<{
     const {
         data,
         loading: dashboardLoading,
+        error: dashboardError,
+        reload: reloadDashboard,
         overviewStats,
         orderSummary,
         topProducts,
@@ -1331,6 +1333,14 @@ const MobileDashboard: React.FC<{
         <View style={s.root}>
             <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} bounces={false}
                 contentContainerStyle={{ paddingBottom: 100 }}>
+                {dashboardError ? (
+                    <View style={{ margin: 16, padding: 12, borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }}>
+                        <AppText style={{ color: "#DC2626", fontFamily: "Poppins_500Medium", fontSize: 13 }}>{dashboardError}</AppText>
+                        <TouchableOpacity onPress={reloadDashboard} style={{ marginTop: 8 }}>
+                            <AppText style={{ color: C.navy, fontFamily: "Poppins_600SemiBold", fontSize: 12 }}>Retry</AppText>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
                 {/* ── PROFILE ── */}
                 <View style={s.section}>
                     <View style={s.profileCard}>

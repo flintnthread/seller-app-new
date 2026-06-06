@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { clearSellerId } from "@/lib/api/sellerSession";
+import { fetchDashboard } from "@/services/dashboardApi";
 
 interface SettingItem {
   id: string;
@@ -43,6 +44,25 @@ export default function SettingsScreen() {
   const [vacationMode, setVacationMode] = useState(false);
   const [biometric, setBiometric] = useState(true);
   const [search, setSearch] = useState("");
+  const [headerStats, setHeaderStats] = useState({
+    revenue: "—",
+    rating: "—",
+    orders: "—",
+  });
+
+  useEffect(() => {
+    fetchDashboard()
+      .then((row) => {
+        setHeaderStats({
+          revenue: row.overview?.salesFormatted ?? "—",
+          rating: row.overview?.rating ? String(row.overview.rating) : "—",
+          orders: String(row.overview?.orders ?? 0),
+        });
+      })
+      .catch(() => {
+        setHeaderStats({ revenue: "—", rating: "—", orders: "—" });
+      });
+  }, []);
 
   const handleItemPress = useCallback(
     (item: SettingItem) => {
@@ -79,7 +99,7 @@ export default function SettingsScreen() {
           router.push("/(main)/helpsupport");
           break;
         case "16":
-          router.push("/(main)/helpsupport");
+          router.push("/legal-document?type=privacy");
           break;
         case "17":
           if (Platform.OS === "web") {
@@ -442,17 +462,17 @@ export default function SettingsScreen() {
 
           <View style={styles.analyticsRow}>
             <View style={styles.analyticsBox}>
-              <AppText style={styles.analyticsValue}>₹2.4L</AppText>
+              <AppText style={styles.analyticsValue}>{headerStats.revenue}</AppText>
               <AppText style={styles.analyticsLabel}>Revenue</AppText>
             </View>
 
             <View style={styles.analyticsBox}>
-              <AppText style={styles.analyticsValue}>4.8</AppText>
+              <AppText style={styles.analyticsValue}>{headerStats.rating}</AppText>
               <AppText style={styles.analyticsLabel}>Ratings</AppText>
             </View>
 
             <View style={styles.analyticsBox}>
-              <AppText style={styles.analyticsValue}>12K</AppText>
+              <AppText style={styles.analyticsValue}>{headerStats.orders}</AppText>
               <AppText style={styles.analyticsLabel}>Orders</AppText>
             </View>
           </View>

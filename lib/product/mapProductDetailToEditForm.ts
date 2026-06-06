@@ -5,8 +5,18 @@ function parseDimensionPart(dimensions: string, index: number): string {
     return parts[index] ?? "";
 }
 
+function mapSpecifications(detail: ProductDetail) {
+    return (detail.specifications ?? []).map((s) => ({
+        name: s.label ?? "",
+        value: s.value ?? "",
+    }));
+}
+
 export function mapProductDetailToEditForm(detail: ProductDetail) {
     const images = detail.images.filter((u) => u && u.trim().length > 0);
+    const features = (detail.features ?? []).filter((f) => f && f.trim().length > 0);
+    const specifications = mapSpecifications(detail);
+
     return {
         basic: {
             id: detail.id,
@@ -54,7 +64,8 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             video: detail.variants[0]?.videoUri || detail.variants[0]?.videoPath || null,
         },
         details: {
-            sizeChart: "",
+            sizeChart: detail.sizeChartId != null ? String(detail.sizeChartId) : "",
+            sizeChartId: detail.sizeChartId,
             returnPolicy: detail.returnPolicy?.split(":")[0]?.trim() ?? detail.returnPolicy ?? "",
             returnPolicyText: detail.returnPolicy?.includes(":")
                 ? detail.returnPolicy.split(":").slice(1).join(":").trim()
@@ -62,11 +73,14 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             deliveryOption: detail.delivery?.estimated ?? "Standard Delivery",
             minDays: detail.deliveryTimeMin != null ? String(detail.deliveryTimeMin) : "3",
             maxDays: detail.deliveryTimeMax != null ? String(detail.deliveryTimeMax) : "7",
-            deliveryInfo: detail.delivery?.estimated ?? "",
+            deliveryInfo: detail.delivery?.locations ?? detail.delivery?.estimated ?? "",
             codEnabled: detail.acceptCod,
-            onlinePayEnabled: true,
+            onlinePayEnabled: detail.delivery?.cod !== false,
             warranty: detail.warranty === "No Warranty" ? "" : detail.warranty,
             careInstructions: detail.careInstructions === "—" ? "" : detail.careInstructions,
+            features: features.length > 0 ? features : [""],
+            specifications: specifications.length > 0 ? specifications : [{ name: "", value: "" }],
+            sizeChartRows: detail.sizeChart ?? [],
         },
     };
 }

@@ -42,7 +42,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
 import type { OrderDetail, OrderItem, OrderStep } from "@/lib/orders/ordersData";
-import { fetchSellerOrderDetail } from "@/services/orderApi";
+import { fetchSellerOrderDetail, syncShiprocketTracking } from "@/services/orderApi";
 import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/orders/ordersStore";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
@@ -173,8 +173,24 @@ function buildShiprocketData(order: OrderDetail): ShiprocketData {
 }
 
 async function refreshShiprocketFromApi(orderKey: string): Promise<ShiprocketData> {
-  const refreshed = await fetchSellerOrderDetail(orderKey);
-  return buildShiprocketData(refreshed);
+  const synced = await syncShiprocketTracking(orderKey);
+  return {
+    shiprocketOrderId: synced.shiprocketOrderId ?? "—",
+    shipmentId: synced.shipmentId ?? "—",
+    awb: synced.awb ?? "—",
+    courier: synced.courier ?? "—",
+    shipmentStatus: synced.status ?? "—",
+    lastSynced: synced.syncedAt ?? "—",
+    trackingUrl: synced.trackingUrl ?? "",
+    events: (synced.events ?? []).map((ev) => ({
+      date: ev.date,
+      time: ev.time,
+      status: ev.status,
+      location: ev.location,
+      description: ev.description,
+      type: (ev.type === "done" || ev.type === "active" ? ev.type : "pending") as ShiprocketEvent["type"],
+    })),
+  };
 }
 
 function printWebLabel(order: OrderDetail) {

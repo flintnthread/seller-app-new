@@ -26,6 +26,8 @@ import {
   uploadProfilePhoto,
   type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
+import { fetchDashboard } from "@/services/dashboardApi";
+import { fetchPayoutSummary } from "@/services/payoutApi";
 
 import * as ImagePicker from "expo-image-picker";
 
@@ -139,6 +141,12 @@ export default function SellerProfileScreen() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [webCameraVisible, setWebCameraVisible] = useState(false);
+  const [profileStats, setProfileStats] = useState({
+    totalOrders: "—",
+    totalEarnings: "—",
+    productsListed: "—",
+    avgRating: "—",
+  });
   const router = useRouter();
   const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
   const { setIsProfileCompleted } = useProfileStatus();
@@ -162,6 +170,33 @@ export default function SellerProfileScreen() {
     },
     [setIsProfileCompleted]
   );
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchDashboard(), fetchPayoutSummary()])
+      .then(([dashboard, payout]) => {
+        if (!active) return;
+        setProfileStats({
+          totalOrders: String(dashboard.overview?.orders ?? 0),
+          totalEarnings: `₹${Math.round(payout.lifetimeEarnings ?? 0).toLocaleString("en-IN")}`,
+          productsListed: String(dashboard.totalProducts ?? 0),
+          avgRating: dashboard.overview?.rating ? `${dashboard.overview.rating} ★` : "—",
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setProfileStats({
+            totalOrders: "—",
+            totalEarnings: "—",
+            productsListed: "—",
+            avgRating: "—",
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -415,10 +450,10 @@ export default function SellerProfileScreen() {
               {/* Stats Row */}
               <View style={desktopStyles.statsRow}>
                 {[
-                  { label: 'Total Orders', value: '1,248', icon: 'shopping-cart', color: '#2196f3', bg: '#E3F2FD' },
-                  { label: 'Total Earnings', value: '₹84,320', icon: 'dollar-sign', color: '#4caf50', bg: '#E8F5E9' },
-                  { label: 'Products Listed', value: '342', icon: 'box', color: '#9c27b0', bg: '#F3E5F5' },
-                  { label: 'Avg. Rating', value: '4.8 ★', icon: 'star', color: '#f5a623', bg: '#FFF8E1' },
+                  { label: 'Total Orders', value: profileStats.totalOrders, icon: 'shopping-cart', color: '#2196f3', bg: '#E3F2FD' },
+                  { label: 'Total Earnings', value: profileStats.totalEarnings, icon: 'dollar-sign', color: '#4caf50', bg: '#E8F5E9' },
+                  { label: 'Products Listed', value: profileStats.productsListed, icon: 'box', color: '#9c27b0', bg: '#F3E5F5' },
+                  { label: 'Avg. Rating', value: profileStats.avgRating, icon: 'star', color: '#f5a623', bg: '#FFF8E1' },
                 ].map((stat) => (
                   <View key={stat.label} style={desktopStyles.statCard}>
                     <View style={[desktopStyles.statIconBox, { backgroundColor: stat.bg }]}>

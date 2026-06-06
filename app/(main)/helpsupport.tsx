@@ -54,6 +54,7 @@ import {
   sendLiveChatMessage,
   getSellerId,
   resolveMediaUrl,
+  submitSupportFeedback,
   type CreateTicketPayload,
   type TicketResponse,
   type MessageResponse,
@@ -1574,10 +1575,29 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   };
 
-  const handleFeedbackSubmit = () => {
-    if (!rating) { Alert.alert("Rating Required", "Please select a star rating before submitting."); return; }
-    setFeedbackSubmitted(true);
-    setTimeout(() => { setFeedbackSubmitted(false); setRating(0); setFeedback(""); }, 3000);
+  const handleFeedbackSubmit = async () => {
+    if (!rating) {
+      Alert.alert(
+        "Rating Required",
+        "Please select a star rating before submitting."
+      );
+      return;
+    }
+
+    try {
+      await submitSupportFeedback({ rating, feedbackText: feedback });
+      setFeedbackSubmitted(true);
+      setTimeout(() => {
+        setFeedbackSubmitted(false);
+        setRating(0);
+        setFeedback("");
+      }, 3000);
+    } catch (e: any) {
+      Alert.alert(
+        "Feedback Failed",
+        e?.message || "Could not submit your feedback. Please try again."
+      );
+    }
   };
 
   // ── Contact Row ──────────────────────────────────────────────────────────
