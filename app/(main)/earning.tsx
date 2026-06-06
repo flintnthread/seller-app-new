@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import {
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useEarningsData } from "@/hooks/useEarningsData";
+import { fetchAnalyticsOverview, fetchAnalyticsSales } from "@/services/earningsApi";
+import { fetchPayoutSummary, type PayoutSummary } from "@/services/payoutApi";
 
 interface Transaction {
   id: string;
@@ -102,13 +104,27 @@ export default function EarningsScreen() {
     []
   );
 
-  const revenueData: Record<string, string> = {
-    "Today": "₹4,250",
-    "7 Days": "₹32,400",
-    "This Month": "₹1,24,580",
-    "Last Month": "₹2,10,200",
-    "Custom Range": "₹45,600",
-  };
+  const [filterRevenue, setFilterRevenue] = useState("₹0");
+  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchPayoutSummary().then(setPayoutSummary).catch(() => setPayoutSummary(null));
+    fetchAnalyticsOverview("month").then((row) => setAvgOrderValue(row.aov ?? null)).catch(() => setAvgOrderValue(null));
+  }, []);
+
+  useEffect(() => {
+    const periodMap: Record<string, string> = {
+      "Today": "day",
+      "7 Days": "week",
+      "This Month": "month",
+      "Last Month": "month",
+      "Custom Range": "month",
+    };
+    fetchAnalyticsSales(periodMap[selectedFilter] ?? "month")
+      .then((row) => setFilterRevenue(row.salesFormatted || "₹0"))
+      .catch(() => setFilterRevenue("₹0"));
+  }, [selectedFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -239,7 +255,7 @@ export default function EarningsScreen() {
               <Text style={styles.revenueLabel}>Total Revenue</Text>
 
               <Text style={styles.revenueValue}>
-                {showBalance ? (revenueData[selectedFilter] || "₹0") : "XXXXXX"}
+                {showBalance ? filterRevenue : "XXXXXX"}
               </Text>
             </View>
 
@@ -279,8 +295,10 @@ export default function EarningsScreen() {
             </View>
 
             <Text style={styles.payoutTitle}>Pending Payin</Text>
-            <Text style={styles.payoutAmount}>₹2,400</Text>
-            <Text style={styles.payoutDate}>Expected in 2 days</Text>
+            <Text style={styles.payoutAmount}>
+              {showBalance ? `₹${Math.round(payoutSummary?.pendingAmount ?? 0).toLocaleString("en-IN")}` : "XXXXXX"}
+            </Text>
+            <Text style={styles.payoutDate}>Awaiting settlement</Text>
           </View>
 
           <View style={styles.payoutCard}>
@@ -293,7 +311,9 @@ export default function EarningsScreen() {
             </View>
 
             <Text style={styles.payoutTitle}>Completed</Text>
-            <Text style={styles.payoutAmount}>₹18,920</Text>
+            <Text style={styles.payoutAmount}>
+              {showBalance ? `₹${Math.round(earningsData?.totalCredits ?? 0).toLocaleString("en-IN")}` : "XXXXXX"}
+            </Text>
             <Text style={styles.payoutDate}>Successfully transferred</Text>
           </View>
         </View>
@@ -318,7 +338,7 @@ export default function EarningsScreen() {
         <View style={styles.withdrawCard}>
           <View>
             <Text style={styles.withdrawTitle}>Linked Bank Account</Text>
-            <Text style={styles.withdrawSub}>**** **** 2408</Text>
+            <Text style={styles.withdrawSub}>{earningsData?.bankAccount?.accountNumberMasked ?? "No bank linked"}</Text>
           </View>
 
           <TouchableOpacity 
@@ -336,22 +356,24 @@ export default function EarningsScreen() {
 
         <View style={styles.insightsGrid}>
           <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>Friday</Text>
-            <Text style={styles.insightLabel}>Best Day</Text>
+            <Text style={styles.insightValue}>{filterRevenue}</Text>
+            <Text style={styles.insightLabel}>Period Sales</Text>
           </View>
 
           <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>Ads</Text>
-            <Text style={styles.insightLabel}>Top Source</Text>
+            <Text style={styles.insightValue}>₹{Math.round(payoutSummary?.thisMonthEarnings ?? 0).toLocaleString("en-IN")}</Text>
+            <Text style={styles.insightLabel}>This Month</Text>
           </View>
 
           <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>4.8%</Text>
+            <Text style={styles.insightValue}>—</Text>
             <Text style={styles.insightLabel}>Conversion</Text>
           </View>
 
           <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>₹52</Text>
+            <Text style={styles.insightValue}>
+              {avgOrderValue != null ? `₹${Math.round(avgOrderValue).toLocaleString("en-IN")}` : "—"}
+            </Text>
             <Text style={styles.insightLabel}>Avg Order</Text>
           </View>
         </View>

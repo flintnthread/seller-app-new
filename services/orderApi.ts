@@ -575,6 +575,31 @@ export async function fetchSellerOrderDetail(orderKey: string): Promise<OrderDet
     return mapDetail(detail);
 }
 
+export type ShiprocketSyncResult = {
+    shiprocketOrderId?: string;
+    shipmentId?: string;
+    awb?: string;
+    courier?: string;
+    status?: string;
+    trackingUrl?: string;
+    syncedAt?: string;
+    events: {
+        date: string;
+        time: string;
+        status: string;
+        location: string;
+        description: string;
+        type: string;
+    }[];
+};
+
+export async function syncShiprocketTracking(orderKey: string): Promise<ShiprocketSyncResult> {
+    return apiRequest<ShiprocketSyncResult>(
+        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}/shiprocket/sync`),
+        { method: "POST" }
+    );
+}
+
 export async function updateSellerOrderStatus(
     orderKey: string,
     status: OrderStatus,

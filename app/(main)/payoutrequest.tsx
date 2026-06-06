@@ -26,6 +26,7 @@ import {
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
+import { fetchPayoutSummary, fetchMyPayoutRequests, type PayoutSummary } from "@/services/payoutApi";
 import { updateBankingProfile, lookupIfscCode } from "@/services/sellerProfileApi";
 
 interface BankAccount {
@@ -46,13 +47,6 @@ interface Transaction {
 }
 
 const THEME_COLOR = "#1a2b5edc";
-
-const ORDER_DATABASE: Record<string, number> = {
-  FNT10293: 1500,
-  FNT10294: 2500,
-  FNT10295: 5000,
-  FNT10296: 750,
-};
 
 // ─── SHARED SUB-COMPONENTS ────────────────────────────────────────────────────
 
@@ -137,6 +131,11 @@ export default function EnhancedPayoutRequest() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [orderLookupValid, setOrderLookupValid] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const formatInr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
 
   const [showAddBankModal, setShowAddBankModal] = useState(false);
   const [modalAccountHolder, setModalAccountHolder] = useState("");
@@ -150,9 +149,11 @@ export default function EnhancedPayoutRequest() {
   const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    Promise.all([fetchEarnings(), fetchPayouts()])
-      .then(([earnings, payouts]) => {
+    setSummaryError(null);
+    Promise.all([fetchEarnings(), fetchPayouts(), fetchPayoutSummary(), fetchMyPayoutRequests()])
+      .then(([earnings, payouts, summary, payoutRequests]) => {
         setAvailableBalance(Number(earnings.availableBalance ?? 0));
+        setPayoutSummary(summary);
         if (earnings.bankAccount?.bankName) {
           setBanks([{
             id: "1",
@@ -162,16 +163,27 @@ export default function EnhancedPayoutRequest() {
             isVerified: earnings.bankAccount.verified,
           }]);
         }
-        setApiTransactions(payouts.map((p) => ({
+        const txFromPayouts = payouts.map((p) => ({
           id: p.id,
           orderId: p.orderId,
           amount: Number(p.amount),
           date: p.date,
           status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
           type: "Payout" as const,
-        })));
+        }));
+        const txFromRequests = payoutRequests.map((p) => ({
+          id: String(p.id),
+          orderId: String(p.orderId),
+          amount: Number(p.requestedAmount),
+          date: p.requestedAt ?? "",
+          status: (p.status === "pending" ? "Pending" : p.status === "rejected" ? "Failed" : "Completed") as Transaction["status"],
+          type: "Payout" as const,
+        }));
+        setApiTransactions([...txFromRequests, ...txFromPayouts]);
       })
-      .catch(() => undefined);
+      .catch((e) => {
+        setSummaryError(e instanceof Error ? e.message : "Failed to load payout data.");
+      });
   }, []);
 
   const handleDownloadTransactions = () => {
@@ -312,16 +324,22 @@ export default function EnhancedPayoutRequest() {
   const handleOrderIdChange = (text: string) => {
     const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     setOrderId(cleaned);
-    if (ORDER_DATABASE[cleaned]) {
-      setAmount(String(ORDER_DATABASE[cleaned]));
-    } else {
-      setAmount("");
-    }
+    setOrderLookupValid(false);
+    setAmount("");
+    if (!cleaned) return;
+    lookupOrderPayoutAmount(cleaned)
+      .then((res) => {
+        if (res.found && res.amount > 0) {
+          setAmount(String(res.amount));
+          setOrderLookupValid(true);
+        }
+      })
+      .catch(() => undefined);
   };
 
   const validateAmount = () => {
     if (!orderId) return "Enter Order ID";
-    if (!ORDER_DATABASE[orderId]) return "Invalid Order ID";
+    if (!orderLookupValid) return "Invalid Order ID";
     const num = parseFloat(amount);
     if (isNaN(num)) return "Invalid Amount";
     if (num < 500) return "Minimum ₹500 required";
@@ -627,10 +645,10 @@ export default function EnhancedPayoutRequest() {
 
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
-            <DesktopStatCard label="Lifetime Earnings" value="₹1,25,400" icon="history" accent="#1a2b5e" />
-            <DesktopStatCard label="This Month" value="₹18,920" icon="calendar-month" accent="#f97316" />
-            <DesktopStatCard label="Highest Payout" value="₹25,000" icon="trending-up" accent="#22c55e" />
-            <DesktopStatCard label="Pending" value="₹1,500" icon="clock-outline" accent="#f59e0b" />
+            <DesktopStatCard label="Lifetime Earnings" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" accent="#1a2b5e" />
+            <DesktopStatCard label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" accent="#f97316" />
+            <DesktopStatCard label="Highest Payout" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" accent="#22c55e" />
+            <DesktopStatCard label="Pending" value={payoutSummary ? formatInr(payoutSummary.pendingAmount) : "—"} icon="clock-outline" accent="#f59e0b" />
           </View>
 
           {/* Two-column body */}
@@ -969,9 +987,9 @@ export default function EnhancedPayoutRequest() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12 }}
               >
-                <StatCard label="Lifetime" value="₹1,25,400" icon="history" />
-                <StatCard label="This Month" value="₹18,920" icon="calendar-month" />
-                <StatCard label="Highest" value="₹25,000" icon="trending-up" />
+                <StatCard label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
+                <StatCard label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
+                <StatCard label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
               </ScrollView>
 
               <View style={styles.balanceCard}>

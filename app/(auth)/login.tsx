@@ -122,6 +122,7 @@ export default function SellerLogin() {
 
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 16 : 24)).current;
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (typeof params.email === "string" && params.email.trim()) {
@@ -388,6 +389,8 @@ export default function SellerLogin() {
             placeholderTextColor="#9ca3af"
             keyboardType="default"
             autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordInputRef.current?.focus()}
             style={[
               styles.input,
               isDark && styles.inputDark,
@@ -429,6 +432,12 @@ export default function SellerLogin() {
             placeholderTextColor="#9ca3af"
             secureTextEntry={!showPassword}
             autoCapitalize="none"
+            ref={passwordInputRef}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (loading) return;
+              void handleLogin();
+            }}
             style={[
               styles.input,
               isDark && styles.inputDark,

@@ -124,6 +124,7 @@ interface FieldRefs {
   email: React.RefObject<TextInput | null>;
   password: React.RefObject<TextInput | null>;
   confirmPassword: React.RefObject<TextInput | null>;
+  terms: React.RefObject<View | null>;
 }
 
 
@@ -690,6 +691,7 @@ const SellerSignUpScreen: React.FC = () => {
     email: useRef<TextInput>(null),
     password: useRef<TextInput>(null),
     confirmPassword: useRef<TextInput>(null),
+    terms: useRef<View>(null),
   };
 
   // Track field positions
@@ -720,10 +722,14 @@ const SellerSignUpScreen: React.FC = () => {
       { field: 'email', ref: fieldRefs.email, valid: validations.email },
       { field: 'password', ref: fieldRefs.password, valid: validations.password },
       { field: 'confirmPassword', ref: fieldRefs.confirmPassword, valid: validations.confirmPassword },
+      { field: 'terms', ref: fieldRefs.terms, valid: validations.agreed },
     ].find(field => !field.valid);
 
     if (firstError?.ref?.current) {
-      firstError.ref.current?.focus();
+      const maybeFocus = firstError.ref.current as any;
+      if (typeof maybeFocus?.focus === "function") {
+        maybeFocus.focus();
+      }
 
       // Scroll to the specific field position with some offset
       const fieldY = fieldPositions[firstError.field];
@@ -1285,7 +1291,14 @@ const SellerSignUpScreen: React.FC = () => {
           10,
           <TouchableOpacity
             style={[styles.checkRow, isDesktop && styles.checkRowDesktop]}
-            onPress={() => setAgreed((v) => !v)}
+            onLayout={(e) => handleFieldLayout("terms", e)}
+            onPress={() => {
+              setAgreed((v) => {
+                const next = !v;
+                if (next) clearFieldError("terms");
+                return next;
+              });
+            }}
             activeOpacity={0.85}
           >
             <View
@@ -1302,11 +1315,9 @@ const SellerSignUpScreen: React.FC = () => {
               <AppText
                 style={[styles.link, isDesktop && styles.linkDesktop]}
                 onPress={() =>
-                  showMessage({
-                    message: "Terms & Conditions",
-                    type: "info",
-                    icon: "info",
-                    ...toastConfig,
+                  router.push({
+                    pathname: "/legal-document",
+                    params: { type: "terms" },
                   })
                 }
               >
@@ -1316,11 +1327,9 @@ const SellerSignUpScreen: React.FC = () => {
               <AppText
                 style={[styles.link, isDesktop && styles.linkDesktop]}
                 onPress={() =>
-                  showMessage({
-                    message: "Privacy Policy",
-                    type: "info",
-                    icon: "info",
-                    ...toastConfig,
+                  router.push({
+                    pathname: "/legal-document",
+                    params: { type: "privacy" },
                   })
                 }
               >
@@ -1329,6 +1338,13 @@ const SellerSignUpScreen: React.FC = () => {
             </AppText>
           </TouchableOpacity>
         )}
+        {otpVerified ? (
+          validationErrors.find((e) => e.field === "terms") ? (
+            <AppText style={styles.errorText}>
+              • {validationErrors.find((e) => e.field === "terms")?.message}
+            </AppText>
+          ) : null
+        ) : null}
 
         {otpVerified && wrapField(
           11,

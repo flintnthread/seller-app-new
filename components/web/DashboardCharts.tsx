@@ -248,24 +248,11 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     }
 
     if (activeMetric === "Geographic") {
-      // Geographic progress bars
-      const cities = ["Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Pune"];
-      const sales = ["₹1.42L", "₹98K", "₹76K", "₹54K", "₹38K"];
-      const pct = [90, 68, 54, 38, 26];
-
       return (
-        <View style={{ width: W, height: H, paddingHorizontal: padding }}>
-          {cities.map((city, idx) => {
-            return (
-              <View key={idx} style={styles.catBarRow}>
-                <AppText style={styles.catLabel} numberOfLines={1}>{city}</AppText>
-                <View style={styles.catBarBg}>
-                  <View style={[styles.catBarFill, { width: `${pct[idx]}%` as any, backgroundColor: C.teal }]} />
-                </View>
-                <AppText style={styles.catValText}>{sales[idx]}</AppText>
-              </View>
-            );
-          })}
+        <View style={[styles.emptyChartState, { width: W, height: H }]}>
+          <MaterialCommunityIcons name="map-marker-radius-outline" size={28} color={C.textLight} />
+          <AppText style={styles.emptyChartTitle}>Geographic breakdown</AppText>
+          <AppText style={styles.emptyChartSub}>City-level sales will appear here once regional analytics are available from the backend.</AppText>
         </View>
       );
     }
@@ -430,16 +417,17 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
           </View>
         </View>
 
-        {/* Monthly Target Progress */}
+        {/* Monthly sales snapshot (from live dashboard stats) */}
         <View style={styles.targetSection}>
           <View style={styles.targetHeader}>
-            <AppText style={styles.targetLabel}>Monthly Store Target</AppText>
-            <AppText style={styles.targetVal}>78%</AppText>
+            <AppText style={styles.targetLabel}>Monthly Sales</AppText>
+            <AppText style={styles.targetVal}>{currentStats.sales}</AppText>
           </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: "78%" }]} />
-          </View>
-          <AppText style={styles.targetSub}>₹3.12L of ₹4.00L target achieved</AppText>
+          <AppText style={styles.targetSub}>
+            {currentStats.salesChange !== "—"
+              ? `${currentStats.salesChange} vs previous period`
+              : "Period comparison unavailable"}
+          </AppText>
         </View>
       </View>
     </View>
@@ -728,6 +716,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_400Regular",
     color: C.textLight,
+  },
+  emptyChartState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    gap: 8,
+  },
+  emptyChartTitle: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textMid,
+    textAlign: "center",
+  },
+  emptyChartSub: {
+    fontSize: 12,
+    fontFamily: "Poppins_400Regular",
+    color: C.textLight,
+    textAlign: "center",
+    lineHeight: 18,
   },
   catBarRow: {
     flexDirection: "row",

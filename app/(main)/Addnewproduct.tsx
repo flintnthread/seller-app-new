@@ -2258,12 +2258,20 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
         }));
     };
 
-    const colorOptions =
-        catalog?.colors?.map((c: { name: string }) => c.name) ?? COLORS_LIST;
+    const colorOptions = catalog?.colors?.map((c: { name: string }) => c.name) ?? [];
     const sizeOptions =
         catalog?.sizes?.map((s: { name: string; code: string }) =>
             s.name === s.code ? s.name : `${s.name} (${s.code})`
-        ) ?? SIZES_LIST;
+        ) ?? [];
+    const catalogReady = colorOptions.length > 0 && sizeOptions.length > 0;
+
+    const resolveSizeFromLabel = (val: string) =>
+        catalog?.sizes?.find(
+            (s: { name: string; code: string }) =>
+                s.name === val ||
+                `${s.name} (${s.code})` === val ||
+                s.code === val
+        );
 
     const upVariant = (id: string, field: string, value: string | number | undefined) => {
         setVariants((p: Variant[]) => p.map((v: Variant) => {
@@ -2280,6 +2288,16 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
             return u;
         }));
     };
+
+    if (!catalogReady) {
+        return (
+            <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
+                <AppText style={{ fontFamily: "Outfit_500Medium", color: C.textMid }}>
+                    {catalog ? "No colors or sizes in your catalog. Add them from product settings first." : "Loading color and size catalog…"}
+                </AppText>
+            </View>
+        );
+    }
 
     return (
         <ScrollView
@@ -2303,11 +2321,19 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                     <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Color" required />
-                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => upVariant(v.id, "color", val)} />
+                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => {
+                                const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
+                                upVariant(v.id, "color", val);
+                                upVariant(v.id, "colorId", color?.id);
+                            }} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Size" required />
-                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => upVariant(v.id, "size", val)} />
+                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
+                                const size = resolveSizeFromLabel(val);
+                                upVariant(v.id, "size", size?.name ?? val);
+                                upVariant(v.id, "sizeId", size?.id);
+                            }} />
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -2647,20 +2673,8 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const [chartSubPick, setChartSubPick] = useState(false);
     const [chartUnitPick, setChartUnitPick] = useState(false);
     const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
-    const [features, setFeatures] = useState<string[]>(
-        PREFILL_WITH_DUMMY
-            ? ["Breathable cotton fabric", "Pre-shrunk & colour-fast", "Reinforced shoulder stitching"]
-            : [""]
-    );
-    const [specs, setSpecs] = useState<{ name: string; value: string }[]>(
-        PREFILL_WITH_DUMMY
-            ? [
-                  { name: "Fabric", value: "100% Cotton" },
-                  { name: "Fit", value: "Regular" },
-                  { name: "Neck", value: "Round neck" },
-              ]
-            : [{ name: "", value: "" }]
-    );
+    const features = data.features?.length ? data.features : [""];
+    const specs = data.specifications?.length ? data.specifications : [{ name: "", value: "" }];
 
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
@@ -2842,10 +2856,10 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 <Lbl text="Product Features" />
                 {features.map((f, i) => (
                     <View key={i} style={{ marginBottom: 10 }}>
-                        <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; setFeatures(arr); }} />
+                        <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; onChange("features", arr); }} />
                     </View>
                 ))}
-                <TouchableOpacity style={dt.addBtn} onPress={() => setFeatures(p => [...p, ""])}>
+                <TouchableOpacity style={dt.addBtn} onPress={() => onChange("features", [...features, ""])}>
                     <Ionicons name="add" size={15} color={C.navy} />
                     <AppText style={dt.addBtnTxt}>Add Feature</AppText>
                 </TouchableOpacity>
@@ -2857,22 +2871,22 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                             <Field placeholder="Name" value={sp.name} onChangeText={(v: string) => {
                                 const arr = [...specs];
                                 if (arr[i]) { arr[i].name = v; }
-                                setSpecs(arr);
+                                onChange("specifications", arr);
                             }} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Field placeholder="Value" value={sp.value} onChangeText={(v: string) => {
                                 const arr = [...specs];
                                 if (arr[i]) { arr[i].value = v; }
-                                setSpecs(arr);
+                                onChange("specifications", arr);
                             }} />
                         </View>
-                        <TouchableOpacity style={dt.specDel} onPress={() => setSpecs(p => p.filter((_, idx) => idx !== i))}>
+                        <TouchableOpacity style={dt.specDel} onPress={() => onChange("specifications", specs.filter((_, idx) => idx !== i))}>
                             <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.red} />
                         </TouchableOpacity>
                     </View>
                 ))}
-                <TouchableOpacity style={dt.addBtn} onPress={() => setSpecs(p => [...p, { name: "", value: "" }])}>
+                <TouchableOpacity style={dt.addBtn} onPress={() => onChange("specifications", [...specs, { name: "", value: "" }])}>
                     <Ionicons name="add" size={15} color={C.navy} />
                     <AppText style={dt.addBtnTxt}>Add Specification</AppText>
                 </TouchableOpacity>
@@ -3186,6 +3200,8 @@ const initDetailsData = () => {
             sizeChart: "", returnPolicy: "", returnPolicyText: "",
             deliveryOption: "", minDays: "3", maxDays: "7", deliveryInfo: "",
             codEnabled: true, onlinePayEnabled: true, warranty: "", careInstructions: "",
+            features: [""] as string[],
+            specifications: [{ name: "", value: "" }] as { name: string; value: string }[],
         };
     }
     return {
@@ -3236,11 +3252,9 @@ const AddNewProduct: React.FC = () => {
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
-    useEffect(() => {
-        let cancelled = false;
+    const reloadCatalog = useCallback(() => {
         fetchProductFormCatalog()
             .then((data) => {
-                if (cancelled) return;
                 setCatalog(data);
                 if (!PREFILL_WITH_DUMMY) return;
                 setBasicData((prev) => {
@@ -3263,10 +3277,17 @@ const AddNewProduct: React.FC = () => {
                 const msg = err instanceof ApiError ? err.message : "Failed to load catalog.";
                 showToast(msg, "error");
             });
-        return () => {
-            cancelled = true;
-        };
     }, [showToast]);
+
+    useEffect(() => {
+        reloadCatalog();
+    }, [reloadCatalog]);
+
+    useFocusEffect(
+        useCallback(() => {
+            reloadCatalog();
+        }, [reloadCatalog])
+    );
 
     useFocusEffect(
         useCallback(() => {

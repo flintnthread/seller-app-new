@@ -684,4 +684,26 @@ export async function sendLiveChatMessage(
   return res.json();
 }
 
+// ── Support feedback (Rate your experience) ────────────────────────────────
+export async function submitSupportFeedback(payload: {
+  rating: number;
+  feedbackText?: string;
+}): Promise<{ message: string }> {
+  const res = await fetchWithTimeout(`${getBaseUrl()}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sellerId: requireSellerId(),
+      rating: payload.rating,
+      feedbackText: payload.feedbackText?.trim() ?? "",
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res, "Failed to submit feedback"));
+  }
+
+  return res.json();
+}
+
 

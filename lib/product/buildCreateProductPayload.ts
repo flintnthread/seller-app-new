@@ -46,6 +46,8 @@ type ImagesData = {
     video?: string | null;
 };
 
+type SpecRow = { name: string; value: string };
+
 type DetailsData = {
     returnPolicy: string;
     returnPolicyText?: string;
@@ -58,6 +60,9 @@ type DetailsData = {
     warranty: string;
     careInstructions: string;
     sizeChart?: string;
+    sizeChartId?: number;
+    features?: string[];
+    specifications?: SpecRow[];
 };
 
 function parseNum(value: string): number {
@@ -187,6 +192,22 @@ export async function buildCreateProductPayload(input: {
     if (warranty) payload.warrantyInfo = warranty;
     const care = details.careInstructions?.trim();
     if (care) payload.careInstructions = care;
+
+    const featureList = (details.features ?? []).map((f) => f.trim()).filter(Boolean);
+    if (featureList.length > 0) {
+        payload.features = JSON.stringify(featureList);
+    }
+
+    const specList = (details.specifications ?? [])
+        .filter((s) => s.name.trim() && s.value.trim())
+        .map((s) => ({ name: s.name.trim(), value: s.value.trim() }));
+    if (specList.length > 0) {
+        payload.specifications = JSON.stringify(specList);
+    }
+
+    if (details.sizeChartId != null) {
+        payload.sizeChartId = details.sizeChartId;
+    }
 
     return payload;
 }
