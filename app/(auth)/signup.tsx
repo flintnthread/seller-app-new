@@ -602,7 +602,6 @@ const SellerSignUpScreen: React.FC = () => {
   const [otpTimer, setOtpTimer] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [mobileVerificationToken, setMobileVerificationToken] = useState("");
-  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
@@ -789,12 +788,11 @@ const SellerSignUpScreen: React.FC = () => {
       setOtpVerified(false);
       setMobileVerificationToken("");
       setOtp("");
-      setDevOtpHint(result.devOtp ?? null);
       setOtpTimer(60);
       setIsTimerActive(true);
 
       showMessage({
-        message: `OTP sent to ${formatMobileForSms(mobile)}`,
+        message: result.message || `OTP sent to ${formatMobileForSms(mobile)}`,
         type: "success",
         icon: "success",
         ...toastConfig,
@@ -835,8 +833,6 @@ const SellerSignUpScreen: React.FC = () => {
       const result = await verifyRegistrationOtp(mobile, otp);
       setOtpVerified(true);
       setMobileVerificationToken(result.mobileVerificationToken);
-      setDevOtpHint(null);
-
       showMessage({
         message: `Mobile ${formatMobileForSms(mobile)} verified successfully`,
         type: "success",
@@ -1044,7 +1040,6 @@ const SellerSignUpScreen: React.FC = () => {
                 setOtpSent(false);
                 setOtpVerified(false);
                 setMobileVerificationToken("");
-                setDevOtpHint(null);
                 setOtp("");
                 setIsTimerActive(false);
                 setOtpTimer(0);
@@ -1125,11 +1120,6 @@ const SellerSignUpScreen: React.FC = () => {
                   </AppText>
                 )}
               </AppText>
-              {devOtpHint ? (
-                <AppText style={styles.devOtpHint}>
-                  Development OTP: {devOtpHint} — enter this code and tap Verify
-                </AppText>
-              ) : null}
             </View>
           )}
 
@@ -1746,14 +1736,6 @@ const styles = StyleSheet.create({
     color: PRIMARY_L,
     fontFamily: fontFamilies.semiBold,
   },
-  devOtpHint: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#B45309",
-    fontFamily: fontFamilies.semiBold,
-    lineHeight: 20,
-  },
-
   otpSentBanner: {
     backgroundColor: "rgba(30, 58, 110, 0.08)",
     borderRadius: 10,
