@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { fetchTopSellingProducts } from "@/services/earningsApi";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
@@ -22,6 +23,7 @@ import { DashboardTables } from "./DashboardTables";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AccountStatusBanner } from "@/components/AccountStatusBanner";
+import { CompleteProfileDashboardCard } from "@/components/CompleteProfileDashboardCard";
 import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
 import {
@@ -74,11 +76,33 @@ export function DesktopDashboard({
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1200;
-  const { data, reviewCount } = useDashboardData();
+  const { data, reviewCount, referral } = useDashboardData();
   const widgets = useDashboardWidgets();
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
-  const { salesChart } = useDashboardCharts(salesPeriod);
+  const { salesChart, ordersChart } = useDashboardCharts(salesPeriod);
+  const [categoryPerformance, setCategoryPerformance] = useState<{ category: string; value: number }[]>([]);
+
+  useEffect(() => {
+    fetchTopSellingProducts(20)
+      .then((products) => {
+        const totals = new Map<string, number>();
+        products.forEach((p) => {
+          const cat = p.category?.trim() || "Other";
+          totals.set(cat, (totals.get(cat) ?? 0) + (p.sold ?? 0));
+        });
+        const sum = [...totals.values()].reduce((a, b) => a + b, 0) || 1;
+        const rows = [...totals.entries()]
+          .map(([category, sold]) => ({
+            category,
+            value: Math.round((sold / sum) * 100),
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 6);
+        setCategoryPerformance(rows);
+      })
+      .catch(() => setCategoryPerformance([]));
+  }, []);
   const welcomeName = profile?.fullName ?? (profileLoading ? "…" : "Seller");
 
   const salesDataMerged = useMemo(() => {
@@ -92,6 +116,11 @@ export function DesktopDashboard({
   }, [salesChart]);
 
   const { allStatsData } = useDashboardStatsByPeriod(true);
+
+  const ordersTrend = ordersChart?.points ?? [];
+  const returnsTotal = Number.parseInt(allStatsData[salesPeriod]?.returns ?? "0", 10) || 0;
+  const ordersSum = ordersTrend.reduce((a, b) => a + b, 0) || 1;
+  const returnsTrend = ordersTrend.map((v) => Math.max(0, Math.round((returnsTotal * v) / ordersSum)));
 
   const activeTrackingOrder = useMemo(() => {
     const o = widgets.recentOrders[0];
@@ -110,28 +139,47 @@ export function DesktopDashboard({
     };
   }, [widgets.recentOrders]);
 
+  const profileIncomplete = !profileLoading && profile && !profile.profileCompleted;
+
     return (
         <View style={styles.container}>
-            {/* ── 1. SMART WELCOME HEADER ── */}
+            {!profileIncomplete ? (
             <SmartWelcomeHeader
         name={welcomeName}
         totalOrders={widgets.overview?.orders ?? 0}
         salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
         pendingOrders={widgets.orderSummary?.pending ?? 0}
         views={widgets.overview?.views ?? 0}
-        referralCode=""
-        referralGoal={6}
-        referralTotalReferred={0}
+        referralCode={referral?.referralCode ?? ""}
+        referralGoal={referral?.goal ?? 6}
+        referralTotalReferred={referral?.totalReferred ?? 0}
       />
+            ) : (
+              <View style={styles.incompleteWelcome}>
+                <AppText style={styles.incompleteGreeting}>Welcome back,</AppText>
+                <AppText style={styles.incompleteName}>{welcomeName}</AppText>
+              </View>
+            )}
 
-      <View style={{ marginBottom: 12 }}>
-        <AccountStatusBanner
-          accountStatus={profile?.accountStatus}
-          loading={profileLoading}
-          compact
-        />
-      </View>
+      {profileIncomplete ? (
+        <CompleteProfileDashboardCard profile={profile} embedded />
+      ) : null}
 
+      {!profileIncomplete && profile?.accountStatus?.approvalState === "pending_review" ? (
+        <View style={{ marginBottom: 12 }}>
+          <AccountStatusBanner
+            accountStatus={profile?.accountStatus}
+            loading={profileLoading}
+            compact
+            fullName={profile?.fullName}
+            email={profile?.email}
+            mobile={profile?.mobile}
+          />
+        </View>
+      ) : null}
+
+      {!profileIncomplete ? (
+      <>
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>
         
@@ -152,6 +200,9 @@ export function DesktopDashboard({
             salesData={salesDataMerged}
             allStatsData={allStatsData}
             reviewCount={reviewCount}
+            ordersTrend={ordersTrend}
+            returnsTrend={returnsTrend}
+            categoryPerformance={categoryPerformance}
           />
 
           {/* Sales Heatmap & Live Tracking */}
@@ -217,6 +268,8 @@ export function DesktopDashboard({
         </View>
 
       </View>
+      </>
+      ) : null}
     </View>
   );
 }
@@ -224,6 +277,21 @@ export function DesktopDashboard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  incompleteWelcome: {
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  incompleteGreeting: {
+    fontSize: 14,
+    color: C.textLight,
+    fontFamily: "Poppins_500Medium",
+  },
+  incompleteName: {
+    fontSize: 26,
+    color: C.textDark,
+    fontFamily: "Poppins_700Bold",
+    marginTop: 2,
   },
   gridRow: {
     flexDirection: "row",

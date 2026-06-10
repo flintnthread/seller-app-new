@@ -608,7 +608,7 @@ export type BulkImportResult = {
 
 export async function bulkImportProducts(fileUri: string, fileName: string): Promise<BulkImportResult> {
     const sellerId = (await import("@/lib/api/sellerSession")).ensureSellerId();
-    if (!sellerId) throw new Error("Seller not logged in.");
+    if (!sellerId) throw new Error("Unable to complete this action right now. Please try again.");
 
     const { resolveApiBaseUrl } = await import("@/lib/api/config");
     const baseUrl = resolveApiBaseUrl();

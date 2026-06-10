@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@/lib/api/client";
+import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import {
     fetchDashboard,
     fetchDashboardStatsByPeriod,
     type DashboardData,
+    type DashboardPeriodStats,
 } from "@/services/dashboardApi";
+
+function overviewToPeriodStats(overview: DashboardData["overview"]): DashboardPeriodStats {
+    return {
+        period: "day",
+        orders: overview.orders,
+        sales: overview.sales,
+        salesFormatted: overview.salesFormatted,
+        views: overview.views,
+        rating: overview.rating,
+        returns: 0,
+    };
+}
 
 export function useDashboardData() {
     const [data, setData] = useState<DashboardData | null>(null);
@@ -14,13 +29,31 @@ export function useDashboardData() {
         setLoading(true);
         setError(null);
         try {
-            const [row, periodRow] = await Promise.all([
-                fetchDashboard(),
-                fetchDashboardStatsByPeriod(),
-            ]);
-            setData({ ...row, todayOverview: periodRow.day });
+            await hydrateSellerSession();
+            if (!ensureSellerId()) {
+                setData(null);
+                setLoading(false);
+                return;
+            }
+
+            const row = await fetchDashboard();
+            let todayOverview: DashboardPeriodStats | undefined;
+
+            try {
+                const periodRow = await fetchDashboardStatsByPeriod();
+                todayOverview = periodRow.day;
+            } catch {
+                todayOverview = overviewToPeriodStats(row.overview);
+            }
+
+            setData({ ...row, todayOverview });
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to load dashboard.");
+            setData(null);
+            if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+                setError(null);
+            } else {
+                setError(e instanceof Error ? e.message : "Failed to load dashboard.");
+            }
         } finally {
             setLoading(false);
         }
@@ -74,5 +107,6 @@ export function useDashboardData() {
         totalOrders: data?.overview?.orders ?? 0,
         averageRating: data?.overview?.rating ?? 0,
         reviewCount: data?.overview?.reviewCount ?? 0,
+        referral: data?.referral ?? null,
     };
 }

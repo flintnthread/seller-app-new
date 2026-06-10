@@ -26,11 +26,19 @@ export type DashboardTopProduct = {
     category: string;
 };
 
+export type DashboardReferral = {
+    referralCode: string;
+    totalReferred: number;
+    qualifiedReferred: number;
+    goal: number;
+};
+
 export type DashboardData = {
     overview: DashboardOverview;
     orderSummary: DashboardOrderSummary;
     topProducts: DashboardTopProduct[];
     totalProducts: number;
+    referral?: DashboardReferral;
     todayOverview?: DashboardPeriodStats;
 };
 
@@ -95,11 +103,13 @@ export async function fetchDashboard(): Promise<DashboardData> {
         orderSummary: DashboardOrderSummary;
         topProducts: DashboardTopProduct[];
         totalProducts: number;
+        referral?: DashboardReferral;
     }>("/api/dashboard");
     return {
         overview: row.overview,
         orderSummary: row.orderSummary,
         topProducts: row.topProducts ?? [],
         totalProducts: row.totalProducts ?? 0,
+        ...(row.referral ? { referral: row.referral } : {}),
     };
 }

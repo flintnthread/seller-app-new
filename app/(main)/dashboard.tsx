@@ -51,6 +51,7 @@ import {
     type SellerProfileSummary,
 } from "@/hooks/useSellerProfileSummary";
 import { AccountStatusBanner } from "@/components/AccountStatusBanner";
+import { CompleteProfileDashboardCard } from "@/components/CompleteProfileDashboardCard";
 import { clearSellerId } from "@/lib/api/sellerSession";
 import type { TextProps } from 'react-native';
 import {
@@ -58,7 +59,6 @@ import {
     type DesktopDashboardProps,
 } from "@/components/web/DesktopDashboard";
 import { useActiveHeader } from "@/components/web/HeaderContext";
-import { AppHeader } from "@/components/common/AppHeader";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
@@ -1216,6 +1216,7 @@ const MobileDashboard: React.FC<{
         totalOrders,
         averageRating,
         reviewCount,
+        referral,
     } = useDashboardData();
     const displayName = profile?.fullName ?? (profileLoading ? "Loading…" : "Seller");
     const storeLabel = profile?.storeLabel ?? "Your store";
@@ -1328,6 +1329,7 @@ const MobileDashboard: React.FC<{
         logout: "See you soon!",
     };
     const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, ${displayName}`;
+    const profileIncomplete = !profileLoading && profile && !profile.profileCompleted;
 
     return (
         <View style={s.root}>
@@ -1341,6 +1343,20 @@ const MobileDashboard: React.FC<{
                         </TouchableOpacity>
                     </View>
                 ) : null}
+                {dashboardLoading && !data ? (
+                    <View style={{ margin: 16, padding: 16, alignItems: "center" }}>
+                        <AppText style={{ color: C.textMid, fontFamily: "Poppins_500Medium", fontSize: 13 }}>Loading dashboard…</AppText>
+                    </View>
+                ) : null}
+                <View style={s.welcomeBanner}>
+                    <AppText style={s.welcomeGreeting}>{greeting},</AppText>
+                    <AppText style={s.welcomeName}>{displayName}</AppText>
+                </View>
+                {profileIncomplete ? (
+                    <CompleteProfileDashboardCard profile={profile} embedded />
+                ) : null}
+                {!profileIncomplete ? (
+                <>
                 {/* ── PROFILE ── */}
                 <View style={s.section}>
                     <View style={s.profileCard}>
@@ -1421,23 +1437,28 @@ const MobileDashboard: React.FC<{
                             </TouchableOpacity>
                         </LinearGradient>
                     </View>
-                    <View style={s.accountStatusWrap}>
-                        <AccountStatusBanner
-                            accountStatus={profile?.accountStatus}
-                            loading={profileLoading}
-                            compact
-                        />
-                    </View>
+                    {profile?.accountStatus?.approvalState === "pending_review" ? (
+                        <View style={s.accountStatusWrap}>
+                            <AccountStatusBanner
+                                accountStatus={profile?.accountStatus}
+                                loading={profileLoading}
+                                compact
+                                fullName={profile?.fullName}
+                                email={profile?.email}
+                                mobile={profile?.mobile}
+                            />
+                        </View>
+                    ) : null}
                 </View>
 
                  
 
                 {/* ── REFERRAL ── */}
                 <ReferralSection
-                    referralCode=""
-                    goal={6}
-                    totalReferred={0}
-                    qualified={0}
+                    referralCode={referral?.referralCode ?? ""}
+                    goal={referral?.goal ?? 6}
+                    totalReferred={referral?.totalReferred ?? 0}
+                    qualified={referral?.qualifiedReferred ?? 0}
                 />
 
                 {/* ── TODAY'S OVERVIEW ── */}
@@ -1669,8 +1690,13 @@ const MobileDashboard: React.FC<{
                                 <Ionicons name="chevron-forward" size={15} color={C.purple} />
                             </TouchableOpacity>
                         </View>
+                        {topProductsView.length === 0 && !dashboardLoading ? (
+                            <AppText style={{ color: C.textLight, fontFamily: "Poppins_400Regular", fontSize: 13, paddingVertical: 8 }}>
+                                No sales data yet. Top products will appear here after your first orders.
+                            </AppText>
+                        ) : null}
                         {topProductsView.map((p, i) => (
-                            <View key={i} style={s.topProductRow}>
+                            <View key={p.id || i} style={s.topProductRow}>
                                 <Image source={{ uri: p.image }} style={s.topProductThumb} resizeMode="cover" />
                                 <View style={{ flex: 1, marginLeft: 10 }}>
                                     <AppText style={s.topProductName} numberOfLines={1}>{p.name}</AppText>
@@ -1707,6 +1733,8 @@ const MobileDashboard: React.FC<{
                         </TouchableOpacity>
                     </LinearGradient>
                 </View>
+                </>
+                ) : null}
 
             </ScrollView>
 
@@ -1770,6 +1798,28 @@ const MobileDashboard: React.FC<{
 // ─── Styles ─────────────────────────────────────────────────
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
+    welcomeBanner: {
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: 4,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        backgroundColor: C.white,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    welcomeGreeting: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 13,
+        color: C.textLight,
+    },
+    welcomeName: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 22,
+        color: C.navy,
+        marginTop: 2,
+    },
     headerSticky: { zIndex: 20, elevation: 20 },
     accountStatusWrap: {
         paddingHorizontal: 0,

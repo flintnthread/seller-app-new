@@ -1,9 +1,7 @@
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
 import { useProfileStatus } from "@/hooks/useProfileStatus";
-import { ApiError } from "@/lib/api/client";
-import { clearSellerId, getSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { getSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 import {
     fetchSellerProfile,
@@ -58,52 +56,59 @@ export function profileToSummary(profile: SellerProfileResponse): SellerProfileS
 }
 
 /**
- * Loads seller profile for dashboard/header UI and enforces login when session is missing.
+ * Loads seller profile for dashboard/header UI (no forced logout on auth errors).
  */
 export function useSellerProfileSummary() {
-    const router = useRouter();
-    const { setIsProfileCompleted } = useProfileStatus();
+    const { isProfileCompleted, setIsProfileCompleted } = useProfileStatus();
     const [summary, setSummary] = useState<SellerProfileSummary | null>(null);
     const [loading, setLoading] = useState(true);
 
+    const loadSummary = async (active: { current: boolean }) => {
+        await hydrateSellerSession();
+        const sellerId = getSellerId();
+
+        if (!sellerId) {
+            if (active.current) setLoading(false);
+            return;
+        }
+
+        try {
+            const profile = await fetchSellerProfile();
+            if (!active.current) return;
+            setSummary(profileToSummary(profile));
+            setIsProfileCompleted(profile.profileCompleted);
+        } catch {
+            // Keep dashboard usable; profile card falls back to generic labels.
+        } finally {
+            if (active.current) setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        let active = true;
-
-        (async () => {
-            await hydrateSellerSession();
-            const sellerId = getSellerId();
-
-            if (!sellerId) {
-                router.replace("/(auth)/login");
-                return;
-            }
-
-            try {
-                const profile = await fetchSellerProfile(true);
-                if (!active) return;
-                const currentSellerId = getSellerId();
-                if (currentSellerId && profile.sellerId !== currentSellerId) {
-                    await clearSellerId();
-                    router.replace("/(auth)/login");
-                    return;
-                }
-                setSummary(profileToSummary(profile));
-                setIsProfileCompleted(profile.profileCompleted);
-            } catch (e) {
-                if (!active) return;
-                if (e instanceof ApiError && e.status === 401) {
-                    await clearSellerId();
-                    router.replace("/(auth)/login");
-                }
-            } finally {
-                if (active) setLoading(false);
-            }
-        })();
-
+        const active = { current: true };
+        void loadSummary(active);
         return () => {
-            active = false;
+            active.current = false;
         };
-    }, [router, setIsProfileCompleted]);
+    }, [setIsProfileCompleted]);
 
-    return { summary, loading };
+    // Re-fetch when profile is marked complete (e.g. after submit) so sidebar/header stay in sync.
+    useEffect(() => {
+        if (!isProfileCompleted || summary?.profileCompleted) return;
+        const active = { current: true };
+        void loadSummary(active);
+        return () => {
+            active.current = false;
+        };
+    }, [isProfileCompleted, summary?.profileCompleted]);
+
+    return {
+        summary,
+        loading,
+        reload: () => {
+            const active = { current: true };
+            setLoading(true);
+            return loadSummary(active);
+        },
+    };
 }

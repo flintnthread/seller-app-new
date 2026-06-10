@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
+import { buildOnboardingParams } from "@/lib/auth/postLoginRoute";
 
 export type SellerAccountStatus = {
     status: string;
@@ -82,9 +83,19 @@ type Props = {
     loading?: boolean;
     /** Compact inline strip for below profile on dashboard */
     compact?: boolean;
+    fullName?: string | null;
+    email?: string | null;
+    mobile?: string | null;
 };
 
-export function AccountStatusBanner({ accountStatus, loading, compact = false }: Props) {
+export function AccountStatusBanner({
+    accountStatus,
+    loading,
+    compact = false,
+    fullName,
+    email,
+    mobile,
+}: Props) {
     const router = useRouter();
 
     if (loading) {
@@ -106,13 +117,26 @@ export function AccountStatusBanner({ accountStatus, loading, compact = false }:
         return null;
     }
 
+    if (accountStatus.approvalState === "profile_incomplete") {
+        return null;
+    }
+
     const theme = themeFor(accountStatus.approvalState);
+
+    const goToOnboarding = () => {
+        router.push({
+            pathname: "/(main)/sellerpersonalinfo",
+            params: buildOnboardingParams({ fullName, email, mobile }),
+        });
+    };
+
+    const showAction =
+        accountStatus.approvalState === "rejected";
 
     if (compact) {
         return (
-            <Pressable
+            <View
                 style={[styles.compactCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-                onPress={() => router.push("/(main)/Profile")}
             >
                 <View style={[styles.compactIcon, { backgroundColor: theme.iconBg }]}>
                     <MaterialCommunityIcons name={theme.icon} size={18} color={theme.iconColor} />
@@ -125,8 +149,7 @@ export function AccountStatusBanner({ accountStatus, loading, compact = false }:
                         {accountStatus.message}
                     </AppText>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.titleColor} />
-            </Pressable>
+            </View>
         );
     }
 
@@ -150,13 +173,15 @@ export function AccountStatusBanner({ accountStatus, loading, compact = false }:
                 ) : null}
             </View>
 
-            <Pressable
-                style={({ hovered }) => [styles.actionBtn, hovered && styles.actionBtnHover]}
-                onPress={() => router.push("/(main)/Profile")}
-            >
-                <MaterialCommunityIcons name="account-circle-outline" size={18} color="#FFFFFF" />
-                <AppText style={styles.actionBtnText}>View Profile</AppText>
-            </Pressable>
+            {showAction ? (
+                <Pressable
+                    style={({ hovered }) => [styles.actionBtn, hovered && styles.actionBtnHover]}
+                    onPress={goToOnboarding}
+                >
+                    <MaterialCommunityIcons name="clipboard-check-outline" size={18} color="#FFFFFF" />
+                    <AppText style={styles.actionBtnText}>Update Profile</AppText>
+                </Pressable>
+            ) : null}
         </View>
     );
 }

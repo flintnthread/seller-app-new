@@ -1,7 +1,8 @@
 import { Platform } from "react-native";
+import { sanitizeAuthErrorMessage } from "./apiErrors";
 import { resolveApiBaseUrl } from "./config";
 import { ensureAccessToken, ensureSellerId, touchSessionActivity } from "./sellerSession";
-import { refreshSessionIfActive } from "./sessionRefresh";
+import { refreshSessionIfActive, tryRefreshSession } from "./sessionRefresh";
 
 export class ApiError extends Error {
     constructor(
@@ -13,11 +14,46 @@ export class ApiError extends Error {
     }
 }
 
+function authHeaders(sellerId: number, accessToken: string, extra?: HeadersInit): Record<string, string> {
+    return {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "X-Seller-Id": String(sellerId),
+        ...(extra as Record<string, string> | undefined),
+    };
+}
+
+async function fetchAuthed(
+    url: string,
+    sellerId: number,
+    accessToken: string,
+    init?: RequestInit
+): Promise<Response> {
+    let res = await fetch(url, {
+        ...init,
+        headers: authHeaders(sellerId, accessToken, init?.headers),
+    });
+
+    if (res.status === 401) {
+        const refreshed = await tryRefreshSession(true);
+        const retryToken = ensureAccessToken();
+        if (refreshed && retryToken) {
+            res = await fetch(url, {
+                ...init,
+                headers: authHeaders(sellerId, retryToken, init?.headers),
+            });
+        }
+    }
+
+    return res;
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const sellerId = ensureSellerId();
     const accessToken = ensureAccessToken();
     if (!sellerId || !accessToken) {
-        throw new ApiError("Seller not logged in. Please log in again.", 401);
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
     touchSessionActivity();
@@ -27,16 +63,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 
     let res: Response;
     try {
-        res = await fetch(url, {
-            ...init,
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                Authorization: `Bearer ${accessToken}`,
-                "X-Seller-Id": String(sellerId),
-                ...(init?.headers ?? {}),
-            },
-        });
+        res = await fetchAuthed(url, sellerId, accessToken, init);
     } catch {
         const emulatorHint =
             Platform.OS === "android"
@@ -59,7 +86,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
         } catch {
             // ignore
         }
-        throw new ApiError(message, res.status);
+        throw new ApiError(sanitizeAuthErrorMessage(message, res.status), res.status);
     }
 
     if (res.status === 204) {

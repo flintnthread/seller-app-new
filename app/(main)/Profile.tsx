@@ -390,15 +390,15 @@ export default function SellerProfileScreen() {
                   <AppText style={desktopStyles.sidebarCompleteBtnText}>Complete profile</AppText>
                 </TouchableOpacity>
               )}
-             <TouchableOpacity
-     style={desktopStyles.sidebarEditBtn}
-    onPress={openViewProfile}
-    >
-     <Ionicons name="create-outline" size={16} color="#FF6B35" />
-    <AppText style={desktopStyles.sidebarEditBtnText}>
-    View Profile
-    </AppText>
-   </TouchableOpacity>
+              {profileCompleted ? (
+                <TouchableOpacity
+                  style={desktopStyles.sidebarEditBtn}
+                  onPress={openViewProfile}
+                >
+                  <Ionicons name="create-outline" size={16} color="#FF6B35" />
+                  <AppText style={desktopStyles.sidebarEditBtnText}>View Profile</AppText>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
           {/* Sidebar Nav */}
@@ -669,12 +669,14 @@ export default function SellerProfileScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={styles.editBtn} onPress={openViewProfile}>
-            <View style={styles.editBtnHighlight}>
-              <Ionicons name="create-outline" size={20} color="#FF6B35" />
-              <AppText style={styles.editBtnText}>View Seller Profile</AppText>
-            </View>
-          </TouchableOpacity>
+          {profileCompleted ? (
+            <TouchableOpacity style={styles.editBtn} onPress={openViewProfile}>
+              <View style={styles.editBtnHighlight}>
+                <Ionicons name="create-outline" size={20} color="#FF6B35" />
+                <AppText style={styles.editBtnText}>View Seller Profile</AppText>
+              </View>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* TOP MENU */}

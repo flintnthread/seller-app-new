@@ -863,6 +863,33 @@ const WebDocumentsCard: React.FC<{ onOpenLabel: () => void }> = ({ onOpenLabel }
 const WebTrackingCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
   const [syncing, setSyncing] = useState(false);
   const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
+
+  useEffect(() => {
+    let cancelled = false;
+    const shouldSync =
+      order.shiprocket?.awb ||
+      order.shiprocket?.orderId ||
+      order.status === "Shipped" ||
+      order.status === "Delivered";
+    if (!shouldSync) return;
+
+    (async () => {
+      setSyncing(true);
+      try {
+        const data = await refreshShiprocketFromApi(order.id);
+        if (!cancelled) setSrData(data);
+      } catch {
+        // keep initial data
+      } finally {
+        if (!cancelled) setSyncing(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order.id, order.status, order.shiprocket?.awb, order.shiprocket?.orderId]);
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -1199,6 +1226,26 @@ const MobileLayout: React.FC<{
   const MobileTrackingModal = () => {
     const [syncing, setSyncing] = useState(false);
     const [srData, setSrData]   = useState<ShiprocketData>(() => buildShiprocketData(order));
+
+    useEffect(() => {
+      if (!trackingVisible) return;
+      let cancelled = false;
+      (async () => {
+        setSyncing(true);
+        try {
+          const data = await refreshShiprocketFromApi(order.id);
+          if (!cancelled) setSrData(data);
+        } catch {
+          // keep initial data
+        } finally {
+          if (!cancelled) setSyncing(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [trackingVisible, order.id]);
+
     const handleSync = async () => {
       setSyncing(true);
       try {

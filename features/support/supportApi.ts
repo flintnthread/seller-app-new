@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 
+import { AUTH_ACTION_FAILED } from "@/lib/api/apiErrors";
 import { resolveApiBaseUrl } from "@/lib/api/config";
 import { ensureSellerId } from "@/lib/api/sellerSession";
 
@@ -12,7 +13,7 @@ const UPLOAD_TIMEOUT_MS = 90000;
 function requireSellerId(): number {
   const id = ensureSellerId();
   if (!id) {
-    throw new Error("Seller not logged in. Please log in again.");
+    throw new Error(AUTH_ACTION_FAILED);
   }
   return id;
 }

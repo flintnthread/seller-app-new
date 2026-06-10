@@ -1,20 +1,40 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Image, Alert, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Ionicons } from '@expo/vector-icons';
+import { useSellerProfileSummary, type SellerProfileSummary } from '@/hooks/useSellerProfileSummary';
 import { useProfileStatus } from '@/hooks/useProfileStatus';
 import { clearSellerId } from '@/lib/api/sellerSession';
 import { useSweetAlert } from '@/components/common/SweetAlert';
 
+function canShowFullSellerTools(
+  summary: SellerProfileSummary | null,
+  isProfileCompleted: boolean,
+): boolean {
+  if (isProfileCompleted || summary?.profileCompleted) return true;
+  const approval = summary?.accountStatus?.approvalState;
+  return (
+    approval === 'pending_review' ||
+    approval === 'approved' ||
+    approval === 'rejected' ||
+    approval === 'suspended'
+  );
+}
+
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isProfileCompleted } = useProfileStatus();
+  const { summary } = useSellerProfileSummary();
+  const { isProfileCompleted, refreshProfileStatus } = useProfileStatus();
+  const showFullMenu = canShowFullSellerTools(summary, isProfileCompleted);
   const { confirmAction, SweetAlertHost } = useSweetAlert();
 
-  // Dynamically define sections based on profile completion status
-  const sections = isProfileCompleted
+  useEffect(() => {
+    void refreshProfileStatus();
+  }, [pathname, refreshProfileStatus]);
+
+  const sections = showFullMenu
     ? [
         {
           title: 'GENERAL',

@@ -1551,7 +1551,7 @@ const ProductDetailScreen: React.FC = () => {
       await hydrateSellerSession();
       if (!ensureSellerId()) {
         if (!cancelled) {
-          setError("Seller not logged in. Please log in again.");
+          setError(null);
           setLoading(false);
         }
         return;

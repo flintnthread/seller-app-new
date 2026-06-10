@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { sanitizeAuthErrorMessage } from "@/lib/api/apiErrors";
 import { apiRequest, ApiError } from "@/lib/api/client";
 import { apiUpload, appendFileToFormData, buildUploadPart } from "@/lib/api/multipart";
 import { resolveApiBaseUrl } from "@/lib/api/config";
@@ -43,6 +44,7 @@ export type SellerProfileResponse = {
         gstNumber?: string | null;
         panNumber?: string | null;
         aadhaarNumber?: string | null;
+        aadhaarOnFile?: boolean;
         companyPan?: string | null;
     };
     address: {
@@ -106,6 +108,13 @@ export type GstVerifyResponse = {
     city?: string | null;
     state?: string | null;
     pincode?: string | null;
+    status?: string | null;
+    taxpayerType?: string | null;
+    registrationDate?: string | null;
+    cancellationDate?: string | null;
+    stateJurisdiction?: string | null;
+    centreJurisdiction?: string | null;
+    principalPlaceType?: string | null;
 };
 
 export type IfscLookupResponse = {
@@ -179,8 +188,12 @@ export function toUiBusinessCategory(api?: string | null): string {
 }
 
 export function getApiErrorMessage(error: unknown, fallback = "Something went wrong. Please try again."): string {
-    if (error instanceof ApiError) return error.message;
-    if (error instanceof Error && error.message) return error.message;
+    if (error instanceof ApiError) {
+        return sanitizeAuthErrorMessage(error.message, error.status);
+    }
+    if (error instanceof Error && error.message) {
+        return sanitizeAuthErrorMessage(error.message);
+    }
     return fallback;
 }
 
@@ -193,14 +206,14 @@ function saveProfileCache(profile: SellerProfileResponse): SellerProfileResponse
 function assertProfileMatchesSession(profile: SellerProfileResponse, sellerId: number): void {
     if (profile.sellerId !== sellerId) {
         invalidateSellerProfileCache();
-        throw new ApiError("Profile data does not match your account. Please log in again.", 403);
+        throw new ApiError(sanitizeAuthErrorMessage("Profile data mismatch.", 403), 403);
     }
 }
 
 export async function fetchSellerProfile(force = false): Promise<SellerProfileResponse> {
     const sellerId = ensureSellerId();
     if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.", 401);
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
     if (!force) {
@@ -216,7 +229,7 @@ export async function fetchSellerProfile(force = false): Promise<SellerProfileRe
 export async function uploadProfilePhoto(localUri: string): Promise<SellerProfileResponse> {
     const sellerId = ensureSellerId();
     if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.", 401);
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
     const part = await buildUploadPart(localUri, { name: guessProfilePhotoName(localUri) });
     const formData = new FormData();
@@ -315,7 +328,7 @@ export async function lookupIfscCode(ifscCode: string): Promise<IfscLookupRespon
 export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
     const sellerId = ensureSellerId();
     if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.", 401);
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
     const baseUrl = resolveApiBaseUrl();
@@ -323,7 +336,7 @@ export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
 
     const accessToken = ensureAccessToken();
     if (!accessToken) {
-        throw new ApiError("Seller not logged in. Please log in again.", 401);
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
     let res: Response;

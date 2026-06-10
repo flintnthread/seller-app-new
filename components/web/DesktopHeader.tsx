@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
 import { useSellerProfile } from '@/hooks/useSellerProfile';
+import { useProfileStatus } from '@/hooks/useProfileStatus';
 import { useSweetAlert } from '@/components/common/SweetAlert';
 import { clearSellerId } from '@/lib/api/sellerSession';
 
@@ -16,6 +17,8 @@ export function DesktopHeader({
 }) {
   const router = useRouter();
   const { profile } = useSellerProfile();
+  const { isProfileCompleted } = useProfileStatus();
+  const showViewProfile = profile?.profileCompleted === true || isProfileCompleted;
   const { showSuccess, confirmAction, SweetAlertHost } = useSweetAlert();
   const [isHovered, setIsHovered] = useState(false);
 
@@ -88,19 +91,21 @@ export function DesktopHeader({
           
           {isHovered && (
             <View style={styles.dropdownMenu}>
-              <Pressable 
-                onPress={() => {
-                  setIsHovered(false);
-                  router.push('/Profile');
-                }}
-                // @ts-ignore
-                style={({ hovered }) => [
-                  styles.dropdownItem,
-                  hovered && styles.dropdownItemHovered
-                ]}
-              >
-                <Text style={styles.dropdownText}>View Profile</Text>
-              </Pressable>
+              {showViewProfile ? (
+                <Pressable 
+                  onPress={() => {
+                    setIsHovered(false);
+                    router.push('/viewsellerprofile');
+                  }}
+                  // @ts-ignore
+                  style={({ hovered }) => [
+                    styles.dropdownItem,
+                    hovered && styles.dropdownItemHovered
+                  ]}
+                >
+                  <Text style={styles.dropdownText}>View Profile</Text>
+                </Pressable>
+              ) : null}
               
               <Pressable 
                 onPress={handleLogout}

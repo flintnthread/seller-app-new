@@ -6,8 +6,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 
 export default function LoginScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container}>
       
@@ -28,11 +31,11 @@ export default function LoginScreen() {
 
       {/* Bottom Buttons */}
       <View style={styles.bottomContainer}>
-        <TouchableOpacity style={styles.loginBtn}>
+        <TouchableOpacity style={styles.loginBtn} onPress={() => router.push("/(auth)/login")}>
           <Text style={styles.loginText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.registerBtn}>
+        <TouchableOpacity style={styles.registerBtn} onPress={() => router.push("/(auth)/signup")}>
           <Text style={styles.registerText}>Register</Text>
         </TouchableOpacity>
       </View>

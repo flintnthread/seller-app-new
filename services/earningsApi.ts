@@ -74,6 +74,12 @@ export async function fetchTopSellingProducts(limit = 20): Promise<TopSellingPro
 
 export type SalesTrendPoint = { label: string; value: number };
 
+export async function fetchOrdersTrend(period = "week"): Promise<SalesTrendPoint[]> {
+    return apiRequest<SalesTrendPoint[]>(
+        `/api/analytics/orders-trend?period=${encodeURIComponent(period)}`
+    );
+}
+
 export async function fetchSalesTrend(
     period = "week",
     from?: string,
