@@ -1,56 +1,104 @@
-import { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { useState, useEffect, useRef } from "react";
+import { Platform } from "react-native";
+import { hydrateSellerSession, getSellerId } from "@/lib/api/sellerSession";
+import { fetchSellerProfile } from "@/services/sellerProfileApi";
 
-// Centralized session-level state for mock purposes
 let globalProfileCompleted = false;
+let syncPromise: Promise<void> | null = null;
 
-// Attempt to load initial state from localStorage on web
-if (Platform.OS === 'web' && typeof window !== 'undefined') {
-  try {
-    const saved = window.localStorage.getItem('isProfileCompleted');
-    if (saved !== null) {
-      globalProfileCompleted = saved === 'true';
+if (Platform.OS === "web" && typeof window !== "undefined") {
+    try {
+        const saved = window.localStorage.getItem("isProfileCompleted");
+        if (saved !== null) {
+            globalProfileCompleted = saved === "true";
+        }
+    } catch {
+        // ignore
     }
-  } catch (e) {
-    console.warn('Failed to read from localStorage:', e);
-  }
 }
 
 const listeners = new Set<() => void>();
 
+function notifyListeners() {
+    listeners.forEach((listener) => listener());
+}
+
+function persistProfileCompleted(val: boolean) {
+    globalProfileCompleted = val;
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+        try {
+            window.localStorage.setItem("isProfileCompleted", String(val));
+        } catch {
+            // ignore
+        }
+    }
+    notifyListeners();
+}
+
+export async function syncProfileStatusFromApi(): Promise<boolean | null> {
+    await hydrateSellerSession();
+    const sellerId = getSellerId();
+    if (!sellerId) return null;
+
+    try {
+        const profile = await fetchSellerProfile();
+        persistProfileCompleted(profile.profileCompleted);
+        return profile.profileCompleted;
+    } catch {
+        return null;
+    }
+}
+
+function ensureProfileSync(): Promise<void> {
+    if (!syncPromise) {
+        syncPromise = syncProfileStatusFromApi()
+            .then(() => undefined)
+            .finally(() => {
+                syncPromise = null;
+            });
+    }
+    return syncPromise;
+}
+
 /**
- * Reusable React Hook that provides the centralized profile completion state.
- * Syncs instantly across all active components/views using a listener pattern.
+ * Centralized profile completion state synced from the seller profile API.
  */
 export function useProfileStatus() {
-  const [isProfileCompleted, setIsProfileCompletedState] = useState(globalProfileCompleted);
+    const [isProfileCompleted, setIsProfileCompletedState] = useState(globalProfileCompleted);
+    const syncedRef = useRef(false);
 
-  const setIsProfileCompleted = (val: boolean) => {
-    globalProfileCompleted = val;
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('isProfileCompleted', String(val));
-      } catch (e) {
-        console.warn('Failed to write to localStorage:', e);
-      }
-    }
-    setIsProfileCompletedState(val);
-    // Notify all active listeners to synchronize state immediately
-    listeners.forEach((listener) => listener());
-  };
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      setIsProfileCompletedState(globalProfileCompleted);
+    const setIsProfileCompleted = (val: boolean) => {
+        persistProfileCompleted(val);
+        setIsProfileCompletedState(val);
     };
-    listeners.add(handleUpdate);
-    return () => {
-      listeners.delete(handleUpdate);
-    };
-  }, []);
 
-  return {
-    isProfileCompleted,
-    setIsProfileCompleted,
-  };
+    useEffect(() => {
+        const handleUpdate = () => {
+            setIsProfileCompletedState(globalProfileCompleted);
+        };
+        listeners.add(handleUpdate);
+        return () => {
+            listeners.delete(handleUpdate);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (syncedRef.current) return;
+        syncedRef.current = true;
+        void ensureProfileSync();
+    }, []);
+
+    const refreshProfileStatus = async (): Promise<boolean | null> => {
+        const result = await syncProfileStatusFromApi();
+        if (result !== null) {
+            setIsProfileCompletedState(result);
+        }
+        return result;
+    };
+
+    return {
+        isProfileCompleted,
+        setIsProfileCompleted,
+        refreshProfileStatus,
+    };
 }

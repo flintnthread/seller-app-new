@@ -1,7 +1,9 @@
 import { Platform } from "react-native";
 import { resolveApiBaseUrl } from "./config";
-import { ensureSellerId } from "./sellerSession";
+import { sanitizeAuthErrorMessage } from "./apiErrors";
 import { ApiError } from "./client";
+import { ensureAccessToken, ensureSellerId } from "./sellerSession";
+import { tryRefreshSession } from "./sessionRefresh";
 
 export type UploadFilePart = {
     uri: string;
@@ -69,8 +71,9 @@ export async function apiUpload<T>(
     query?: Record<string, string>
 ): Promise<T> {
     const sellerId = ensureSellerId();
-    if (!sellerId) {
-        throw new ApiError("Seller not logged in. Please log in again.");
+    const accessToken = ensureAccessToken();
+    if (!sellerId || !accessToken) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
     const baseUrl = resolveApiBaseUrl();
@@ -80,16 +83,27 @@ export async function apiUpload<T>(
             : "";
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}${qs}`;
 
-    let res: Response;
-    try {
-        res = await fetch(url, {
+    const uploadOnce = async (token: string) =>
+        fetch(url, {
             method: "POST",
             headers: {
                 Accept: "application/json",
+                Authorization: `Bearer ${token}`,
                 "X-Seller-Id": String(sellerId),
             },
             body: formData,
         });
+
+    let res: Response;
+    try {
+        res = await uploadOnce(accessToken);
+        if (res.status === 401) {
+            const refreshed = await tryRefreshSession(true);
+            const retryToken = ensureAccessToken();
+            if (refreshed && retryToken) {
+                res = await uploadOnce(retryToken);
+            }
+        }
     } catch {
         throw new ApiError(`Cannot reach API at ${baseUrl}. Ensure the backend is running.`);
     }
@@ -106,7 +120,7 @@ export async function apiUpload<T>(
             body && typeof body === "object" && "message" in body && typeof (body as { message: unknown }).message === "string"
                 ? (body as { message: string }).message
                 : `Upload failed (${res.status})`;
-        throw new ApiError(message, res.status);
+        throw new ApiError(sanitizeAuthErrorMessage(message, res.status), res.status);
     }
 
     return body as T;

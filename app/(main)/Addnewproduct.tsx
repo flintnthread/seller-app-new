@@ -21,6 +21,10 @@ import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPaylo
 import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 import {
+    allChartSubcategoriesFromCatalog,
+    subcategoriesMapFromCatalog,
+} from "@/lib/catalog/catalogFilterOptions";
+import {
     createProduct,
     fetchProductFormCatalog,
     type ProductFormCatalog,
@@ -2615,7 +2619,7 @@ const ig = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false }: any) => {
+const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false, catalog }: any) => {
     const scrollRef = useRef<ScrollView>(null);
     const fieldRefs = useRef<Record<string, any>>({});
 
@@ -2678,11 +2682,13 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
 
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
-    const chartCategoryOptions = [CHART_CATEGORY_ALL, ...CATEGORIES];
+    const chartCategoryNames = catalog?.categories?.map((c: { name: string }) => c.name) ?? [];
+    const chartCategoryOptions = [CHART_CATEGORY_ALL, ...chartCategoryNames];
+    const chartSubMap = subcategoriesMapFromCatalog(catalog ?? null);
     const chartSubOptions =
         chartCategory === CHART_CATEGORY_ALL
-            ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
-            : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
+            ? [CHART_SUB_ALL, ...allChartSubcategoriesFromCatalog(catalog ?? null)]
+            : [CHART_SUB_ALL, ...(chartSubMap[chartCategory]?.filter((s: string) => s !== "All") ?? [])];
 
     const openCreateSizeChart = () => {
         setNewChartName("");
@@ -3470,7 +3476,7 @@ const AddNewProduct: React.FC = () => {
                 />
             )}
             {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
-            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} validationTrigger={validationTrigger} isDesktop={isDesktop} />}
+            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} validationTrigger={validationTrigger} isDesktop={isDesktop} catalog={catalog} />}
         </>
     );
 

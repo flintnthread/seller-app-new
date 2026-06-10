@@ -238,6 +238,15 @@ export default function SellerAddressInfo() {
   const [isLoading, setIsLoading]                 = useState(false);
   const [fieldPositions, setFieldPositions]       = useState<Record<string, number>>({});
 
+  const syncWarehouseFromBusiness = useCallback(() => {
+    setWarehouseAddress(streetAddress);
+    setWarehouseLandmark(landmark);
+    setWarehouseCity(city);
+    setWarehouseState(state);
+    setWarehouseCountry(country);
+    setWarehousePincode(pincode);
+  }, [streetAddress, landmark, city, state, country, pincode]);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -269,6 +278,12 @@ export default function SellerAddressInfo() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!warehouse) {
+      syncWarehouseFromBusiness();
+    }
+  }, [warehouse, syncWarehouseFromBusiness]);
 
   // ── Logic (100% unchanged) ──
   const fieldRefs = {
@@ -551,7 +566,13 @@ export default function SellerAddressInfo() {
             {/* Warehouse Checkbox */}
             <Checkbox
               checked={warehouse}
-              onToggle={() => setWarehouse(!warehouse)}
+              onToggle={() => {
+                const next = !warehouse;
+                if (next) {
+                  syncWarehouseFromBusiness();
+                }
+                setWarehouse(next);
+              }}
               label="My warehouse address is different from pickup address"
               accentColor={T.orange}
             />

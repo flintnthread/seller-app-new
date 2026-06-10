@@ -27,7 +27,8 @@ import {
 import { useRouter } from "expo-router";
 import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
 import { fetchPayoutSummary, fetchMyPayoutRequests, type PayoutSummary } from "@/services/payoutApi";
-import { updateBankingProfile, lookupIfscCode } from "@/services/sellerProfileApi";
+import { updateBankingProfile, lookupIfscCode, fetchSellerProfile } from "@/services/sellerProfileApi";
+import { sendRegistrationOtp } from "@/services/authApi";
 
 interface BankAccount {
   id: string;
@@ -358,13 +359,26 @@ export default function EnhancedPayoutRequest() {
     });
   }, [searchQuery, statusFilter, apiTransactions]);
 
-  const handleInitialRequest = () => {
+  const handleInitialRequest = async () => {
     if (errorMsg) {
       Alert.alert("Error", errorMsg);
       return;
     }
-    Alert.alert("OTP Sent", "OTP sent to your registered mobile number");
-    setShowOtpModal(true);
+    try {
+      const profile = await fetchSellerProfile();
+      const mobile = profile.mobile?.trim();
+      if (!mobile) {
+        Alert.alert("Mobile required", "Add your registered mobile number in profile before requesting a payout.");
+        return;
+      }
+      const otpResult = await sendRegistrationOtp(mobile);
+      if (otpResult.devOtp) {
+        Alert.alert("Verification code", `Dev mode OTP: ${otpResult.devOtp}`);
+      }
+      setShowOtpModal(true);
+    } catch (e) {
+      Alert.alert("OTP failed", e instanceof Error ? e.message : "Could not send verification code.");
+    }
   };
 
   const verifyOtpAndRequest = async () => {

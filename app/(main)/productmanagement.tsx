@@ -26,6 +26,7 @@ import {
     type ProductListItem,
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
+import { useProductFilterCatalog } from "@/hooks/useProductFilterCatalog";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -63,59 +64,6 @@ const TABS: { label: TabType; icon: string; color: string; bg: string }[] = [
 
 type Product = ProductListItem;
 
-const CATEGORIES    = ["All","Footwear","Electronics","Bags","Clothing","Accessories","Sports"];
-
-// ── 3-level category tree ──────────────────────────────────────
-const CATEGORY_TREE: Record<string, Record<string, string[]>> = {
-    Footwear:    {
-        Sneakers: ["Running","Casual","Basketball","Training"],
-        Formal:   ["Oxford","Derby","Loafers","Monk Strap"],
-        Sandals:  ["Flip Flops","Slides","Sport Sandals"],
-        Boots:    ["Ankle Boots","Chelsea Boots","Hiking Boots"],
-    },
-    Electronics: {
-        Audio:    ["Headphones","Earbuds","Speakers","Soundbars"],
-        Wearables:["Smartwatches","Fitness Bands","Smart Glasses"],
-        Cameras:  ["DSLR","Mirrorless","Action Cams","Accessories"],
-        Tablets:  ["Android","iPad","Windows","Accessories"],
-    },
-    Bags:        {
-        Backpacks:    ["Travel","Laptop","School","Hiking"],
-        Handbags:     ["Tote","Clutch","Shoulder","Crossbody"],
-        "Laptop Bags":["Sleeves","Briefcases","Backpacks"],
-        "Travel Bags":["Trolley","Duffel","Carry-On"],
-        Wallets:      ["Bi-fold","Tri-fold","Card Holders"],
-    },
-    Clothing:    {
-        "T-Shirts": ["Casual","Graphic","Polo","Sleeveless"],
-        Shirts:     ["Formal","Casual","Polo","Denim"],
-        Jeans:      ["Slim Fit","Straight","Skinny","Bootcut"],
-        Shorts:     ["Training","Casual","Denim","Swim"],
-        Innerwear:  ["Socks","Sports","Thermal","Briefs"],
-        Jackets:    ["Bomber","Denim","Leather","Windbreaker"],
-    },
-    Accessories: {
-        Wallets:   ["Bi-fold","Tri-fold","Card Holders","Travel"],
-        Eyewear:   ["Polarized","Photochromic","Blue Light","Sports"],
-        Watches:   ["Analog","Digital","Smartwatch","Luxury"],
-        Headwear:  ["Caps","Hats","Beanies","Visors"],
-        Jewelry:   ["Rings","Necklaces","Bracelets","Earrings"],
-    },
-    Sports:      {
-        Gym:   ["Gloves","Equipment","Accessories","Hydration","Cardio"],
-        Yoga:  ["Mats","Accessories","Clothing","Blocks"],
-        Cricket:["Bats","Balls","Pads","Helmets","Gloves"],
-        Football:["Boots","Balls","Shin Guards","Gloves"],
-    },
-};
-
-// Flat subcategory list per category (for mobile)
-const SUBCATEGORIES: Record<string,string[]> = Object.fromEntries(
-    Object.entries(CATEGORY_TREE).map(([cat, subs]) => [cat, ["All", ...Object.keys(subs)]])
-);
-
-const COLOR_OPTIONS  = ["All","Red","Blue","Green","Black","White","Yellow","Pink","Purple","Orange","Gray","Brown"];
-const SIZE_OPTIONS   = ["All","XS","S","M","L","XL","XXL","Free Size","28","30","32","34","36","38","40","42","43"];
 const SORT_OPTIONS: { value: SortType; icon: string; desc: string }[] = [
     { value: "Latest",          icon: "clock-outline",               desc: "Newest first"       },
     { value: "Oldest",          icon: "clock-time-eight-outline",    desc: "Oldest first"       },
@@ -132,35 +80,7 @@ const DOT_COLORS: Record<string,string> = {
     Orange:"#F97316", Gray:"#6B7280", Brown:"#92400E", All:C.navy,
 };
 
-const PINCODE_DATA = [
-    { pincode:"110001", area:"Baroda House",   city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"110001", area:"Bengali Market", city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"110001", area:"Connaught Place",city:"New Delhi",  state:"Delhi",       country:"India" },
-    { pincode:"400001", area:"Fort",           city:"Mumbai",     state:"Maharashtra", country:"India" },
-    { pincode:"400001", area:"Churchgate",     city:"Mumbai",     state:"Maharashtra", country:"India" },
-    { pincode:"500001", area:"Abids",          city:"Hyderabad",  state:"Telangana",   country:"India" },
-    { pincode:"500001", area:"Koti",           city:"Hyderabad",  state:"Telangana",   country:"India" },
-    { pincode:"560001", area:"MG Road",        city:"Bengaluru",  state:"Karnataka",   country:"India" },
-    { pincode:"600001", area:"George Town",    city:"Chennai",    state:"Tamil Nadu",  country:"India" },
-    { pincode:"700001", area:"BBD Bagh",       city:"Kolkata",    state:"West Bengal", country:"India" },
-];
-
 const COUNTRIES = ["India"];
-const STATES_BY_COUNTRY: Record<string, string[]> = {
-    "India": ["All States"],
-};
-const CITIES_BY_STATE: Record<string, string[]> = {
-    "All States":    ["All Cities"],
-    "Delhi":         ["All Cities","New Delhi"],
-    "Maharashtra":   ["All Cities","Mumbai","Pune","Nagpur"],
-    "Telangana":     ["All Cities","Hyderabad","Warangal"],
-    "Karnataka":     ["All Cities","Bengaluru","Mysuru"],
-    "Tamil Nadu":    ["All Cities","Chennai","Coimbatore"],
-    "West Bengal":   ["All Cities","Kolkata","Siliguri"],
-    "Gujarat":       ["All Cities","Ahmedabad","Surat","Vadodara"],
-    "Rajasthan":     ["All Cities","Jaipur","Jodhpur","Udaipur"],
-    "Uttar Pradesh": ["All Cities","Lucknow","Agra","Varanasi"],
-};
 
 // ─────────────────────────────────────────────────────────────
 // RANGE SLIDER (mobile)
@@ -248,13 +168,13 @@ const WrapChipGroup = ({ options, selected, onSelect }: { options: string[]; sel
     </View>
 );
 
-const WrapColorGroup = ({ options, selected, onSelect }: { options: string[]; selected: string; onSelect: (v: string) => void }) => (
+const WrapColorGroup = ({ options, selected, onSelect, dotColors = DOT_COLORS }: { options: string[]; selected: string; onSelect: (v: string) => void; dotColors?: Record<string, string> }) => (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
         {options.map(col => {
             const isSelected = selected === col;
             return (
-                <TouchableOpacity key={col} style={[fs.colorChip, isSelected && { borderColor: DOT_COLORS[col] ?? C.navy, borderWidth: 2.5 }]} onPress={() => onSelect(col)}>
-                    {col !== "All" && <View style={[fs.colorDot, { backgroundColor: DOT_COLORS[col] ?? "#ccc", borderWidth: col === "White" ? 1 : 0, borderColor: C.border }]} />}
+                <TouchableOpacity key={col} style={[fs.colorChip, isSelected && { borderColor: dotColors[col] ?? C.navy, borderWidth: 2.5 }]} onPress={() => onSelect(col)}>
+                    {col !== "All" && <View style={[fs.colorDot, { backgroundColor: dotColors[col] ?? "#ccc", borderWidth: col === "White" ? 1 : 0, borderColor: C.border }]} />}
                     <Text style={[fs.chipText, isSelected && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>{col}</Text>
                 </TouchableOpacity>
             );
@@ -309,12 +229,21 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
     }, [loadSettings]);
 
     const stateOptions = useMemo(() => {
-        return STATES_BY_COUNTRY[selectedCountry] || ["All States"];
-    }, [selectedCountry]);
+        const states = new Set<string>();
+        pincodeOptions.forEach((p) => {
+            if (p.state?.trim()) states.add(p.state.trim());
+        });
+        return ["All States", ...[...states].sort()];
+    }, [pincodeOptions]);
 
     const cityOptions = useMemo(() => {
-        return CITIES_BY_STATE[selectedState] || ["All Cities"];
-    }, [selectedState]);
+        const cities = new Set<string>();
+        pincodeOptions.forEach((p) => {
+            if (selectedState !== "All States" && p.state !== selectedState) return;
+            if (p.city?.trim()) cities.add(p.city.trim());
+        });
+        return ["All Cities", ...[...cities].sort()];
+    }, [pincodeOptions, selectedState]);
 
     const toggleSelector = (type: SelectorType, options: string[]) => {
         if (selectorType === type && selectorVisible) {
@@ -872,6 +801,7 @@ const WebProductsScreen: React.FC = () => {
         }, [reload])
     );
 
+    const { categoryList, categoryTree, subcategoriesMap, dotColorMap } = useProductFilterCatalog(products);
     const colorFilterOptions = useMemo(() => ["All", ...uniqueProductColors(products)], [products]);
     const sizeFilterOptions = useMemo(() => ["All", ...uniqueProductSizes(products)], [products]);
     const priceMax = useMemo(() => computeProductPriceMax(products, PRICE_MAX), [products]);
@@ -1125,7 +1055,7 @@ const WebProductsScreen: React.FC = () => {
 
                                 <TouchableOpacity
                                     style={[wst.catMainItem, filterCategory === "All" && wst.catMainItemActive]}
-                                    onPress={() => { setFilterCategory("All"); setFilterSubcategory("All"); setFilterSubSubcategory("All"); setExpandedCategory(null); setExpandedSubcat(null); }}
+                                    onPress={() => { setFilterCategory("All"); setFilterSubcategory("All"); setExpandedCategory(null); setExpandedSubcat(null); }}
                                     activeOpacity={0.7}
                                 >
                                     <View style={[wst.catRadio, filterCategory === "All" && wst.catRadioFilled]}>
@@ -1134,10 +1064,10 @@ const WebProductsScreen: React.FC = () => {
                                     <Text style={[wst.catMainLabel, filterCategory === "All" && { color: C.navy, fontFamily: "Outfit_600SemiBold" }]}>All</Text>
                                 </TouchableOpacity>
 
-                                {CATEGORIES.filter(c => c !== "All").map(cat => {
+                                {categoryList.filter(c => c !== "All").map(cat => {
                                     const isSelected = filterCategory === cat;
                                     const isExpanded = expandedCategory === cat;
-                                    const subKeys = Object.keys(CATEGORY_TREE[cat] ?? {});
+                                    const subKeys = Object.keys(categoryTree[cat] ?? {});
 
                                     return (
                                         <View key={cat}>
@@ -1149,7 +1079,6 @@ const WebProductsScreen: React.FC = () => {
                                                     } else {
                                                         setFilterCategory(cat);
                                                         setFilterSubcategory("All");
-                                                        setFilterSubSubcategory("All");
                                                         setExpandedCategory(cat);
                                                         setExpandedSubcat(null);
                                                     }
@@ -1168,7 +1097,7 @@ const WebProductsScreen: React.FC = () => {
                                             {isExpanded && subKeys.map(sub => {
                                                 const isSubSelected = filterSubcategory === sub;
                                                 const isSubExpanded = expandedSubcat === sub;
-                                                const subSubList = CATEGORY_TREE?.[cat]?.[sub] ?? [];
+                                                const subSubList = categoryTree?.[cat]?.[sub] ?? [];
 
                                                 return (
                                                     <TouchableOpacity
@@ -1179,7 +1108,6 @@ const WebProductsScreen: React.FC = () => {
                                                                 setExpandedSubcat(null);
                                                             } else {
                                                                 setFilterSubcategory(sub);
-                                                                setFilterSubSubcategory("All");
                                                                 setExpandedSubcat(sub);
                                                             }
                                                         }}
@@ -1245,7 +1173,7 @@ const WebProductsScreen: React.FC = () => {
                                         <TouchableOpacity
                                             key={col}
                                             style={[wst.colorDot, {
-                                                backgroundColor: DOT_COLORS[col] ?? "#ccc",
+                                                backgroundColor: dotColorMap[col] ?? "#ccc",
                                                 borderWidth: filterColor === col ? 3 : 1.5,
                                                 borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.12)",
                                             }]}
@@ -1722,6 +1650,7 @@ const MobileProductsScreen: React.FC = () => {
         }, [reload])
     );
 
+    const { categoryList, subcategoriesMap, dotColorMap } = useProductFilterCatalog(products);
     const colorFilterOptions = useMemo(() => ["All", ...uniqueProductColors(products)], [products]);
     const sizeFilterOptions = useMemo(() => ["All", ...uniqueProductSizes(products)], [products]);
     const priceMax = useMemo(() => computeProductPriceMax(products, PRICE_MAX), [products]);
@@ -1837,7 +1766,7 @@ const MobileProductsScreen: React.FC = () => {
     const handleSortSelect      = (opt: SortType) => { setSortBy(opt); setShowSortMenu(false); setVisibleCount(viewRange); };
     const handleViewRangeChange = (vr: number)   => { setViewRange(vr); setVisibleCount(vr); };
 
-    const subcatOptions = filterCategory !== "All" ? (SUBCATEGORIES[filterCategory] ?? ["All"]) : ["All"];
+    const subcatOptions = filterCategory !== "All" ? (subcategoriesMap[filterCategory] ?? ["All"]) : ["All"];
     const currentSortOption = SORT_OPTIONS.find(o => o.value === sortBy);
 
     if (loading && products.length === 0) {
@@ -2150,12 +2079,12 @@ const MobileProductsScreen: React.FC = () => {
                     </View>
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
                         <Text style={fs.sectionLabel}>Category</Text>
-                        <WrapChipGroup options={CATEGORIES} selected={filterCategory} onSelect={v => { setFilterCategory(v); setFilterSubcategory("All"); }} />
+                        <WrapChipGroup options={categoryList} selected={filterCategory} onSelect={v => { setFilterCategory(v); setFilterSubcategory("All"); }} />
                         {filterCategory !== "All" && (
                             <><Text style={fs.sectionLabel}>Subcategory</Text><WrapChipGroup options={subcatOptions} selected={filterSubcategory} onSelect={setFilterSubcategory} /></>
                         )}
                         <Text style={fs.sectionLabel}>Color</Text>
-                        <WrapColorGroup options={colorFilterOptions} selected={filterColor} onSelect={setFilterColor} />
+                        <WrapColorGroup options={colorFilterOptions} selected={filterColor} onSelect={setFilterColor} dotColors={dotColorMap} />
                         <Text style={fs.sectionLabel}>Size</Text>
                         <View style={fs.sizeGrid}>
                             {sizeFilterOptions.map(sz => (

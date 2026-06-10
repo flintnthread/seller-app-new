@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchProducts, type ProductListItem } from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
+import { isAuthErrorStatus, sanitizeAuthErrorMessage } from "@/lib/api/apiErrors";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { getApiDebugInfo } from "@/lib/api/config";
 
@@ -11,7 +13,7 @@ export function useSellerProducts() {
     const reload = useCallback(async () => {
         await hydrateSellerSession();
         if (!ensureSellerId()) {
-            setError("Seller not logged in. Please log in again.");
+            setError(null);
             setLoading(false);
             return;
         }
@@ -21,7 +23,16 @@ export function useSellerProducts() {
         try {
             setProducts(await fetchProducts());
         } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to load products.";
+            const status = e instanceof ApiError ? e.status : undefined;
+            if (isAuthErrorStatus(status)) {
+                setError(null);
+                setLoading(false);
+                return;
+            }
+            const msg = sanitizeAuthErrorMessage(
+                e instanceof Error ? e.message : "Failed to load products.",
+                status
+            );
             if (__DEV__) {
                 const { baseUrl, platform, isEmulator } = getApiDebugInfo();
                 setError(`${msg}\n\n[dev] API: ${baseUrl} (${platform}${isEmulator ? ", emulator" : ""})`);

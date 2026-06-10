@@ -23,7 +23,7 @@ import {
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useEarningsData } from "@/hooks/useEarningsData";
-import { fetchAnalyticsOverview, fetchAnalyticsSales } from "@/services/earningsApi";
+import { fetchAnalyticsOverview, fetchAnalyticsSales, requestPayout } from "@/services/earningsApi";
 import { fetchPayoutSummary, type PayoutSummary } from "@/services/payoutApi";
 
 interface Transaction {
@@ -63,8 +63,13 @@ export default function EarningsScreen() {
   const [otpError, setOtpError] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawSuccessMessage, setWithdrawSuccessMessage] = useState("");
 
   const availableBalance = earningsData?.availableBalance ?? 0;
+  const bankAccount = earningsData?.bankAccount;
+  const bankName = bankAccount?.bankName?.trim() || "Linked bank account";
+  const bankMasked = bankAccount?.accountNumberMasked?.trim() || "—";
 
   const breakdown = [
     { title: "Credits", percent: earningsData ? `${Math.round(Number(earningsData.totalCredits))}` : "0" },
@@ -80,22 +85,42 @@ export default function EarningsScreen() {
     } else {
       setWithdrawError("");
       setShowWithdrawFormModal(false);
+      Alert.alert("OTP Sent", "Enter the OTP sent to your registered mobile number.");
       setTimeout(() => {
         setShowWithdrawOtpModal(true);
       }, 400);
     }
   };
 
-  const handleVerifyOtp = () => {
-    if (otp === "123456" || otp.length === 6) {
+  const handleVerifyOtp = async () => {
+    if (otp.length < 4) {
+      setOtpError("Please enter the OTP sent to your mobile.");
+      return;
+    }
+    const amt = parseFloat(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setOtpError("Invalid withdrawal amount.");
+      return;
+    }
+    setIsWithdrawing(true);
+    setOtpError("");
+    try {
+      const result = await requestPayout({
+        amount: amt,
+        otp,
+        description: "Seller wallet withdrawal",
+      });
+      setWithdrawSuccessMessage(result.message || "Withdrawal request submitted successfully.");
       setOtp("");
-      setOtpError("");
       setShowWithdrawOtpModal(false);
       setTimeout(() => {
         setShowWithdrawSuccessModal(true);
-      }, 500);
-    } else {
-      setOtpError("Invalid OTP. Please enter 123456 to test.");
+      }, 300);
+      await reload();
+    } catch (e) {
+      setOtpError(e instanceof Error ? e.message : "Withdrawal failed. Please try again.");
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -561,8 +586,8 @@ export default function EarningsScreen() {
                   <Ionicons name="business" size={18} color="#f97316" />
                 </View>
                 <View>
-                  <Text style={styles.bankDestName}>State Bank of India</Text>
-                  <Text style={styles.bankDestAcc}>Ending in 2408 · Savings</Text>
+                  <Text style={styles.bankDestName}>{bankName}</Text>
+                  <Text style={styles.bankDestAcc}>{bankMasked}</Text>
                 </View>
               </View>
               <Ionicons name="checkmark-circle" size={22} color="#f97316" />
@@ -572,7 +597,7 @@ export default function EarningsScreen() {
             <View style={styles.securityTipCard}>
               <Ionicons name="information-circle" size={18} color="#f97316" style={{ marginRight: 8, marginTop: 2 }} />
               <Text style={styles.securityTipText}>
-                To authorize this transaction, a secure 6-digit OTP verification code will be sent to your registered mobile number ending in 2408.
+                To authorize this transaction, a secure OTP verification code will be sent to your registered mobile number.
               </Text>
             </View>
 
@@ -605,7 +630,7 @@ export default function EarningsScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.otpSub}>
-              Enter the 6-digit OTP sent to your registered mobile number ending with 2408 (use 123456 to test).
+              Enter the OTP sent to your registered mobile number.
             </Text>
             <TextInput
               style={[styles.otpInput, otpError ? styles.otpInputError : null]}
@@ -635,10 +660,11 @@ export default function EarningsScreen() {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.otpVerifyBtn}
-                onPress={handleVerifyOtp}
+                onPress={() => void handleVerifyOtp()}
+                disabled={isWithdrawing}
               >
                 <LinearGradient colors={["#1a2b5edc", "#2d448c"]} style={styles.gradientBtn}>
-                  <Text style={styles.otpVerifyBtnText}>Verify & Proceed</Text>
+                  <Text style={styles.otpVerifyBtnText}>{isWithdrawing ? "Processing…" : "Verify & Proceed"}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -657,7 +683,11 @@ export default function EarningsScreen() {
             </View>
             <Text style={styles.successTitle}>Withdrawal Successful!</Text>
             <Text style={styles.successSub}>
-              A payout of <Text style={{ fontWeight: "800", color: "#0f172a" }}>₹{parseFloat(withdrawAmount || "0").toLocaleString()}</Text> has been successfully initiated. The funds will be credited to your linked State Bank of India account ending in 2408 within 24 hours.
+              {withdrawSuccessMessage || (
+                <>
+                  A payout of <Text style={{ fontWeight: "800", color: "#0f172a" }}>₹{parseFloat(withdrawAmount || "0").toLocaleString()}</Text> has been submitted. Funds will be credited to {bankName} ({bankMasked}) after processing.
+                </>
+              )}
             </Text>
             <TouchableOpacity 
               style={styles.successCloseBtn} 

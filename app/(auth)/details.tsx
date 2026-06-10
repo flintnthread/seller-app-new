@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuthFlow } from "@/hooks/useAuthFlow";
 import { useResponsive } from "@/hooks/useResponsive";
+import { fetchMarketplaceStats } from "@/services/platformStatsApi";
+import { formatApprovalHours, formatMarketplaceCount } from "@/lib/stats/formatMarketplaceCount";
 import {
   useFonts,
   Outfit_400Regular,
@@ -82,12 +84,14 @@ const STEPS = [
   { icon: "trending-up",              title: "Grow Fast",            desc: "Enable quick-order promos for visibility & fast fulfillment.", color: "#7C3AED" },
 ];
 
-const STATS = [
+const DEFAULT_STATS = [
   { val: "10K+", label: "Sellers",    icon: "account-group"           },
   { val: "50K+", label: "Products",   icon: "package-variant-closed"  },
   { val: "1M+",  label: "Customers",  icon: "heart-outline"           },
   { val: "48hr", label: "Approval",   icon: "clock-fast"              },
-];
+] as const;
+
+type StatItem = { val: string; label: string; icon: string };
 
 const HEADER_NAV = [
   { label: "About Us",     icon: "information-outline" as const, key: "about"    },
@@ -454,6 +458,30 @@ const SellerLanding: React.FC = () => {
   const sectionOffsets = useRef<Partial<Record<SectionKey, number>>>({});
 
   const [sellerSectionVisible, setSellerSectionVisible] = React.useState(false);
+  const [stats, setStats] = useState<StatItem[]>([...DEFAULT_STATS]);
+  const [approvalLabel, setApprovalLabel] = useState("48hr Approval");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMarketplaceStats()
+      .then((data) => {
+        if (cancelled) return;
+        const approval = formatApprovalHours(data.avgApprovalHours);
+        setStats([
+          { val: formatMarketplaceCount(data.sellersCount), label: "Sellers", icon: "account-group" },
+          { val: formatMarketplaceCount(data.productsCount), label: "Products", icon: "package-variant-closed" },
+          { val: formatMarketplaceCount(data.customersCount), label: "Customers", icon: "heart-outline" },
+          { val: approval, label: "Approval", icon: "clock-fast" },
+        ]);
+        setApprovalLabel(`${approval} Approval`);
+      })
+      .catch(() => {
+        // Keep default placeholders when API is unreachable (e.g. offline preview).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const recordSectionOffset = (key: SectionKey, y: number) => {
     sectionOffsets.current[key] = y;
@@ -1011,7 +1039,7 @@ const SellerLanding: React.FC = () => {
               <View style={[s.trustBar, ds?.trustBar]}>
                 {[
                   { icon: "shield-check", text: "Secure Payments" },
-                  { icon: "clock-fast",   text: "48hr Approval"   },
+                  { icon: "clock-fast",   text: approvalLabel   },
                   { icon: "tag",          text: "₹199 to Start"   },
                 ].map((t) => (
                   <View key={t.text} style={s.trustItem}>
@@ -1032,7 +1060,7 @@ const SellerLanding: React.FC = () => {
                       Grow your store with Flint & Thread
                     </Text>
                     <View style={ds?.heroStatGrid}>
-                      {STATS.map((st) => (
+                      {stats.map((st) => (
                         <View key={st.label} style={ds?.heroStatItem}>
                           <Text style={{ fontFamily: "Outfit_900Black", fontSize: 28, color: C.orange }}>{st.val}</Text>
                           <Text style={{ fontFamily: "Outfit_500Medium", fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>{st.label}</Text>
@@ -1052,8 +1080,8 @@ const SellerLanding: React.FC = () => {
             FLOATING STATS CARD
         ══════════════════════════════════ */}
         <View style={[s.statsStrip, ds?.statsStrip, ds?.content]}>
-          {STATS.map((st, i) => (
-            <View key={st.label} style={[s.statBox, i < STATS.length - 1 && s.statBorder]}>
+          {stats.map((st, i) => (
+            <View key={st.label} style={[s.statBox, i < stats.length - 1 && s.statBorder]}>
               <MaterialCommunityIcons name={st.icon as any} size={isDesktop ? 24 : 21} color={C.orange} style={{ marginBottom: 5 }} />
               <Text style={[s.statVal, isDesktop && { fontSize: 22 }]}>{st.val}</Text>
               <Text style={s.statLbl}>{st.label}</Text>

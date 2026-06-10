@@ -5,20 +5,19 @@ import {
     setSellerSession,
     touchSessionActivity,
 } from "@/lib/api/sellerSession";
-import { ApiError } from "@/lib/api/client";
 
 let lastRefreshAt = 0;
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-/** Keeps JWT alive while the seller is actively using the app. */
-export async function refreshSessionIfActive(): Promise<void> {
+/** Refresh JWT; returns true when a new token was stored. */
+export async function tryRefreshSession(force = false): Promise<boolean> {
     touchSessionActivity();
     const token = ensureAccessToken();
     const sellerId = getSellerId();
-    if (!token || !sellerId) return;
+    if (!token || !sellerId) return false;
 
     const now = Date.now();
-    if (now - lastRefreshAt < REFRESH_INTERVAL_MS) return;
+    if (!force && now - lastRefreshAt < REFRESH_INTERVAL_MS) return false;
 
     const baseUrl = resolveApiBaseUrl();
     try {
@@ -30,17 +29,18 @@ export async function refreshSessionIfActive(): Promise<void> {
                 "X-Seller-Id": String(sellerId),
             },
         });
-        if (!res.ok) return;
+        if (!res.ok) return false;
         const body = (await res.json()) as { accessToken?: string; expiresIn?: number };
-        if (body.accessToken?.trim()) {
-            await setSellerSession(sellerId, body.accessToken.trim(), body.expiresIn);
-            lastRefreshAt = now;
-        }
+        if (!body.accessToken?.trim()) return false;
+        await setSellerSession(sellerId, body.accessToken.trim(), body.expiresIn);
+        lastRefreshAt = now;
+        return true;
     } catch {
-        // ignore — next API call will surface auth errors
+        return false;
     }
 }
 
-export function handleAuthFailure(error: unknown): boolean {
-    return error instanceof ApiError && error.status === 401;
+/** Keeps JWT alive while the seller is actively using the app. */
+export async function refreshSessionIfActive(): Promise<void> {
+    await tryRefreshSession(false);
 }

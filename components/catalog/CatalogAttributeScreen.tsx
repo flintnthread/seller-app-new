@@ -85,7 +85,7 @@ export function CatalogAttributeScreen({
     const loadCatalog = useCallback(async () => {
         await hydrateSellerSession();
         if (!ensureSellerId()) {
-            setCatalogError("Seller not logged in. Please log in again.");
+            setCatalogError(null);
             setCatalogLoading(false);
             return;
         }

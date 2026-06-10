@@ -17,6 +17,7 @@ import {
     SELLER_NAV_ITEMS,
     resolveActiveNavId,
 } from "@/lib/navigation/sellerNavConfig";
+import { useSellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
 const C = {
     navyDeep: "#151D4F",
@@ -54,7 +55,7 @@ export function SellerTopNav({ compact = false }: Props) {
     const pathname = usePathname();
     const activeId = resolveActiveNavId(pathname);
     const activeItem = SELLER_NAV_ITEMS.find((i) => i.id === activeId) ?? SELLER_NAV_ITEMS[0];
-    const subtitle = NAV_SUBTITLES[activeId] ?? "";
+    const { summary, loading: profileLoading } = useSellerProfileSummary();
 
     const greeting = useMemo(() => {
         const hour = new Date().getHours();
@@ -62,6 +63,17 @@ export function SellerTopNav({ compact = false }: Props) {
         if (hour < 18) return "Good Afternoon";
         return "Good Evening";
     }, []);
+
+    const subtitle = useMemo(() => {
+        if (activeId === "dashboard") {
+            const name =
+                summary?.firstName ||
+                summary?.fullName?.split(" ")[0] ||
+                (profileLoading ? "…" : "Seller");
+            return `${greeting}, ${name}`;
+        }
+        return NAV_SUBTITLES[activeId] ?? greeting;
+    }, [activeId, greeting, summary, profileLoading]);
 
     const navTabs = (
         <View style={s.menuCardsContainer}>
@@ -127,7 +139,7 @@ export function SellerTopNav({ compact = false }: Props) {
                             {activeItem?.label ?? "Dashboard"}
                         </Text>
                         <Text style={s.navGreeting} numberOfLines={1}>
-                            {subtitle || greeting}
+                            {subtitle}
                         </Text>
                     </View>
                     <View style={s.navRight}>

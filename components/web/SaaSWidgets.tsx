@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, Pressable, Platform, Image } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Pressable, Platform, Image, Alert } from "react-native";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -78,9 +78,16 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const handlePress = (act: typeof actions[0]) => {
     if ((act as any).path) {
       router.push((act as any).path as any);
-    } else {
-      alert(`Action: ${act.label} initialized successfully!`);
+      return;
     }
+    if (act.action === "coupon" || act.action === "banner") {
+      Alert.alert(
+        "Coming soon",
+        `${act.label} will be available in a future release. Use product promotions from the dashboard for now.`,
+      );
+      return;
+    }
+    Alert.alert("Unavailable", `${act.label} is not available yet.`);
   };
 
   const handleCopy = () => {
@@ -1458,11 +1465,11 @@ export const FinancialCenter: React.FC<{
         </View>
 
         <View style={finStyles.exportRow}>
-          <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading PDF Invoice...")}>
+          <TouchableOpacity style={finStyles.btn} onPress={() => Alert.alert("Coming soon", "PDF invoice download will be available in a future release.")}>
             <Feather name="download" size={12} color={C.textMid} />
             <AppText style={finStyles.btnText}>Export Invoice PDF</AppText>
           </TouchableOpacity>
-          <TouchableOpacity style={finStyles.btn} onPress={() => alert("Downloading Excel Report...")}>
+          <TouchableOpacity style={finStyles.btn} onPress={() => Alert.alert("Coming soon", "Excel report download will be available in a future release.")}>
             <Feather name="file-text" size={12} color={C.textMid} />
             <AppText style={finStyles.btnText}>Export GST Excel</AppText>
           </TouchableOpacity>

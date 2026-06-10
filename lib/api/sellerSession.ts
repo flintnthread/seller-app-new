@@ -14,8 +14,6 @@ let memoryExpiresAt: number | null = null;
 let memoryLastActiveAt: number | null = null;
 let hydratePromise: Promise<void> | null = null;
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-
 async function readStorage(key: string): Promise<string | null> {
     if (Platform.OS === "web") {
         if (typeof window === "undefined") return null;
@@ -66,16 +64,6 @@ async function removeStorage(key: string): Promise<void> {
     }
 }
 
-function isSessionIdleExpired(): boolean {
-    if (memoryLastActiveAt == null) return false;
-    return Date.now() - memoryLastActiveAt > IDLE_TIMEOUT_MS;
-}
-
-function isSessionTokenExpired(): boolean {
-    if (memoryExpiresAt == null) return false;
-    return Date.now() >= memoryExpiresAt;
-}
-
 async function hydrateFromStorage(): Promise<void> {
     const rawId = await readStorage(SELLER_ID_STORAGE_KEY);
     if (rawId) {
@@ -102,16 +90,6 @@ async function hydrateFromStorage(): Promise<void> {
         memoryLastActiveAt = Date.now();
     }
 
-    if (isSessionIdleExpired() || isSessionTokenExpired()) {
-        memorySellerId = null;
-        memoryAccessToken = null;
-        memoryExpiresAt = null;
-        memoryLastActiveAt = null;
-        await removeStorage(SELLER_ID_STORAGE_KEY);
-        await removeStorage(AUTH_TOKEN_STORAGE_KEY);
-        await removeStorage(SESSION_EXPIRES_AT_KEY);
-        await removeStorage(SESSION_LAST_ACTIVE_KEY);
-    }
 }
 
 export function hydrateSellerSession(): Promise<void> {
@@ -177,9 +155,6 @@ export async function clearSellerId(): Promise<void> {
 }
 
 export function ensureSellerId(): number | null {
-    if (isSessionIdleExpired() || isSessionTokenExpired()) {
-        return null;
-    }
     if (memorySellerId != null && memorySellerId > 0 && memoryAccessToken) {
         return memorySellerId;
     }
@@ -187,9 +162,6 @@ export function ensureSellerId(): number | null {
 }
 
 export function ensureAccessToken(): string | null {
-    if (isSessionIdleExpired() || isSessionTokenExpired()) {
-        return null;
-    }
     if (memoryAccessToken?.trim()) {
         return memoryAccessToken.trim();
     }

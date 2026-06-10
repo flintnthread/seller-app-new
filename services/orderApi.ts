@@ -20,7 +20,7 @@ import type {
     PaymentInfo,
     PricingBreakdown,
     ShiprocketInfo,
-} from "@/app/(main)/ordersData";
+} from "@/lib/orders/ordersData";
 
 type ApiOrderStep = {
     key: string;
@@ -540,7 +540,7 @@ function withSellerId(path: string): string {
     return `${path}${sep}sellerId=${encodeURIComponent(String(sellerId))}`;
 }
 
-export async function fetchSellerOrderStats(): Promise<import("@/app/(main)/ordersStore").SellerOrderStats> {
+export async function fetchSellerOrderStats(): Promise<import("@/lib/orders/ordersStore").SellerOrderStats> {
     const stats = await apiRequest<ApiOrderStats>(withSellerId("/api/orders/stats"));
     return {
         totalLineItems: stats.totalLineItems,

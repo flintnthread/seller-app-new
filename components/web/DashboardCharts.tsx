@@ -34,9 +34,17 @@ export type ChartMetric =
   | "ProductPerf"
   | "Geographic";
 
+export type CategoryPerformanceRow = {
+  category: string;
+  value: number;
+};
+
 interface DashboardChartsProps {
   salesPeriod: SalesPeriod;
   onSalesPeriodChange: (period: SalesPeriod) => void;
+  ordersTrend?: number[];
+  returnsTrend?: number[];
+  categoryPerformance?: CategoryPerformanceRow[];
   salesData: Record<SalesPeriod, {
     points: number[];
     labels: string[];
@@ -61,6 +69,9 @@ interface DashboardChartsProps {
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   salesPeriod,
   onSalesPeriodChange,
+  ordersTrend = [],
+  returnsTrend = [],
+  categoryPerformance = [],
   salesData,
   allStatsData,
   reviewCount = 0,
@@ -177,10 +188,11 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     }
 
     if (activeMetric === "OrdersReturns") {
-      // Double Bar Chart for Orders vs Returns
-      const orders = [25, 42, 30, 56, 45, 68, 55];
-      const returns = [2, 5, 4, 8, 3, 7, 5];
-      const max = 75;
+      const orders = ordersTrend.length > 0 ? ordersTrend : [0];
+      const returns = returnsTrend.length > 0
+        ? returnsTrend
+        : orders.map(() => 0);
+      const max = Math.max(...orders, ...returns, 1);
 
       const barW = Math.round(chartW / 14);
       const gap = Math.round(chartW / 7);
@@ -223,23 +235,22 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     }
 
     if (activeMetric === "ProductPerf") {
-      // Product Performance Category Bar Chart
-      const cats = ["Clothing", "Accessories", "Footwear", "Jewelry", "Other"];
-      const vals = [75, 52, 38, 28, 12];
-      const barH = Math.round(chartH / 6);
-      const max = 100;
+      const rows = categoryPerformance.length > 0
+        ? categoryPerformance
+        : [{ category: "No sales yet", value: 0 }];
+      const max = Math.max(...rows.map((r) => r.value), 1);
 
       return (
         <View style={{ width: W, height: H, paddingHorizontal: padding }}>
-          {cats.map((cat, idx) => {
-            const widthPct = `${(vals[idx]! / max) * 75}%`;
+          {rows.map((row, idx) => {
+            const widthPct = `${(row.value / max) * 75}%`;
             return (
-              <View key={idx} style={styles.catBarRow}>
-                <AppText style={styles.catLabel} numberOfLines={1}>{cat}</AppText>
+              <View key={`${row.category}-${idx}`} style={styles.catBarRow}>
+                <AppText style={styles.catLabel} numberOfLines={1}>{row.category}</AppText>
                 <View style={styles.catBarBg}>
                   <View style={[styles.catBarFill, { width: widthPct as any, backgroundColor: C.purple }]} />
                 </View>
-                <AppText style={styles.catValText}>{vals[idx]}%</AppText>
+                <AppText style={styles.catValText}>{row.value}%</AppText>
               </View>
             );
           })}

@@ -220,45 +220,7 @@ export async function updateOrderStatus(
         liveOrders.set(id, updated);
         notify();
         return updated;
-    } catch {
-        const now = new Date();
-        const dateStr =
-            now.toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-            }) +
-            ", " +
-            now.toLocaleTimeString("en-IN", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-            });
-
-        const existingDates: Partial<Record<string, string>> = {};
-        order.steps.forEach((s) => {
-            if (s.date) existingDates[s.key] = s.date;
-        });
-
-        const statusToKey: Record<OrderStatus, string> = {
-            Pending: "pending",
-            Processing: "processing",
-            Shipped: "shipped",
-            Delivered: "delivered",
-            Returned: "returned",
-            Cancelled: "cancelled",
-        };
-        existingDates[statusToKey[newStatus]] = dateStr;
-
-        const fallback: OrderDetail = {
-            ...order,
-            status: newStatus,
-            steps: buildSteps(newStatus, existingDates),
-            primaryActionLabel: getPrimaryLabel(newStatus),
-            secondaryActionLabel: getSecondaryLabel(newStatus),
-        };
-
-        liveOrders.set(id, fallback);
-        notify();
-        return fallback;
+    } catch (error) {
+        throw error instanceof Error ? error : new Error("Failed to update order status.");
     }
 }

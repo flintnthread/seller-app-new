@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@/lib/api/client";
+import { isAuthErrorStatus } from "@/lib/api/apiErrors";
+import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import {
     dashboardPeriodFromUi,
     fetchDashboardCharts,
@@ -8,14 +11,23 @@ import {
 export function useDashboardCharts(uiPeriod: string) {
     const [charts, setCharts] = useState<DashboardCharts | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const reload = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
+            await hydrateSellerSession();
+            if (!ensureSellerId()) {
+                setCharts(null);
+                return;
+            }
             const data = await fetchDashboardCharts(dashboardPeriodFromUi(uiPeriod));
             setCharts(data);
-        } catch {
+        } catch (e) {
             setCharts(null);
+            const status = e instanceof ApiError ? e.status : undefined;
+            setError(isAuthErrorStatus(status) ? null : e instanceof Error ? e.message : "Failed to load charts.");
         } finally {
             setLoading(false);
         }
@@ -54,5 +66,5 @@ export function useDashboardCharts(uiPeriod: string) {
           }
         : null;
 
-    return { charts, loading, reload, salesChart, ordersChart, productsChart };
+    return { charts, loading, error, reload, salesChart, ordersChart, productsChart };
 }
