@@ -15,6 +15,7 @@ import {
   Clipboard,
   Pressable,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { AppText } from "@/components/AppText";
 import { DashboardAnalytics } from "./DashboardAnalytics";
 import type { SalesPeriod } from "./DashboardAnalytics";
@@ -155,10 +156,15 @@ export function DesktopDashboard({
         referralTotalReferred={referral?.totalReferred ?? 0}
       />
             ) : (
-              <View style={styles.incompleteWelcome}>
+              <LinearGradient
+                colors={[C.navyDeep, C.navy]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.incompleteWelcome}
+              >
                 <AppText style={styles.incompleteGreeting}>Welcome back,</AppText>
                 <AppText style={styles.incompleteName}>{welcomeName}</AppText>
-              </View>
+              </LinearGradient>
             )}
 
       {profileIncomplete ? (
@@ -279,17 +285,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   incompleteWelcome: {
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    width: "100%",
+    marginBottom: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderRadius: 0,
   },
   incompleteGreeting: {
     fontSize: 14,
-    color: C.textLight,
+    color: "rgba(255,255,255,0.75)",
     fontFamily: "Poppins_500Medium",
   },
   incompleteName: {
     fontSize: 26,
-    color: C.textDark,
+    color: "#FFFFFF",
     fontFamily: "Poppins_700Bold",
     marginTop: 2,
   },

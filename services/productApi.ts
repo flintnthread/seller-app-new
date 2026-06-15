@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { apiRequest } from "@/lib/api/client";
+import { resolveMediaUrl, resolveMediaUrls } from "@/lib/media/resolveMediaUrl";
 
 export type ProductListItem = {
     id: string;
@@ -269,7 +270,7 @@ function toListItem(row: ApiProductListItem): ProductListItem {
         name: row.name ?? "",
         sku: row.sku ?? "",
         price: Number(row.price ?? 0),
-        image: row.image ?? "",
+        image: resolveMediaUrl(row.image ?? "") ?? "",
         status: row.status ?? "Inactive",
         stock: Number(row.stock ?? 0),
         updated: row.updated ?? "",
@@ -331,13 +332,13 @@ function toVariant(v: ApiProductVariant): ProductDetailVariant {
         metroMetroDelivery: num(v.metroMetroDelivery ?? v.metroMetroDeliveryCharge),
         totalIntraCity: num(v.totalIntraCity ?? v.totalPriceIntraCity),
         totalMetroMetro: num(v.totalMetroMetro ?? v.totalPriceMetroMetro),
-        ...(v.imageUri ? { imageUri: v.imageUri } : {}),
-        ...(v.videoUri ? { videoUri: v.videoUri } : {}),
+        ...(v.imageUri ? { imageUri: resolveMediaUrl(v.imageUri) ?? v.imageUri } : {}),
+        ...(v.videoUri ? { videoUri: resolveMediaUrl(v.videoUri) ?? v.videoUri } : {}),
     };
 }
 
 function toDetail(row: ApiProductDetail): ProductDetail {
-    const images = row.images?.filter(Boolean) ?? [];
+    const images = resolveMediaUrls(row.images?.filter(Boolean) ?? []);
     return {
         id: String(row.id),
         categoryId: num(row.categoryId),
