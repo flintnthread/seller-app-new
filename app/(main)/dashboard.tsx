@@ -1348,10 +1348,22 @@ const MobileDashboard: React.FC<{
                         <AppText style={{ color: C.textMid, fontFamily: "Poppins_500Medium", fontSize: 13 }}>Loading dashboard…</AppText>
                     </View>
                 ) : null}
-                <View style={s.welcomeBanner}>
-                    <AppText style={s.welcomeGreeting}>{greeting},</AppText>
-                    <AppText style={s.welcomeName}>{displayName}</AppText>
-                </View>
+                {profileIncomplete ? (
+                    <LinearGradient
+                        colors={[C.navyDeep, C.navy]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={s.welcomeBannerBlue}
+                    >
+                        <AppText style={s.welcomeGreetingLight}>{greeting},</AppText>
+                        <AppText style={s.welcomeNameLight}>{displayName}</AppText>
+                    </LinearGradient>
+                ) : (
+                    <View style={s.welcomeBanner}>
+                        <AppText style={s.welcomeGreeting}>{greeting},</AppText>
+                        <AppText style={s.welcomeName}>{displayName}</AppText>
+                    </View>
+                )}
                 {profileIncomplete ? (
                     <CompleteProfileDashboardCard profile={profile} embedded />
                 ) : null}
@@ -1809,15 +1821,32 @@ const s = StyleSheet.create({
         borderWidth: 1,
         borderColor: C.border,
     },
+    welcomeBannerBlue: {
+        width: "100%",
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: 18,
+    },
     welcomeGreeting: {
         fontFamily: fontFamilies.regular,
         fontSize: 13,
         color: C.textLight,
     },
+    welcomeGreetingLight: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 13,
+        color: "rgba(255,255,255,0.75)",
+    },
     welcomeName: {
         fontFamily: fontFamilies.bold,
         fontSize: 22,
         color: C.navy,
+        marginTop: 2,
+    },
+    welcomeNameLight: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 22,
+        color: C.white,
         marginTop: 2,
     },
     headerSticky: { zIndex: 20, elevation: 20 },

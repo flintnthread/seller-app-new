@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useSyncExternalStore } from "react";
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, Platform, StatusBar, SafeAreaView, Switch,
@@ -18,6 +18,15 @@ import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { calcDiscountPercent } from "@/lib/product/pricing";
+import { generateVariantSku } from "@/lib/product/generateVariantSku";
+import { scrollViewsToTop } from "@/lib/product/scrollToTop";
+import {
+    getWebDropActiveKey,
+    setWebDropActiveKey,
+    subscribeWebDrop,
+} from "@/lib/ui/webDropCoordinator";
+import { weightToSlabLabel } from "@/lib/product/weightSlab";
 import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 import {
@@ -907,14 +916,14 @@ const Lbl = ({ text, required }: { text: string; required?: boolean }) => (
     <AppText style={at.lbl}>{text}{required && <AppText style={{ color: C.red }}> *</AppText>}</AppText>
 );
 
-const Field = ({ placeholder, value, onChangeText, keyboardType = "default", multiline = false, lines = 1, maxLength, prefix, hasError }: any) => {
+const Field = ({ placeholder, value, onChangeText, keyboardType = "default", multiline = false, lines = 1, maxLength, prefix, hasError, editable = true }: any) => {
     const [focused, setFocused] = useState(false);
     const { isDesktop } = useResponsive();
     return (
-        <View style={[at.fieldWrap, isDesktop && ds.fieldWrap, focused && at.fieldFocused, focused && isDesktop && ds.fieldFocused, multiline && { height: lines * (isDesktop ? 24 : 22) + (isDesktop ? 30 : 26), alignItems: "flex-start" }, hasError && at.fieldError]}>
+        <View style={[at.fieldWrap, isDesktop && ds.fieldWrap, focused && at.fieldFocused, focused && isDesktop && ds.fieldFocused, multiline && { height: lines * (isDesktop ? 24 : 22) + (isDesktop ? 30 : 26), alignItems: "flex-start" }, hasError && at.fieldError, !editable && at.fieldReadOnly]}>
             {prefix && <AppText style={at.fieldPfx}>{prefix}</AppText>}
             <TextInput
-                style={[at.fieldInput, multiline && { textAlignVertical: "top", paddingTop: 10 }]}
+                style={[at.fieldInput, multiline && { textAlignVertical: "top", paddingTop: 10 }, !editable && at.fieldInputReadOnly]}
                 placeholder={placeholder}
                 placeholderTextColor={C.textPlaceholder}
                 value={value}
@@ -922,6 +931,7 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
                 keyboardType={keyboardType}
                 multiline={multiline}
                 maxLength={maxLength}
+                editable={editable}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
             />
@@ -929,25 +939,80 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
     );
 };
 
-const Drop = ({ placeholder, value, onPress, hasError, options, onSelect }: any) => {
-    const [open, setOpen] = useState(false);
+const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey }: any) => {
+    const [localOpen, setLocalOpen] = useState(false);
+    const dropRootRef = useRef<View>(null);
+    const activeWebDropKey = useSyncExternalStore(subscribeWebDrop, getWebDropActiveKey, () => null);
+    const usesSharedWebDrop = Platform.OS === "web" && !!options && !!dropKey;
+    const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
+
+    const closeDrop = () => {
+        if (usesSharedWebDrop) setWebDropActiveKey(null);
+        else setLocalOpen(false);
+    };
+
+    const toggleDrop = () => {
+        if (usesSharedWebDrop) {
+            setWebDropActiveKey(open ? null : dropKey);
+        } else {
+            setLocalOpen((prev) => !prev);
+        }
+    };
+
+    useEffect(() => {
+        if (Platform.OS !== "web" || !open || !usesSharedWebDrop) return;
+
+        const handlePointerDown = (event: MouseEvent) => {
+            const node = dropRootRef.current as unknown as HTMLElement | null;
+            if (node?.contains(event.target as Node)) return;
+            setWebDropActiveKey(null);
+        };
+
+        document.addEventListener("mousedown", handlePointerDown);
+        return () => document.removeEventListener("mousedown", handlePointerDown);
+    }, [open, usesSharedWebDrop]);
+
     return (
-        <View style={Platform.OS === 'web' ? { zIndex: open ? 99 : 1, position: 'relative' } : undefined}>
-            <TouchableOpacity style={[at.drop, hasError && at.fieldError, open && Platform.OS === 'web' && { borderColor: C.navy }]} onPress={() => { if(Platform.OS === 'web' && options) { setOpen(!open); } else { if(onPress) onPress(); } }} activeOpacity={0.85}>
+        <View ref={dropRootRef} style={Platform.OS === 'web' ? { zIndex: open ? 99 : 1, position: 'relative' } : undefined}>
+            <TouchableOpacity style={[at.drop, hasError && at.fieldError, open && Platform.OS === 'web' && { borderColor: C.navy }]} onPress={() => { if(Platform.OS === 'web' && options) { toggleDrop(); } else { if(onPress) onPress(); } }} activeOpacity={0.85}>
                 <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
                 <Ionicons name={open && Platform.OS === 'web' ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
             </TouchableOpacity>
             {Platform.OS === 'web' && open && options && (
                 <>
-                    <TouchableOpacity style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={() => setOpen(false)} />
-                    <View style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5, zIndex: 101, maxHeight: 220 }}>
-                        <ScrollView style={{ paddingVertical: 8, maxHeight: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                            {options.map((opt: string, idx: number) => (
-                                <TouchableOpacity key={idx} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : 'transparent' }} onPress={() => { if(onSelect) onSelect(opt); setOpen(false); }}>
-                                    <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                    {!usesSharedWebDrop ? (
+                        <TouchableOpacity style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={closeDrop} />
+                    ) : null}
+                    <View
+                        style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: 4,
+                            backgroundColor: C.white,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: C.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 12,
+                            elevation: 5,
+                            zIndex: 101,
+                            maxHeight: 280,
+                            overflowY: 'auto',
+                            overflowX: 'hidden',
+                            paddingVertical: 8,
+                            overscrollBehavior: 'contain',
+                        } as any}
+                        onWheel={(e: any) => e.stopPropagation()}
+                    >
+                        {options.map((opt: string, idx: number) => (
+                            <TouchableOpacity key={idx} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : 'transparent' }} onPress={() => { if(onSelect) onSelect(opt); closeDrop(); }}>
+                                <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
+                            </TouchableOpacity>
+                        ))}
                     </View>
                 </>
             )}
@@ -1058,7 +1123,15 @@ const InlinePicker = ({
                         <Ionicons name="close" size={18} color={C.textMid} />
                     </TouchableOpacity>
                 </View>
-                <ScrollView style={fp.inlinePickerList} bounces={false} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                    style={fp.inlinePickerList}
+                    contentContainerStyle={fp.inlinePickerListContent}
+                    bounces={false}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                    keyboardShouldPersistTaps="handled"
+                    {...(Platform.OS === "web" ? { onWheel: (e: any) => e.stopPropagation() } : {})}
+                >
                     {items.map((opt, index) => (
                         <TouchableOpacity
                             key={`${title}-${index}-${opt}`}
@@ -1538,7 +1611,8 @@ const fp = StyleSheet.create({
         borderBottomColor: C.border,
     },
     inlinePickerTitle: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.textDark, flex: 1 },
-    inlinePickerList: { maxHeight: 280 },
+    inlinePickerList: { maxHeight: 280, flexGrow: 0 },
+    inlinePickerListContent: { paddingBottom: 8 },
     inlinePickerItem: {
         flexDirection: "row",
         alignItems: "center",
@@ -1676,12 +1750,13 @@ const SIZE_TABLE_COLS = [
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false, scrollRef: externalScrollRef }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
-    const scrollRef = useRef<ScrollView>(null);
+    const internalScrollRef = useRef<ScrollView>(null);
+    const scrollRef = externalScrollRef ?? internalScrollRef;
     const cardLayouts = useRef<Record<string, number>>({});
     const fieldLayouts = useRef<Record<string, number>>({});
     const fieldRefs = useRef<Record<string, any>>({});
@@ -2230,9 +2305,19 @@ type Variant = {
     videoUrl: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDesktop = false }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
+
+    const openColorPicker = (variantId: string) => {
+        setSzPick(null);
+        setClrPick(variantId);
+    };
+
+    const openSizePicker = (variantId: string) => {
+        setClrPick(null);
+        setSzPick(variantId);
+    };
 
     const hasErr = (id: string, field: string) =>
         errors.some((e: string) =>
@@ -2262,7 +2347,9 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
         }));
     };
 
-    const colorOptions = catalog?.colors?.map((c: { name: string }) => c.name) ?? [];
+    const colorOptions = uniquePickerOptions(
+        catalog?.colors?.map((c: { name: string }) => c.name) ?? []
+    );
     const sizeOptions =
         catalog?.sizes?.map((s: { name: string; code: string }) =>
             s.name === s.code ? s.name : `${s.name} (${s.code})`
@@ -2277,19 +2364,46 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                 s.code === val
         );
 
+    const resolveSizeCode = (variant: Variant) =>
+        catalog?.sizes?.find(
+            (s: { id?: number; name: string; code: string }) =>
+                s.id === variant.sizeId || s.name === variant.size
+        )?.code;
+
+    const withAutoFields = (variant: Variant, index: number): Variant => {
+        let next = { ...variant };
+        if (next.color && next.size) {
+            next.sku = generateVariantSku(
+                productName,
+                next.color,
+                next.size,
+                index + 1,
+                resolveSizeCode(next),
+            );
+        }
+        return next;
+    };
+
     const upVariant = (id: string, field: string, value: string | number | undefined) => {
-        setVariants((p: Variant[]) => p.map((v: Variant) => {
+        setVariants((p: Variant[]) => p.map((v: Variant, idx: number) => {
             if (v.id !== id) return v;
             const u = { ...v, [field]: value };
             if (field === "mrp" || field === "sellingPrice") {
                 const mrpRaw = field === "mrp" ? value : u.mrp;
                 const spRaw = field === "sellingPrice" ? value : u.sellingPrice;
-                const mrp = parseFloat(String(mrpRaw ?? "")) || 0;
-                const sp = parseFloat(String(spRaw ?? "")) || 0;
-                if (mrp > 0 && sp > 0 && sp <= mrp)
-                    u.discount = String(Math.round(((mrp - sp) / mrp) * 100));
+                u.discount = calcDiscountPercent(mrpRaw, spRaw);
+            }
+            if (field === "color" || field === "size" || field === "colorId" || field === "sizeId") {
+                return withAutoFields(u, idx);
             }
             return u;
+        }));
+    };
+
+    const patchVariant = (id: string, patch: Partial<Variant>) => {
+        setVariants((p: Variant[]) => p.map((v: Variant, idx: number) => {
+            if (v.id !== id) return v;
+            return withAutoFields({ ...v, ...patch }, idx);
         }));
     };
 
@@ -2305,6 +2419,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
@@ -2325,18 +2440,16 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                     <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Color" required />
-                            <Drop placeholder="Select color" value={v.color} onPress={() => setClrPick(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => {
+                            <Drop dropKey={`variant-${v.id}-color`} placeholder="Select color" value={v.color} onPress={() => openColorPicker(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => {
                                 const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
-                                upVariant(v.id, "color", val);
-                                upVariant(v.id, "colorId", color?.id);
+                                patchVariant(v.id, { color: val, colorId: color?.id });
                             }} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Size" required />
-                            <Drop placeholder="Select size" value={v.size} onPress={() => setSzPick(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
+                            <Drop dropKey={`variant-${v.id}-size`} placeholder="Select size" value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
                                 const size = resolveSizeFromLabel(val);
-                                upVariant(v.id, "size", size?.name ?? val);
-                                upVariant(v.id, "sizeId", size?.id);
+                                patchVariant(v.id, { size: size?.name ?? val, sizeId: size?.id });
                             }} />
                         </View>
                     </View>
@@ -2346,7 +2459,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                                 <Lbl text="SKU" />
                                 <View style={vt.auto}><AppText style={vt.autoTxt}>Auto</AppText></View>
                             </View>
-                            <Field placeholder="Auto-generated" value={v.sku} onChangeText={(val: string) => upVariant(v.id, "sku", val)} />
+                            <Field placeholder="Auto-generated" value={v.sku} editable={false} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Stock Qty" required />
@@ -2370,7 +2483,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                             <Lbl text="Discount %" />
                             <View style={vt.auto}><AppText style={vt.autoTxt}>Auto</AppText></View>
                         </View>
-                        <Field placeholder="0" value={v.discount} onChangeText={(val: string) => upVariant(v.id, "discount", val)} keyboardType="numeric" />
+                        <Field placeholder="0" value={v.discount} keyboardType="numeric" editable={false} />
                     </View>
                     <Divider />
                     <Lbl text="Variant Images" />
@@ -2405,8 +2518,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                 onSelect={(val: string) => {
                     if (!clrPick) return;
                     const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
-                    upVariant(clrPick, "color", val);
-                    upVariant(clrPick, "colorId", color?.id);
+                    patchVariant(clrPick, { color: val, colorId: color?.id });
                 }}
                 onClose={() => setClrPick(null)}
             />
@@ -2417,14 +2529,8 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
                 selected={variants.find((v: Variant) => v.id === szPick)?.size || ""}
                 onSelect={(val: string) => {
                     if (!szPick) return;
-                    const size = catalog?.sizes?.find(
-                        (s: { name: string; code: string }) =>
-                            s.name === val ||
-                            `${s.name} (${s.code})` === val ||
-                            s.code === val
-                    );
-                    upVariant(szPick, "size", size?.name ?? val);
-                    upVariant(szPick, "sizeId", size?.id);
+                    const size = resolveSizeFromLabel(val);
+                    patchVariant(szPick, { size: size?.name ?? val, sizeId: size?.id });
                 }}
                 onClose={() => setSzPick(null)}
             />
@@ -2435,7 +2541,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, isDes
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — Images
 // ─────────────────────────────────────────────────────────────
-const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
+const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
     const [srcModal, setSrcModal] = useState(false);
 
@@ -2488,6 +2594,7 @@ const StepImages = ({ data, onChange, errors, isDesktop = false }: any) => {
 
     return (
         <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
@@ -2619,8 +2726,9 @@ const ig = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false, catalog }: any) => {
-    const scrollRef = useRef<ScrollView>(null);
+const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false, catalog, scrollRef: externalScrollRef }: any) => {
+    const internalScrollRef = useRef<ScrollView>(null);
+    const scrollRef = externalScrollRef ?? internalScrollRef;
     const fieldRefs = useRef<Record<string, any>>({});
 
     useEffect(() => {
@@ -2817,11 +2925,11 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                     </View>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Min Days" />
-                        <Field placeholder="3" value={data.minDays} onChangeText={(v: string) => onChange("minDays", v)} keyboardType="numeric" />
+                        <Field placeholder="3" value={data.minDays} onChangeText={(v: string) => onChange("minDays", v)} keyboardType="numeric" editable={!data.deliveryOption} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Max Days" />
-                        <Field placeholder="7" value={data.maxDays} onChangeText={(v: string) => onChange("maxDays", v)} keyboardType="numeric" />
+                        <Field placeholder="7" value={data.maxDays} onChangeText={(v: string) => onChange("maxDays", v)} keyboardType="numeric" editable={!data.deliveryOption} />
                     </View>
                 </View>
                 <Field placeholder="Extra delivery notes…" value={data.deliveryInfo} onChangeText={(v: string) => onChange("deliveryInfo", v)} multiline lines={3} maxLength={1000} />
@@ -3255,6 +3363,7 @@ const AddNewProduct: React.FC = () => {
     const [savedProductId, setSavedProductId] = useState<string | null>(null);
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
     const [validationTrigger, setValidationTrigger] = useState(0);
+    const stepScrollRef = useRef<ScrollView>(null);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
 
@@ -3315,7 +3424,13 @@ const AddNewProduct: React.FC = () => {
         if (["weight", "length", "width", "height"].includes(k)) {
             cleanVal = v.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, "$1");
         }
-        setBasicData(p => ({ ...p, [k]: cleanVal }));
+        setBasicData((p) => {
+            const next = { ...p, [k]: cleanVal };
+            if (k === "weight") {
+                next.weightSlab = weightToSlabLabel(cleanVal);
+            }
+            return next;
+        });
         setBasicErrors(prev => prev.filter(e => !e.toLowerCase().includes(k.toLowerCase())));
     };
     const upDetails = (k: string, v: any) => setDetailsData(p => ({ ...p, [k]: v }));
@@ -3332,6 +3447,11 @@ const AddNewProduct: React.FC = () => {
     };
 
     const handleTabPress = (i: number) => { if (i <= maxUnlocked) setStep(i); };
+
+    useEffect(() => {
+        const timer = setTimeout(() => scrollViewsToTop(stepScrollRef.current), 50);
+        return () => clearTimeout(timer);
+    }, [step]);
 
     const handleContinue = () => {
         if (step === 0) {
@@ -3356,6 +3476,7 @@ const AddNewProduct: React.FC = () => {
         const next = step + 1;
         setMaxUnlocked(prev => Math.max(prev, next));
         setStep(next);
+        setTimeout(() => scrollViewsToTop(stepScrollRef.current), 50);
     };
 
     // ── handleSave: validate first, then show SweetAlert confirm ──
@@ -3463,6 +3584,7 @@ const AddNewProduct: React.FC = () => {
                     validationTrigger={validationTrigger}
                     catalog={catalog}
                     isDesktop={isDesktop}
+                    scrollRef={stepScrollRef}
                 />
             )}
             {step === 1 && (
@@ -3472,11 +3594,31 @@ const AddNewProduct: React.FC = () => {
                     rmVariant={rmVariant}
                     errors={variantErrors}
                     catalog={catalog}
+                    productName={basicData.name ?? ""}
                     isDesktop={isDesktop}
+                    scrollRef={stepScrollRef}
                 />
             )}
-            {step === 2 && <StepImages data={imagesData} onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))} errors={imageErrors} isDesktop={isDesktop} />}
-            {step === 3 && <StepDetails data={detailsData} onChange={upDetails} errors={detailErrors} validationTrigger={validationTrigger} isDesktop={isDesktop} catalog={catalog} />}
+            {step === 2 && (
+                <StepImages
+                    data={imagesData}
+                    onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))}
+                    errors={imageErrors}
+                    isDesktop={isDesktop}
+                    scrollRef={stepScrollRef}
+                />
+            )}
+            {step === 3 && (
+                <StepDetails
+                    data={detailsData}
+                    onChange={upDetails}
+                    errors={detailErrors}
+                    validationTrigger={validationTrigger}
+                    isDesktop={isDesktop}
+                    catalog={catalog}
+                    scrollRef={stepScrollRef}
+                />
+            )}
         </>
     );
 
@@ -3511,7 +3653,7 @@ const AddNewProduct: React.FC = () => {
                 </View>
                 <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} isDesktop />
                 <View style={ds.mainColumn}>
-                    <View style={ds.mainScroll}>{stepContent}</View>
+                    <View style={ds.mainScroll} key={`step-${step}`}>{stepContent}</View>
                     <View style={ds.barWrap}>{actionBar}</View>
                 </View>
                 <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -3536,7 +3678,7 @@ const AddNewProduct: React.FC = () => {
                 </TouchableOpacity>
             </View>
             <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} />
-            <View style={{ flex: 1, backgroundColor: C.bg }}>{stepContent}</View>
+            <View style={{ flex: 1, backgroundColor: C.bg }} key={`step-${step}`}>{stepContent}</View>
             {actionBar}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
             {sweetAlert}
@@ -3561,6 +3703,8 @@ const at = StyleSheet.create({
     fieldError: { borderColor: C.red, backgroundColor: "#FFF8F8" },
     fieldPfx: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid, marginRight: 6 },
     fieldInput: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 13, color: C.textDark, paddingVertical: 10 },
+    fieldReadOnly: { backgroundColor: "#F8FAFC" },
+    fieldInputReadOnly: { color: C.textMid },
     drop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.inputBg, borderWidth: 1.2, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, minHeight: 44 },
     dropText: { fontFamily: fontFamilies.regular, fontSize: 13, color: C.textDark, flex: 1 },
     dropPh: { color: C.textPlaceholder },

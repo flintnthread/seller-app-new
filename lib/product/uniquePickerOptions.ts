@@ -1,4 +1,4 @@
-/** Deduplicate picker labels while preserving first-seen order. */
+/** Deduplicate picker labels and sort A–Z for display (does not change API data). */
 export function uniquePickerOptions(options: string[]): string[] {
     const seen = new Set<string>();
     const result: string[] = [];
@@ -8,5 +8,5 @@ export function uniquePickerOptions(options: string[]): string[] {
         seen.add(label);
         result.push(label);
     }
-    return result;
+    return result.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }

@@ -1,4 +1,5 @@
 import type { ProductDetail } from "@/services/productApi";
+import { weightToSlabLabel } from "@/lib/product/weightSlab";
 
 function parseDimensionPart(dimensions: string, index: number): string {
     const parts = dimensions.split("×").map((p) => p.trim().replace(/cm/i, "").trim());
@@ -33,7 +34,7 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             width: parseDimensionPart(detail.dimensions, 1),
             height: parseDimensionPart(detail.dimensions, 2),
             weight: detail.weight?.replace(/\s*kg$/i, "") ?? "",
-            weightSlab: "",
+            weightSlab: weightToSlabLabel(detail.weight?.replace(/\s*kg$/i, "") ?? ""),
             fragile: detail.fragile ? "Yes" : "No",
             customized: false,
             custTitle: "",
