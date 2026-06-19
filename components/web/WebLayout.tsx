@@ -19,6 +19,8 @@ function WebMainContent({ children, isSidebarOpen, onToggleSidebar }: {
             style={styles.contentScroll} 
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
           >
         {children}
       </ScrollView>

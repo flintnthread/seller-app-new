@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     Animated,
     Modal,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -12,6 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useResponsive } from "@/hooks/useResponsive";
 
 const ORANGE = "#F28520";
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 type ToastVariant = "success" | "error" | "warning";
 
@@ -80,16 +82,16 @@ function SweetAlertToast({
         progressWidth.setValue(100);
 
         Animated.parallel([
-            Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 60, friction: 10 }),
-            Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.spring(translateX, { toValue: 0, useNativeDriver: USE_NATIVE_DRIVER, tension: 60, friction: 10 }),
+            Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: USE_NATIVE_DRIVER }),
         ]).start();
 
         Animated.timing(progressWidth, { toValue: 0, duration: 4000, useNativeDriver: false }).start();
 
         const timer = setTimeout(() => {
             Animated.parallel([
-                Animated.timing(translateX, { toValue: -400, duration: 350, useNativeDriver: true }),
-                Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }),
+                Animated.timing(translateX, { toValue: -400, duration: 350, useNativeDriver: USE_NATIVE_DRIVER }),
+                Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: USE_NATIVE_DRIVER }),
             ]).start(() => onHide());
         }, 4000);
 
@@ -111,7 +113,7 @@ function SweetAlertToast({
     });
 
     return (
-        <View style={toastStyles.wrapper} pointerEvents="none">
+        <View style={toastStyles.wrapper}>
             <Animated.View
                 style={[
                     toastStyles.container,
@@ -151,8 +153,8 @@ function SweetAlertDialog({
             scale.setValue(0.9);
             fade.setValue(0);
             Animated.parallel([
-                Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 10 }),
-                Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }),
+                Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, tension: 80, friction: 10 }),
+                Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: USE_NATIVE_DRIVER }),
             ]).start();
         }
     }, [state.visible]);

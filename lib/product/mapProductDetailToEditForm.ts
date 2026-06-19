@@ -1,5 +1,6 @@
 import type { ProductDetail } from "@/services/productApi";
-import { weightToSlabLabel } from "@/lib/product/weightSlab";
+import { resolveWeightSlab } from "@/lib/product/weightSlab";
+import { matchDeliveryTemplate, matchReturnPolicyTemplate } from "@/lib/products/policyPresets";
 
 function parseDimensionPart(dimensions: string, index: number): string {
     const parts = dimensions.split("×").map((p) => p.trim().replace(/cm/i, "").trim());
@@ -17,6 +18,8 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
     const images = detail.images.filter((u) => u && u.trim().length > 0);
     const features = (detail.features ?? []).filter((f) => f && f.trim().length > 0);
     const specifications = mapSpecifications(detail);
+    const weightRaw = detail.weight?.replace(/\s*kg$/i, "") ?? "";
+    const slab = resolveWeightSlab(weightRaw);
 
     return {
         basic: {
@@ -33,19 +36,22 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             length: parseDimensionPart(detail.dimensions, 0),
             width: parseDimensionPart(detail.dimensions, 1),
             height: parseDimensionPart(detail.dimensions, 2),
-            weight: detail.weight?.replace(/\s*kg$/i, "") ?? "",
-            weightSlab: weightToSlabLabel(detail.weight?.replace(/\s*kg$/i, "") ?? ""),
+            weight: weightRaw,
+            weightSlab: slab.label,
+            intraCityCharge: slab.custom ? "" : String(detail.intraCityCharge ?? slab.intraCityCharge),
+            metroMetroCharge: slab.custom ? "" : String(detail.metroMetroCharge ?? slab.metroMetroCharge),
+            customDeliveryCharge: !!slab.custom,
             fragile: detail.fragile ? "Yes" : "No",
-            customized: false,
-            custTitle: "",
-            custInstructions: "",
-            custLeadDays: "",
-            custCharge: "",
-            custAllowPhoto: false,
-            custImageLabel: "",
+            customized: detail.customized === true,
+            custTitle: detail.customTitle ?? "",
+            custInstructions: detail.customInstructions ?? "",
+            custLeadDays: detail.customLeadDays ?? "",
+            custCharge: detail.customCharge ?? "",
+            custAllowPhoto: detail.customAllowPhoto === true,
+            custImageLabel: detail.customImageLabel ?? "",
             custPickedImage: null as string | null,
-            custAllowText: false,
-            custTextLabel: "",
+            custAllowText: detail.customAllowText === true,
+            custTextLabel: detail.customTextLabel ?? "",
         },
         variants: detail.variants.map((v) => ({
             id: v.id,
@@ -67,11 +73,11 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
         details: {
             sizeChart: detail.sizeChartId != null ? String(detail.sizeChartId) : "",
             sizeChartId: detail.sizeChartId,
-            returnPolicy: detail.returnPolicy?.split(":")[0]?.trim() ?? detail.returnPolicy ?? "",
+            returnPolicy: matchReturnPolicyTemplate(detail.returnPolicy),
             returnPolicyText: detail.returnPolicy?.includes(":")
                 ? detail.returnPolicy.split(":").slice(1).join(":").trim()
                 : "",
-            deliveryOption: detail.delivery?.estimated ?? "Standard Delivery",
+            deliveryOption: matchDeliveryTemplate(detail.delivery?.estimated) || "Standard Delivery (Global)",
             minDays: detail.deliveryTimeMin != null ? String(detail.deliveryTimeMin) : "3",
             maxDays: detail.deliveryTimeMax != null ? String(detail.deliveryTimeMax) : "7",
             deliveryInfo: detail.delivery?.locations ?? detail.delivery?.estimated ?? "",

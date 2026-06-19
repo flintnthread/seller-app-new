@@ -14,10 +14,17 @@ import {
     Poppins_700Bold,
 } from "@expo-google-fonts/poppins";
 import { AppText } from "@/components/AppText";
+import { Checkbox } from "@/lib/seller/sellerComponents";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import {
+    newCustomBuyerField,
+    validateCustomBuyerFields,
+    CUSTOM_BUYER_FIELD_TYPES,
+    type CustomBuyerField,
+} from "@/lib/product/customProductFields";
 import { calcDiscountPercent } from "@/lib/product/pricing";
 import { generateVariantSku } from "@/lib/product/generateVariantSku";
 import { scrollViewsToTop } from "@/lib/product/scrollToTop";
@@ -26,9 +33,20 @@ import {
     setWebDropActiveKey,
     subscribeWebDrop,
 } from "@/lib/ui/webDropCoordinator";
-import { weightToSlabLabel } from "@/lib/product/weightSlab";
+import { resolveWeightSlab } from "@/lib/product/weightSlab";
 import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
+import {
+    buildCategoryPathOptions,
+    buildLeafSubcategoryOptions,
+    formatCategoryPath,
+    resolveCategoryPathSelection,
+    resolveLeafSubcategorySelection,
+} from "@/lib/product/categoryPaths";
+import {
+    allLeafSubcategoriesFromTree,
+    CATEGORY_TREE_FALLBACK,
+} from "@/lib/product/categoryTreeFallback";
 import {
     allChartSubcategoriesFromCatalog,
     subcategoriesMapFromCatalog,
@@ -38,8 +56,19 @@ import {
     fetchProductFormCatalog,
     type ProductFormCatalog,
 } from "@/services/productApi";
+import { createSize } from "@/services/sizeApi";
+import {
+    ensureSellerSizesInCatalog,
+    formatSizeOption,
+    resolveSizeNameFromLabel,
+} from "@/lib/product/ensureSellerSizesInCatalog";
 import { ApiError } from "@/lib/api/client";
-import { applyDeliverySelection, applyReturnPolicySelection } from "@/lib/products/policyPresets";
+import {
+    applyDeliverySelection,
+    applyReturnPolicySelection,
+    DELIVERY_OPTIONS,
+    RETURN_POLICY_OPTIONS,
+} from "@/lib/products/policyPresets";
 
 /** React 19 + RN Animated typing compatibility */
 const AnimatedView = Animated.View as React.ComponentType<
@@ -100,84 +129,8 @@ const C = {
 };
 
 // ─── Data ────────────────────────────────────────────────────
-const SUBCATEGORIES: Record<string, string[]> = {
-    "Clothing": [
-        "T-Shirts", "Shirts", "Jeans", "Dresses", "Jackets", "Shorts", "Innerwear", 
-        "Capris", "Clothing Set", "Dungarees & Jumpsuits", "Ethnic Wear", "Kurta Set", 
-        "Leggings", "Lehenga-Cholis", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants",
-        "Saree Fall", "Poplin"
-    ],
-    "Electronics": ["Mobiles", "Laptops", "Headphones", "Cameras", "Tablets", "Audio", "Wearables"],
-    "Footwear": [
-        "Sneakers", "Sandals", "Formal", "Sports", "Boots", 
-        "Ballet Flats", "Casual Shoes", "Flats", "Heels", "Wedges",
-        "Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes",
-        "Flip Flops", "Formal Shoes", "Loafers", "Booties", "Flats Shoes", "School Shoes", "Socks"
-    ],
-    "Bags": ["Backpacks", "Handbags", "Wallets", "Travel Bags", "Laptop Bags", "Lunch Carry Bags", "Sling Bags", "Wallets & Clutches"],
-    "Accessories": [
-        "Watches", "Sunglasses", "Jewelry", "Belts", 
-        "Wallets", "Eyewear", "Headwear", "Caps", "Fitness Gloves", "Gym Bags", "Sweatbands", "Water Bottles",
-        "Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"
-    ],
-    "Sports": ["Cricket", "Football", "Tennis", "Yoga", "Gym"],
-    "Home & Living": [
-        "Furniture", "Decor", "Kitchen", "Bedding",
-        "Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle",
-        "Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"
-    ],
-    "Books": ["Fiction", "Non-Fiction", "Academic", "Comics"],
-    "Jewellery": [
-        "Anklets", "Anti Tarnish Chains", "Bangles", "Bracelet", "Bridal Necklace", 
-        "Chains", "Couple Bracelets", "Customized Name Pendants", "Earrings", "Jewellery Set", 
-        "Key-lock Couple Sets", "Necklaces", "Nose Pins", "Pearl Necklace Set", "Pendants", "Rings", "Vaddanam"
-    ],
-    "Innerwear & Nightwear": ["Briefs & Boxers", "Loungewear", "Sleepwear", "Thermals", "Trunks", "Vests"],
-    "Gadgets Accessories": ["Clothing Accessories"],
-    "Other Accessories": ["Brooches", "Cufflinks", "Hair Accessories", "Mufflers", "Scarves"],
-    "Belts & Caps": ["Belts", "Caps", "Gloves", "Goggles", "Hats", "Sunglasses"],
-    "Women s Footwear": ["Ballet Flats", "Boots", "Casual Shoes", "Flats", "Heels", "Wedges"],
-    "Milk Sweets": ["Gulab Jamun", "Kalakand"],
-    "Preschool Furniture": ["Chairs", "Dustbins"],
-    "Women s Sportswear": ["Gym Wear", "Leggings", "Shorts", "Sports Bras", "Sports Tops", "Tracksuits", "Yoga Pants"],
-    "Everyday Utility ": ["Cushion Covers", "Customized Mugs", "Desk Name Plates", "Keychains", "Printed Cushions", "Water Bottle"],
-    "Wearable & Personal Gifts": ["Caps", "Customized T-Shirts", "Hoodies", "Mask", "Personalized Towels & Handkerchiefs"],
-    "Skincare Tools & Devices": ["Facial Devices"],
-    "Art & Creative Gifts": ["Canvas Painting Prints", "Minimalist Line Art", "Pencil Sketches"],
-    "Kids & Baby Gifts": ["Baby Name Frames", "Cartoon-Theme Photo Frames", "Growth Charts", "Soft Toys with Name"],
-    "Home Decor Gifits": ["Artificial Flower Frames", "Canva Prints", "Digital Clock", "Name Plates", "Photo Wall Collages", "Table D cor Showpieces", "Wall Clock"],
-    "Formal Wear": ["Formal Shirts", "Suits & Blazers", "Ties"],
-    "Sports Footwear": ["Cleats", "Cycling Shoes", "Hiking Shoes", "Running Shoes", "Sports Sandals", "Training Shoes"],
-    "Watches": ["Fitness Bands", "Men s Watches", "Women s Watches"],
-    " Girls Clothing": [
-        "Capris", "Clothing Set", "Dresses", "Dungarees & Jumpsuits", "Ethnic Wear", "Jackets", 
-        "Kurta Set", "Leggings", "Lehenga-Cholis", "Shorts", "Skirts & Jeans", "Tops & T-Shirts", "Track Pants"
-    ],
-    "Bottom Wear": ["Cargo Pants", "Casual Trousers", "Jeans", "Joggers", "Shorts / Bermudas", "Track Pants / Lower Wear", "Trousers (Formal / Regular)"],
-    "Lingerie & Sleepwear": ["Bottom Wear Inners", "Bras", "Camisoles", "Nightwear", "Panties", "Shapewear", "Swimwear", "Top Wear Inners"],
-    "Boys  Clothing": ["Clothing Set", "Ethnic Wear", "Jackets", "Jeans", "Nightwear", "Pyjamas", "Shorts", "Sweaters", "Sweatshirts", "T-Shirts", "Trousers"],
-    "Western Wear": ["Dresses", "Jeans", "Jeggings", "Jumpsuits", "Skirts & Shorts", "T-Shirts", "Tops", "Trousers"],
-    "Spiritual & Festival Gifts": ["Customized Temple Frames", "Festival Hampers", "God Photo Frames"],
-    "Dry Sweets": ["Boondhi Laddu", "Dryfruit Laddu", "Sununda"],
-    "Pre Indoor Play Items": ["Rocking Toys", "Slides"],
-    "Men s Sportswear": ["Compression Wear", "Jerseys", "Shorts", "T-Shirts", "Track Pants"],
-    "School Essentials": ["Bags", "Lunch Boxes", "School Uniforms", "Water Bottles"],
-    "Corporate & Promotional Gifts": ["Company Logo Frames", "Diaries", "Medal", "Pens", "Trophies", "Welcome Combo Kits"],
-    "Winter Wear": ["Cardigans", "Coats", "Jackets", "Shawls", "Sweaters"],
-    "Women s Clothing": ["Leggings", "Poplin", "Saree Fall"],
-    "Top Wear": ["Casual Shirts", "Coats", "Couple Wear", "Hoodies & Sweatshirts", "Jackets", "Polo Shirts", "Rain Jackets", "Shirts", "Sweaters", "T-Shirts"],
-    "Gifts for Couples": ["Explosion Gift Boxes", "Gift Items Novelties", "Love Scrapbooks"],
-    "Ethnic Wear": ["Dress Material", "Embroidery Work Blouse", "JUMPSUITS", "Kurtas & Kurtis", "Kurtha Set With Duppatta", "Lehenga Cholis", "Long Frock", "Salwar Suits", "Sarees", "Slik-Dupattas"],
-    "Educational Materials": ["Building Blocks/Block Construction Set", "Lacing & Threading Toys", "Linking Toys", "Shape Sorter & Stacking Toys"],
-    "Men s Footwear": ["Casual Shoes", "Flip Flops", "Formal Shoes", "Loafers", "Sandals", "Sneakers"],
-    "Kids  Footwear": ["Booties", "Casual Shoes", "Flats Shoes", "Flip Flops", "Heels", "Sandals", "School Shoes", "Socks"],
-    "Event-Based Gifts": ["Birthday Combo Hampers", "Gifits Hampers"]
-};
-const CATEGORIES = Object.keys(SUBCATEGORIES);
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
-const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
-const RETURN_POLICIES = ["7 Days Return", "14 Days Return", "30 Days Return", "No Return"];
 
 const STEPS = [
     { key: "basic", label: "Basic Info", icon: "information-outline", color: "#7C3AED" },
@@ -863,10 +816,7 @@ const validateBasicInfo = (data: any): string[] => {
     if (!data.height?.trim()) e.push("Height (cm) is required");
     if (!data.weight?.trim()) e.push("Weight (kg) is required");
     if (data.customized) {
-        if (!data.custTitle?.trim()) e.push("Customization title is required");
-        if (!data.custInstructions?.trim()) e.push("Customization instructions are required");
-        if (data.custAllowPhoto && !data.custImageLabel?.trim()) e.push("Image upload label is required");
-        if (data.custAllowText && !data.custTextLabel?.trim()) e.push("Custom text field label is required");
+        e.push(...validateCustomBuyerFields(data.custCustomFields ?? []));
     }
     return e;
 };
@@ -939,12 +889,14 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
     );
 };
 
-const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey }: any) => {
+const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey, disabled }: any) => {
     const [localOpen, setLocalOpen] = useState(false);
     const dropRootRef = useRef<View>(null);
     const activeWebDropKey = useSyncExternalStore(subscribeWebDrop, getWebDropActiveKey, () => null);
     const usesSharedWebDrop = Platform.OS === "web" && !!options && !!dropKey;
     const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
+    const hasOptions = Array.isArray(options) && options.length > 0;
+    const usesInlineMenu = Array.isArray(options);
 
     const closeDrop = () => {
         if (usesSharedWebDrop) setWebDropActiveKey(null);
@@ -952,11 +904,21 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
     };
 
     const toggleDrop = () => {
+        if (disabled) return;
         if (usesSharedWebDrop) {
             setWebDropActiveKey(open ? null : dropKey);
         } else {
             setLocalOpen((prev) => !prev);
         }
+    };
+
+    const handlePress = () => {
+        if (disabled) return;
+        if (usesInlineMenu) {
+            toggleDrop();
+            return;
+        }
+        if (onPress) onPress();
     };
 
     useEffect(() => {
@@ -972,21 +934,42 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
         return () => document.removeEventListener("mousedown", handlePointerDown);
     }, [open, usesSharedWebDrop]);
 
-    return (
-        <View ref={dropRootRef} style={Platform.OS === 'web' ? { zIndex: open ? 99 : 1, position: 'relative' } : undefined}>
-            <TouchableOpacity style={[at.drop, hasError && at.fieldError, open && Platform.OS === 'web' && { borderColor: C.navy }]} onPress={() => { if(Platform.OS === 'web' && options) { toggleDrop(); } else { if(onPress) onPress(); } }} activeOpacity={0.85}>
-                <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
-                <Ionicons name={open && Platform.OS === 'web' ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
+    const menuItems = hasOptions ? options : [];
+    const menuContent = menuItems.length === 0 ? (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+            <AppText style={{ fontSize: 13, color: C.textLight, fontFamily: fontFamilies.medium }}>No options available</AppText>
+        </View>
+    ) : (
+        menuItems.map((opt: string, idx: number) => (
+            <TouchableOpacity
+                key={idx}
+                style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : "transparent" }}
+                onPress={() => { if (onSelect) onSelect(opt); closeDrop(); }}
+            >
+                <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
             </TouchableOpacity>
-            {Platform.OS === 'web' && open && options && (
+        ))
+    );
+
+    return (
+        <View ref={dropRootRef} style={{ zIndex: open ? 200 : 1, position: "relative" }}>
+            <TouchableOpacity
+                style={[at.drop, hasError && at.fieldError, disabled && at.dropDisabled, open && { borderColor: C.navy }]}
+                onPress={handlePress}
+                activeOpacity={disabled ? 1 : 0.85}
+            >
+                <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
+                <Ionicons name={open ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
+            </TouchableOpacity>
+            {usesInlineMenu && open && !disabled && (
                 <>
-                    {!usesSharedWebDrop ? (
-                        <TouchableOpacity style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={closeDrop} />
+                    {Platform.OS === "web" && !usesSharedWebDrop ? (
+                        <TouchableOpacity style={{ position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} activeOpacity={1} onPress={closeDrop} />
                     ) : null}
                     <View
                         style={{
-                            position: 'absolute',
-                            top: '100%',
+                            position: "absolute",
+                            top: "100%",
                             left: 0,
                             right: 0,
                             marginTop: 4,
@@ -998,21 +981,21 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
                             shadowOffset: { width: 0, height: 4 },
                             shadowOpacity: 0.1,
                             shadowRadius: 12,
-                            elevation: 5,
-                            zIndex: 101,
+                            elevation: 8,
+                            zIndex: 201,
                             maxHeight: 280,
-                            overflowY: 'auto',
-                            overflowX: 'hidden',
-                            paddingVertical: 8,
-                            overscrollBehavior: 'contain',
-                        } as any}
-                        onWheel={(e: any) => e.stopPropagation()}
+                            overflow: "hidden",
+                            ...(Platform.OS === "web"
+                                ? ({ overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" } as object)
+                                : {}),
+                        }}
+                        {...(Platform.OS === "web"
+                            ? { onWheel: (e: { stopPropagation: () => void }) => e.stopPropagation() }
+                            : {})}
                     >
-                        {options.map((opt: string, idx: number) => (
-                            <TouchableOpacity key={idx} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: value === opt ? C.navyGhost : 'transparent' }} onPress={() => { if(onSelect) onSelect(opt); closeDrop(); }}>
-                                <AppText style={{ fontFamily: value === opt ? fontFamilies.semiBold : fontFamilies.medium, fontSize: 13.5, color: value === opt ? C.navy : C.textMid }}>{opt}</AppText>
-                            </TouchableOpacity>
-                        ))}
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator bounces={false} style={{ maxHeight: 280 }}>
+                            {menuContent}
+                        </ScrollView>
                     </View>
                 </>
             )}
@@ -1711,7 +1694,7 @@ const DEFAULT_SIZE_CHART_OPTIONS = [
 
 const CHART_CATEGORY_ALL = "All Categories";
 const CHART_SUB_ALL = "All Subcategories";
-const ALL_CHART_SUBCATEGORIES = Array.from(new Set(Object.values(SUBCATEGORIES).flat()));
+const ALL_CHART_SUBCATEGORIES = allLeafSubcategoriesFromTree(CATEGORY_TREE_FALLBACK);
 const MEASUREMENT_UNIT_OPTIONS = ["Centimetres (cm)", "Inches (in)"] as const;
 const DEFAULT_CHART_UNIT = MEASUREMENT_UNIT_OPTIONS[0];
 
@@ -1752,7 +1735,6 @@ const SIZE_TABLE_COLS = [
 // ─────────────────────────────────────────────────────────────
 const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false, scrollRef: externalScrollRef }: any) => {
     const [catPick, setCatPick] = useState(false);
-    const [subPick, setSubPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
     const internalScrollRef = useRef<ScrollView>(null);
@@ -1776,10 +1758,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 if (err.includes("width")) return "width";
                 if (err.includes("height")) return "height";
                 if (err.includes("weight")) return "weight";
-                if (err.includes("customization title")) return "custTitle";
-                if (err.includes("customization instructions")) return "custInstructions";
-                if (err.includes("image upload label")) return "custImageLabel";
-                if (err.includes("text field label") || err.includes("custom text")) return "custTextLabel";
+                if (err.includes("customization field") || err.includes("customer field")) return "custCustomFields";
                 return null;
             };
 
@@ -1808,8 +1787,8 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                         cardKey = 'dimensions';
                     } else if (['weight'].includes(fieldKey)) {
                         cardKey = 'weight';
-                    } else if (['custTitle', 'custInstructions', 'custImageLabel', 'custTextLabel'].includes(fieldKey)) {
-                        cardKey = 'custom';
+                    } else if (fieldKey === "custCustomFields") {
+                        cardKey = "custom";
                     }
 
                     const cardY = cardLayouts.current[cardKey] || 0;
@@ -1840,16 +1819,45 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
         }
     }, [errors, validationTrigger]);
 
-    const categoryOptions = uniquePickerOptions(
-        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
+    const categoryPathOptions = buildCategoryPathOptions(catalog, CATEGORY_TREE_FALLBACK);
+    const categoryDisplay = formatCategoryPath(data.category, data.categorySubName ?? "");
+    const leafSubcategoryOptions = buildLeafSubcategoryOptions(
+        catalog,
+        data.category,
+        data.categorySubName ?? "",
+        CATEGORY_TREE_FALLBACK
     );
-    const selectedCategory = catalog?.categories?.find(
-        (c: { name: string }) => c.name === data.category
-    );
-    const subcats = uniquePickerOptions(
-        selectedCategory?.subcategories?.map((s: { name: string }) => s.name) ??
-            (data.category ? SUBCATEGORIES[data.category] || [] : [])
-    );
+    const subcategoryEnabled = Boolean(data.category && data.categorySubName);
+    const selectCategoryPath = (label: string) => {
+        const resolved = resolveCategoryPathSelection(label, catalog);
+        onChange("category", resolved.category);
+        onChange("categoryId", resolved.categoryId);
+        onChange("categorySubId", resolved.categorySubId);
+        onChange("categorySubName", resolved.categorySubName);
+        const leaves = buildLeafSubcategoryOptions(
+            catalog,
+            resolved.category,
+            resolved.categorySubName,
+            CATEGORY_TREE_FALLBACK
+        );
+        if (leaves.length === 0) {
+            onChange("subcategory", resolved.categorySubName);
+            onChange("subcategoryId", resolved.categorySubId);
+        } else {
+            onChange("subcategory", "");
+            onChange("subcategoryId", null);
+        }
+    };
+    const selectSubcategory = (leafName: string) => {
+        const resolved = resolveLeafSubcategorySelection(
+            data.category,
+            data.categorySubName ?? "",
+            leafName,
+            catalog
+        );
+        onChange("subcategory", resolved.subcategory);
+        onChange("subcategoryId", resolved.subcategoryId);
+    };
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
@@ -1877,12 +1885,20 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                     fieldLayouts.current['subcategory'] = y;
                 }}>
                     <View ref={el => { fieldRefs.current['category'] = el; }} style={{ flex: 1 }}>
-                        <Lbl text="Category" required />
-                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryOptions} onSelect={(v: string) => { const cat = catalog?.categories?.find((c: { name: string }) => c.name === v); onChange("category", v); onChange("categoryId", cat?.id ?? null); onChange("subcategory", ""); onChange("subcategoryId", null); }} />
+                        <Lbl text="Main Category > Category" required />
+                        <Drop placeholder="Select main category > category" value={categoryDisplay} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryPathOptions} onSelect={selectCategoryPath} />
                     </View>
-                    <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1 }}>
+                    <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1, ...(Platform.OS === 'web' ? { zIndex: 30 } : {}) }}>
                         <Lbl text="Subcategory" required />
-                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} options={subcats} onSelect={(v: string) => { const sub = selectedCategory?.subcategories?.find( (s: { name: string }) => s.name === v ); onChange("subcategory", v); onChange("subcategoryId", sub?.id ?? null); }} />
+                        <Drop
+                            dropKey="basic-subcategory"
+                            placeholder="Select subcategory"
+                            value={data.subcategory}
+                            disabled={!subcategoryEnabled}
+                            hasError={hasErr("subcategory")}
+                            options={leafSubcategoryOptions}
+                            onSelect={selectSubcategory}
+                        />
                     </View>
                 </View>
                 <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
@@ -1989,6 +2005,20 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                         <Hint text="Based on entered weight" />
                     </View>
                 </View>
+                {data.customDeliveryCharge ? (
+                    <Hint text="Custom delivery pricing applies for this weight slab." />
+                ) : data.weightSlab ? (
+                    <View style={[at.row2, { marginTop: 8 }]}>
+                        <View style={{ flex: 1 }}>
+                            <Lbl text="Intra-city charge (₹)" />
+                            <Field value={String(data.intraCityCharge ?? "")} editable={false} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Lbl text="Metro-metro charge (₹)" />
+                            <Field value={String(data.metroMetroCharge ?? "")} editable={false} />
+                        </View>
+                    </View>
+                ) : null}
                 <Divider />
                 <Lbl text="Fragile Item?" required />
                 <View style={at.radioRow}>
@@ -2003,174 +2033,100 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
             </Card>
 
             <Card zIndex={60} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
-                <SecHead icon="palette-outline" title="Customization" accent={C.accent5} />
-                <Divider />
-                <TouchableOpacity style={at.customRow} onPress={() => onChange("customized", !data.customized)} activeOpacity={0.7}>
-                    <View style={[at.tog, data.customized && at.togOn]}>
-                        <View style={[at.togThumb, data.customized && at.togThumbOn]} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <AppText style={at.customTitle}>Customized Product</AppText>
-                        <AppText style={at.customSub}>Enable if buyers can personalise this product</AppText>
-                    </View>
-                </TouchableOpacity>
+                <AppText style={at.custSectionTitle}>Customized Product</AppText>
+                <View ref={el => { fieldRefs.current['custCustomFields'] = el; }}>
+                    <Checkbox
+                        checked={!!data.customized}
+                        onToggle={() => {
+                            const next = !data.customized;
+                            onChange("customized", next);
+                            if (next && !(data.custCustomFields?.length)) {
+                                onChange("custCustomFields", [newCustomBuyerField()]);
+                            }
+                        }}
+                        label="This is a customized product – customer will provide details (e.g. images, text) after placing the order"
+                        accentColor={C.navy}
+                    />
+                </View>
 
                 {data.customized && (
-                    <View style={at.custExpandWrap}>
-                        <Divider />
-                        <View ref={el => { fieldRefs.current['custTitle'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTitle'] = e.nativeEvent.layout.y; }}>
-                            <Lbl text="Customization Title" required />
-                            <Field
-                                placeholder="e.g. Personalised Name Engraving"
-                                value={data.custTitle}
-                                onChangeText={(v: string) => onChange("custTitle", v)}
-                                maxLength={100}
-                                hasError={hasErr("customization title")}
-                            />
-                        </View>
-                        <View ref={el => { fieldRefs.current['custInstructions'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custInstructions'] = e.nativeEvent.layout.y; }}>
-                            <Lbl text="Instructions for Buyer" required />
-                            <Field
-                                placeholder="e.g. Please share your name, preferred font, and colour preference…"
-                                value={data.custInstructions}
-                                onChangeText={(v: string) => onChange("custInstructions", v)}
-                                multiline
-                                lines={3}
-                                maxLength={500}
-                                hasError={hasErr("customization instructions")}
-                            />
-                        </View>
-                        <CC cur={(data.custInstructions || "").length} max={500} />
+                    <View style={at.custFieldsBox}>
+                        <AppText style={at.custFieldsHint}>
+                            Add the fields you need from the customer (e.g. Reference Images, Size details, Text/Instructions). They will fill these after ordering.
+                        </AppText>
 
-                        <Lbl text="Allow Reference Image Upload" />
-                        <View style={at.custTogRow}>
-                            <Switch
-                                value={data.custAllowPhoto}
-                                onValueChange={(v: boolean) => onChange("custAllowPhoto", v)}
-                                trackColor={{ false: C.border, true: C.accent5 }}
-                                thumbColor={C.white}
-                            />
-                            <View style={{ flex: 1 }}>
-                                <AppText style={at.custTogTitle}>Buyer can upload a reference image</AppText>
-                                <AppText style={at.custTogSub}>Accepted: JPG / PNG · Max 5 MB · 1 image</AppText>
-                            </View>
-                        </View>
-                        {data.custAllowPhoto && (
-                            <View ref={el => { fieldRefs.current['custImageLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custImageLabel'] = e.nativeEvent.layout.y; }}>
-                                <View style={at.custSubFieldBar} />
-                                <View style={{ flex: 1 }}>
-                                    <Lbl text="Image Upload Label" required />
+                        {(data.custCustomFields ?? []).map((field: CustomBuyerField, index: number) => (
+                            <View key={field.id} style={at.custFieldRow}>
+                                <View style={at.custFieldNameWrap}>
                                     <Field
-                                        placeholder="e.g. Upload your reference photo here"
-                                        value={data.custImageLabel}
-                                        onChangeText={(v: string) => onChange("custImageLabel", v)}
+                                        placeholder="Field name (e.g. Reference Images)"
+                                        value={field.name}
+                                        onChangeText={(v: string) => {
+                                            const next = (data.custCustomFields ?? []).map((f: CustomBuyerField) =>
+                                                f.id === field.id ? { ...f, name: v } : f
+                                            );
+                                            onChange("custCustomFields", next);
+                                        }}
                                         maxLength={120}
-                                        hasError={hasErr("image upload label")}
+                                        hasError={hasErr(`customization field #${index + 1}`)}
                                     />
-                                    <Hint text="This label is shown to the buyer on the upload field" />
-                                    <Lbl text="Sample / Reference Image" />
-                                    <CustImagePicker
-                                        uri={data.custPickedImage}
-                                        onPick={(uri: string) => onChange("custPickedImage", uri)}
-                                        onRemove={() => onChange("custPickedImage", null)}
-                                        hasError={false}
-                                    />
-                                    <Hint text="Optionally upload a sample so buyers know what to send" />
                                 </View>
-                            </View>
-                        )}
-
-                        <Lbl text="Allow Custom Text / Name" />
-                        <View style={at.custTogRow}>
-                            <Switch
-                                value={data.custAllowText}
-                                onValueChange={(v: boolean) => onChange("custAllowText", v)}
-                                trackColor={{ false: C.border, true: C.accent5 }}
-                                thumbColor={C.white}
-                            />
-                            <View style={{ flex: 1 }}>
-                                <AppText style={at.custTogTitle}>Buyer can enter a name or message</AppText>
-                                <AppText style={at.custTogSub}>Max 100 characters · any case allowed</AppText>
-                            </View>
-                        </View>
-                        {data.custAllowText && (
-                            <View ref={el => { fieldRefs.current['custTextLabel'] = el; }} style={at.custSubField} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['custTextLabel'] = e.nativeEvent.layout.y; }}>
-                                <View style={at.custSubFieldBar} />
-                                <View style={{ flex: 1 }}>
-                                    <Lbl text="Text Field Label" required />
-                                    <Field
-                                        placeholder="e.g. Enter the name to be printed"
-                                        value={data.custTextLabel}
-                                        onChangeText={(v: string) => onChange("custTextLabel", v)}
-                                        maxLength={120}
-                                        hasError={hasErr("custom text field label")}
+                                <View style={at.custFieldTypeWrap}>
+                                    <Drop
+                                        placeholder="Type"
+                                        value={field.type}
+                                        options={[...CUSTOM_BUYER_FIELD_TYPES]}
+                                        dropKey={`cust-field-type-${field.id}`}
+                                        onSelect={(v: string) => {
+                                            const next = (data.custCustomFields ?? []).map((f: CustomBuyerField) =>
+                                                f.id === field.id ? { ...f, type: v as CustomBuyerField["type"] } : f
+                                            );
+                                            onChange("custCustomFields", next);
+                                        }}
                                     />
-                                    <Hint text="This label is shown to the buyer on the text input field" />
                                 </View>
+                                <View style={at.custFieldReqWrap}>
+                                    <Checkbox
+                                        checked={field.required}
+                                        onToggle={() => {
+                                            const next = (data.custCustomFields ?? []).map((f: CustomBuyerField) =>
+                                                f.id === field.id ? { ...f, required: !f.required } : f
+                                            );
+                                            onChange("custCustomFields", next);
+                                        }}
+                                        label="Required"
+                                        accentColor={C.navy}
+                                    />
+                                </View>
+                                <TouchableOpacity
+                                    style={at.custFieldDeleteBtn}
+                                    onPress={() => onChange("custCustomFields", (data.custCustomFields ?? []).filter((f: CustomBuyerField) => f.id !== field.id))}
+                                    activeOpacity={0.8}
+                                >
+                                    <Feather name="trash-2" size={16} color={C.red} />
+                                </TouchableOpacity>
                             </View>
-                        )}
+                        ))}
 
-                        <View style={at.row2}>
-                            <View style={{ flex: 1 }}>
-                                <Lbl text="Extra Lead Time (days)" />
-                                <Field
-                                    placeholder="e.g. 3"
-                                    value={data.custLeadDays}
-                                    onChangeText={(v: string) => onChange("custLeadDays", v)}
-                                    keyboardType="numeric"
-                                />
-                                <Hint text="Additional days for customisation" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Lbl text="Extra Charge (₹)" />
-                                <Field
-                                    placeholder="0.00"
-                                    value={data.custCharge}
-                                    onChangeText={(v: string) => onChange("custCharge", v)}
-                                    keyboardType="decimal-pad"
-                                    prefix="₹"
-                                />
-                                <Hint text="Leave blank if free" />
-                            </View>
-                        </View>
-
-                        <View style={at.custNote}>
-                            <MaterialCommunityIcons name="information-outline" size={15} color={C.accent5} />
-                            <AppText style={at.custNoteTxt}>
-                                Customised orders cannot be cancelled after production begins. Make sure your policy is clearly stated.
-                            </AppText>
-                        </View>
+                        <TouchableOpacity
+                            style={at.custAddFieldBtn}
+                            onPress={() => onChange("custCustomFields", [...(data.custCustomFields ?? []), newCustomBuyerField()])}
+                            activeOpacity={0.85}
+                        >
+                            <Feather name="plus" size={16} color={C.white} />
+                            <AppText style={at.custAddFieldBtnTxt}>Add field</AppText>
+                        </TouchableOpacity>
                     </View>
                 )}
             </Card>
 
             <PM
                 visible={catPick}
-                title="Select Category"
-                options={categoryOptions}
-                selected={data.category}
-                onSelect={(v: string) => {
-                    const cat = catalog?.categories?.find((c: { name: string }) => c.name === v);
-                    onChange("category", v);
-                    onChange("categoryId", cat?.id ?? null);
-                    onChange("subcategory", "");
-                    onChange("subcategoryId", null);
-                }}
+                title="Select Main Category > Category"
+                options={categoryPathOptions}
+                selected={categoryDisplay}
+                onSelect={selectCategoryPath}
                 onClose={() => setCatPick(false)}
-            />
-            <PM
-                visible={subPick}
-                title="Select Subcategory"
-                options={subcats}
-                selected={data.subcategory}
-                onSelect={(v: string) => {
-                    const sub = selectedCategory?.subcategories?.find(
-                        (s: { name: string }) => s.name === v
-                    );
-                    onChange("subcategory", v);
-                    onChange("subcategoryId", sub?.id ?? null);
-                }}
-                onClose={() => setSubPick(false)}
             />
             <PM
                 visible={matPick}
@@ -2305,9 +2261,13 @@ type Variant = {
     videoUrl: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef, reloadCatalog }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
+    const [addSizeOpen, setAddSizeOpen] = useState(false);
+    const [newSizeName, setNewSizeName] = useState("");
+    const [newSizeCode, setNewSizeCode] = useState("");
+    const [savingSize, setSavingSize] = useState(false);
 
     const openColorPicker = (variantId: string) => {
         setSzPick(null);
@@ -2407,6 +2367,31 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         }));
     };
 
+    const handleCreateSize = async () => {
+        const name = newSizeName.trim();
+        const code = newSizeCode.trim().toUpperCase();
+        if (!name || !code) {
+            Alert.alert("Required", "Size name and code are required.");
+            return;
+        }
+        setSavingSize(true);
+        try {
+            const created = await createSize({ name, code, status: "Active" });
+            await reloadCatalog?.();
+            if (szPick) {
+                patchVariant(szPick, { size: created.name, sizeId: Number(created.id) });
+            }
+            setAddSizeOpen(false);
+            setNewSizeName("");
+            setNewSizeCode("");
+            setSzPick(null);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
+        } finally {
+            setSavingSize(false);
+        }
+    };
+
     if (!catalogReady) {
         return (
             <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
@@ -2424,7 +2409,12 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
             style={isDesktop ? ds.stepScroll : undefined}
             contentContainerStyle={getStepScrollContent(isDesktop)}
         >
-            {variants.map((v: Variant, idx: number) => (
+            {variants.map((v: Variant, idx: number) => {
+                const firstSameColorIdx = variants.findIndex(
+                    (pv: Variant) => pv.color.trim() && pv.color === v.color
+                );
+                const reuseColorImages = firstSameColorIdx >= 0 && firstSameColorIdx < idx;
+                return (
                 <Card key={v.id} zIndex={100 - idx} style={{ marginBottom: 12 }}>
                     <View style={vt.hdr}>
                         <View style={vt.badge}><AppText style={vt.badgeTxt}>#{idx + 1}</AppText></View>
@@ -2451,6 +2441,9 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                 const size = resolveSizeFromLabel(val);
                                 patchVariant(v.id, { size: size?.name ?? val, sizeId: size?.id });
                             }} />
+                            <TouchableOpacity onPress={() => { setSzPick(v.id); setAddSizeOpen(true); }} style={vt.addSizeLink}>
+                                <AppText style={vt.addSizeLinkTxt}>+ Add new size (your account only)</AppText>
+                            </TouchableOpacity>
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -2486,19 +2479,31 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                         <Field placeholder="0" value={v.discount} keyboardType="numeric" editable={false} />
                     </View>
                     <Divider />
-                    <Lbl text="Variant Images" />
-                    <Hint text="Add up to 6 images · first image is used as primary" />
-                    <ImagePickerGrid
-                        images={v.images}
-                        onAdd={(uris: string[]) => addVariantImage(v.id, uris)}
-                        onRemove={(i: number) => removeVariantImage(v.id, i)}
-                        maxCount={6}
-                        hasError={hasErr(v.id, "image")}
-                        label="Add Photo"
-                    />
+                    {!reuseColorImages ? (
+                        <>
+                            <Lbl text="Variant Images" />
+                            <Hint text="Add up to 6 images · first image is used as primary" />
+                            <ImagePickerGrid
+                                images={v.images}
+                                onAdd={(uris: string[]) => addVariantImage(v.id, uris)}
+                                onRemove={(i: number) => removeVariantImage(v.id, i)}
+                                maxCount={6}
+                                hasError={hasErr(v.id, "image")}
+                                label="Add Photo"
+                            />
+                        </>
+                    ) : (
+                        <View style={vt.reuseNote}>
+                            <MaterialCommunityIcons name="image-multiple" size={16} color={C.navyLight} />
+                            <AppText style={vt.reuseNoteTxt}>
+                                Using images from variant #{firstSameColorIdx + 1} ({v.color}) — same colour, different size.
+                            </AppText>
+                        </View>
+                    )}
 
                 </Card>
-            ))}
+                );
+            })}
 
             <TouchableOpacity style={vt.addBtn} onPress={addVariant}>
                 <View style={vt.addIcon}><Ionicons name="add" size={18} color={C.navy} /></View>
@@ -2534,6 +2539,26 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                 }}
                 onClose={() => setSzPick(null)}
             />
+            <Modal visible={addSizeOpen} transparent animationType="fade" onRequestClose={() => setAddSizeOpen(false)}>
+                <View style={vt.sizeModalOverlay}>
+                    <View style={vt.sizeModalCard}>
+                        <AppText style={vt.sizeModalTitle}>Add New Size</AppText>
+                        <AppText style={vt.sizeModalSub}>Saved for your seller account only</AppText>
+                        <Lbl text="Size Name" required />
+                        <Field placeholder="e.g. Medium" value={newSizeName} onChangeText={setNewSizeName} />
+                        <Lbl text="Size Code" required />
+                        <Field placeholder="e.g. M1" value={newSizeCode} onChangeText={setNewSizeCode} autoCapitalize="characters" />
+                        <View style={vt.sizeModalActions}>
+                            <TouchableOpacity style={vt.sizeModalCancel} onPress={() => setAddSizeOpen(false)} disabled={savingSize}>
+                                <AppText style={vt.sizeModalCancelTxt}>Cancel</AppText>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={vt.sizeModalSave} onPress={handleCreateSize} disabled={savingSize}>
+                                {savingSize ? <ActivityIndicator color={C.white} size="small" /> : <AppText style={vt.sizeModalSaveTxt}>Save Size</AppText>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 };
@@ -2726,7 +2751,7 @@ const ig = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false, catalog, scrollRef: externalScrollRef }: any) => {
+const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop = false, catalog, scrollRef: externalScrollRef, reloadCatalog }: any) => {
     const internalScrollRef = useRef<ScrollView>(null);
     const scrollRef = externalScrollRef ?? internalScrollRef;
     const fieldRefs = useRef<Record<string, any>>({});
@@ -2784,6 +2809,12 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const [chartCatPick, setChartCatPick] = useState(false);
     const [chartSubPick, setChartSubPick] = useState(false);
     const [chartUnitPick, setChartUnitPick] = useState(false);
+    const [chartSizePickRowId, setChartSizePickRowId] = useState<string | null>(null);
+    const [addChartSizeOpen, setAddChartSizeOpen] = useState(false);
+    const [newChartSizeName, setNewChartSizeName] = useState("");
+    const [newChartSizeCode, setNewChartSizeCode] = useState("");
+    const [savingChartSize, setSavingChartSize] = useState(false);
+    const [savingChart, setSavingChart] = useState(false);
     const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
     const features = data.features?.length ? data.features : [""];
     const specs = data.specifications?.length ? data.specifications : [{ name: "", value: "" }];
@@ -2797,6 +2828,11 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         chartCategory === CHART_CATEGORY_ALL
             ? [CHART_SUB_ALL, ...allChartSubcategoriesFromCatalog(catalog ?? null)]
             : [CHART_SUB_ALL, ...(chartSubMap[chartCategory]?.filter((s: string) => s !== "All") ?? [])];
+
+    const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
+    const chartSizeOptions = uniquePickerOptions(
+        catalogSizes.map((s) => formatSizeOption(s))
+    );
 
     const openCreateSizeChart = () => {
         setNewChartName("");
@@ -2817,7 +2853,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         setCustomPolicyOpen(true);
     };
 
-    const saveSizeChart = () => {
+    const saveSizeChart = async () => {
         const name = newChartName.trim();
         if (!name) {
             Alert.alert("Chart name required", "Please enter a name for your size chart.");
@@ -2828,12 +2864,23 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
             Alert.alert("Sizes required", "Add at least one size row to the chart.");
             return;
         }
-        setSizeChartOptions((prev) => {
-            if (prev.includes(name)) return prev;
-            return [...prev, name];
-        });
-        onChange("sizeChart", name);
-        setCreateSizeOpen(false);
+        setSavingChart(true);
+        try {
+            const sizeNames = validRows.map((r) => r.size.trim());
+            await ensureSellerSizesInCatalog(sizeNames, catalogSizes);
+            await reloadCatalog?.();
+            setSizeChartOptions((prev) => {
+                if (prev.includes(name)) return prev;
+                return [...prev, name];
+            });
+            onChange("sizeChart", name);
+            onChange("sizeChartRows", validRows);
+            setCreateSizeOpen(false);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not save sizes to your catalog.");
+        } finally {
+            setSavingChart(false);
+        }
     };
 
     const saveCustomPolicy = () => {
@@ -2859,6 +2906,38 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         setChartRows((prev) =>
             prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
         );
+    };
+
+    const handleCreateChartSize = async () => {
+        const name = newChartSizeName.trim();
+        const code = newChartSizeCode.trim().toUpperCase();
+        if (!name || !code) {
+            Alert.alert("Required", "Size name and code are required.");
+            return;
+        }
+        setSavingChartSize(true);
+        try {
+            const created = await createSize({ name, code, status: "Active" });
+            await reloadCatalog?.();
+            if (chartSizePickRowId) {
+                updateChartRow(chartSizePickRowId, "size", created.name);
+            } else {
+                const emptyRow = chartRows.find((r) => !r.size.trim());
+                if (emptyRow) {
+                    updateChartRow(emptyRow.id, "size", created.name);
+                } else {
+                    setChartRows((prev) => [...prev, emptySizeRow(created.name)]);
+                }
+            }
+            setAddChartSizeOpen(false);
+            setNewChartSizeName("");
+            setNewChartSizeCode("");
+            setChartSizePickRowId(null);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
+        } finally {
+            setSavingChartSize(false);
+        }
     };
 
     const twoCol = isDesktop ? at.row2 : dt.responsiveCol;
@@ -2896,7 +2975,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }]}>
                     <View style={fieldFlex} ref={el => { fieldRefs.current['returnPolicy'] = el; }}>
                         <Lbl text="Policy Template" required />
-                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICIES} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
+                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICY_OPTIONS} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
@@ -2968,7 +3047,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 <SecHead icon="format-list-bulleted" title="Features & Specs" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Product Features" />
-                {features.map((f, i) => (
+                {features.map((f: string, i: number) => (
                     <View key={i} style={{ marginBottom: 10 }}>
                         <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; onChange("features", arr); }} />
                     </View>
@@ -2979,7 +3058,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 </TouchableOpacity>
                 <Divider />
                 <Lbl text="Specifications" />
-                {specs.map((sp, i) => (
+                {specs.map((sp: { name: string; value: string }, i: number) => (
                     <View key={i} style={dt.specRow}>
                         <View style={{ flex: 1 }}>
                             <Field placeholder="Name" value={sp.name} onChangeText={(v: string) => {
@@ -2995,7 +3074,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                                 onChange("specifications", arr);
                             }} />
                         </View>
-                        <TouchableOpacity style={dt.specDel} onPress={() => onChange("specifications", specs.filter((_, idx) => idx !== i))}>
+                        <TouchableOpacity style={dt.specDel} onPress={() => onChange("specifications", specs.filter((_: { name: string; value: string }, idx: number) => idx !== i))}>
                             <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.red} />
                         </TouchableOpacity>
                     </View>
@@ -3014,7 +3093,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 onSelect={(v: string) => onChange("sizeChart", v)}
                 onClose={() => setSizePick(false)}
             />
-            <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
+            <PM visible={retPick} title="Return Policy" options={RETURN_POLICY_OPTIONS} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
             <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => applyDeliverySelection(v, onChange)} onClose={() => setDelPick(false)} />
 
             <FormPopupModal
@@ -3058,6 +3137,23 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                             onSelect={setChartUnit}
                             onClose={() => setChartUnitPick(false)}
                         />
+                        <InlinePicker
+                            visible={chartSizePickRowId != null}
+                            title="Select Size"
+                            options={chartSizeOptions}
+                            selected={chartRows.find((r) => r.id === chartSizePickRowId)?.size ?? ""}
+                            onSelect={(v: string) => {
+                                if (chartSizePickRowId) {
+                                    updateChartRow(
+                                        chartSizePickRowId,
+                                        "size",
+                                        resolveSizeNameFromLabel(v, catalogSizes)
+                                    );
+                                }
+                                setChartSizePickRowId(null);
+                            }}
+                            onClose={() => setChartSizePickRowId(null)}
+                        />
                     </>
                 }
             >
@@ -3094,6 +3190,13 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                         <AppText style={dt.addSizeOrangeBtnTxt}>Add Size</AppText>
                     </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                    onPress={() => setAddChartSizeOpen(true)}
+                    style={vt.addSizeLink}
+                    activeOpacity={0.7}
+                >
+                    <AppText style={vt.addSizeLinkTxt}>+ Add new size to your catalog (seller only)</AppText>
+                </TouchableOpacity>
                 {chartRows.length > 0 ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
                         <View style={dt.sizeTableWrap}>
@@ -3109,13 +3212,28 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                                 <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
                                     {SIZE_TABLE_COLS.map((col) => (
                                         <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
-                                            <TextInput
-                                                style={dt.sizeTableInput}
-                                                placeholder={col.placeholder}
-                                                placeholderTextColor={C.textPlaceholder}
-                                                value={row[col.key]}
-                                                onChangeText={(v: string) => updateChartRow(row.id, col.key, v)}
-                                            />
+                                            {col.key === "size" ? (
+                                                <TouchableOpacity
+                                                    style={[dt.sizeTableInput, { justifyContent: "center" }]}
+                                                    onPress={() => setChartSizePickRowId(row.id)}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <AppText
+                                                        style={{ fontFamily: fontFamilies.regular, fontSize: 12, color: row.size ? C.textDark : C.textPlaceholder }}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {row.size || "Select"}
+                                                    </AppText>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <TextInput
+                                                    style={dt.sizeTableInput}
+                                                    placeholder={col.placeholder}
+                                                    placeholderTextColor={C.textPlaceholder}
+                                                    value={row[col.key]}
+                                                    onChangeText={(v: string) => updateChartRow(row.id, col.key, v)}
+                                                />
+                                            )}
                                         </View>
                                     ))}
                                     <View style={dt.sizeTableTdAction}>
@@ -3149,11 +3267,40 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                     <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCreateSizeOpen(false)}>
                         <AppText style={fp.footerBtnTxtSecondary}>Cancel</AppText>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveSizeChart}>
-                        <AppText style={fp.footerBtnTxtPrimary}>Save Chart</AppText>
+                    <TouchableOpacity
+                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull, savingChart && { opacity: 0.6 }]}
+                        onPress={saveSizeChart}
+                        disabled={savingChart}
+                    >
+                        <AppText style={fp.footerBtnTxtPrimary}>{savingChart ? "Saving…" : "Save Chart"}</AppText>
                     </TouchableOpacity>
                 </View>
             </FormPopupModal>
+
+            <Modal visible={addChartSizeOpen} transparent animationType="fade" onRequestClose={() => setAddChartSizeOpen(false)}>
+                <View style={vt.sizeModalOverlay}>
+                    <View style={vt.sizeModalCard}>
+                        <AppText style={vt.sizeModalTitle}>Add New Size</AppText>
+                        <AppText style={vt.sizeModalSub}>Saved only for your seller account.</AppText>
+                        <Lbl text="Size Name" required />
+                        <Field placeholder="e.g. Extra Large" value={newChartSizeName} onChangeText={setNewChartSizeName} />
+                        <Lbl text="Size Code" required />
+                        <Field placeholder="e.g. XL" value={newChartSizeCode} onChangeText={setNewChartSizeCode} autoCapitalize="characters" />
+                        <View style={vt.sizeModalActions}>
+                            <TouchableOpacity style={vt.sizeModalCancel} onPress={() => setAddChartSizeOpen(false)} disabled={savingChartSize}>
+                                <AppText style={vt.sizeModalCancelTxt}>Cancel</AppText>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[vt.sizeModalSave, savingChartSize && { opacity: 0.6 }]}
+                                onPress={handleCreateChartSize}
+                                disabled={savingChartSize}
+                            >
+                                <AppText style={vt.sizeModalSaveTxt}>{savingChartSize ? "Saving…" : "Save Size"}</AppText>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             <FormPopupModal
                 visible={customPolicyOpen}
@@ -3267,34 +3414,35 @@ const sp = StyleSheet.create({
 const initBasicData = () => {
     if (!PREFILL_WITH_DUMMY) {
         return {
-            name: "", category: "", subcategory: "",
+            name: "", category: "", categorySubName: "", subcategory: "",
             categoryId: undefined as number | undefined,
+            categorySubId: undefined as number | undefined,
             subcategoryId: undefined as number | undefined,
             materialType: "", hsnCode: "",
             shortDesc: "", fullDesc: "", length: "", width: "", height: "",
-            weight: "", weightSlab: "", fragile: "No", customized: false,
-            custTitle: "", custInstructions: "", custLeadDays: "", custCharge: "",
-            custAllowPhoto: false, custImageLabel: "", custPickedImage: null as string | null,
-            custAllowText: false, custTextLabel: "",
+            weight: "", weightSlab: "", intraCityCharge: "", metroMetroCharge: "", customDeliveryCharge: false,             fragile: "No", customized: false,
+            custCustomFields: [] as CustomBuyerField[],
         };
     }
     return {
         name: "Premium Cotton Crew Neck T-Shirt",
         category: "",
+        categorySubName: "",
         subcategory: "",
         categoryId: undefined as number | undefined,
+        categorySubId: undefined as number | undefined,
         subcategoryId: undefined as number | undefined,
         materialType: "Cotton",
         hsnCode: "61091000",
         shortDesc: "Soft, breathable cotton tee with a relaxed fit — ideal for everyday wear and easy styling.",
         fullDesc: "Crafted from 100% combed cotton with reinforced stitching at stress points. Pre-shrunk fabric, colour-fast dye, and comfortable round neck. Suitable for casual outings, work-from-home, and light outdoor activities. Machine wash cold, tumble dry low.",
-        length: "30", width: "25", height: "5", weight: "0.35", weightSlab: "0–1 kg",
+        length: "30", width: "25", height: "5", weight: "0.35", weightSlab: "0-500 gms",
+        intraCityCharge: "0", metroMetroCharge: "25", customDeliveryCharge: false,
         fragile: "No", customized: true,
-        custTitle: "Personalized print",
-        custInstructions: "Share the exact text or design reference. We begin production after you approve the preview.",
-        custLeadDays: "3", custCharge: "149",
-        custAllowPhoto: true, custImageLabel: "Upload reference image", custPickedImage: null as string | null,
-        custAllowText: true, custTextLabel: "Name or message",
+        custCustomFields: [
+            { id: "cf-1", name: "Reference image", type: "Image" as const, required: true },
+            { id: "cf-2", name: "Name or message", type: "Text" as const, required: true },
+        ],
     };
 };
 
@@ -3383,7 +3531,9 @@ const AddNewProduct: React.FC = () => {
                         ...prev,
                         category: cat.name,
                         categoryId: cat.id,
-                        subcategory: sub.name,
+                        categorySubName: sub.name,
+                        categorySubId: sub.id,
+                        subcategory: sub.children?.[0]?.name ?? sub.name,
                         subcategoryId: sub.id,
                     };
                 });
@@ -3427,7 +3577,16 @@ const AddNewProduct: React.FC = () => {
         setBasicData((p) => {
             const next = { ...p, [k]: cleanVal };
             if (k === "weight") {
-                next.weightSlab = weightToSlabLabel(cleanVal);
+                const slab = resolveWeightSlab(cleanVal, catalog?.deliverySlabs);
+                next.weightSlab = slab.label;
+                next.customDeliveryCharge = !!slab.custom;
+                if (slab.custom) {
+                    next.intraCityCharge = "";
+                    next.metroMetroCharge = "";
+                } else {
+                    next.intraCityCharge = String(slab.intraCityCharge);
+                    next.metroMetroCharge = String(slab.metroMetroCharge);
+                }
             }
             return next;
         });
@@ -3597,6 +3756,7 @@ const AddNewProduct: React.FC = () => {
                     productName={basicData.name ?? ""}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
+                    reloadCatalog={reloadCatalog}
                 />
             )}
             {step === 2 && (
@@ -3617,6 +3777,7 @@ const AddNewProduct: React.FC = () => {
                     isDesktop={isDesktop}
                     catalog={catalog}
                     scrollRef={stepScrollRef}
+                    reloadCatalog={reloadCatalog}
                 />
             )}
         </>
@@ -3708,6 +3869,7 @@ const at = StyleSheet.create({
     drop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.inputBg, borderWidth: 1.2, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, minHeight: 44 },
     dropText: { fontFamily: fontFamilies.regular, fontSize: 13, color: C.textDark, flex: 1 },
     dropPh: { color: C.textPlaceholder },
+    dropDisabled: { opacity: 0.55, backgroundColor: "#F8FAFC" },
     hsnWrap: { flexDirection: "row", alignItems: "center", backgroundColor: C.inputBg, borderWidth: 1.2, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44 },
     hsnInput: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 13, color: C.textDark, paddingVertical: 10 },
     row2: { flexDirection: "row", gap: 10 },
@@ -3741,6 +3903,16 @@ const at = StyleSheet.create({
     custNoteTxt: { fontFamily: fontFamilies.regular, fontSize: 11.5, color: C.accent5, flex: 1, lineHeight: 17 },
     custSubField: { flexDirection: "row", gap: 10, marginTop: 10, marginLeft: 8, paddingLeft: 4 },
     custSubFieldBar: { width: 2, borderRadius: 2, backgroundColor: C.accent5, alignSelf: "stretch", opacity: 0.5 },
+    custSectionTitle: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.accent4, marginBottom: 12 },
+    custFieldsBox: { marginTop: 14, borderWidth: 1.2, borderColor: C.border, borderRadius: 12, padding: 14, backgroundColor: C.inputBg },
+    custFieldsHint: { fontFamily: fontFamilies.regular, fontSize: 12.5, color: C.textLight, lineHeight: 18, marginBottom: 14 },
+    custFieldRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 12 },
+    custFieldNameWrap: { flex: 1, minWidth: 160 },
+    custFieldTypeWrap: { width: 110 },
+    custFieldReqWrap: { minWidth: 100 },
+    custFieldDeleteBtn: { width: 38, height: 38, borderRadius: 8, borderWidth: 1.2, borderColor: C.red, alignItems: "center", justifyContent: "center", backgroundColor: C.white },
+    custAddFieldBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: C.accent4, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
+    custAddFieldBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.white },
 });
 
 const vt = StyleSheet.create({
@@ -3762,6 +3934,19 @@ const vt = StyleSheet.create({
     addTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
     infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12 },
     infoTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
+    reuseNote: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12, marginTop: 8 },
+    reuseNoteTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
+    addSizeLink: { marginTop: 6, alignSelf: "flex-start" },
+    addSizeLinkTxt: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.navy },
+    sizeModalOverlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.35)", justifyContent: "center", alignItems: "center", padding: 20 },
+    sizeModalCard: { width: "100%", maxWidth: 400, backgroundColor: C.white, borderRadius: 16, padding: 20 },
+    sizeModalTitle: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark },
+    sizeModalSub: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, marginBottom: 12, marginTop: 4 },
+    sizeModalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 },
+    sizeModalCancel: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+    sizeModalCancelTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textMid },
+    sizeModalSave: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.navy, minWidth: 100, alignItems: "center" },
+    sizeModalSaveTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.white },
 });
 
 const dt = StyleSheet.create({

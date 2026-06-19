@@ -39,6 +39,7 @@ export type SellerProfileResponse = {
         businessCategory?: string | null;
         businessName?: string | null;
         businessType?: string | null;
+        address?: string | null;
         hasGst: boolean;
         gstType?: string | null;
         gstNumber?: string | null;
@@ -52,6 +53,7 @@ export type SellerProfileResponse = {
         landmark?: string | null;
         city?: string | null;
         state?: string | null;
+        area?: string | null;
         country?: string | null;
         pincode?: string | null;
         warehouseDifferent: boolean;
@@ -59,6 +61,7 @@ export type SellerProfileResponse = {
         warehouseLandmark?: string | null;
         warehouseCity?: string | null;
         warehouseState?: string | null;
+        warehouseArea?: string | null;
         warehouseCountry?: string | null;
         warehousePincode?: string | null;
     };
@@ -97,7 +100,8 @@ export type ProfileSubmitResponse = {
 };
 
 export type GstVerifyResponse = {
-    verified: boolean;
+    verified?: boolean;
+    isVerified?: boolean;
     gstNumber: string;
     message: string;
     businessName?: string | null;
@@ -128,6 +132,7 @@ export type BusinessProfilePayload = {
     businessCategory: string;
     businessName: string;
     businessType: string;
+    address: string;
     hasGst?: boolean;
     gstType?: string;
     gstNumber?: string;
@@ -141,6 +146,7 @@ export type AddressProfilePayload = {
     landmark: string;
     city: string;
     state: string;
+    area: string;
     country: string;
     pincode: string;
     warehouseDifferent?: boolean;
@@ -148,6 +154,7 @@ export type AddressProfilePayload = {
     warehouseLandmark?: string;
     warehouseCity?: string;
     warehouseState?: string;
+    warehouseArea?: string;
     warehouseCountry?: string;
     warehousePincode?: string;
 };
@@ -318,6 +325,10 @@ export async function verifyGstNumber(gstNumber: string): Promise<GstVerifyRespo
         method: "POST",
         body: JSON.stringify({ gstNumber: gstNumber.trim().toUpperCase() }),
     });
+}
+
+export function isGstVerifySuccessful(result: GstVerifyResponse): boolean {
+    return result.verified === true || result.isVerified === true;
 }
 
 export async function lookupIfscCode(ifscCode: string): Promise<IfscLookupResponse> {

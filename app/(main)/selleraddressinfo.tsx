@@ -29,7 +29,14 @@ import {
   fetchSellerProfile,
   getApiErrorMessage,
   updateAddressProfile,
+  type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
+import {
+  AddressLocationFields,
+  EMPTY_ADDRESS_LOCATION,
+  type AddressLocationErrors,
+} from "@/components/seller/AddressLocationFields";
+import type { AddressLocationValue } from "@/services/locationApi";
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -92,7 +99,7 @@ const scard = StyleSheet.create({
     backgroundColor: T.cardBg,
     borderRadius: 16,
     marginBottom: 16,
-    overflow: "hidden",
+    overflow: Platform.OS === "web" ? "visible" : "hidden",
     borderWidth: 1,
     borderColor: T.borderLight,
     shadowColor: T.navy,
@@ -198,6 +205,19 @@ const ib = StyleSheet.create({
 
 interface ValidationError { field: string; message: string; }
 
+/** Only restore fields after the user explicitly saved the full address step (not GST/business leftovers). */
+function hasSavedAddressStep(a: SellerProfileResponse["address"]): boolean {
+  return Boolean(
+    a.streetAddress?.trim() &&
+      a.landmark?.trim() &&
+      a.country?.trim() &&
+      a.state?.trim() &&
+      a.city?.trim() &&
+      a.area?.trim() &&
+      a.pincode?.trim()
+  );
+}
+
 // ─── Web-only: InputPairRow renders 2 inputs side-by-side on web, stacked on mobile ──
 const isWeb = Platform.OS === "web";
 
@@ -223,17 +243,11 @@ export default function SellerAddressInfo() {
   // ── State (100% unchanged) ──
   const [streetAddress, setStreetAddress]         = useState("");
   const [landmark, setLandmark]                   = useState("");
-  const [city, setCity]                           = useState("");
-  const [state, setState]                         = useState("");
-  const [country, setCountry]                     = useState("");
-  const [pincode, setPincode]                     = useState("");
+  const [location, setLocation]                   = useState<AddressLocationValue>(EMPTY_ADDRESS_LOCATION);
   const [warehouse, setWarehouse]                 = useState(false);
   const [warehouseAddress, setWarehouseAddress]   = useState("");
   const [warehouseLandmark, setWarehouseLandmark] = useState("");
-  const [warehouseCity, setWarehouseCity]         = useState("");
-  const [warehouseState, setWarehouseState]       = useState("");
-  const [warehouseCountry, setWarehouseCountry]   = useState("");
-  const [warehousePincode, setWarehousePincode]   = useState("");
+  const [warehouseLocation, setWarehouseLocation] = useState<AddressLocationValue>(EMPTY_ADDRESS_LOCATION);
   const [validationErrors, setValidationErrors]   = useState<ValidationError[]>([]);
   const [isLoading, setIsLoading]                 = useState(false);
   const [fieldPositions, setFieldPositions]       = useState<Record<string, number>>({});
@@ -241,11 +255,8 @@ export default function SellerAddressInfo() {
   const syncWarehouseFromBusiness = useCallback(() => {
     setWarehouseAddress(streetAddress);
     setWarehouseLandmark(landmark);
-    setWarehouseCity(city);
-    setWarehouseState(state);
-    setWarehouseCountry(country);
-    setWarehousePincode(pincode);
-  }, [streetAddress, landmark, city, state, country, pincode]);
+    setWarehouseLocation({ ...location });
+  }, [streetAddress, landmark, location]);
 
   useEffect(() => {
     let active = true;
@@ -255,20 +266,29 @@ export default function SellerAddressInfo() {
         const profile = await fetchSellerProfile();
         if (!active) return;
         const a = profile.address;
-        if (a.streetAddress) setStreetAddress(a.streetAddress);
-        if (a.landmark) setLandmark(a.landmark);
-        if (a.city) setCity(a.city);
-        if (a.state) setState(a.state);
-        if (a.country) setCountry(a.country);
-        if (a.pincode) setPincode(a.pincode);
-        if (a.warehouseDifferent) {
-          setWarehouse(true);
-          if (a.warehouseAddress) setWarehouseAddress(a.warehouseAddress);
-          if (a.warehouseLandmark) setWarehouseLandmark(a.warehouseLandmark);
-          if (a.warehouseCity) setWarehouseCity(a.warehouseCity);
-          if (a.warehouseState) setWarehouseState(a.warehouseState);
-          if (a.warehouseCountry) setWarehouseCountry(a.warehouseCountry);
-          if (a.warehousePincode) setWarehousePincode(a.warehousePincode);
+
+        if (hasSavedAddressStep(a)) {
+          setStreetAddress(a.streetAddress!.trim());
+          setLandmark(a.landmark!.trim());
+          setLocation({
+            country: a.country!.trim(),
+            state: a.state!.trim(),
+            city: a.city!.trim(),
+            area: a.area!.trim(),
+            pincode: a.pincode!.trim(),
+          });
+          if (a.warehouseDifferent) {
+            setWarehouse(true);
+            if (a.warehouseAddress) setWarehouseAddress(a.warehouseAddress);
+            if (a.warehouseLandmark) setWarehouseLandmark(a.warehouseLandmark);
+            setWarehouseLocation({
+              country: a.warehouseCountry ?? "",
+              state: a.warehouseState ?? "",
+              city: a.warehouseCity ?? "",
+              area: a.warehouseArea ?? "",
+              pincode: a.warehousePincode ?? "",
+            });
+          }
         }
       } catch {
         // keep form as-is
@@ -280,21 +300,13 @@ export default function SellerAddressInfo() {
   }, []);
 
   useEffect(() => {
-    if (!warehouse) {
-      syncWarehouseFromBusiness();
-    }
+    if (warehouse) return;
+    syncWarehouseFromBusiness();
   }, [warehouse, syncWarehouseFromBusiness]);
 
   // ── Logic (100% unchanged) ──
   const fieldRefs = {
-    streetAddress:    useRef<TextInput>(null),
-    city:             useRef<TextInput>(null),
-    state:            useRef<TextInput>(null),
-    pincode:          useRef<TextInput>(null),
-    warehouseAddress: useRef<TextInput>(null),
-    warehouseCity:    useRef<TextInput>(null),
-    warehouseState:   useRef<TextInput>(null),
-    warehousePincode: useRef<TextInput>(null),
+    streetAddress: useRef<TextInput>(null),
   };
 
   const handleFieldLayout = useCallback((fieldName: string, event: LayoutChangeEvent) => {
@@ -306,46 +318,64 @@ export default function SellerAddressInfo() {
     setValidationErrors(prev => prev.filter(e => e.field !== field));
   }, []);
 
-  const handlePincodeChange = (text: string, isWarehouse: boolean = false) => {
-    const fieldName = isWarehouse ? "warehousePincode" : "pincode";
-    clearFieldError(fieldName);
-    if (/^\d{6}$/.test(text)) setValidationErrors(prev => prev.filter(e => e.field !== fieldName));
-    if (isWarehouse) setWarehousePincode(text);
-    else setPincode(text);
-  };
-
   const validatePincode = (p: string) => /^\d{6}$/.test(p);
 
+  const locationErrors = validationErrors.reduce<AddressLocationErrors>((acc, err) => {
+    if (["country", "state", "city", "area", "pincode"].includes(err.field)) {
+      acc[err.field as keyof AddressLocationValue] = err.message;
+    }
+    return acc;
+  }, {});
+
+  const warehouseLocationErrors = validationErrors.reduce<AddressLocationErrors>((acc, err) => {
+    const map: Record<string, keyof AddressLocationValue> = {
+      warehouseCountry: "country",
+      warehouseState: "state",
+      warehouseCity: "city",
+      warehouseArea: "area",
+      warehousePincode: "pincode",
+    };
+    const key = map[err.field];
+    if (key) acc[key] = err.message;
+    return acc;
+  }, {});
+
   const validations = {
-    streetAddress:    streetAddress.trim().length > 0,
-    landmark:         landmark.trim().length > 0,
-    city:             city.trim().length > 0,
-    state:            state.trim().length > 0,
-    country:          country.trim().length > 0,
-    pincode:          validatePincode(pincode),
+    streetAddress: streetAddress.trim().length > 0,
+    landmark: landmark.trim().length > 0,
+    city: location.city.trim().length > 0,
+    state: location.state.trim().length > 0,
+    area: location.area.trim().length > 0,
+    country: location.country.trim().length > 0,
+    pincode: validatePincode(location.pincode),
     warehouseAddress: warehouse ? warehouseAddress.trim().length > 0 : true,
-    warehouseLandmark:warehouse ? warehouseLandmark.trim().length > 0 : true,
-    warehouseCity:    warehouse ? warehouseCity.trim().length > 0 : true,
-    warehouseState:   warehouse ? warehouseState.trim().length > 0 : true,
-    warehouseCountry: warehouse ? warehouseCountry.trim().length > 0 : true,
-    warehousePincode: warehouse ? validatePincode(warehousePincode) : true,
+    warehouseLandmark: warehouse ? warehouseLandmark.trim().length > 0 : true,
+    warehouseCity: warehouse ? warehouseLocation.city.trim().length > 0 : true,
+    warehouseState: warehouse ? warehouseLocation.state.trim().length > 0 : true,
+    warehouseArea: warehouse ? warehouseLocation.area.trim().length > 0 : true,
+    warehouseCountry: warehouse ? warehouseLocation.country.trim().length > 0 : true,
+    warehousePincode: warehouse ? validatePincode(warehouseLocation.pincode) : true,
   };
 
   const scrollToFirstError = useCallback(() => {
     const firstError = [
-      { field: "streetAddress",    ref: fieldRefs.streetAddress,    valid: validations.streetAddress },
-      { field: "city",             ref: fieldRefs.city,             valid: validations.city },
-      { field: "state",            ref: fieldRefs.state,            valid: validations.state },
-      { field: "pincode",          ref: fieldRefs.pincode,          valid: validations.pincode },
-      { field: "warehouseAddress", ref: fieldRefs.warehouseAddress, valid: validations.warehouseAddress },
-      { field: "warehouseCity",    ref: fieldRefs.warehouseCity,    valid: validations.warehouseCity },
-      { field: "warehouseState",   ref: fieldRefs.warehouseState,   valid: validations.warehouseState },
-      { field: "warehousePincode", ref: fieldRefs.warehousePincode, valid: validations.warehousePincode },
+      { field: "streetAddress", ref: fieldRefs.streetAddress, valid: validations.streetAddress },
+      { field: "city", valid: validations.city },
+      { field: "state", valid: validations.state },
+      { field: "area", valid: validations.area },
+      { field: "pincode", valid: validations.pincode },
+      { field: "warehouseAddress", valid: validations.warehouseAddress },
+      { field: "warehouseCity", valid: validations.warehouseCity },
+      { field: "warehouseState", valid: validations.warehouseState },
+      { field: "warehouseArea", valid: validations.warehouseArea },
+      { field: "warehousePincode", valid: validations.warehousePincode },
     ].find(f => !f.valid);
     if (firstError?.ref?.current) {
       firstError.ref.current?.focus();
-      const fieldY = fieldPositions[firstError.field];
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, (fieldY ?? 0) - 100), animated: true });
+    }
+    const fieldY = firstError ? fieldPositions[firstError.field] : undefined;
+    if (fieldY != null) {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
     }
   }, [validations, fieldRefs, fieldPositions]);
 
@@ -357,6 +387,7 @@ export default function SellerAddressInfo() {
     if (!validations.landmark)         errors.push({ field: "landmark",         message: "Landmark is required" });
     if (!validations.city)             errors.push({ field: "city",             message: "City is required" });
     if (!validations.state)            errors.push({ field: "state",            message: "State is required" });
+    if (!validations.area)             errors.push({ field: "area",             message: "Area is required" });
     if (!validations.country)          errors.push({ field: "country",          message: "Country is required" });
     if (!validations.pincode)          errors.push({ field: "pincode",          message: "Pincode is required" });
     if (warehouse) {
@@ -364,6 +395,7 @@ export default function SellerAddressInfo() {
       if (!validations.warehouseLandmark) errors.push({ field: "warehouseLandmark", message: "Landmark is required" });
       if (!validations.warehouseCity)     errors.push({ field: "warehouseCity",     message: "City is required" });
       if (!validations.warehouseState)    errors.push({ field: "warehouseState",    message: "State is required" });
+      if (!validations.warehouseArea)     errors.push({ field: "warehouseArea",     message: "Area is required" });
       if (!validations.warehouseCountry)  errors.push({ field: "warehouseCountry",  message: "Country is required" });
       if (!validations.warehousePincode)  errors.push({ field: "warehousePincode",  message: "Pincode is required" });
     }
@@ -375,19 +407,21 @@ export default function SellerAddressInfo() {
       const payload = {
         streetAddress: streetAddress.trim(),
         landmark: landmark.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        country: country.trim(),
-        pincode: pincode.trim(),
+        city: location.city.trim(),
+        state: location.state.trim(),
+        area: location.area.trim(),
+        country: location.country.trim(),
+        pincode: location.pincode.trim(),
         warehouseDifferent: warehouse,
         ...(warehouse
           ? {
               warehouseAddress: warehouseAddress.trim(),
               warehouseLandmark: warehouseLandmark.trim(),
-              warehouseCity: warehouseCity.trim(),
-              warehouseState: warehouseState.trim(),
-              warehouseCountry: warehouseCountry.trim(),
-              warehousePincode: warehousePincode.trim(),
+              warehouseCity: warehouseLocation.city.trim(),
+              warehouseState: warehouseLocation.state.trim(),
+              warehouseArea: warehouseLocation.area.trim(),
+              warehouseCountry: warehouseLocation.country.trim(),
+              warehousePincode: warehouseLocation.pincode.trim(),
             }
           : {}),
       } as const;
@@ -503,65 +537,16 @@ export default function SellerAddressInfo() {
               </View>
             </InputPairRow>
 
-            {/* City + State row */}
-            <View style={s.row}>
-              <View style={s.half}>
-                <InputRow
-                  label="City"
-                  value={city}
-                  onChangeText={(t) => { clearFieldError("city"); setCity(t); }}
-                  placeholder="City"
-                  inputRef={fieldRefs.city}
-                  error={validationErrors.find(e => e.field === "city")?.message}
-                  onLayout={(e) => handleFieldLayout("city", e)}
-                  borderColor={T.orange}
-                  accentColor={T.orange}
-                />
-              </View>
-              <View style={s.half}>
-                <InputRow
-                  label="State"
-                  value={state}
-                  onChangeText={(t) => { clearFieldError("state"); setState(t); }}
-                  placeholder="State"
-                  inputRef={fieldRefs.state}
-                  error={validationErrors.find(e => e.field === "state")?.message}
-                  onLayout={(e) => handleFieldLayout("state", e)}
-                  borderColor={T.orange}
-                  accentColor={T.orange}
-                />
-              </View>
-            </View>
-
-            {/* Country + Pincode row */}
-            <View style={s.row}>
-              <View style={s.half}>
-                <InputRow
-                  label="Country"
-                  value={country}
-                  onChangeText={(t) => { clearFieldError("country"); setCountry(t); }}
-                  placeholder="Country"
-                  error={validationErrors.find(e => e.field === "country")?.message}
-                  borderColor={T.orange}
-                  accentColor={T.orange}
-                />
-              </View>
-              <View style={s.half}>
-                <InputRow
-                  label="Pincode"
-                  value={pincode}
-                  onChangeText={(t) => handlePincodeChange(t, false)}
-                  placeholder="6-digit pincode"
-                  keyboardType="numeric"
-                  inputRef={fieldRefs.pincode}
-                  maxLength={6}
-                  error={validationErrors.find(e => e.field === "pincode")?.message}
-                  onLayout={(e) => handleFieldLayout("pincode", e)}
-                  borderColor={T.orange}
-                  accentColor={T.orange}
-                />
-              </View>
-            </View>
+            <AddressLocationFields
+              value={location}
+              onChange={setLocation}
+              errors={locationErrors}
+              onClearError={clearFieldError}
+              accentColor={T.orange}
+              onLayout={handleFieldLayout}
+              searchCountry="India"
+              defaultCountryForAdd="India"
+            />
 
             {/* Warehouse Checkbox */}
             <Checkbox
@@ -618,63 +603,34 @@ export default function SellerAddressInfo() {
                 </View>
               </InputPairRow>
 
-              <View style={s.row}>
-                <View style={s.half}>
-                  <InputRow
-                    label="City"
-                    value={warehouseCity}
-                    onChangeText={(t) => { clearFieldError("warehouseCity"); setWarehouseCity(t); }}
-                    placeholder="City"
-                    inputRef={fieldRefs.warehouseCity}
-                    error={validationErrors.find(e => e.field === "warehouseCity")?.message}
-                    onLayout={(e) => handleFieldLayout("warehouseCity", e)}
-                    borderColor={T.navy}
-                    accentColor={T.navy}
-                  />
-                </View>
-                <View style={s.half}>
-                  <InputRow
-                    label="State"
-                    value={warehouseState}
-                    onChangeText={(t) => { clearFieldError("warehouseState"); setWarehouseState(t); }}
-                    placeholder="State"
-                    inputRef={fieldRefs.warehouseState}
-                    error={validationErrors.find(e => e.field === "warehouseState")?.message}
-                    onLayout={(e) => handleFieldLayout("warehouseState", e)}
-                    borderColor={T.navy}
-                    accentColor={T.navy}
-                  />
-                </View>
-              </View>
-
-              <View style={s.row}>
-                <View style={s.half}>
-                  <InputRow
-                    label="Country"
-                    value={warehouseCountry}
-                    onChangeText={(t) => { clearFieldError("warehouseCountry"); setWarehouseCountry(t); }}
-                    placeholder="Country"
-                    error={validationErrors.find(e => e.field === "warehouseCountry")?.message}
-                    borderColor={T.navy}
-                    accentColor={T.navy}
-                  />
-                </View>
-                <View style={s.half}>
-                  <InputRow
-                    label="Pincode"
-                    value={warehousePincode}
-                    onChangeText={(t) => handlePincodeChange(t, true)}
-                    placeholder="6-digit pincode"
-                    keyboardType="numeric"
-                    inputRef={fieldRefs.warehousePincode}
-                    maxLength={6}
-                    error={validationErrors.find(e => e.field === "warehousePincode")?.message}
-                    onLayout={(e) => handleFieldLayout("warehousePincode", e)}
-                    borderColor={T.navy}
-                    accentColor={T.navy}
-                  />
-                </View>
-              </View>
+              <AddressLocationFields
+                value={warehouseLocation}
+                onChange={setWarehouseLocation}
+                errors={warehouseLocationErrors}
+                onClearError={(field) => {
+                  const map: Record<keyof AddressLocationValue, string> = {
+                    country: "warehouseCountry",
+                    state: "warehouseState",
+                    city: "warehouseCity",
+                    area: "warehouseArea",
+                    pincode: "warehousePincode",
+                  };
+                  clearFieldError(map[field]);
+                }}
+                accentColor={T.navy}
+                searchCountry="India"
+                defaultCountryForAdd="India"
+                onLayout={(field, e) => {
+                  const map: Record<keyof AddressLocationValue, string> = {
+                    country: "warehouseCountry",
+                    state: "warehouseState",
+                    city: "warehouseCity",
+                    area: "warehouseArea",
+                    pincode: "warehousePincode",
+                  };
+                  handleFieldLayout(map[field], e);
+                }}
+              />
             </SectionCard>
           )}
 

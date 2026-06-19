@@ -372,11 +372,7 @@ export default function SellerPersonalInfo() {
         <ScrollView
           ref={scrollViewRef}
           style={s.scroll}
-          contentContainerStyle={[
-            s.scrollContent,
-            // On web wide screens, constrain max width and centre content
-            isWebWide && ws.scrollContentWeb,
-          ]}
+          contentContainerStyle={s.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -490,13 +486,6 @@ export default function SellerPersonalInfo() {
 
 // ─── Web-only layout styles (2-col grid) ─────────────────────
 const ws = StyleSheet.create({
-  // Constrain and centre the scroll content on wide web screens
-  scrollContentWeb: {
-    maxWidth: 860,
-    alignSelf: "center",
-    width: "100%",
-  },
-  // A horizontal row that holds up to 2 field columns
   fieldRow: {
     flexDirection: "row",
     gap: 16,

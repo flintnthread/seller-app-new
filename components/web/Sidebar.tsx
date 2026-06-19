@@ -27,14 +27,38 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { summary } = useSellerProfileSummary();
   const { isProfileCompleted, refreshProfileStatus } = useProfileStatus();
-  const showFullMenu = canShowFullSellerTools(summary, isProfileCompleted);
+  const approval = summary?.accountStatus?.approvalState;
+  const profileDone = isProfileCompleted || summary?.profileCompleted;
+  const isReviewState =
+    profileDone && (approval === "pending_review" || approval === "rejected");
+  const showFullMenu =
+    canShowFullSellerTools(summary, isProfileCompleted) && approval === "approved";
   const { confirmAction, SweetAlertHost } = useSweetAlert();
 
   useEffect(() => {
     void refreshProfileStatus();
   }, [pathname, refreshProfileStatus]);
 
-  const sections = showFullMenu
+  const sections = isReviewState
+    ? [
+        {
+          title: "GENERAL",
+          items: [
+            { name: "Dashboard", path: "/dashboard", icon: "house.fill" as const, iconColor: "#F97316" },
+          ],
+        },
+        {
+          title: "ACCOUNT",
+          items: [
+            { name: "View Submitted Profile", path: "/Profile", icon: "person.crop.circle" as const, iconColor: "#EC4899" },
+            ...(approval === "rejected"
+              ? [{ name: "Contact Support", path: "/helpsupport", icon: "headphones" as const, iconColor: "#F87171" }]
+              : []),
+            { name: "Logout", path: "logout", icon: "arrow.right.to.line" as const, iconColor: "#EF4444" },
+          ],
+        },
+      ]
+    : showFullMenu
     ? [
         {
           title: 'GENERAL',

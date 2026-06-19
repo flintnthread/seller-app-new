@@ -20,6 +20,7 @@ import {
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { generateVariantSku } from "@/lib/product/generateVariantSku";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -449,7 +450,14 @@ const EditVariantModal: React.FC<{
 };
 
 // ─── ADD VARIANT MODAL ────────────────────────────────────────
-const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: (v: Variant) => void }> = ({ visible, onClose, onAdd }) => {
+const AddVariantModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  onAdd: (v: Variant) => void;
+  productName?: string;
+  intraCityCharge?: number;
+  metroMetroCharge?: number;
+}> = ({ visible, onClose, onAdd, productName = "", intraCityCharge = 175, metroMetroCharge = 205 }) => {
   const [color, setColor]       = useState("");
   const [size, setSize]         = useState("");
   const [stock, setStock]       = useState("");
@@ -485,15 +493,15 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
   const gstAmount         = sellingPriceExGst * (parseFloat(gst || "0") / 100);
   const sellingWithGst    = sellingPriceExGst + gstAmount;
   const commission        = sellingWithGst * 0.15;
-  const intraCity         = sellingWithGst + commission + 175;
-  const metroMetro        = sellingWithGst + commission + 205;
+  const intraCity         = sellingWithGst + commission + intraCityCharge;
+  const metroMetro        = sellingWithGst + commission + metroMetroCharge;
 
   const handleAdd = () => {
     if (!color || !size || !stock || !mrp || !discount) {
       Alert.alert("Missing Fields", "Please fill all required fields.");
       return;
     }
-    const sku = `${color.substring(0, 3).toUpperCase()}-${size.substring(0, 2).toUpperCase()}ST-${Math.floor(1000 + Math.random() * 9000)}`;
+    const sku = generateVariantSku(productName, color, size);
     const mrpVal = parseFloat(mrp);
     const disc = parseFloat(discount);
     const exGst = parseFloat(sellingPriceExGst.toFixed(2));
@@ -516,8 +524,8 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
       taxAmount: parseFloat(gstAmount.toFixed(2)),
       finalPrice: withGst,
       mrpInclGst: withGst,
-      intraCityDeliveryCharge: 175,
-      metroMetroDeliveryCharge: 205,
+      intraCityDeliveryCharge: intraCityCharge,
+      metroMetroDeliveryCharge: metroMetroCharge,
       totalPriceIntraCity: parseFloat(intraCity.toFixed(2)),
       totalPriceMetroMetro: parseFloat(metroMetro.toFixed(2)),
       commissionPercentage: 15,
@@ -533,8 +541,8 @@ const AddVariantModal: React.FC<{ visible: boolean; onClose: () => void; onAdd: 
       gstAmount: parseFloat(gstAmount.toFixed(2)),
       sellingPriceWithGst: withGst,
       commissionPercent: 15,
-      intraCityDelivery: 175,
-      metroMetroDelivery: 205,
+      intraCityDelivery: intraCityCharge,
+      metroMetroDelivery: metroMetroCharge,
       totalIntraCity: parseFloat(intraCity.toFixed(2)),
       totalMetroMetro: parseFloat(metroMetro.toFixed(2)),
       ...(imageUri ? { imageUri } : {}),
@@ -1114,6 +1122,20 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
           <InfoRow label="HSN Code"    value={p.hsnCode}     />
           <InfoRow label="GST"         value={p.gst} valueColor={C.orange} />
           <InfoRow label="Material"    value={p.material}    />
+          {p.deliveryTimeMin != null && p.deliveryTimeMax != null ? (
+            <InfoRow label="Delivery Window" value={`${p.deliveryTimeMin}–${p.deliveryTimeMax} days`} />
+          ) : null}
+          <InfoRow label="Intra-city Charge" value={`₹${p.intraCityCharge}`} valueColor={C.green} />
+          <InfoRow label="Metro-metro Charge" value={`₹${p.metroMetroCharge}`} valueColor={C.blue} />
+          {p.customized ? (
+            <>
+              <InfoRow label="Customized Product" value="Yes" valueColor={C.orange} />
+              {p.customTitle ? <InfoRow label="Customization" value={p.customTitle} /> : null}
+              {p.customInstructions ? <InfoRow label="Buyer Instructions" value={p.customInstructions} /> : null}
+              {p.customLeadDays ? <InfoRow label="Lead Time" value={`${p.customLeadDays} days`} /> : null}
+              {p.customCharge ? <InfoRow label="Customization Charge" value={`₹${p.customCharge}`} /> : null}
+            </>
+          ) : null}
           <InfoRow label="Return"      value={p.returnPolicy} />
           <InfoRow label="Warranty"    value={p.warranty}    />
           {p.careInstructions !== "—" ? <InfoRow label="Care" value={p.careInstructions} /> : null}
@@ -1186,6 +1208,12 @@ const SpecsTab: React.FC<{ p: Product }> = ({ p }) => {
 
 // ─── Delivery Tab ─────────────────────────────────────────────
 const DeliveryTab: React.FC<{ p: Product }> = ({ p }) => {
+  const chargeRows: DeliveryCharge[] = p.deliveryCharges.length > 0
+    ? p.deliveryCharges
+    : [
+        { zone: "Intra-city", standard: `₹${p.intraCityCharge}`, express: "—" },
+        { zone: "Metro-metro", standard: `₹${p.metroMetroCharge}`, express: "—" },
+      ];
   if (isWeb) {
     return (
       <View style={wt.twoColGrid}>
@@ -1210,7 +1238,7 @@ const DeliveryTab: React.FC<{ p: Product }> = ({ p }) => {
             <Text style={[sub.tableHeaderCell, { flex: 1 }]}>Standard</Text>
             <Text style={[sub.tableHeaderCell, { flex: 1 }]}>Express</Text>
           </View>
-          {p.deliveryCharges.map((row, i) => (
+          {chargeRows.map((row, i) => (
             <View key={i} style={[sub.tableRow, { backgroundColor: i % 2 === 0 ? C.white : C.bg }]}>
               <Text style={[sub.tableCell, { flex: 2, textAlign: "left", color: C.textDark }]}>{row.zone}</Text>
               <Text style={[sub.tableCell, { flex: 1, color: C.green }]}>{row.standard}</Text>
@@ -1231,7 +1259,7 @@ const DeliveryTab: React.FC<{ p: Product }> = ({ p }) => {
       <SectionCard last>
         <SectionHeader icon="currency-inr" title="Weight & Delivery Charges" />
         <View style={sub.tableHeader}><Text style={[sub.tableHeaderCell, { flex: 2, textAlign: "left" }]}>Zone</Text><Text style={[sub.tableHeaderCell, { flex: 1 }]}>Standard</Text><Text style={[sub.tableHeaderCell, { flex: 1 }]}>Express</Text></View>
-        {p.deliveryCharges.map((row, i) => (<View key={i} style={[sub.tableRow, { backgroundColor: i % 2 === 0 ? C.white : C.bg }]}><Text style={[sub.tableCell, { flex: 2, textAlign: "left", color: C.textDark }]}>{row.zone}</Text><Text style={[sub.tableCell, { flex: 1, color: C.green }]}>{row.standard}</Text><Text style={[sub.tableCell, { flex: 1, color: C.blue }]}>{row.express}</Text></View>))}
+        {chargeRows.map((row, i) => (<View key={i} style={[sub.tableRow, { backgroundColor: i % 2 === 0 ? C.white : C.bg }]}><Text style={[sub.tableCell, { flex: 2, textAlign: "left", color: C.textDark }]}>{row.zone}</Text><Text style={[sub.tableCell, { flex: 1, color: C.green }]}>{row.standard}</Text><Text style={[sub.tableCell, { flex: 1, color: C.blue }]}>{row.express}</Text></View>))}
       </SectionCard>
     </>
   );
@@ -1723,7 +1751,14 @@ const ProductDetailScreen: React.FC = () => {
           </View>
         </ScrollView>
 
-        <AddVariantModal visible={showAddVariant} onClose={() => setShowAddVariant(false)} onAdd={handleAddVariant} />
+        <AddVariantModal
+          visible={showAddVariant}
+          onClose={() => setShowAddVariant(false)}
+          onAdd={handleAddVariant}
+          productName={p.name}
+          intraCityCharge={p.intraCityCharge}
+          metroMetroCharge={p.metroMetroCharge}
+        />
         <EditVariantModal
           visible={!!editingVariant}
           variant={editingVariant}
@@ -1901,7 +1936,14 @@ const ProductDetailScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <AddVariantModal visible={showAddVariant} onClose={() => setShowAddVariant(false)} onAdd={handleAddVariant} />
+      <AddVariantModal
+        visible={showAddVariant}
+        onClose={() => setShowAddVariant(false)}
+        onAdd={handleAddVariant}
+        productName={p.name}
+        intraCityCharge={p.intraCityCharge}
+        metroMetroCharge={p.metroMetroCharge}
+      />
       <EditVariantModal
         visible={!!editingVariant}
         variant={editingVariant}

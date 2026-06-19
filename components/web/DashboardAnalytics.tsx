@@ -193,7 +193,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       value: ordersVal,
       change: data.ordersChange,
       isPositive: true,
-      icon: "shopping-bag" as const,
+      icon: "shopping-outline" as const,
       color: C.purple,
       bgColor: C.purplePale,
       description: `Pend: ${ordersPending} • Ship: ${ordersShipped} • Deliv: ${ordersDelivered}`,

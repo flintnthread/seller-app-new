@@ -1,31 +1,23 @@
 function token(text: string, maxLen: number): string {
     const clean = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-    if (!clean) return "X".repeat(Math.min(maxLen, 1));
-    return clean.slice(0, maxLen);
+    if (!clean) return "X".repeat(maxLen);
+    return clean.slice(0, maxLen).padEnd(maxLen, "X");
 }
 
-function productPrefix(productName: string): string {
-    const words = productName.trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2) {
-        return `${token(words[0], 3)}-${token(words[words.length - 1], 3)}`;
-    }
-    if (words.length === 1) {
-        return token(words[0], 6);
-    }
-    return "PRD";
+function randomFourDigits(): string {
+    return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-/** Builds a variant SKU like FNT-TEE-BLU-M-001 from product name, color, and size. */
+/** Format: ABC-BLM1-4829 — product name (3) - color+size (4) - random (4) */
 export function generateVariantSku(
     productName: string,
     color: string,
     size: string,
-    variantIndex: number,
+    _variantIndex?: number,
     sizeCode?: string,
 ): string {
-    const namePart = productPrefix(productName);
-    const colorPart = token(color, 3);
-    const sizePart = token(sizeCode || size, 3);
-    const seq = String(Math.max(1, variantIndex)).padStart(3, "0");
-    return `${namePart}-${colorPart}-${sizePart}-${seq}`;
+    const namePart = token(productName, 3);
+    const colorPart = token(color, 2);
+    const sizePart = token(sizeCode || size, 2);
+    return `${namePart}-${colorPart}${sizePart}-${randomFourDigits()}`;
 }

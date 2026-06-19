@@ -13,9 +13,11 @@ import {
   StatusBar,
   TextInput,
   TouchableOpacity,
+  Pressable,
   Image,
   Alert,
   Dimensions,
+  ActivityIndicator,
   type LayoutChangeEvent,
 } from "react-native";
 import { AppText } from "@/components/AppText";
@@ -32,6 +34,7 @@ import {
   toUiBusinessCategory,
   updateBusinessProfile,
   verifyGstNumber,
+  isGstVerifySuccessful,
   type GstVerifyResponse,
 } from "@/services/sellerProfileApi";
 import {
@@ -121,17 +124,47 @@ const GstDetailRow: React.FC<{ label: string; value?: string | null | undefined 
   );
 };
 
-const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse }> = ({ details }) => {
-  const isActive = !details.status || details.status.toLowerCase() === "active";
+const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: boolean }> = ({ details, verified }) => {
+  const hasRegistryDetails = !!(
+    details.businessName?.trim() ||
+    details.tradeName?.trim() ||
+    details.address?.trim() ||
+    details.status?.trim()
+  );
+  const isActive = details.status?.toLowerCase() === "active";
   const location = [details.city, details.state, details.pincode].filter(Boolean).join(", ");
 
+  let title = "GST lookup result";
+  let headerColor = T.textMid;
+  let iconName: "check-circle" | "exclamation-circle" | "info-circle" = "info-circle";
+
+  if (verified && isActive) {
+    title = "GSTIN verified";
+    headerColor = T.success;
+    iconName = "check-circle";
+  } else if (verified && hasRegistryDetails) {
+    title = "GSTIN verified";
+    headerColor = T.success;
+    iconName = "check-circle";
+  } else if (hasRegistryDetails && !isActive) {
+    title = "GSTIN found — not active";
+    headerColor = T.orange;
+    iconName = "exclamation-circle";
+  } else if (hasRegistryDetails) {
+    title = "Registered GSTIN details";
+    headerColor = T.navy;
+    iconName = "info-circle";
+  } else if (details.panNumber?.trim()) {
+    title = "Portal lookup unavailable — PAN derived from GSTIN";
+    headerColor = T.orange;
+    iconName = "exclamation-circle";
+  }
+
   return (
-    <View style={[gstDetailStyles.card, !isActive && gstDetailStyles.cardWarning]}>
+    <View style={[gstDetailStyles.card, !verified && gstDetailStyles.cardWarning]}>
       <View style={gstDetailStyles.header}>
-        <Icon name="check-circle" size={16} color={isActive ? T.success : T.orange} />
-        <AppText style={[gstDetailStyles.title, !isActive && { color: T.orange }]}>
-          {isActive ? "GSTIN verified" : "GSTIN found — not active"}
-        </AppText>
+        <Icon name={iconName} size={16} color={headerColor} />
+        <AppText style={[gstDetailStyles.title, { color: headerColor }]}>{title}</AppText>
       </View>
       <GstDetailRow label="GSTIN" value={details.gstNumber} />
       <GstDetailRow label="Legal name" value={details.businessName} />
@@ -328,10 +361,14 @@ const StyledInput: React.FC<{
   inputRef?: React.RefObject<TextInput | null>;
   onLayout?: (e: LayoutChangeEvent) => void;
   rightElement?: React.ReactNode;
+  multiline?: boolean;
+  numberOfLines?: number;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }> = ({
   label, value, onChangeText, placeholder, error,
   isValid, maxLength, keyboardType, required, note,
   onBlur, inputRef, onLayout, rightElement,
+  multiline = false, numberOfLines = 3, autoCapitalize = "characters",
 }) => {
     const [focused, setFocused] = useState(false);
     const borderColor = error ? T.error : isValid ? T.success : focused ? T.orange : T.border;
@@ -339,24 +376,31 @@ const StyledInput: React.FC<{
     return (
       <View style={{ marginBottom: 18 }} onLayout={onLayout}>
         <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note })} />
-        <View style={[si.wrap, { borderColor }]}>
+        <View style={[
+          si.wrap,
+          { borderColor },
+          multiline && si.wrapMultiline,
+        ]}>
           <TextInput
             ref={inputRef}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
             placeholderTextColor={T.textLight}
-            style={si.input}
+            style={[si.input, multiline && si.inputMultiline]}
             maxLength={maxLength}
             keyboardType={keyboardType || "default"}
-            autoCapitalize="characters"
+            autoCapitalize={autoCapitalize}
+            multiline={multiline}
+            numberOfLines={multiline ? numberOfLines : 1}
+            textAlignVertical={multiline ? "top" : "center"}
             onFocus={() => setFocused(true)}
             onBlur={() => { setFocused(false); onBlur?.(); }}
           />
-          {rightElement && <View style={si.right}>{rightElement}</View>}
-          {isValid && !rightElement && (
+          {isValid && !rightElement && !multiline && (
             <Icon name="check" size={15} color={T.success} />
           )}
+          {rightElement && <View style={si.right}>{rightElement}</View>}
         </View>
         {error ? (
           <View style={si.errorRow}>
@@ -371,10 +415,27 @@ const si = StyleSheet.create({
   wrap: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: T.navyPale, borderRadius: 12, borderWidth: 1.5,
-    paddingHorizontal: 14, height: 52, overflow: "hidden",
+    paddingHorizontal: 14, height: 52,
+    ...(Platform.OS === "web" ? { overflow: "visible" as const } : { overflow: "hidden" as const }),
+  },
+  gstRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  gstInputShell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  wrapMultiline: {
+    alignItems: "flex-start",
+    height: undefined,
+    minHeight: 96,
+    paddingVertical: 12,
   },
   input: { flex: 1, fontSize: 12, color: T.textDark, fontWeight: "400" },
-  right: { marginLeft: 8 },
+  inputMultiline: { minHeight: 72, lineHeight: 18 },
+  right: { marginLeft: 8, flexShrink: 0 },
   validIcon: { marginLeft: 8 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5 },
   errorText: { fontSize: 12, color: T.error, flex: 1 },
@@ -396,7 +457,7 @@ const StyledDropdown: React.FC<{
         <AppText style={[sd.triggerText, !value && { color: T.textLight }]}>
           {value || placeholder || "Select…"}
         </AppText>
-        <Icon name="chevron-down" size={14} color={T.textSoft} style={open && { transform: [{ rotate: "180deg" }] }} />
+        <Icon name="chevron-down" size={14} color={T.textSoft} />
       </TouchableOpacity>
       {open && (
         <View style={sd.menu}>
@@ -477,11 +538,12 @@ const sc = StyleSheet.create({
 export default function SellerBusinessInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
+  const { showError, showSuccess, showWarning, SweetAlertHost } = useSweetAlert();
 
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
   const [hasGST, setHasGST] = useState(false);
   const GST_TYPE = "Regular";
   const [gstNumber, setGstNumber] = useState("");
@@ -538,8 +600,31 @@ export default function SellerBusinessInfo() {
     setValidationErrors(prev => prev.filter(e => e.field !== field));
   }, []);
 
+  const applyGstDetailsFromResponse = useCallback((result: GstVerifyResponse) => {
+    const legalName = result.businessName?.trim() || result.tradeName?.trim() || "";
+    if (legalName) setBusinessName(legalName);
+    if (result.businessType) {
+      const matched = businessTypes.find(
+        (t) => t.toLowerCase() === result.businessType!.toLowerCase()
+      ) ?? businessTypes.find((t) =>
+        result.businessType!.toLowerCase().includes(t.toLowerCase().split(" ")[0] ?? "")
+      );
+      if (matched) setBusinessType(matched);
+    }
+    if (result.panNumber) {
+      const pan = result.panNumber.toUpperCase();
+      setPanNumber(pan);
+      setPanValid(validatePAN(pan) === "");
+    }
+    if (result.address?.trim()) {
+      setBusinessAddress(result.address.trim());
+      clearFieldError("businessAddress");
+    }
+  }, [businessTypes, clearFieldError]);
+
   const fieldRefs = {
     businessName: useRef<TextInput | null>(null),
+    businessAddress: useRef<TextInput | null>(null),
     gstNumber: useRef<TextInput | null>(null),
     panNumber: useRef<TextInput | null>(null),
     aadharNumber: useRef<TextInput | null>(null),
@@ -587,6 +672,10 @@ export default function SellerBusinessInfo() {
 
         if (draft?.businessType) setBusinessType(draft.businessType);
         else if (b.businessType) setBusinessType(b.businessType);
+
+        if (draft?.address) setBusinessAddress(draft.address);
+        else if (b.address) setBusinessAddress(b.address);
+        else if (profile.address?.streetAddress) setBusinessAddress(profile.address.streetAddress);
 
         if (draft?.hasGST != null) setHasGST(draft.hasGST);
         else setHasGST(b.hasGst || cat === "B2B");
@@ -643,6 +732,7 @@ export default function SellerBusinessInfo() {
       businessCategory,
       businessName,
       businessType,
+      address: businessAddress,
       hasGST,
       gstType: GST_TYPE,
       gstNumber,
@@ -655,6 +745,7 @@ export default function SellerBusinessInfo() {
     businessCategory,
     businessName,
     businessType,
+    businessAddress,
     hasGST,
     gstNumber,
     gstVerified,
@@ -663,44 +754,68 @@ export default function SellerBusinessInfo() {
   ]);
 
   const handleGSTVerify = useCallback(async () => {
-    const err = validateGST(gstNumber);
+    const normalizedGst = gstNumber.trim().toUpperCase();
+    const err = validateGST(normalizedGst);
     if (err) {
       setGstError(err);
+      showError(err);
       return;
     }
+    if (gstVerified || isVerifyingGst) return;
+
     setIsVerifyingGst(true);
+    setGstError("");
     try {
       await hydrateSellerSession();
-      const result = await verifyGstNumber(gstNumber);
-      const hasDetails =
+      const result = await verifyGstNumber(normalizedGst);
+      const verified = isGstVerifySuccessful(result);
+      const isDuplicateGst =
+        /already registered with another seller/i.test(result.message ?? "");
+      const hasRegistryDetails =
         !!result.businessName?.trim() ||
         !!result.tradeName?.trim() ||
+        !!result.address?.trim() ||
         !!result.status?.trim();
 
-      if (result.verified) {
+      setGstNumber(normalizedGst);
+
+      if (isDuplicateGst) {
+        setGstVerified(false);
+        setGstDetails(null);
+        const duplicateMessage =
+          result.message ||
+          "This GSTIN is already registered with another seller account.";
+        setGstError(duplicateMessage);
+        clearFieldError("gstVerification");
+        showError(duplicateMessage);
+        return;
+      }
+
+      applyGstDetailsFromResponse(result);
+
+      if (verified) {
         setGstVerified(true);
         setGstDetails(result);
-        const legalName = result.businessName?.trim() || result.tradeName?.trim() || "";
-        if (legalName) setBusinessName(legalName);
-        if (result.businessType) {
-          const matched = businessTypes.find(
-            (t) => t.toLowerCase() === result.businessType!.toLowerCase()
-          ) ?? businessTypes.find((t) =>
-            result.businessType!.toLowerCase().includes(t.toLowerCase().split(" ")[0] ?? "")
-          );
-          if (matched) setBusinessType(matched);
-        }
-        if (result.panNumber) {
-          const pan = result.panNumber.toUpperCase();
-          setPanNumber(pan);
-          setPanValid(validatePAN(pan) === "");
-        }
         clearFieldError("gstNumber");
         clearFieldError("gstVerification");
         showSuccess(result.message || "GST verified. Business details loaded.");
+      } else if (hasRegistryDetails) {
+        setGstVerified(false);
+        setGstDetails(result);
+        showWarning(
+          "GST not fully verified",
+          result.message || "Registered details were loaded, but this GSTIN could not be fully verified."
+        );
+      } else if (result.panNumber?.trim()) {
+        setGstVerified(false);
+        setGstDetails(result);
+        showWarning(
+          "Portal lookup unavailable",
+          result.message || "Only PAN could be derived from your GSTIN. Configure the GST API key for full registered business details."
+        );
       } else {
         setGstVerified(false);
-        setGstDetails(hasDetails ? result : null);
+        setGstDetails(null);
         showError(result.message || "GST verification failed.");
       }
     } catch (e) {
@@ -710,7 +825,7 @@ export default function SellerBusinessInfo() {
     } finally {
       setIsVerifyingGst(false);
     }
-  }, [gstNumber, businessTypes, clearFieldError, showError, showSuccess]);
+  }, [gstNumber, gstVerified, isVerifyingGst, applyGstDetailsFromResponse, clearFieldError, showError, showSuccess, showWarning]);
 
   const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
@@ -733,6 +848,10 @@ export default function SellerBusinessInfo() {
     if (!businessCategory) errors.push({ field: "businessCategory", message: "Please select a business category" });
     if (!businessName.trim()) errors.push({ field: "businessName", message: "Business name is required" });
     if (!businessType) errors.push({ field: "businessType", message: "Business type is required" });
+    if (!businessAddress.trim()) errors.push({ field: "businessAddress", message: "Business address is required" });
+    else if (businessAddress.trim().length < 10) {
+      errors.push({ field: "businessAddress", message: "Enter a complete business address" });
+    }
     if (businessCategory && hasGST && gstErr) errors.push({ field: "gstNumber", message: gstErr });
     if (businessCategory && hasGST && !gstVerified) errors.push({ field: "gstVerification", message: "Please verify your GST number" });
     if (panErr) errors.push({ field: "panNumber", message: panErr });
@@ -750,6 +869,7 @@ export default function SellerBusinessInfo() {
         businessCategory,
         businessName: businessName.trim(),
         businessType,
+        address: businessAddress.trim(),
         hasGst: businessCategory === "B2B" ? true : hasGST,
         ...(businessCategory === "B2B" || hasGST
           ? {
@@ -907,6 +1027,25 @@ export default function SellerBusinessInfo() {
                 </AppText>
               </View>
             )}
+
+            <StyledInput
+              label="Business Address"
+              required
+              multiline
+              numberOfLines={4}
+              autoCapitalize="sentences"
+              value={businessAddress}
+              onChangeText={t => {
+                clearFieldError("businessAddress");
+                setBusinessAddress(t);
+              }}
+              placeholder="Enter your registered business address"
+              note="As per GST or business registration"
+              error={validationErrors.find(e => e.field === "businessAddress")?.message}
+              inputRef={fieldRefs.businessAddress}
+              onLayout={e => handleFieldLayout("businessAddress", e)}
+              maxLength={500}
+            />
           </SectionCard>
 
           {/* ── 3. GST Registration ── */}
@@ -943,60 +1082,88 @@ export default function SellerBusinessInfo() {
                     </View>
                   </View>
 
-                  <View style={{ marginBottom: 18 }}>
+                  <View style={{ marginBottom: 18 }} onLayout={e => handleFieldLayout("gstNumber", e)}>
                     <FieldLabel
                       label="GST Number"
-                      required={true}
+                      required
                       {...(businessCategory === "B2B" && { note: "mandatory for B2B" })}
                     />
-                    <View style={[si.wrap, {
-                      borderColor: gstError ? T.error : gstVerified ? T.success : T.border,
-                    }]}>
-                      <TextInput
-                        ref={fieldRefs.gstNumber}
-                        value={gstNumber}
-                        onChangeText={t => {
-                          setGstNumber(t.toUpperCase());
-                          const error = validateGST(t.toUpperCase());
-                          setGstError(error);
-                          setGstVerified(false);
-                          setGstDetails(null);
-                          clearFieldError("gstNumber");
+                    <View style={si.gstRow}>
+                      <View style={si.gstInputShell}>
+                        <View style={[si.wrap, {
+                          borderColor: gstError ? T.error : gstVerified ? T.success : T.border,
+                        }]}>
+                          <TextInput
+                            ref={fieldRefs.gstNumber}
+                            value={gstNumber}
+                            onChangeText={t => {
+                              const next = t.toUpperCase();
+                              setGstNumber(next);
+                              const error = validateGST(next);
+                              setGstError(error);
+                              setGstVerified(false);
+                              setGstDetails(null);
+                              clearFieldError("gstNumber");
+                              clearFieldError("gstVerification");
+                            }}
+                            onBlur={() => {
+                              if (businessCategory && hasGST) setGstError(validateGST(gstNumber));
+                            }}
+                            placeholder="29AAAPL1234C1Z1"
+                            placeholderTextColor={T.textLight}
+                            style={si.input}
+                            maxLength={15}
+                            autoCapitalize="characters"
+                          />
+                          {gstVerified ? (
+                            <Icon name="check" size={15} color={T.success} />
+                          ) : null}
+                        </View>
+                      </View>
+                      <Pressable
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          void handleGSTVerify();
                         }}
-                        onBlur={() => {
-                          if (businessCategory && hasGST) setGstError(validateGST(gstNumber));
-                        }}
-                        placeholder="29AAAPL1234C1Z1"
-                        placeholderTextColor={T.textLight}
-                        style={si.input}
-                        maxLength={15}
-                        autoCapitalize="characters"
-                      />
-                      {/* Verify button inline */}
-                      <TouchableOpacity
-                        onPress={handleGSTVerify}
-                        disabled={gstVerified || !!validateGST(gstNumber)}
-                        style={[s.inlineVerifyBtn, gstVerified && { backgroundColor: T.success }]}
-                        activeOpacity={0.85}
+                        disabled={gstVerified || isVerifyingGst}
+                        style={({ pressed }) => [
+                          s.inlineVerifyBtn,
+                          gstVerified && { backgroundColor: T.success },
+                          (gstVerified || isVerifyingGst) && { opacity: 0.65 },
+                          pressed && !gstVerified && !isVerifyingGst && { opacity: 0.88 },
+                          { zIndex: 2, elevation: 2 },
+                          Platform.OS === "web" ? ({ cursor: gstVerified || isVerifyingGst ? "default" : "pointer" } as const) : null,
+                        ]}
+                        accessibilityRole="button"
                       >
-                        <AppText style={s.inlineVerifyText}>
-                          {isVerifyingGst ? "…" : gstVerified ? "Verified" : "Verify"}
-                        </AppText>
-                      </TouchableOpacity>
+                        {isVerifyingGst ? (
+                          <ActivityIndicator size="small" color={T.white} />
+                        ) : (
+                          <AppText style={s.inlineVerifyText}>
+                            {gstVerified ? "Verified" : "Verify"}
+                          </AppText>
+                        )}
+                      </Pressable>
                     </View>
-                    {(gstError || validationErrors.find(e => e.field === "gstNumber")?.message) && (
+                    {(gstError || validationErrors.find(e => e.field === "gstNumber")?.message) ? (
                       <View style={si.errorRow}>
                         <Icon name="exclamation-circle" size={11} color={T.error} />
-                        <AppText style={si.errorText}>{gstError || validationErrors.find(e => e.field === "gstNumber")?.message}</AppText>
+                        <AppText style={si.errorText}>
+                          {gstError || validationErrors.find(e => e.field === "gstNumber")?.message}
+                        </AppText>
                       </View>
-                    )}
-                    {validationErrors.find(e => e.field === "gstVerification") && (
+                    ) : null}
+                    {validationErrors.find(e => e.field === "gstVerification") ? (
                       <View style={si.errorRow}>
                         <Icon name="exclamation-circle" size={11} color={T.error} />
-                        <AppText style={si.errorText}>{validationErrors.find(e => e.field === "gstVerification")?.message}</AppText>
+                        <AppText style={si.errorText}>
+                          {validationErrors.find(e => e.field === "gstVerification")?.message}
+                        </AppText>
                       </View>
-                    )}
-                    {gstDetails ? <GstVerifiedDetailsCard details={gstDetails} /> : null}
+                    ) : null}
+                    {gstDetails ? (
+                      <GstVerifiedDetailsCard details={gstDetails} verified={gstVerified} />
+                    ) : null}
                   </View>
                 </>
               )}
@@ -1137,8 +1304,16 @@ const s = StyleSheet.create({
   errorText: { fontSize: 12, color: T.error, fontWeight: "400" },
 
   inlineVerifyBtn: {
-    backgroundColor: T.orange, paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 8, marginLeft: 6, minWidth: 60,
+    backgroundColor: T.orange,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 72,
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    flexShrink: 0,
   },
   inlineVerifyText: { fontSize: 12, fontWeight: "700", color: T.white },
 

@@ -1,4 +1,5 @@
 import { uriToImageSource } from "@/lib/media/imagePayload";
+import { applyCustomBuyerFieldsToPayload, type CustomBuyerField } from "@/lib/product/customProductFields";
 import type {
     CreateProductPayload,
     CreateProductVariantPayload,
@@ -9,6 +10,8 @@ type BasicData = {
     name: string;
     category: string;
     categoryId?: number | undefined;
+    categorySubName?: string;
+    categorySubId?: number | undefined;
     subcategory: string;
     subcategoryId?: number | undefined;
     materialType: string;
@@ -21,8 +24,7 @@ type BasicData = {
     weight: string;
     fragile: string;
     customized?: boolean;
-    custTitle?: string;
-    custInstructions?: string;
+    custCustomFields?: CustomBuyerField[];
 };
 
 type VariantRow = {
@@ -75,6 +77,23 @@ function parseIntSafe(value: string): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+function resolveVariantImages(variants: VariantRow[]): VariantRow[] {
+    const imagesByColor = new Map<string, string[]>();
+    return variants.map((variant) => {
+        const colorKey = variant.color?.trim().toLowerCase() ?? "";
+        if (!colorKey) return variant;
+        if (variant.images.length > 0) {
+            imagesByColor.set(colorKey, variant.images);
+            return variant;
+        }
+        const shared = imagesByColor.get(colorKey);
+        if (shared?.length) {
+            return { ...variant, images: shared };
+        }
+        return variant;
+    });
+}
+
 export async function buildUpdateProductPayload(input: {
     basic: BasicData;
     variants: VariantRow[];
@@ -99,7 +118,8 @@ export async function buildCreateProductPayload(input: {
     images: ImagesData;
     details: DetailsData;
 }): Promise<CreateProductPayload> {
-    const { basic, variants, images, details } = input;
+    const { basic, images, details } = input;
+    const variants = resolveVariantImages(input.variants);
 
     const productImages: NonNullable<CreateProductPayload["images"]> = [];
     if (images.primaryImage) {
@@ -156,6 +176,10 @@ export async function buildCreateProductPayload(input: {
         ? `${details.returnPolicy}: ${details.returnPolicyText}`
         : details.returnPolicy;
 
+    const specList = (details.specifications ?? [])
+        .filter((s) => s.name.trim() && s.value.trim())
+        .map((s) => ({ name: s.name.trim(), value: s.value.trim() }));
+
     const payload: CreateProductPayload = {
         name: basic.name.trim(),
         hsnCode: basic.hsnCode.trim(),
@@ -178,6 +202,10 @@ export async function buildCreateProductPayload(input: {
         images: productImages,
     };
 
+    if (basic.customized) {
+        applyCustomBuyerFieldsToPayload(payload, basic.custCustomFields ?? []);
+    }
+
     if (basic.categoryId != null) {
         payload.categoryId = basic.categoryId;
     } else {
@@ -185,8 +213,9 @@ export async function buildCreateProductPayload(input: {
     }
     if (basic.subcategoryId != null) {
         payload.subcategoryId = basic.subcategoryId;
-    } else {
-        payload.subcategoryName = basic.subcategory;
+    }
+    if (basic.subcategory?.trim()) {
+        payload.subcategoryName = basic.subcategory.trim();
     }
     const warranty = details.warranty?.trim();
     if (warranty) payload.warrantyInfo = warranty;
@@ -198,9 +227,6 @@ export async function buildCreateProductPayload(input: {
         payload.features = JSON.stringify(featureList);
     }
 
-    const specList = (details.specifications ?? [])
-        .filter((s) => s.name.trim() && s.value.trim())
-        .map((s) => ({ name: s.name.trim(), value: s.value.trim() }));
     if (specList.length > 0) {
         payload.specifications = JSON.stringify(specList);
     }
