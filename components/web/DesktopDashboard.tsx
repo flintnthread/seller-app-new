@@ -23,7 +23,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { DashboardTables } from "./DashboardTables";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { AccountStatusBanner } from "@/components/AccountStatusBanner";
+import { SellerAccountReviewDashboard } from "@/components/SellerAccountReviewDashboard";
 import { CompleteProfileDashboardCard } from "@/components/CompleteProfileDashboardCard";
 import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
 
@@ -68,11 +68,13 @@ const C = {
 export type DesktopDashboardProps = {
   profile: SellerProfileSummary | null;
   profileLoading: boolean;
+  onProfileReload?: (() => void | Promise<void>) | undefined;
 };
 
 export function DesktopDashboard({
   profile,
   profileLoading,
+  onProfileReload,
 }: DesktopDashboardProps) {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -141,50 +143,41 @@ export function DesktopDashboard({
   }, [widgets.recentOrders]);
 
   const profileIncomplete = !profileLoading && profile && !profile.profileCompleted;
+  const approvalState = profile?.accountStatus?.approvalState;
+  const showAccountReviewDashboard =
+    !profileLoading &&
+    profile?.profileCompleted &&
+    (approvalState === "pending_review" || approvalState === "rejected");
 
     return (
         <View style={styles.container}>
-            {!profileIncomplete ? (
-            <SmartWelcomeHeader
-        name={welcomeName}
-        totalOrders={widgets.overview?.orders ?? 0}
-        salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
-        pendingOrders={widgets.orderSummary?.pending ?? 0}
-        views={widgets.overview?.views ?? 0}
-        referralCode={referral?.referralCode ?? ""}
-        referralGoal={referral?.goal ?? 6}
-        referralTotalReferred={referral?.totalReferred ?? 0}
-      />
-            ) : (
-              <LinearGradient
-                colors={[C.navyDeep, C.navy]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.incompleteWelcome}
-              >
-                <AppText style={styles.incompleteGreeting}>Welcome back,</AppText>
-                <AppText style={styles.incompleteName}>{welcomeName}</AppText>
-              </LinearGradient>
-            )}
+            {showAccountReviewDashboard ? (
+              <SellerAccountReviewDashboard
+                profile={profile}
+                loading={profileLoading}
+                embedded
+                {...(onProfileReload ? { onRefresh: onProfileReload } : {})}
+              />
+            ) : null}
 
-      {profileIncomplete ? (
-        <CompleteProfileDashboardCard profile={profile} embedded />
-      ) : null}
+            {!showAccountReviewDashboard && !profileIncomplete ? (
+              <SmartWelcomeHeader
+                name={welcomeName}
+                totalOrders={widgets.overview?.orders ?? 0}
+                salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
+                pendingOrders={widgets.orderSummary?.pending ?? 0}
+                views={widgets.overview?.views ?? 0}
+                referralCode={referral?.referralCode ?? ""}
+                referralGoal={referral?.goal ?? 6}
+                referralTotalReferred={referral?.totalReferred ?? 0}
+              />
+            ) : null}
 
-      {!profileIncomplete && profile?.accountStatus?.approvalState === "pending_review" ? (
-        <View style={{ marginBottom: 12 }}>
-          <AccountStatusBanner
-            accountStatus={profile?.accountStatus}
-            loading={profileLoading}
-            compact
-            fullName={profile?.fullName}
-            email={profile?.email}
-            mobile={profile?.mobile}
-          />
-        </View>
-      ) : null}
+            {!showAccountReviewDashboard && profileIncomplete ? (
+              <CompleteProfileDashboardCard profile={profile} embedded />
+            ) : null}
 
-      {!profileIncomplete ? (
+      {!profileIncomplete && !showAccountReviewDashboard ? (
       <>
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>

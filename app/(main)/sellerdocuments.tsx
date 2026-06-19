@@ -4,7 +4,7 @@
  *
  * WEB ENHANCEMENTS (mobile code 100% unchanged):
  *  - UploadBox: drag & drop support on web (Platform.OS === 'web')
- *  - Live Selfie: opens browser camera via getUserMedia on web
+ *  - Live Selfie: inline camera panel in the selfie section (web + mobile)
  *  - 2-column grid for upload boxes on web (width >= 600)
  */
 
@@ -98,7 +98,8 @@ const WebDragWrapper: React.FC<{
   onFileDrop: (uri: string, fileType: "image" | "pdf") => void;
   accentColor?: string;
   disabled?: boolean;
-}> = ({ children, onFileDrop, accentColor = T.navy, disabled = false }) => {
+  imagesOnly?: boolean;
+}> = ({ children, onFileDrop, accentColor = T.navy, disabled = false, imagesOnly = false }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   if (Platform.OS !== "web") {
@@ -116,6 +117,10 @@ const WebDragWrapper: React.FC<{
     if (!file) return;
     const isPdf = file.type === "application/pdf";
     const isImage = file.type.startsWith("image/");
+    if (imagesOnly && !isImage) {
+      window?.alert("Only image files (JPG, PNG) are supported.");
+      return;
+    }
     if (!isPdf && !isImage) { window?.alert("Only images (JPG, PNG) or PDF files are supported."); return; }
     const reader = new FileReader();
     reader.onload = (ev: any) => { const dataUri = ev.target?.result as string; if (dataUri) onFileDrop(dataUri, isPdf ? "pdf" : "image"); };
@@ -146,38 +151,59 @@ const WebDragWrapper: React.FC<{
   );
 };
 
-// ─── WEB ONLY: Camera Modal for selfie ───────────────────────
-const WebCameraModal: React.FC<{
-  visible: boolean;
-  onCapture: (dataUri: string) => void;
+// ─── Inline selfie camera (opens in place — web + mobile) ────
+const InlineSelfieCamera: React.FC<{
+  active: boolean;
+  onCapture: (uri: string) => void;
   onClose: () => void;
-}> = ({ visible, onCapture, onClose }) => {
-  const videoRef = useRef<any>(null);
+}> = ({ active, onCapture, onClose }) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
   const [capturing, setCapturing] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [nativeBusy, setNativeBusy] = useState(false);
+
+  const stopStream = useCallback(() => {
+    const mediaStream = videoRef.current?.srcObject as MediaStream | null;
+    mediaStream?.getTracks().forEach((t) => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setStream(null);
+  }, []);
 
   useEffect(() => {
-    if (!visible || Platform.OS !== "web") return;
+    if (!active || Platform.OS !== "web") return;
     let localStream: MediaStream | null = null;
     const startCamera = async () => {
       setError("");
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
         setStream(localStream);
-        if (videoRef.current) { videoRef.current.srcObject = localStream; videoRef.current.play(); }
+        if (videoRef.current) {
+          videoRef.current.srcObject = localStream;
+          void videoRef.current.play();
+        }
       } catch (err: any) {
-        if (err.name === "NotAllowedError") setError("Camera permission was denied. Please allow camera access in your browser settings.");
-        else if (err.name === "NotFoundError") setError("No camera found on this device.");
-        else setError("Could not access camera: " + (err.message || "Unknown error"));
+        if (err.name === "NotAllowedError") {
+          setError("Camera permission was denied. Please allow camera access in your browser settings.");
+        } else if (err.name === "NotFoundError") {
+          setError("No camera found on this device.");
+        } else {
+          setError("Could not access camera: " + (err.message || "Unknown error"));
+        }
       }
     };
-    startCamera();
-    return () => { localStream?.getTracks().forEach(t => t.stop()); setStream(null); };
-  }, [visible]);
+    void startCamera();
+    return () => {
+      localStream?.getTracks().forEach((t) => t.stop());
+      setStream(null);
+    };
+  }, [active]);
 
-  const handleCapture = useCallback(() => {
+  const handleWebCapture = useCallback(() => {
     if (!videoRef.current || capturing) return;
     setCapturing(true);
     let count = 3;
@@ -188,80 +214,252 @@ const WebCameraModal: React.FC<{
         clearInterval(interval);
         setCountdown(null);
         const video = videoRef.current;
-        if (!video) { setCapturing(false); return; }
+        if (!video) {
+          setCapturing(false);
+          return;
+        }
         const canvas = document.createElement("canvas");
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
         const ctx = canvas.getContext("2d");
-        if (ctx) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, canvas.width, canvas.height); }
+        if (ctx) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
         const dataUri = canvas.toDataURL("image/jpeg", 0.92);
-        stream?.getTracks().forEach(t => t.stop());
-        setStream(null); setCapturing(false);
+        stopStream();
+        setCapturing(false);
         onCapture(dataUri);
-      } else { setCountdown(count); }
+      } else {
+        setCountdown(count);
+      }
     }, 1000);
-  }, [capturing, stream, onCapture]);
+  }, [capturing, onCapture, stopStream]);
 
-  const handleClose = () => {
-    stream?.getTracks().forEach(t => t.stop());
-    setStream(null); setCountdown(null); setCapturing(false); onClose();
+  const handleNativeCapture = async () => {
+    if (nativeBusy) return;
+    setNativeBusy(true);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Camera permission is needed to capture your selfie.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 1,
+        aspect: [1, 1],
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        onCapture(result.assets[0].uri);
+      }
+    } finally {
+      setNativeBusy(false);
+    }
   };
 
-  if (Platform.OS !== "web" || !visible) return null;
+  const handleClose = () => {
+    stopStream();
+    setCountdown(null);
+    setCapturing(false);
+    setError("");
+    onClose();
+  };
 
-  const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, backgroundColor: "rgba(10,21,51,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 };
-  const modalStyle: React.CSSProperties = { backgroundColor: T.cardBg, borderRadius: 20, overflow: "hidden", width: "min(92vw, 520px)", boxShadow: `0 24px 60px rgba(10,21,51,0.3)`, display: "flex", flexDirection: "column" };
-  const headerStyle: React.CSSProperties = { background: `linear-gradient(135deg, ${T.navy}, ${T.navyMid})`, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-  const videoWrapStyle: React.CSSProperties = { position: "relative", backgroundColor: "#0a0a0a", minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" };
-  const videoStyle: React.CSSProperties = { width: "100%", maxHeight: 380, objectFit: "cover", transform: "scaleX(-1)", display: "block" };
-  const footerStyle: React.CSSProperties = { padding: "16px 20px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, backgroundColor: T.white };
-  const captureRingStyle: React.CSSProperties = { width: 72, height: 72, borderRadius: "50%", border: `3px solid ${T.navy}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: capturing ? "not-allowed" : "pointer", transition: "all 0.15s ease", backgroundColor: "transparent", outline: "none" };
-  const captureInnerStyle: React.CSSProperties = { width: 54, height: 54, borderRadius: "50%", backgroundColor: capturing ? T.textLight : T.navy, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s ease" };
-  const countdownStyle: React.CSSProperties = { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)", zIndex: 5 };
+  if (!active) return null;
+
+  if (Platform.OS !== "web") {
+    return (
+      <View style={isc.card}>
+        <LinearGradient colors={[T.navy, T.navyMid]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={isc.header}>
+          <View style={{ flex: 1 }}>
+            <AppText style={isc.headerTitle}>Take a Selfie</AppText>
+            <AppText style={isc.headerSub}>Camera opens from here — no need to scroll</AppText>
+          </View>
+          <TouchableOpacity style={isc.closeBtn} onPress={handleClose} activeOpacity={0.8}>
+            <Icon name="times" size={14} color={T.white} />
+          </TouchableOpacity>
+        </LinearGradient>
+        <View style={isc.nativePreview}>
+          <View style={isc.nativePreviewIcon}>
+            <Icon name="camera" size={28} color={T.navy} />
+          </View>
+          <AppText style={isc.nativePreviewTitle}>Ready to capture</AppText>
+          <AppText style={isc.nativePreviewSub}>Position your face in good lighting, then tap capture</AppText>
+        </View>
+        <View style={isc.footer}>
+          <TouchableOpacity
+            style={[isc.captureBtn, nativeBusy && { opacity: 0.6 }]}
+            onPress={() => void handleNativeCapture()}
+            disabled={nativeBusy}
+            activeOpacity={0.85}
+          >
+            <Icon name="camera" size={16} color={T.white} />
+            <AppText style={isc.captureBtnText}>{nativeBusy ? "Opening camera…" : "Capture Selfie"}</AppText>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
+            <AppText style={isc.cancelText}>Cancel</AppText>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const videoWrapStyle: React.CSSProperties = {
+    position: "relative",
+    backgroundColor: "#0a0a0a",
+    minHeight: 280,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+  const videoStyle: React.CSSProperties = {
+    width: "100%",
+    maxHeight: 320,
+    objectFit: "cover",
+    transform: "scaleX(-1)",
+    display: "block",
+  };
+  const countdownStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    zIndex: 5,
+  };
+  const captureRingStyle: React.CSSProperties = {
+    width: 64,
+    height: 64,
+    borderRadius: "50%",
+    border: `3px solid ${T.navy}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: capturing ? "not-allowed" : "pointer",
+    backgroundColor: "transparent",
+    outline: "none",
+  };
 
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-      <div style={modalStyle}>
-        <div style={headerStyle}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.white }}>Take a Selfie</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>Position your face in the frame</div>
+    <View style={isc.card}>
+      <LinearGradient colors={[T.navy, T.navyMid]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={isc.header}>
+        <View style={{ flex: 1 }}>
+          <AppText style={isc.headerTitle}>Take a Selfie</AppText>
+          <AppText style={isc.headerSub}>Position your face in the frame</AppText>
+        </View>
+        <TouchableOpacity style={isc.closeBtn} onPress={handleClose} activeOpacity={0.8}>
+          <Icon name="times" size={14} color={T.white} />
+        </TouchableOpacity>
+      </LinearGradient>
+      <div style={videoWrapStyle}>
+        {error ? (
+          <div style={{ padding: 20, textAlign: "center", color: T.error, fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>
+            {error}
           </div>
-          <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.white, fontSize: 14 }}>✕</button>
-        </div>
-        <div style={videoWrapStyle}>
-          {error ? (
-            <div style={{ padding: 24, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <div style={{ fontSize: 36 }}>📷</div>
-              <div style={{ fontSize: 13, color: T.error, fontWeight: 600, lineHeight: 1.5 }}>{error}</div>
+        ) : (
+          <>
+            <video ref={videoRef} style={videoStyle} autoPlay playsInline muted />
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+              <div style={{ width: 140, height: 175, borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.5)" }} />
             </div>
-          ) : (
-            <>
-              <video ref={videoRef} style={videoStyle} autoPlay playsInline muted />
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                <div style={{ width: 160, height: 200, borderRadius: "50%", border: `2px dashed rgba(255,255,255,0.5)` }} />
-              </div>
-              {countdown !== null && (
-                <div style={countdownStyle}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 900, color: T.white }}>{countdown}</div>
+            {countdown !== null && (
+              <div style={countdownStyle}>
+                <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: 900, color: T.white }}>
+                  {countdown}
                 </div>
-              )}
-            </>
-          )}
-        </div>
-        <div style={footerStyle}>
-          <div style={{ fontSize: 11, color: T.textSoft, textAlign: "center" }}>{capturing ? "Hold still…" : "Tap the button to capture — 3 second countdown"}</div>
-          {!error && (
-            <button onClick={handleCapture} disabled={capturing || !stream} style={captureRingStyle} title="Capture selfie">
-              <div style={captureInnerStyle}><span style={{ fontSize: 20 }}>📷</span></div>
-            </button>
-          )}
-          <button onClick={handleClose} style={{ fontSize: 12, fontWeight: 700, color: T.textSoft, background: "none", border: "none", cursor: "pointer", padding: "4px 12px" }}>Cancel</button>
-        </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-    </div>
+      <View style={isc.footer}>
+        <AppText style={isc.footerHint}>
+          {capturing ? "Hold still…" : "Tap capture — 3 second countdown"}
+        </AppText>
+        {!error && (
+          <button
+            type="button"
+            onClick={handleWebCapture}
+            disabled={capturing || !stream}
+            style={captureRingStyle}
+            title="Capture selfie"
+          >
+            <span style={{ fontSize: 18 }}>📷</span>
+          </button>
+        )}
+        <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
+          <AppText style={isc.cancelText}>Cancel</AppText>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
+
+const isc = StyleSheet.create({
+  card: {
+    borderWidth: 1.5,
+    borderColor: T.navy + "40",
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 12,
+    backgroundColor: T.white,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  headerTitle: { fontSize: 14, fontWeight: "800", color: T.white },
+  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footer: { paddingHorizontal: 16, paddingVertical: 14, alignItems: "center", gap: 10 },
+  footerHint: { fontSize: 11, color: T.textSoft, textAlign: "center" },
+  cancelText: { fontSize: 12, fontWeight: "700", color: T.textSoft },
+  captureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: T.navy,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+  },
+  captureBtnText: { fontSize: 13, fontWeight: "800", color: T.white },
+  nativePreview: {
+    minHeight: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 8,
+    backgroundColor: T.navyPale,
+  },
+  nativePreviewIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: T.white,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  nativePreviewTitle: { fontSize: 14, fontWeight: "700", color: T.textDark },
+  nativePreviewSub: { fontSize: 11, color: T.textSoft, textAlign: "center", lineHeight: 16 },
+});
 
 // ─── SectionCard — exact Screen 1 pattern ────────────────────
 const SectionCard: React.FC<{
@@ -330,12 +528,13 @@ const UploadBox: React.FC<{
   iconName?: string;
   accentColor?: string;
   isSelfie?: boolean;
+  imageOnly?: boolean;
   onRetake?: () => void;
   onWebFileDrop?: (uri: string, fileType: "image" | "pdf") => void;
 }> = ({
   value, fileType, onPress, onDelete, label, helper, error,
   iconName = "cloud-upload", accentColor = T.navy,
-  isSelfie = false, onRetake, onWebFileDrop,
+  isSelfie = false, imageOnly = false, onRetake, onWebFileDrop,
 }) => {
   const boxContent = (
     <View style={ub.wrap}>
@@ -378,10 +577,18 @@ const UploadBox: React.FC<{
               <Icon name={isSelfie ? "camera" : iconName} size={22} color={accentColor} />
             </View>
             <AppText style={[ub.uploadTitle, { color: T.textDark }]}>
-              {isSelfie ? "Capture Selfie" : "Upload Document"}
+              {isSelfie ? "Capture Selfie" : imageOnly ? "Upload Photo" : "Upload Document"}
             </AppText>
             <AppText style={ub.uploadSub}>
-              {isSelfie ? "Camera required" : Platform.OS === "web" ? "JPG, PNG or PDF • Drag & drop or tap" : "JPG, PNG or PDF • Max 5MB"}
+              {isSelfie
+                ? "Camera required"
+                : imageOnly
+                  ? Platform.OS === "web"
+                    ? "JPG or PNG • Drag & drop or tap"
+                    : "JPG or PNG • Max 5MB"
+                  : Platform.OS === "web"
+                    ? "JPG, PNG or PDF • Drag & drop or tap"
+                    : "JPG, PNG or PDF • Max 5MB"}
             </AppText>
             <AppText style={[ub.tapHint, { color: accentColor }]}>
               {isSelfie ? "Tap to open camera" : Platform.OS === "web" ? "Tap to browse or drag & drop" : "Tap to browse / drag & drop"}
@@ -424,7 +631,11 @@ const UploadBox: React.FC<{
   );
 
   if (Platform.OS === "web" && !isSelfie && onWebFileDrop) {
-    return <WebDragWrapper onFileDrop={onWebFileDrop} accentColor={accentColor}>{boxContent}</WebDragWrapper>;
+    return (
+      <WebDragWrapper onFileDrop={onWebFileDrop} accentColor={accentColor} imagesOnly={imageOnly}>
+        {boxContent}
+      </WebDragWrapper>
+    );
   }
   return boxContent;
 };
@@ -559,7 +770,7 @@ export default function SellerDocuments() {
   const [fileTypes, setFileTypes] = useState<Record<string, "image" | "pdf">>({});
   const [sourceModalVisible, setSourceModalVisible] = useState(false);
   const [pendingDocumentType, setPendingDocumentType] = useState<string>("");
-  const [webCameraVisible, setWebCameraVisible] = useState(false);
+  const [selfieCameraActive, setSelfieCameraActive] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -744,19 +955,13 @@ export default function SellerDocuments() {
     clearFieldError(field);
   };
 
-  const captureSelfie = async () => {
-    if (Platform.OS === "web") { setWebCameraVisible(true); return; }
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Permission Required", "Sorry, we need camera permission to capture your selfie."); return; }
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 1, aspect: [1, 1] });
-    if (!result.canceled && result.assets?.[0]) {
-      void uploadDocumentForField("liveSelfie", result.assets[0].uri, "image");
-    }
+  const openSelfieCamera = () => {
+    setSelfieCameraActive(true);
   };
 
-  const handleWebSelfieCapture = (dataUri: string) => {
-    setWebCameraVisible(false);
-    void uploadDocumentForField("liveSelfie", dataUri, "image");
+  const handleSelfieCapture = (uri: string) => {
+    setSelfieCameraActive(false);
+    void uploadDocumentForField("liveSelfie", uri, "image");
   };
 
   const validateDocuments = () => {
@@ -849,14 +1054,6 @@ export default function SellerDocuments() {
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
 
-      {Platform.OS === "web" && (
-        <WebCameraModal
-          visible={webCameraVisible}
-          onCapture={handleWebSelfieCapture}
-          onClose={() => setWebCameraVisible(false)}
-        />
-      )}
-
       {/* ── Top gradient header ── */}
       <LinearGradient
         colors={[T.navy, T.navyMid]}
@@ -887,7 +1084,7 @@ export default function SellerDocuments() {
           style={s.scroll}
           contentContainerStyle={[
             s.scrollContent,
-            isWebWide && ws.scrollContentWeb,
+            Platform.OS === "web" && s.scrollContentWeb,
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -991,6 +1188,8 @@ export default function SellerDocuments() {
               Mobile: unchanged — stacked.
             */}
             <TwoColRow>
+              
+
               <UploadBox label="Aadhaar Card (Front)" value={aadharFront}
                 fileType={fileTypes["aadharFront"] ?? null}
                 onPress={() => pickDocument("aadharFront")}
@@ -1054,8 +1253,14 @@ export default function SellerDocuments() {
                 Live Selfie <AppText style={{ color: T.navy }}>*</AppText>
               </AppText>
               <AppText style={s.selfieFieldHelper}>
-                {Platform.OS === "web" ? "Click below to open camera" : "Use camera to take a live photo"}
+                {Platform.OS === "web" ? "Camera opens right here in this section" : "Use camera to take a live photo"}
               </AppText>
+
+              <InlineSelfieCamera
+                active={selfieCameraActive}
+                onCapture={handleSelfieCapture}
+                onClose={() => setSelfieCameraActive(false)}
+              />
 
               {(liveSelfies ?? []).length > 0 && (
                 <ScrollView
@@ -1086,12 +1291,8 @@ export default function SellerDocuments() {
                 {(liveSelfies ?? []).length > 0 && (
                   <TouchableOpacity
                     style={[s.selfieActionBtn, { borderColor: T.navy, backgroundColor: T.navy + "10" }]}
-                    onPress={async () => {
-                      if (Platform.OS === "web") { setWebCameraVisible(true); return; }
-                      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                      if (status !== "granted") { Alert.alert("Permission Required", "Camera permission is needed."); return; }
-                      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 1, aspect: [1, 1] });
-                      if (!result.canceled && result.assets?.[0]) { const newUri = result.assets[0].uri; setLiveSelfies(prev => [...prev.slice(0, -1), newUri]); }
+                    onPress={() => {
+                      setSelfieCameraActive(true);
                     }}
                     activeOpacity={0.8}
                   >
@@ -1102,7 +1303,7 @@ export default function SellerDocuments() {
                 {(liveSelfies ?? []).length > 0 && (
                   <TouchableOpacity
                     style={[s.selfieActionBtn, { borderColor: T.orange, backgroundColor: T.orange + "10" }]}
-                    onPress={captureSelfie}
+                    onPress={openSelfieCamera}
                     activeOpacity={0.8}
                   >
                     <Icon name="camera" size={12} color={T.orange} />
@@ -1133,10 +1334,10 @@ export default function SellerDocuments() {
                 </View>
               )}
 
-              {(liveSelfies ?? []).length === 0 && (
+              {(liveSelfies ?? []).length === 0 && !selfieCameraActive && (
                 <TouchableOpacity
                   style={[s.selfieEmptyBox, getError("liveSelfie") ? { borderColor: T.error } : { borderColor: T.navy + "40" }]}
-                  onPress={captureSelfie}
+                  onPress={openSelfieCamera}
                   activeOpacity={0.85}
                 >
                   <View style={[s.selfieEmptyIcon, { backgroundColor: T.navy + "12" }]}>
@@ -1144,7 +1345,7 @@ export default function SellerDocuments() {
                   </View>
                   <AppText style={s.selfieEmptyTitle}>No selfie captured yet</AppText>
                   <AppText style={s.selfieEmptySub}>
-                    {Platform.OS === "web" ? "Tap to open camera" : "Tap \"Capture Selfie\" above or this box"}
+                    {Platform.OS === "web" ? "Tap to open camera here" : "Tap to open camera in this section"}
                   </AppText>
                 </TouchableOpacity>
               )}
@@ -1180,9 +1381,29 @@ export default function SellerDocuments() {
               </View>
               <AppText style={s.termsText}>
                 I agree to the{" "}
-                <AppText style={{ color: T.orange, fontWeight: "700" }}>Terms & Conditions</AppText>
+                <AppText
+                  style={s.termsLink}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/legal-document",
+                      params: { type: "terms" },
+                    })
+                  }
+                >
+                  Terms & Conditions
+                </AppText>
                 {" "}and{" "}
-                <AppText style={{ color: T.orange, fontWeight: "700" }}>Privacy Policy</AppText>
+                <AppText
+                  style={s.termsLink}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/legal-document",
+                      params: { type: "privacy" },
+                    })
+                  }
+                >
+                  Privacy Policy
+                </AppText>
               </AppText>
             </TouchableOpacity>
             {!!getError("termsAccepted") && (
@@ -1293,11 +1514,6 @@ export default function SellerDocuments() {
 
 // ─── Web-only layout styles (2-col grid) ─────────────────────
 const ws = StyleSheet.create({
-  scrollContentWeb: {
-    maxWidth: 860,
-    alignSelf: "center",
-    width: "100%",
-  },
   fieldRow: {
     flexDirection: "row",
     gap: 16,
@@ -1329,7 +1545,7 @@ const sm = StyleSheet.create({
 
 // ─── Styles — mirrors Screen 1 exactly ───────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
   topHeader: { paddingHorizontal: 20, height: 200 },
   headerInner: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
@@ -1340,12 +1556,14 @@ const s = StyleSheet.create({
   progressRow: { flexDirection: "row", gap: 6, marginBottom: 7 },
   progressSeg: { flex: 1, height: 5, borderRadius: 3 },
   progressLabel: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: "600" },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 },
+  scroll: { flex: 1, width: "100%" },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20, width: "100%" },
+  scrollContentWeb: { width: "100%", maxWidth: "100%", alignSelf: "stretch" },
   checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight },
   checkboxRowChecked: { borderColor: T.orangeSoft },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", marginTop: 1 },
   termsText: { flex: 1, fontSize: 12, color: T.textMid, lineHeight: 17, fontWeight: "500" },
+  termsLink: { color: T.orange, fontWeight: "700" },
   termsErrorRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, marginLeft: 2 },
   termsErrorText: { fontSize: 11, color: T.error, fontWeight: "400", flex: 1, lineHeight: 16 },
   buttonRow: { flexDirection: "row", gap: 12, marginTop: 4, marginBottom: 4 },

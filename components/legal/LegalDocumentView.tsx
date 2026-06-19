@@ -98,7 +98,6 @@ export function LegalDocumentView({ document }: Props) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const maxWidth = isWide ? 900 : undefined;
 
   const docKind = useMemo(
     () => (document.title.toLowerCase().includes("privacy") ? "privacy" : "terms"),
@@ -108,7 +107,7 @@ export function LegalDocumentView({ document }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <LinearGradient colors={[NAVY, "#243b6e"]} style={styles.hero}>
-        <View style={[styles.heroInner, maxWidth && { maxWidth, alignSelf: "center", width: "100%" }]}>
+        <View style={styles.heroInner}>
           <View style={styles.heroTopRow}>
             <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
               <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -147,10 +146,7 @@ export function LegalDocumentView({ document }: Props) {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          maxWidth && { maxWidth, alignSelf: "center", width: "100%" },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
         {document.platformMeta && document.platformMeta.length > 0 && (
@@ -193,9 +189,9 @@ export function LegalDocumentView({ document }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#fff7ed" },
-  hero: { paddingBottom: 20 },
-  heroInner: { paddingHorizontal: 20, paddingTop: 8 },
+  safe: { flex: 1, backgroundColor: "#fff7ed", width: "100%" },
+  hero: { paddingBottom: 20, width: "100%" },
+  heroInner: { paddingHorizontal: 20, paddingTop: 8, width: "100%" },
   heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -214,8 +210,8 @@ const styles = StyleSheet.create({
   heroTitle: { marginBottom: 6 },
   heroSub: { lineHeight: 20, marginBottom: 10 },
   heroMetaRow: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
+  scroll: { flex: 1, width: "100%" },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 14, width: "100%" },
   platformCard: {
     backgroundColor: "#fff",
     borderRadius: 16,

@@ -1,39 +1,45 @@
 export const RETURN_POLICY_PRESETS: Record<string, string> = {
-    "7 Days Return":
-        "Items may be returned within 7 days if unused, with original tags and packaging intact. Refund or exchange subject to inspection.",
-    "14 Days Return":
-        "Returns accepted within 14 days of delivery for unused items in original condition. Custom or personalised items are non-returnable.",
-    "30 Days Return":
-        "Extended 30-day return window for unused products with tags attached. Return shipping may apply unless the item is defective.",
-    "No Return":
-        "This product is not eligible for returns or exchanges. All sales are final unless the item arrives damaged or defective.",
+    "10-Day Exchange Only (Global)":
+        "Items may be exchanged within 10 days if unused, with original tags and packaging intact.",
+    "30-Day Return & Refund (Global)":
+        "Returns accepted within 30 days of delivery for unused items in original condition. Refund processed after inspection.",
+    "7-Day Easy Return (Global)":
+        "Easy returns within 7 days if the product is unused and in original packaging.",
+    "No Return on Clearance Items (Global)":
+        "Clearance items are final sale and not eligible for returns or exchanges.",
+    "Replacements (Global)":
+        "Defective or damaged items will be replaced within the stated window after verification.",
+    "Custom Policy": "",
 };
 
 export const DELIVERY_PRESETS: Record<
     string,
     { minDays: string; maxDays: string; deliveryInfo: string }
 > = {
-    "Standard Delivery": {
-        minDays: "3",
-        maxDays: "7",
-        deliveryInfo: "Ships within 3–7 business days. Free shipping on orders above ₹999.",
-    },
-    "Express Delivery": {
-        minDays: "1",
-        maxDays: "3",
-        deliveryInfo: "Priority dispatch within 1–3 business days. Express courier charges may apply.",
-    },
-    "Same Day Delivery": {
+    "Same Day Delivery (Global)": {
         minDays: "0",
         maxDays: "1",
         deliveryInfo: "Same-day delivery available in select cities for orders placed before 2 PM.",
     },
-    "Pickup Only": {
-        minDays: "0",
-        maxDays: "0",
-        deliveryInfo: "Customer pickup from seller warehouse. No shipping charges apply.",
+    "Express Delivery (Global)": {
+        minDays: "1",
+        maxDays: "2",
+        deliveryInfo: "Priority dispatch within 1–2 business days. Express courier charges may apply.",
+    },
+    "Standard Delivery (Global)": {
+        minDays: "3",
+        maxDays: "7",
+        deliveryInfo: "Ships within 3–7 business days.",
+    },
+    "Free Shipping (Global)": {
+        minDays: "5",
+        maxDays: "10",
+        deliveryInfo: "Free shipping on eligible orders. Delivery in 5–10 business days.",
     },
 };
+
+export const RETURN_POLICY_OPTIONS = Object.keys(RETURN_POLICY_PRESETS);
+export const DELIVERY_OPTIONS = Object.keys(DELIVERY_PRESETS);
 
 export function applyReturnPolicySelection(
     policy: string,
@@ -54,4 +60,17 @@ export function applyDeliverySelection(
     onChange("minDays", preset.minDays);
     onChange("maxDays", preset.maxDays);
     onChange("deliveryInfo", preset.deliveryInfo);
+}
+
+export function matchReturnPolicyTemplate(stored: string | undefined | null): string {
+    if (!stored?.trim()) return "";
+    const head = stored.split(":")[0]?.trim() ?? stored.trim();
+    const match = RETURN_POLICY_OPTIONS.find((p) => p === head);
+    return match ?? (head.includes("Custom") ? "Custom Policy" : head);
+}
+
+export function matchDeliveryTemplate(deliveryInfo: string | undefined | null): string {
+    if (!deliveryInfo?.trim()) return "";
+    const match = DELIVERY_OPTIONS.find((o) => deliveryInfo.includes(o.replace(" (Global)", "")));
+    return match ?? DELIVERY_OPTIONS.find((o) => deliveryInfo.includes(o)) ?? "";
 }

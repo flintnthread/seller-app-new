@@ -120,6 +120,15 @@ export type ProductDetail = {
     metroMetroCharge: number;
     acceptCod: boolean;
     fragile: boolean;
+    customized?: boolean;
+    customTitle?: string;
+    customInstructions?: string;
+    customLeadDays?: string;
+    customCharge?: string;
+    customAllowPhoto?: boolean;
+    customImageLabel?: string;
+    customAllowText?: boolean;
+    customTextLabel?: string;
     specifications: ProductDetailSpec[];
     features: string[];
     delivery: {
@@ -254,6 +263,15 @@ type ApiProductDetail = {
     metroMetroCharge?: number;
     acceptCod?: boolean;
     fragile?: boolean;
+    customized?: boolean;
+    customTitle?: string;
+    customInstructions?: string;
+    customLeadDays?: string;
+    customCharge?: string;
+    customAllowPhoto?: boolean;
+    customImageLabel?: string;
+    customAllowText?: boolean;
+    customTextLabel?: string;
     specifications?: ProductDetailSpec[];
     features?: string[];
     delivery?: ProductDetail["delivery"];
@@ -380,6 +398,15 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         metroMetroCharge: num(row.metroMetroCharge),
         acceptCod: row.acceptCod === true,
         fragile: row.fragile === true,
+        customized: row.customized === true,
+        customTitle: row.customTitle,
+        customInstructions: row.customInstructions,
+        customLeadDays: row.customLeadDays,
+        customCharge: row.customCharge,
+        customAllowPhoto: row.customAllowPhoto === true,
+        customImageLabel: row.customImageLabel,
+        customAllowText: row.customAllowText === true,
+        customTextLabel: row.customTextLabel,
         specifications: row.specifications ?? [],
         features: row.features ?? [],
         delivery: row.delivery ?? {
@@ -423,6 +450,7 @@ export type CatalogSubcategory = {
     id: number;
     name: string;
     gstPercentage?: number;
+    children?: { id: number; name: string }[];
 };
 
 export type CatalogCategory = {
@@ -447,6 +475,15 @@ export type ProductFormCatalog = {
     categories: CatalogCategory[];
     colors: CatalogColor[];
     sizes: CatalogSize[];
+    deliverySlabs?: {
+        id?: number;
+        label: string;
+        minWeightKg: number;
+        maxWeightKg: number;
+        intraCityCharge: number;
+        metroMetroCharge: number;
+        custom?: boolean;
+    }[];
 };
 
 export type CreateProductImagePayload = {
@@ -500,6 +537,14 @@ export type CreateProductPayload = {
     acceptCod?: boolean;
     acceptPrepaid?: boolean;
     customized?: boolean;
+    customTitle?: string;
+    customInstructions?: string;
+    customLeadDays?: string;
+    customCharge?: string;
+    customAllowPhoto?: boolean;
+    customImageLabel?: string;
+    customAllowText?: boolean;
+    customTextLabel?: string;
     variants: CreateProductVariantPayload[];
     images?: CreateProductImagePayload[];
 };

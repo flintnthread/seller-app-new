@@ -321,6 +321,8 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
 
             <InfoRow label="BUSINESS NAME" value={profile.business?.businessName || "—"} />
 
+            <InfoRow label="BUSINESS ADDRESS" value={profile.business?.address || profile.address?.streetAddress || "—"} />
+
             <InfoGrid
 
                 left={{ label: "BUSINESS TYPE", value: profile.business?.businessType || "—" }}

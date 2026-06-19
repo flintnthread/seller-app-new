@@ -7,6 +7,7 @@ export type BusinessOnboardingDraft = {
     businessCategory?: string;
     businessName?: string;
     businessType?: string;
+    address?: string;
     hasGST?: boolean;
     gstType?: string;
     gstNumber?: string;

@@ -22,13 +22,32 @@ import {
     setWebDropActiveKey,
     subscribeWebDrop,
 } from "@/lib/ui/webDropCoordinator";
-import { weightToSlabLabel } from "@/lib/product/weightSlab";
+import { resolveWeightSlab } from "@/lib/product/weightSlab";
 import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEditForm";
 import { fetchProductDetail, updateProduct, fetchProductFormCatalog, type ProductFormCatalog } from "@/services/productApi";
+import { createSize } from "@/services/sizeApi";
+import {
+    ensureSellerSizesInCatalog,
+    formatSizeOption,
+    resolveSizeNameFromLabel,
+} from "@/lib/product/ensureSellerSizesInCatalog";
 import { ApiError } from "@/lib/api/client";
 import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
-import { applyDeliverySelection, applyReturnPolicySelection } from "@/lib/products/policyPresets";
+import {
+    applyDeliverySelection,
+    applyReturnPolicySelection,
+    DELIVERY_OPTIONS,
+    RETURN_POLICY_OPTIONS,
+} from "@/lib/products/policyPresets";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
+import {
+    buildCategoryPathOptions,
+    buildLeafSubcategoryOptions,
+    findCategorySubForProductSub,
+    formatCategoryPath,
+    resolveCategoryPathSelection,
+    resolveLeafSubcategorySelection,
+} from "@/lib/product/categoryPaths";
 
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
@@ -156,9 +175,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
 const CATEGORIES = Object.keys(SUBCATEGORIES);
 const COLORS_LIST = ["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Orange", "Gray"];
 const SIZES_LIST = ["XS", "S", "M", "L", "XL", "XXL", "Free Size", "28", "30", "32", "34", "36", "38", "40"];
-const DELIVERY_OPTIONS = ["Standard Delivery", "Express Delivery", "Same Day Delivery", "Pickup Only"];
-const RETURN_POLICIES = ["7 Days Return", "14 Days Return", "30 Days Return", "No Return"];
-
 const STEPS = [
     { key: "basic", label: "Basic Info", icon: "information-outline", color: "#7C3AED" },
     { key: "variants", label: "Variants", icon: "tune-variant", color: "#0891B2" },
@@ -170,7 +186,11 @@ const EMPTY_BASIC = {
     id: "",
     name: "",
     category: "",
+    categoryId: undefined as number | undefined,
+    categorySubName: "",
+    categorySubId: undefined as number | undefined,
     subcategory: "",
+    subcategoryId: undefined as number | undefined,
     materialType: "",
     hsnCode: "",
     shortDesc: "",
@@ -180,6 +200,9 @@ const EMPTY_BASIC = {
     height: "",
     weight: "",
     weightSlab: "",
+    intraCityCharge: "",
+    metroMetroCharge: "",
+    customDeliveryCharge: false,
     fragile: "No",
     customized: false,
     custTitle: "",
@@ -1041,16 +1064,40 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
         }
     }, [errors, validationTrigger]);
 
-    const categoryOptions = uniquePickerOptions(
-        catalog?.categories?.map((c: { name: string }) => c.name) ?? CATEGORIES
+    const categoryPathOptions = buildCategoryPathOptions(catalog, SUBCATEGORIES);
+    const categoryDisplay = formatCategoryPath(data.category, data.categorySubName ?? "");
+    const leafSubcategoryOptions = buildLeafSubcategoryOptions(
+        catalog,
+        data.category,
+        data.categorySubName ?? ""
     );
-    const selectedCategory = catalog?.categories?.find(
-        (c: { name: string }) => c.name === data.category
-    );
-    const subcats = uniquePickerOptions(
-        selectedCategory?.subcategories?.map((s: { name: string }) => s.name) ??
-            (data.category ? SUBCATEGORIES[data.category] || [] : [])
-    );
+    const subcategoryEnabled = Boolean(data.category && data.categorySubName);
+    const selectCategoryPath = (label: string) => {
+        const resolved = resolveCategoryPathSelection(label, catalog);
+        onChange("category", resolved.category);
+        onChange("categoryId", resolved.categoryId);
+        onChange("categorySubId", resolved.categorySubId);
+        onChange("categorySubName", resolved.categorySubName);
+        const leaves = buildLeafSubcategoryOptions(catalog, resolved.category, resolved.categorySubName);
+        if (leaves.length === 0) {
+            onChange("subcategory", resolved.categorySubName);
+            onChange("subcategoryId", resolved.categorySubId);
+        } else {
+            onChange("subcategory", "");
+            onChange("subcategoryId", null);
+            setSubPick(true);
+        }
+    };
+    const selectSubcategory = (leafName: string) => {
+        const resolved = resolveLeafSubcategorySelection(
+            data.category,
+            data.categorySubName ?? "",
+            leafName,
+            catalog
+        );
+        onChange("subcategory", resolved.subcategory);
+        onChange("subcategoryId", resolved.subcategoryId);
+    };
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
     return (
@@ -1080,11 +1127,11 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 }}>
                     <View ref={el => { fieldRefs.current['category'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Category" required />
-                        <Drop placeholder="Select category" value={data.category} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryOptions} onSelect={(v: string) => { onChange("category", v); onChange("subcategory", ""); }} />
+                        <Drop placeholder="Select category" value={categoryDisplay} onPress={() => setCatPick(true)} hasError={hasErr("category")} options={categoryPathOptions} onSelect={selectCategoryPath} />
                     </View>
                     <View ref={el => { fieldRefs.current['subcategory'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Subcategory" required />
-                        <Drop placeholder="Select sub" value={data.subcategory} onPress={() => data.category && setSubPick(true)} hasError={hasErr("subcategory")} options={subcats} onSelect={(v: string) => onChange("subcategory", v)} />
+                        <Drop placeholder="Select subcategory" value={data.subcategory} onPress={() => subcategoryEnabled && setSubPick(true)} hasError={hasErr("subcategory")} options={leafSubcategoryOptions} onSelect={selectSubcategory} />
                     </View>
                 </View>
                 <View style={[at.row2, Platform.OS === 'web' && { zIndex: 10 }]} onLayout={(e: LayoutChangeEvent) => {
@@ -1167,6 +1214,20 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                         <Hint text="Based on entered weight" />
                     </View>
                 </View>
+                {data.customDeliveryCharge ? (
+                    <Hint text="Custom delivery pricing applies for this weight slab." />
+                ) : data.weightSlab ? (
+                    <View style={[at.row2, { marginTop: 8 }]}>
+                        <View style={{ flex: 1 }}>
+                            <Lbl text="Intra-city charge (₹)" />
+                            <Field value={String(data.intraCityCharge ?? "")} editable={false} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Lbl text="Metro-metro charge (₹)" />
+                            <Field value={String(data.metroMetroCharge ?? "")} editable={false} />
+                        </View>
+                    </View>
+                ) : null}
                 <Divider />
                 <Lbl text="Fragile Item?" required />
                 <View style={at.radioRow}>
@@ -1255,8 +1316,8 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 )}
             </Card>
 
-            <PM visible={catPick} title="Select Category" options={categoryOptions} selected={data.category} onSelect={(v: string) => { onChange("category", v); onChange("subcategory", ""); }} onClose={() => setCatPick(false)} />
-            <PM visible={subPick} title="Select Subcategory" options={subcats} selected={data.subcategory} onSelect={(v: string) => onChange("subcategory", v)} onClose={() => setSubPick(false)} />
+            <PM visible={catPick} title="Select Category" options={categoryPathOptions} selected={categoryDisplay} onSelect={selectCategoryPath} onClose={() => setCatPick(false)} />
+            <PM visible={subPick} title="Select Subcategory" options={leafSubcategoryOptions} selected={data.subcategory} onSelect={selectSubcategory} onClose={() => setSubPick(false)} />
             <PM
                 visible={matPick}
                 title="Select Material"
@@ -1291,9 +1352,13 @@ type Variant = {
     videoUrl?: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef, reloadCatalog }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
+    const [addSizeOpen, setAddSizeOpen] = useState(false);
+    const [newSizeName, setNewSizeName] = useState("");
+    const [newSizeCode, setNewSizeCode] = useState("");
+    const [savingSize, setSavingSize] = useState(false);
 
     const openColorPicker = (variantId: string) => {
         setSzPick(null);
@@ -1383,6 +1448,31 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         }));
     };
 
+    const handleCreateSize = async () => {
+        const name = newSizeName.trim();
+        const code = newSizeCode.trim().toUpperCase();
+        if (!name || !code) {
+            Alert.alert("Required", "Size name and code are required.");
+            return;
+        }
+        setSavingSize(true);
+        try {
+            const created = await createSize({ name, code, status: "Active" });
+            await reloadCatalog?.();
+            if (szPick) {
+                patchVariant(szPick, { size: created.name, sizeId: Number(created.id) });
+            }
+            setAddSizeOpen(false);
+            setNewSizeName("");
+            setNewSizeCode("");
+            setSzPick(null);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
+        } finally {
+            setSavingSize(false);
+        }
+    };
+
     if (!catalogReady) {
         return (
             <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
@@ -1435,6 +1525,9 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                 const size = resolveSizeFromLabel(val);
                                 patchVariant(v.id, { size: size?.name ?? val, sizeId: size?.id });
                             }} />
+                            <TouchableOpacity onPress={() => { setSzPick(v.id); setAddSizeOpen(true); }} style={vt.addSizeLink}>
+                                <Text style={vt.addSizeLinkTxt}>+ Add new size (your account only)</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -1493,6 +1586,26 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                 const size = resolveSizeFromLabel(val);
                 patchVariant(szPick, { size: size?.name ?? val, sizeId: size?.id });
             }} onClose={() => setSzPick(null)} />
+            <Modal visible={addSizeOpen} transparent animationType="fade" onRequestClose={() => setAddSizeOpen(false)}>
+                <View style={vt.sizeModalOverlay}>
+                    <View style={vt.sizeModalCard}>
+                        <Text style={vt.sizeModalTitle}>Add New Size</Text>
+                        <Text style={vt.sizeModalSub}>Saved for your seller account only</Text>
+                        <Lbl text="Size Name" required />
+                        <Field placeholder="e.g. Medium" value={newSizeName} onChangeText={setNewSizeName} />
+                        <Lbl text="Size Code" required />
+                        <Field placeholder="e.g. M1" value={newSizeCode} onChangeText={setNewSizeCode} />
+                        <View style={vt.sizeModalActions}>
+                            <TouchableOpacity style={vt.sizeModalCancel} onPress={() => setAddSizeOpen(false)} disabled={savingSize}>
+                                <Text style={vt.sizeModalCancelTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={vt.sizeModalSave} onPress={handleCreateSize} disabled={savingSize}>
+                                {savingSize ? <ActivityIndicator color={C.white} size="small" /> : <Text style={vt.sizeModalSaveTxt}>Save Size</Text>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 };
@@ -1991,7 +2104,7 @@ const si = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // STEP 4 — Details
 // ─────────────────────────────────────────────────────────────
-const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: any) => {
+const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef, catalog, reloadCatalog }: any) => {
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
     const [delPick, setDelPick] = useState(false);
@@ -2008,6 +2121,12 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
     const [chartCatPick, setChartCatPick] = useState(false);
     const [chartSubPick, setChartSubPick] = useState(false);
     const [chartUnitPick, setChartUnitPick] = useState(false);
+    const [chartSizePickRowId, setChartSizePickRowId] = useState<string | null>(null);
+    const [addChartSizeOpen, setAddChartSizeOpen] = useState(false);
+    const [newChartSizeName, setNewChartSizeName] = useState("");
+    const [newChartSizeCode, setNewChartSizeCode] = useState("");
+    const [savingChartSize, setSavingChartSize] = useState(false);
+    const [savingChart, setSavingChart] = useState(false);
     const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
     const features = data.features?.length ? data.features : [""];
     const specs = data.specifications?.length ? data.specifications : [{ name: "", value: "" }];
@@ -2018,6 +2137,11 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
         ? [CHART_SUB_ALL, ...ALL_CHART_SUBCATEGORIES]
         : [CHART_SUB_ALL, ...(SUBCATEGORIES[chartCategory] || [])];
 
+    const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
+    const chartSizeOptions = uniquePickerOptions(
+        catalogSizes.map((s) => formatSizeOption(s))
+    );
+
     const openCreateSizeChart = () => {
         setNewChartName(""); setChartCategory(CHART_CATEGORY_ALL); setChartSubcategory(CHART_SUB_ALL);
         setChartImageUri(null); setChartUnit(DEFAULT_CHART_UNIT); setChartNotes("");
@@ -2027,14 +2151,25 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
 
     const openCustomPolicy = () => { setCustomPolicyDraft(data.returnPolicyText || ""); setCustomPolicyOpen(true); };
 
-    const saveSizeChart = () => {
+    const saveSizeChart = async () => {
         const name = newChartName.trim();
         if (!name) { Alert.alert("Chart name required", "Please enter a name for your size chart."); return; }
         const validRows = chartRows.filter((r) => r.size.trim());
         if (validRows.length === 0) { Alert.alert("Sizes required", "Add at least one size row to the chart."); return; }
-        setSizeChartOptions((prev) => (prev.includes(name) ? prev : [...prev, name]));
-        onChange("sizeChart", name);
-        setCreateSizeOpen(false);
+        setSavingChart(true);
+        try {
+            const sizeNames = validRows.map((r) => r.size.trim());
+            await ensureSellerSizesInCatalog(sizeNames, catalogSizes);
+            await reloadCatalog?.();
+            setSizeChartOptions((prev) => (prev.includes(name) ? prev : [...prev, name]));
+            onChange("sizeChart", name);
+            onChange("sizeChartRows", validRows);
+            setCreateSizeOpen(false);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not save sizes to your catalog.");
+        } finally {
+            setSavingChart(false);
+        }
     };
 
     const saveCustomPolicy = () => {
@@ -2049,6 +2184,38 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
     const removeChartRow = (id: string) => setChartRows((prev) => prev.filter((r) => r.id !== id));
     const updateChartRow = (id: string, field: keyof SizeChartRow, value: string) => {
         setChartRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    };
+
+    const handleCreateChartSize = async () => {
+        const name = newChartSizeName.trim();
+        const code = newChartSizeCode.trim().toUpperCase();
+        if (!name || !code) {
+            Alert.alert("Required", "Size name and code are required.");
+            return;
+        }
+        setSavingChartSize(true);
+        try {
+            const created = await createSize({ name, code, status: "Active" });
+            await reloadCatalog?.();
+            if (chartSizePickRowId) {
+                updateChartRow(chartSizePickRowId, "size", created.name);
+            } else {
+                const emptyRow = chartRows.find((r) => !r.size.trim());
+                if (emptyRow) {
+                    updateChartRow(emptyRow.id, "size", created.name);
+                } else {
+                    setChartRows((prev) => [...prev, emptySizeRow(created.name)]);
+                }
+            }
+            setAddChartSizeOpen(false);
+            setNewChartSizeName("");
+            setNewChartSizeCode("");
+            setChartSizePickRowId(null);
+        } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
+        } finally {
+            setSavingChartSize(false);
+        }
     };
 
     const twoCol = isDesktop ? at.row2 : dt.responsiveCol;
@@ -2082,7 +2249,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
                 <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }]}>
                     <View style={fieldFlex}>
                         <Lbl text="Policy Template" required />
-                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICIES} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
+                        <Drop placeholder="Select template" value={data.returnPolicy} onPress={() => setRetPick(true)} hasError={hasErr("return policy")} options={RETURN_POLICY_OPTIONS} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} />
                     </View>
                     <View style={fieldFlex}>
                         <Lbl text="Custom Policy" />
@@ -2174,7 +2341,7 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
             </Card>
 
             <PM visible={sizePick} title="Size Chart" options={sizeChartOptions} selected={data.sizeChart} onSelect={(v: string) => onChange("sizeChart", v)} onClose={() => setSizePick(false)} />
-            <PM visible={retPick} title="Return Policy" options={RETURN_POLICIES} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
+            <PM visible={retPick} title="Return Policy" options={RETURN_POLICY_OPTIONS} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
             <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => applyDeliverySelection(v, onChange)} onClose={() => setDelPick(false)} />
 
             <FormPopupModal
@@ -2189,6 +2356,23 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
                         <InlinePicker visible={chartCatPick} title="Select Category" options={chartCategoryOptions} selected={chartCategory} onSelect={(v) => { setChartCategory(v); setChartSubcategory(CHART_SUB_ALL); }} onClose={() => setChartCatPick(false)} />
                         <InlinePicker visible={chartSubPick} title="Select Subcategory" options={chartSubOptions} selected={chartSubcategory} onSelect={setChartSubcategory} onClose={() => setChartSubPick(false)} />
                         <InlinePicker visible={chartUnitPick} title="Measurement Unit" options={[...MEASUREMENT_UNIT_OPTIONS]} selected={chartUnit} onSelect={setChartUnit} onClose={() => setChartUnitPick(false)} />
+                        <InlinePicker
+                            visible={chartSizePickRowId != null}
+                            title="Select Size"
+                            options={chartSizeOptions}
+                            selected={chartRows.find((r) => r.id === chartSizePickRowId)?.size ?? ""}
+                            onSelect={(v: string) => {
+                                if (chartSizePickRowId) {
+                                    updateChartRow(
+                                        chartSizePickRowId,
+                                        "size",
+                                        resolveSizeNameFromLabel(v, catalogSizes)
+                                    );
+                                }
+                                setChartSizePickRowId(null);
+                            }}
+                            onClose={() => setChartSizePickRowId(null)}
+                        />
                     </>
                 }
             >
@@ -2217,6 +2401,9 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
                         <Text style={dt.addSizeOrangeBtnTxt}>Add Size</Text>
                     </TouchableOpacity>
                 </View>
+                <TouchableOpacity onPress={() => setAddChartSizeOpen(true)} style={vt.addSizeLink} activeOpacity={0.7}>
+                    <Text style={vt.addSizeLinkTxt}>+ Add new size to your catalog (seller only)</Text>
+                </TouchableOpacity>
                 {chartRows.length > 0 ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
                         <View style={dt.sizeTableWrap}>
@@ -2232,13 +2419,28 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
                                 <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
                                     {SIZE_TABLE_COLS.map((col) => (
                                         <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
-                                            <TextInput
-                                                style={dt.sizeTableInput}
-                                                placeholder={col.placeholder}
-                                                placeholderTextColor={C.textPlaceholder}
-                                                value={row[col.key]}
-                                                onChangeText={(v) => updateChartRow(row.id, col.key, v)}
-                                            />
+                                            {col.key === "size" ? (
+                                                <TouchableOpacity
+                                                    style={[dt.sizeTableInput, { justifyContent: "center" }]}
+                                                    onPress={() => setChartSizePickRowId(row.id)}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text
+                                                        style={{ fontFamily: "Outfit_400Regular", fontSize: 12, color: row.size ? C.textDark : C.textPlaceholder }}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {row.size || "Select"}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <TextInput
+                                                    style={dt.sizeTableInput}
+                                                    placeholder={col.placeholder}
+                                                    placeholderTextColor={C.textPlaceholder}
+                                                    value={row[col.key]}
+                                                    onChangeText={(v) => updateChartRow(row.id, col.key, v)}
+                                                />
+                                            )}
                                         </View>
                                     ))}
                                     <View style={dt.sizeTableTdAction}>
@@ -2264,11 +2466,40 @@ const StepDetails = ({ data, onChange, errors, isDesktop = false, scrollRef }: a
                     <TouchableOpacity style={[fp.footerBtnSecondary, !isDesktop && fp.footerBtnPrimaryFull]} onPress={() => setCreateSizeOpen(false)}>
                         <Text style={fp.footerBtnTxtSecondary}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull]} onPress={saveSizeChart}>
-                        <Text style={fp.footerBtnTxtPrimary}>Save Chart</Text>
+                    <TouchableOpacity
+                        style={[fp.footerBtnPrimary, fp.footerBtnAccent, !isDesktop && fp.footerBtnPrimaryFull, savingChart && { opacity: 0.6 }]}
+                        onPress={saveSizeChart}
+                        disabled={savingChart}
+                    >
+                        <Text style={fp.footerBtnTxtPrimary}>{savingChart ? "Saving…" : "Save Chart"}</Text>
                     </TouchableOpacity>
                 </View>
             </FormPopupModal>
+
+            <Modal visible={addChartSizeOpen} transparent animationType="fade" onRequestClose={() => setAddChartSizeOpen(false)}>
+                <View style={vt.sizeModalOverlay}>
+                    <View style={vt.sizeModalCard}>
+                        <Text style={vt.sizeModalTitle}>Add New Size</Text>
+                        <Text style={vt.sizeModalSub}>Saved only for your seller account.</Text>
+                        <Lbl text="Size Name" required />
+                        <Field placeholder="e.g. Extra Large" value={newChartSizeName} onChangeText={setNewChartSizeName} />
+                        <Lbl text="Size Code" required />
+                        <Field placeholder="e.g. XL" value={newChartSizeCode} onChangeText={setNewChartSizeCode} autoCapitalize="characters" />
+                        <View style={vt.sizeModalActions}>
+                            <TouchableOpacity style={vt.sizeModalCancel} onPress={() => setAddChartSizeOpen(false)} disabled={savingChartSize}>
+                                <Text style={vt.sizeModalCancelTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[vt.sizeModalSave, savingChartSize && { opacity: 0.6 }]}
+                                onPress={handleCreateChartSize}
+                                disabled={savingChartSize}
+                            >
+                                {savingChartSize ? <ActivityIndicator color={C.white} size="small" /> : <Text style={vt.sizeModalSaveTxt}>Save Size</Text>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             <FormPopupModal visible={customPolicyOpen} onClose={() => setCustomPolicyOpen(false)} title="Write Custom Return Policy">
                 <Hint text="Describe your return rules clearly. This will appear to buyers on the product page." />
@@ -2745,6 +2976,27 @@ const EditProduct: React.FC = () => {
         };
     }, [productId, showToast]);
 
+    useEffect(() => {
+        if (!catalog || !basicData.category) return;
+        const middle = findCategorySubForProductSub(
+            catalog,
+            basicData.category,
+            basicData.subcategoryId,
+            basicData.subcategory
+        );
+        if (!middle.categorySubName) return;
+        setBasicData((prev) => {
+            if (prev.categorySubName === middle.categorySubName && prev.categorySubId === middle.categorySubId) {
+                return prev;
+            }
+            return {
+                ...prev,
+                categorySubName: middle.categorySubName,
+                categorySubId: middle.categorySubId,
+            };
+        });
+    }, [catalog, basicData.category, basicData.subcategoryId, basicData.subcategory]);
+
     const [fontsLoaded] = useFonts({
         Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
     });
@@ -2778,7 +3030,16 @@ const EditProduct: React.FC = () => {
         setBasicData((p) => {
             const next = { ...p, [k]: cleanVal };
             if (k === "weight") {
-                next.weightSlab = weightToSlabLabel(cleanVal);
+                const slab = resolveWeightSlab(cleanVal, catalog?.deliverySlabs);
+                next.weightSlab = slab.label;
+                next.customDeliveryCharge = !!slab.custom;
+                if (slab.custom) {
+                    next.intraCityCharge = "";
+                    next.metroMetroCharge = "";
+                } else {
+                    next.intraCityCharge = String(slab.intraCityCharge);
+                    next.metroMetroCharge = String(slab.metroMetroCharge);
+                }
             }
             return next;
         });
@@ -2939,6 +3200,7 @@ const EditProduct: React.FC = () => {
                     productName={basicData.name ?? ""}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
+                    reloadCatalog={reloadCatalog}
                 />
             )}
             {step === 2 && (
@@ -2958,6 +3220,8 @@ const EditProduct: React.FC = () => {
                     errors={detailErrors}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
+                    catalog={catalog}
+                    reloadCatalog={reloadCatalog}
                 />
             )}
         </>
@@ -3118,6 +3382,17 @@ const vt = StyleSheet.create({
     addTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
     infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12 },
     infoTxt: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
+    addSizeLink: { marginTop: 6, alignSelf: "flex-start" },
+    addSizeLinkTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.navy },
+    sizeModalOverlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.35)", justifyContent: "center", alignItems: "center", padding: 20 },
+    sizeModalCard: { width: "100%", maxWidth: 400, backgroundColor: C.white, borderRadius: 16, padding: 20 },
+    sizeModalTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textDark },
+    sizeModalSub: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textMid, marginBottom: 12, marginTop: 4 },
+    sizeModalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 },
+    sizeModalCancel: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+    sizeModalCancelTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
+    sizeModalSave: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.navy, minWidth: 100, alignItems: "center" },
+    sizeModalSaveTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
 });
 
 // ─── Details Styles ───────────────────────────────────────────

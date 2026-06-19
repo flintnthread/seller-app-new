@@ -50,7 +50,7 @@ import {
     useSellerProfileSummary,
     type SellerProfileSummary,
 } from "@/hooks/useSellerProfileSummary";
-import { AccountStatusBanner } from "@/components/AccountStatusBanner";
+import { SellerAccountReviewDashboard } from "@/components/SellerAccountReviewDashboard";
 import { CompleteProfileDashboardCard } from "@/components/CompleteProfileDashboardCard";
 import { clearSellerId } from "@/lib/api/sellerSession";
 import type { TextProps } from 'react-native';
@@ -1202,7 +1202,8 @@ const dr = StyleSheet.create({
 const MobileDashboard: React.FC<{
     profile: SellerProfileSummary | null;
     profileLoading: boolean;
-}> = ({ profile, profileLoading }) => {
+    onProfileReload?: () => void | Promise<void>;
+}> = ({ profile, profileLoading, onProfileReload }) => {
     const router = useRouter();
     const {
         data,
@@ -1330,12 +1331,24 @@ const MobileDashboard: React.FC<{
     };
     const activeSubtitle = CARD_SUBTITLES[activeMenuCard] ?? `${greeting}, ${displayName}`;
     const profileIncomplete = !profileLoading && profile && !profile.profileCompleted;
+    const approvalState = profile?.accountStatus?.approvalState;
+    const showAccountReviewDashboard =
+        !profileLoading &&
+        profile?.profileCompleted &&
+        (approvalState === "pending_review" || approvalState === "rejected");
 
     return (
         <View style={s.root}>
             <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} bounces={false}
                 contentContainerStyle={{ paddingBottom: 100 }}>
-                {dashboardError ? (
+                {showAccountReviewDashboard ? (
+                    <SellerAccountReviewDashboard
+                        profile={profile}
+                        loading={profileLoading}
+                        {...(onProfileReload ? { onRefresh: onProfileReload } : {})}
+                    />
+                ) : null}
+                {!showAccountReviewDashboard && dashboardError ? (
                     <View style={{ margin: 16, padding: 12, borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }}>
                         <AppText style={{ color: "#DC2626", fontFamily: "Poppins_500Medium", fontSize: 13 }}>{dashboardError}</AppText>
                         <TouchableOpacity onPress={reloadDashboard} style={{ marginTop: 8 }}>
@@ -1343,31 +1356,20 @@ const MobileDashboard: React.FC<{
                         </TouchableOpacity>
                     </View>
                 ) : null}
-                {dashboardLoading && !data ? (
+                {!showAccountReviewDashboard && dashboardLoading && !data ? (
                     <View style={{ margin: 16, padding: 16, alignItems: "center" }}>
                         <AppText style={{ color: C.textMid, fontFamily: "Poppins_500Medium", fontSize: 13 }}>Loading dashboard…</AppText>
                     </View>
                 ) : null}
-                {profileIncomplete ? (
-                    <LinearGradient
-                        colors={[C.navyDeep, C.navy]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={s.welcomeBannerBlue}
-                    >
-                        <AppText style={s.welcomeGreetingLight}>{greeting},</AppText>
-                        <AppText style={s.welcomeNameLight}>{displayName}</AppText>
-                    </LinearGradient>
-                ) : (
+                {!showAccountReviewDashboard && profileIncomplete ? (
+                    <CompleteProfileDashboardCard profile={profile} embedded />
+                ) : !showAccountReviewDashboard ? (
                     <View style={s.welcomeBanner}>
                         <AppText style={s.welcomeGreeting}>{greeting},</AppText>
                         <AppText style={s.welcomeName}>{displayName}</AppText>
                     </View>
-                )}
-                {profileIncomplete ? (
-                    <CompleteProfileDashboardCard profile={profile} embedded />
                 ) : null}
-                {!profileIncomplete ? (
+                {!profileIncomplete && !showAccountReviewDashboard ? (
                 <>
                 {/* ── PROFILE ── */}
                 <View style={s.section}>
@@ -1449,18 +1451,6 @@ const MobileDashboard: React.FC<{
                             </TouchableOpacity>
                         </LinearGradient>
                     </View>
-                    {profile?.accountStatus?.approvalState === "pending_review" ? (
-                        <View style={s.accountStatusWrap}>
-                            <AccountStatusBanner
-                                accountStatus={profile?.accountStatus}
-                                loading={profileLoading}
-                                compact
-                                fullName={profile?.fullName}
-                                email={profile?.email}
-                                mobile={profile?.mobile}
-                            />
-                        </View>
-                    ) : null}
                 </View>
 
                  
@@ -2083,17 +2073,24 @@ const s = StyleSheet.create({
 });
 
 const SellerDashboard: React.FC = () => {
-  const { summary, loading } = useSellerProfileSummary();
+  const { summary, loading, reload } = useSellerProfileSummary();
 
   const desktopProps: DesktopDashboardProps = {
     profile: summary,
     profileLoading: loading,
+    onProfileReload: reload,
   };
 
   if (Platform.OS === "web") {
     return <DesktopDashboard {...desktopProps} />;
   }
-  return <MobileDashboard profile={summary} profileLoading={loading} />;
+  return (
+    <MobileDashboard
+      profile={summary}
+      profileLoading={loading}
+      onProfileReload={reload}
+    />
+  );
 };
 
 export default SellerDashboard;
