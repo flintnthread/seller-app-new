@@ -9,7 +9,7 @@ export type DeliveryWeightSlab = {
 };
 
 const FALLBACK_SLABS: DeliveryWeightSlab[] = [
-    { label: "0-500 gms", minWeightKg: 0, maxWeightKg: 0.5, intraCityCharge: 0, metroMetroCharge: 25 },
+    { label: "500gms-1kg", minWeightKg: 0.5, maxWeightKg: 1, intraCityCharge: 20, metroMetroCharge: 25 },
     { label: "1-2 kg", minWeightKg: 1, maxWeightKg: 2, intraCityCharge: 80, metroMetroCharge: 95 },
     { label: "2-5 kg", minWeightKg: 2, maxWeightKg: 5, intraCityCharge: 175, metroMetroCharge: 205 },
     { label: "Above 5 kg", minWeightKg: 5, maxWeightKg: 999.999, intraCityCharge: 0, metroMetroCharge: 0, custom: true },
@@ -25,7 +25,7 @@ export function resolveWeightSlab(
 ): DeliveryWeightSlab {
     const w = parseFloat(String(weightRaw ?? "").trim());
     if (!Number.isFinite(w) || w <= 0) {
-        return { label: "", minWeightKg: 0, maxWeightKg: 0, intraCityCharge: 0, metroMetroCharge: 25 };
+        return { label: "", minWeightKg: 0, maxWeightKg: 0, intraCityCharge: 175, metroMetroCharge: 205 };
     }
     const list = slabs.length > 0 ? slabs : FALLBACK_SLABS;
 
