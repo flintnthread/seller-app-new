@@ -7,11 +7,14 @@ export type ProductListItem = {
     name: string;
     sku: string;
     price: number;
+    mrpInclGst?: number;
     image: string;
     status: string;
     stock: number;
     updated: string;
     category: string;
+    /** Middle-level category from database hierarchy. */
+    categorySub?: string;
     subcategory: string;
     subSubcategory?: string;
     color: string;
@@ -77,6 +80,7 @@ export type ProductDetailSizeChartRow = {
     waist: string;
     hip: string;
     length: string;
+    sleeve?: string;
 };
 
 export type ProductDetail = {
@@ -84,6 +88,8 @@ export type ProductDetail = {
     categoryId: number;
     subcategoryId: number;
     sizeChartId?: number;
+    sizeChartName?: string;
+    sizeChartImage?: string;
     name: string;
     sku: string;
     price: number;
@@ -98,6 +104,7 @@ export type ProductDetail = {
     stock: number;
     updated: string;
     category: string;
+    categorySub?: string;
     subcategory: string;
     color: string;
     size: string;
@@ -162,11 +169,13 @@ type ApiProductListItem = {
     name: string;
     sku?: string;
     price?: number;
+    mrpInclGst?: number;
     image?: string;
     status?: string;
     stock?: number;
     updated?: string;
     category?: string;
+    categorySub?: string;
     subcategory?: string;
     color?: string;
     size?: string;
@@ -227,6 +236,8 @@ type ApiProductDetail = {
     categoryId?: number;
     subcategoryId?: number;
     sizeChartId?: number;
+    sizeChartName?: string;
+    sizeChartImage?: string;
     name: string;
     sku?: string;
     price?: number;
@@ -241,6 +252,7 @@ type ApiProductDetail = {
     stock?: number;
     updated?: string;
     category?: string;
+    categorySub?: string;
     subcategory?: string;
     color?: string;
     size?: string;
@@ -283,17 +295,24 @@ type ApiProductDetail = {
 };
 
 function toListItem(row: ApiProductListItem): ProductListItem {
+    const categorySub = row.categorySub?.trim() || undefined;
+    const subcategory = row.subcategory ?? "";
+    const leaf =
+        categorySub && subcategory && categorySub !== subcategory ? subcategory : undefined;
     return {
         id: String(row.id),
         name: row.name ?? "",
         sku: row.sku ?? "",
         price: Number(row.price ?? 0),
+        mrpInclGst: row.mrpInclGst != null ? Number(row.mrpInclGst) : undefined,
         image: resolveMediaUrl(row.image ?? "") ?? "",
         status: row.status ?? "Inactive",
         stock: Number(row.stock ?? 0),
         updated: row.updated ?? "",
         category: row.category ?? "Uncategorized",
-        subcategory: row.subcategory ?? "",
+        categorySub,
+        subcategory,
+        subSubcategory: leaf,
         color: row.color ?? "",
         size: row.size ?? "",
         description: row.description,
@@ -362,6 +381,8 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         categoryId: num(row.categoryId),
         subcategoryId: num(row.subcategoryId),
         sizeChartId: row.sizeChartId,
+        sizeChartName: row.sizeChartName,
+        sizeChartImage: row.sizeChartImage ? resolveMediaUrl(row.sizeChartImage) ?? row.sizeChartImage : undefined,
         name: row.name ?? "",
         sku: row.sku ?? "—",
         price: num(row.price),
@@ -376,6 +397,7 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         stock: num(row.stock),
         updated: row.updated ?? "—",
         category: row.category ?? "Uncategorized",
+        categorySub: row.categorySub?.trim() || undefined,
         subcategory: row.subcategory ?? "",
         color: row.color ?? "—",
         size: row.size ?? "—",
@@ -450,7 +472,13 @@ export type CatalogSubcategory = {
     id: number;
     name: string;
     gstPercentage?: number;
-    children?: { id: number; name: string }[];
+    materials?: { material: string; hsnCode?: string; gst?: number }[];
+    children?: {
+        id: number;
+        name: string;
+        gstPercentage?: number;
+        materials?: { material: string; hsnCode?: string; gst?: number }[];
+    }[];
 };
 
 export type CatalogCategory = {
@@ -475,6 +503,9 @@ export type ProductFormCatalog = {
     categories: CatalogCategory[];
     colors: CatalogColor[];
     sizes: CatalogSize[];
+    priceMin?: number;
+    priceMax?: number;
+    commissionPercent?: number;
     deliverySlabs?: {
         id?: number;
         label: string;
@@ -513,6 +544,10 @@ export type CreateProductPayload = {
     categoryName?: string;
     subcategoryId?: number;
     subcategoryName?: string;
+    /** Normal category (categories.parent_id = main), e.g. Bags id=39 */
+    childCategoryId?: number;
+    /** Normal category display name */
+    middleCategoryName?: string;
     name: string;
     sku?: string;
     hsnCode: string;
@@ -561,6 +596,67 @@ type ApiCreateProductResponse = {
 
 export async function fetchProductFormCatalog(): Promise<ProductFormCatalog> {
     return apiRequest<ProductFormCatalog>("/api/catalog/product-form");
+}
+
+export type DeliveryChargeSlab = {
+    id?: number;
+    label: string;
+    minWeightKg: number;
+    maxWeightKg: number;
+    intraCityCharge: number;
+    metroMetroCharge: number;
+    custom?: boolean;
+};
+
+/** Resolve intra-city / metro-metro charges for a weight from existing delivery tables. */
+export async function fetchDeliveryChargesForWeight(weightKg: number): Promise<DeliveryChargeSlab> {
+    return apiRequest<DeliveryChargeSlab>(
+        `/api/catalog/delivery-charges?weightKg=${encodeURIComponent(String(weightKg))}`
+    );
+}
+
+export type VariantPricingPreview = {
+    mrpExcl: number;
+    sellingExcl: number;
+    gstPercent: number;
+    discountPercentage: number;
+    discountAmount: number;
+    taxAmount: number;
+    finalPrice: number;
+    mrpInclGst: number;
+    commissionPercent: number;
+    commissionAmount: number;
+    intraCityCharge: number;
+    metroMetroCharge: number;
+    totalIntraCity: number;
+    totalMetroMetro: number;
+    weightSlabLabel?: string;
+    deliveryCustom?: boolean;
+};
+
+/** Full variant price breakdown computed on the server from existing DB tables. */
+export async function fetchVariantPricingPreview(input: {
+    mrpExcl: number;
+    sellingExcl: number;
+    weightKg: number;
+    categorySubId?: number | null;
+    subcategoryId?: number | null;
+    discountOverride?: number | null;
+    gstPercent?: number | null;
+}): Promise<VariantPricingPreview> {
+    const body: Record<string, unknown> = {
+        mrpExcl: input.mrpExcl,
+        sellingExcl: input.sellingExcl,
+        weightKg: input.weightKg,
+    };
+    if (input.categorySubId != null) body.categorySubId = input.categorySubId;
+    if (input.subcategoryId != null) body.subcategoryId = input.subcategoryId;
+    if (input.discountOverride != null) body.discountOverride = input.discountOverride;
+    if (input.gstPercent != null) body.gstPercent = input.gstPercent;
+    return apiRequest<VariantPricingPreview>("/api/catalog/variant-pricing-preview", {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
 }
 
 export async function createProduct(payload: CreateProductPayload): Promise<CreateProductResult> {

@@ -57,13 +57,16 @@ const styles = StyleSheet.create({
   mainArea: {
     flex: 1,
     flexDirection: 'column',
+    minWidth: 0,
   },
   contentScroll: {
     flex: 1,
+    minWidth: 0,
   },
   contentContainer: {
     padding: 24,
     paddingBottom: 48,
     width: '100%',
+    minWidth: 0,
   },
 });

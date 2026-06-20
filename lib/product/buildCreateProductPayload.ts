@@ -16,6 +16,7 @@ type BasicData = {
     subcategoryId?: number | undefined;
     materialType: string;
     hsnCode: string;
+    gstPercentage?: string;
     shortDesc: string;
     fullDesc: string;
     length: string;
@@ -208,14 +209,25 @@ export async function buildCreateProductPayload(input: {
 
     if (basic.categoryId != null) {
         payload.categoryId = basic.categoryId;
-    } else {
-        payload.categoryName = basic.category;
+    }
+    if (basic.category?.trim()) {
+        payload.categoryName = basic.category.trim();
+    }
+    if (basic.categorySubId != null) {
+        payload.childCategoryId = basic.categorySubId;
+    }
+    if (basic.categorySubName?.trim()) {
+        payload.middleCategoryName = basic.categorySubName.trim();
     }
     if (basic.subcategoryId != null) {
         payload.subcategoryId = basic.subcategoryId;
     }
     if (basic.subcategory?.trim()) {
         payload.subcategoryName = basic.subcategory.trim();
+    }
+    const gst = parseNum(basic.gstPercentage ?? "");
+    if (gst > 0) {
+        payload.gstPercentage = gst;
     }
     const warranty = details.warranty?.trim();
     if (warranty) payload.warrantyInfo = warranty;

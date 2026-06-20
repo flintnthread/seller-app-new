@@ -27,7 +27,8 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
             const parsed = new URL(trimmed);
             if (
                 parsed.pathname.includes("/uploads/products/") ||
-                parsed.pathname.includes("/uploads/sellers/")
+                parsed.pathname.includes("/uploads/sellers/") ||
+                parsed.pathname.includes("/uploads/size_charts/")
             ) {
                 return `${apiBase}${parsed.pathname}`;
             }

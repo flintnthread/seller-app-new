@@ -92,7 +92,7 @@ export function resolveLeafSubcategorySelection(
     const sub = cat?.subcategories?.find((s) => s.name === categorySubName);
     const leaf = sub?.children?.find((c) => c.name === leafName);
     if (leaf && sub) {
-        return { subcategory: leafName, subcategoryId: sub.id };
+        return { subcategory: leafName, subcategoryId: leaf.id };
     }
     if (sub && sub.name === leafName) {
         return { subcategory: leafName, subcategoryId: sub.id };

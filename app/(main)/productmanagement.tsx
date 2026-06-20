@@ -12,9 +12,6 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import {
     productMatchesSearch,
-    uniqueProductColors,
-    uniqueProductSizes,
-    computeProductPriceMax,
 } from "@/lib/product/productFilterHelpers";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
@@ -27,6 +24,12 @@ import {
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 import { useProductFilterCatalog } from "@/hooks/useProductFilterCatalog";
+import {
+    leafSubcategoriesForMiddle,
+    middleCategoriesForMain,
+    productMatchesCategoryFilter,
+} from "@/lib/catalog/catalogFilterOptions";
+import { ProductPriceTag } from "@/lib/product/ProductPriceTag";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -50,7 +53,7 @@ type TabType = "All Products" | "Active" | "Inactive" | "Out of Stock" | "Low St
 type SortType = "Latest" | "Oldest" | "Price: Low-High" | "Price: High-Low" | "Name A-Z";
 
 const PRICE_MIN = 0;
-const PRICE_MAX = 5000;
+const PRICE_MAX_FALLBACK = 5000;
 const SLIDER_W  = SW - 80;
 const THUMB_S   = 24;
 
@@ -73,6 +76,19 @@ const SORT_OPTIONS: { value: SortType; icon: string; desc: string }[] = [
 ];
 const VIEW_RANGE_OPTIONS = [20, 30, 50] as const;
 const LOW_STOCK_THRESHOLD = 10;
+const COLOR_FILTER_PREVIEW = 8;
+const SIZE_FILTER_PREVIEW = 5;
+const FILTER_SLIDER_W = 200;
+
+const clampPrice = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+
+const parsePriceInput = (text: string, fallback: number) => {
+    const digits = text.replace(/[^0-9]/g, "");
+    if (!digits) return fallback;
+    const n = parseInt(digits, 10);
+    return Number.isFinite(n) ? n : fallback;
+};
 
 const DOT_COLORS: Record<string,string> = {
     Red:"#EF4444", Blue:"#3B82F6", Green:"#22C55E", Black:"#1F2937",
@@ -87,40 +103,49 @@ const COUNTRIES = ["India"];
 // ─────────────────────────────────────────────────────────────
 interface RangeSliderProps {
     low: number; high: number; min?: number; max?: number; step?: number;
+    width?: number;
     onLowChange: (v: number) => void; onHighChange: (v: number) => void;
+    onChangeComplete?: (low: number, high: number) => void;
 }
 
-const RangeSlider: React.FC<RangeSliderProps> = ({ low, high, min = PRICE_MIN, max = PRICE_MAX, step = 100, onLowChange, onHighChange }) => {
+const RangeSlider: React.FC<RangeSliderProps> = ({
+    low, high, min = PRICE_MIN, max = PRICE_MAX_FALLBACK, step = 100, width,
+    onLowChange, onHighChange, onChangeComplete,
+}) => {
+    const sliderW = width ?? SLIDER_W;
     const lowRef  = useRef(low);
     const highRef = useRef(high);
     lowRef.current  = low;
     highRef.current = high;
 
-    const valToPos = useCallback((v: number) => ((v - min) / (max - min)) * SLIDER_W, [min, max]);
+    const valToPos = useCallback((v: number) => ((v - min) / Math.max(max - min, 1)) * sliderW, [min, max, sliderW]);
     const posToVal = useCallback((pos: number) => {
-        const raw = (pos / SLIDER_W) * (max - min) + min;
+        const raw = (pos / sliderW) * (max - min) + min;
         return Math.max(min, Math.min(max, Math.round(raw / step) * step));
-    }, [min, max, step]);
+    }, [min, max, step, sliderW]);
 
     const lowStartX  = useRef(0);
     const highStartX = useRef(0);
+    const thumbSize = width ? 20 : THUMB_S;
 
     const lowPan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => { lowStartX.current = valToPos(lowRef.current); },
         onPanResponderMove: (_, gs) => {
-            const newPos = Math.max(0, Math.min(lowStartX.current + gs.dx, valToPos(highRef.current) - THUMB_S));
+            const newPos = Math.max(0, Math.min(lowStartX.current + gs.dx, valToPos(highRef.current) - thumbSize));
             onLowChange(posToVal(newPos));
         },
+        onPanResponderRelease: () => onChangeComplete?.(lowRef.current, highRef.current),
     })).current;
 
     const highPan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => { highStartX.current = valToPos(highRef.current); },
         onPanResponderMove: (_, gs) => {
-            const newPos = Math.max(valToPos(lowRef.current) + THUMB_S, Math.min(highStartX.current + gs.dx, SLIDER_W));
+            const newPos = Math.max(valToPos(lowRef.current) + thumbSize, Math.min(highStartX.current + gs.dx, sliderW));
             onHighChange(posToVal(newPos));
         },
+        onPanResponderRelease: () => onChangeComplete?.(lowRef.current, highRef.current),
     })).current;
 
     const lowX  = valToPos(low);
@@ -128,20 +153,22 @@ const RangeSlider: React.FC<RangeSliderProps> = ({ low, high, min = PRICE_MIN, m
 
     return (
         <View style={rs.container}>
-            <View style={rs.track}>
+            <View style={[rs.track, { marginHorizontal: thumbSize / 2 }]}>
                 <View style={[rs.fill, { left: lowX, width: Math.max(0, highX - lowX) }]} />
-                <View {...lowPan.panHandlers} style={[rs.thumb, { left: lowX - THUMB_S / 2 }]}>
-                    <View style={rs.thumbInner} />
+                <View {...lowPan.panHandlers} style={[rs.thumb, { width: thumbSize, height: thumbSize, borderRadius: thumbSize / 2, left: lowX - thumbSize / 2, top: -(thumbSize / 2 - 2) }]}>
+                    <View style={[rs.thumbInner, width ? { width: 6, height: 6, borderRadius: 3 } : undefined]} />
                 </View>
-                <View {...highPan.panHandlers} style={[rs.thumb, { left: highX - THUMB_S / 2 }]}>
-                    <View style={rs.thumbInner} />
+                <View {...highPan.panHandlers} style={[rs.thumb, { width: thumbSize, height: thumbSize, borderRadius: thumbSize / 2, left: highX - thumbSize / 2, top: -(thumbSize / 2 - 2) }]}>
+                    <View style={[rs.thumbInner, width ? { width: 6, height: 6, borderRadius: 3 } : undefined]} />
                 </View>
             </View>
-            <View style={rs.labelRow}>
-                <View style={rs.labelPill}><Text style={rs.labelTxt}>₹{low.toLocaleString()}</Text></View>
-                <View style={rs.dash} />
-                <View style={rs.labelPill}><Text style={rs.labelTxt}>₹{high.toLocaleString()}</Text></View>
-            </View>
+            {!width && (
+                <View style={rs.labelRow}>
+                    <View style={rs.labelPill}><Text style={rs.labelTxt}>₹{low.toLocaleString()}</Text></View>
+                    <View style={rs.dash} />
+                    <View style={rs.labelPill}><Text style={rs.labelTxt}>₹{high.toLocaleString()}</Text></View>
+                </View>
+            )}
         </View>
     );
 };
@@ -625,7 +652,7 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
                         <View style={{ flex: 1 }}>
                             <Text style={as.productName} numberOfLines={1}>{product.name}</Text>
                             <Text style={as.productSku}>SKU: {product.sku}</Text>
-                            <Text style={as.productPrice}>₹{product.price.toLocaleString()}</Text>
+                            <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={as.productPrice} />
                         </View>
                     </View>
                     <View style={as.divider} />
@@ -714,7 +741,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
                             <Text style={wp.popupName} numberOfLines={2}>{product.name}</Text>
                             <Text style={wp.popupSku}>SKU: {product.sku}</Text>
                             <View style={wp.popupMeta}>
-                                <Text style={wp.popupPrice}>₹{product.price.toLocaleString()}</Text>
+                                <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={wp.popupPrice} />
                                 <View style={[wp.popupStatusBadge, { backgroundColor: sb.bg }]}>
                                     <Text style={[wp.popupStatusTxt, { color: sb.color }]}>{product.status}</Text>
                                 </View>
@@ -801,10 +828,19 @@ const WebProductsScreen: React.FC = () => {
         }, [reload])
     );
 
-    const { categoryList, categoryTree, subcategoriesMap, dotColorMap } = useProductFilterCatalog(products);
-    const colorFilterOptions = useMemo(() => ["All", ...uniqueProductColors(products)], [products]);
-    const sizeFilterOptions = useMemo(() => ["All", ...uniqueProductSizes(products)], [products]);
-    const priceMax = useMemo(() => computeProductPriceMax(products, PRICE_MAX), [products]);
+    const {
+        categoryList,
+        categoryTree,
+        colorFilterOptions,
+        sizeFilterOptions,
+        dotColorMap,
+        priceMin,
+        priceMax,
+        catalogLoading,
+        catalogError,
+        reloadCatalog,
+    } = useProductFilterCatalog();
+
     const [viewType, setViewType]               = useState<ViewType>("list");
     const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
     const [sortBy, setSortBy]                   = useState<SortType>("Latest");
@@ -818,15 +854,60 @@ const WebProductsScreen: React.FC = () => {
     const [filterColor, setFilterColor]                   = useState("All");
     const [filterSize, setFilterSize]                     = useState("All");
     const [filterLowPrice, setFilterLowPrice]             = useState<number>(PRICE_MIN);
-    const [filterHighPrice, setFilterHighPrice]           = useState<number>(PRICE_MAX);
+    const [filterHighPrice, setFilterHighPrice]           = useState<number>(PRICE_MAX_FALLBACK);
 
     const [applied, setApplied] = useState({
         category: "All", subcategory: "All",
-        color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
+        color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX_FALLBACK,
     });
+
+    const priceBoundsInitialized = useRef(false);
+
+    useEffect(() => {
+        if (catalogLoading || priceBoundsInitialized.current) return;
+        priceBoundsInitialized.current = true;
+        setFilterLowPrice(priceMin);
+        setFilterHighPrice(priceMax);
+        setApplied((prev) => ({ ...prev, lowPrice: priceMin, highPrice: priceMax }));
+    }, [catalogLoading, priceMin, priceMax]);
+
+    const applyPriceFilter = useCallback((low: number, high: number) => {
+        const safeLow = clampPrice(low, priceMin, priceMax);
+        const safeHigh = clampPrice(Math.max(high, safeLow), priceMin, priceMax);
+        setFilterLowPrice(safeLow);
+        setFilterHighPrice(safeHigh);
+        setApplied((prev) => ({ ...prev, lowPrice: safeLow, highPrice: safeHigh }));
+        setVisibleCount(20);
+    }, [priceMin, priceMax]);
 
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
     const [expandedSubcat, setExpandedSubcat]     = useState<string | null>(null);
+    const [showAllColors, setShowAllColors]       = useState(false);
+    const [showAllSizes, setShowAllSizes]         = useState(false);
+    const [searchFocused, setSearchFocused]       = useState(false);
+
+    const colorOptionsList = useMemo(
+        () => colorFilterOptions.filter(c => c !== "All"),
+        [colorFilterOptions],
+    );
+    const visibleColorOptions = useMemo(
+        () => showAllColors ? colorOptionsList : colorOptionsList.slice(0, COLOR_FILTER_PREVIEW),
+        [colorOptionsList, showAllColors],
+    );
+    const hasMoreColors = colorOptionsList.length > COLOR_FILTER_PREVIEW;
+
+    const visibleSizeOptions = useMemo(
+        () => showAllSizes ? sizeFilterOptions : sizeFilterOptions.slice(0, SIZE_FILTER_PREVIEW),
+        [sizeFilterOptions, showAllSizes],
+    );
+    const hasMoreSizes = sizeFilterOptions.length > SIZE_FILTER_PREVIEW;
+
+    const applyCategoryFilter = useCallback((main: string, sub: string = "All") => {
+        setFilterCategory(main);
+        setFilterSubcategory(sub);
+        setApplied(prev => ({ ...prev, category: main, subcategory: sub }));
+        setVisibleCount(20);
+    }, []);
 
     const activeActionProduct = products.find(p => p.id === productActionId);
     const locationProduct     = products.find(p => p.id === locationProductId);
@@ -856,8 +937,11 @@ const WebProductsScreen: React.FC = () => {
         if (searchQuery.trim()) {
             list = list.filter(p => productMatchesSearch(p, searchQuery));
         }
-        if (applied.category !== "All")        list = list.filter(p => p.category        === applied.category);
-        if (applied.subcategory !== "All")     list = list.filter(p => p.subcategory     === applied.subcategory);
+        if (applied.category !== "All" || applied.subcategory !== "All") {
+            list = list.filter((p) =>
+                productMatchesCategoryFilter(p, applied.category, applied.subcategory, categoryTree),
+            );
+        }
         if (applied.color !== "All")           list = list.filter(p => p.color           === applied.color);
         // ── Size filter applied ──
         if (applied.size !== "All")            list = list.filter(p => p.size            === applied.size);
@@ -870,7 +954,7 @@ const WebProductsScreen: React.FC = () => {
             default:                list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
         }
         return list;
-    }, [products, selectedTab, searchQuery, applied, sortBy]);
+    }, [products, selectedTab, searchQuery, applied, sortBy, categoryTree]);
 
     const visibleProducts = processedProducts.slice(0, visibleCount);
     const hasMore         = visibleCount < processedProducts.length;
@@ -884,22 +968,27 @@ const WebProductsScreen: React.FC = () => {
 
     // ── WEB CHANGE 4: applyFilters now includes size ──
     const applyFilters = () => {
+        const safeLow = clampPrice(filterLowPrice, priceMin, priceMax);
+        const safeHigh = clampPrice(Math.max(filterHighPrice, safeLow), priceMin, priceMax);
         setApplied({
             category: filterCategory, subcategory: filterSubcategory,
             color: filterColor, size: filterSize,
-            lowPrice: filterLowPrice, highPrice: filterHighPrice,
+            lowPrice: safeLow, highPrice: safeHigh,
         });
+        setFilterLowPrice(safeLow);
+        setFilterHighPrice(safeHigh);
         setVisibleCount(20);
     };
 
     const clearFilters = () => {
         setFilterCategory("All"); setFilterSubcategory("All");
         setFilterColor("All"); setFilterSize("All");
-        setFilterLowPrice(PRICE_MIN); setFilterHighPrice(priceMax);
+        setFilterLowPrice(priceMin); setFilterHighPrice(priceMax);
         setExpandedCategory(null); setExpandedSubcat(null);
+        setShowAllColors(false); setShowAllSizes(false);
         setApplied({
             category: "All", subcategory: "All",
-            color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: priceMax,
+            color: "All", size: "All", lowPrice: priceMin, highPrice: priceMax,
         });
         setVisibleCount(20);
     };
@@ -907,7 +996,7 @@ const WebProductsScreen: React.FC = () => {
     const activeFilterCount = [
         applied.category !== "All", applied.subcategory !== "All",
         applied.color !== "All", applied.size !== "All",
-        applied.lowPrice > PRICE_MIN, applied.highPrice < priceMax,
+        applied.lowPrice > priceMin, applied.highPrice < priceMax,
     ].filter(Boolean).length;
 
     if (loading && products.length === 0) {
@@ -980,7 +1069,8 @@ const WebProductsScreen: React.FC = () => {
                 {/* MAIN AREA */}
                 <View style={wst.contentArea}>
 
-                    {/* ── LEFT FILTER PANEL ── */}
+                    {/* ── LEFT FILTER PANEL (sticky while page scrolls) ── */}
+                    <View style={wst.filterPanelOuter}>
                     <View style={wst.filterPanel}>
                         <View style={wst.filterPanelHeader}>
                             <View style={wst.filterPanelHeaderLeft}>
@@ -998,8 +1088,6 @@ const WebProductsScreen: React.FC = () => {
                                 </TouchableOpacity>
                             )}
                         </View>
-
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
 
                             {/* ── STATUS ── */}
                             <View style={wst.filterSection}>
@@ -1049,13 +1137,34 @@ const WebProductsScreen: React.FC = () => {
 
                             <View style={wst.filterDivider} />
 
-                            {/* ── 3-LEVEL CATEGORY TREE ── */}
+                            {/* ── 3-LEVEL CATEGORY TREE (database: main → category → subcategory) ── */}
                             <View style={wst.filterSection}>
-                                <Text style={wst.filterSectionLabel}>Category</Text>
+                                <Text style={wst.filterSectionLabel}>Categories</Text>
+                                <Text style={wst.filterSectionHint}>Main category → Category → Subcategory</Text>
+
+                                {catalogLoading && (
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
+                                        <ActivityIndicator size="small" color={C.navy} />
+                                        <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight }}>
+                                            Loading from database…
+                                        </Text>
+                                    </View>
+                                )}
+                                {catalogError && !catalogLoading && (
+                                    <TouchableOpacity onPress={() => reloadCatalog()} activeOpacity={0.7}>
+                                        <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.red, paddingVertical: 6 }}>
+                                            {catalogError} Tap to retry.
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
 
                                 <TouchableOpacity
                                     style={[wst.catMainItem, filterCategory === "All" && wst.catMainItemActive]}
-                                    onPress={() => { setFilterCategory("All"); setFilterSubcategory("All"); setExpandedCategory(null); setExpandedSubcat(null); }}
+                                    onPress={() => {
+                                        applyCategoryFilter("All", "All");
+                                        setExpandedCategory(null);
+                                        setExpandedSubcat(null);
+                                    }}
                                     activeOpacity={0.7}
                                 >
                                     <View style={[wst.catRadio, filterCategory === "All" && wst.catRadioFilled]}>
@@ -1067,7 +1176,7 @@ const WebProductsScreen: React.FC = () => {
                                 {categoryList.filter(c => c !== "All").map(cat => {
                                     const isSelected = filterCategory === cat;
                                     const isExpanded = expandedCategory === cat;
-                                    const subKeys = Object.keys(categoryTree[cat] ?? {});
+                                    const subKeys = middleCategoriesForMain(categoryTree, cat);
 
                                     return (
                                         <View key={cat}>
@@ -1077,8 +1186,7 @@ const WebProductsScreen: React.FC = () => {
                                                     if (isSelected && isExpanded) {
                                                         setExpandedCategory(null);
                                                     } else {
-                                                        setFilterCategory(cat);
-                                                        setFilterSubcategory("All");
+                                                        applyCategoryFilter(cat, "All");
                                                         setExpandedCategory(cat);
                                                         setExpandedSubcat(null);
                                                     }
@@ -1095,33 +1203,65 @@ const WebProductsScreen: React.FC = () => {
                                             </TouchableOpacity>
 
                                             {isExpanded && subKeys.map(sub => {
-                                                const isSubSelected = filterSubcategory === sub;
+                                                const subSubList = leafSubcategoriesForMiddle(categoryTree, cat, sub);
+                                                const hasLeaves = subSubList.length > 0;
                                                 const isSubExpanded = expandedSubcat === sub;
-                                                const subSubList = categoryTree?.[cat]?.[sub] ?? [];
+                                                const isSubSelected =
+                                                    filterCategory === cat &&
+                                                    (filterSubcategory === sub ||
+                                                        (hasLeaves && subSubList.includes(filterSubcategory)));
 
                                                 return (
-                                                    <TouchableOpacity
-                                                        key={sub}
-                                                        style={[wst.catSubItem, isSubSelected && wst.catSubItemActive]}
-                                                        onPress={() => {
-                                                            if (isSubSelected && isSubExpanded) {
-                                                                setExpandedSubcat(null);
-                                                            } else {
-                                                                setFilterSubcategory(sub);
-                                                                setExpandedSubcat(sub);
-                                                            }
-                                                        }}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <View style={wst.catSubIndent} />
-                                                        <View style={[wst.catSubRadio, isSubSelected && wst.catSubRadioFilled]}>
-                                                            {isSubSelected && <View style={wst.catSubRadioInner} />}
-                                                        </View>
-                                                        <Text style={[wst.catSubLabel, isSubSelected && { color: C.purple, fontFamily: "Outfit_600SemiBold" }]}>{sub}</Text>
-                                                        {subSubList.length > 0 && (
-                                                            <Ionicons name={isSubExpanded ? "chevron-up" : "chevron-down"} size={11} color={isSubSelected ? C.purple : C.textLight} />
-                                                        )}
-                                                    </TouchableOpacity>
+                                                    <View key={sub}>
+                                                        <TouchableOpacity
+                                                            style={[wst.catSubItem, isSubSelected && wst.catSubItemActive]}
+                                                            onPress={() => {
+                                                                if (hasLeaves) {
+                                                                    if (isSubExpanded) {
+                                                                        setExpandedSubcat(null);
+                                                                    } else {
+                                                                        applyCategoryFilter(cat, sub);
+                                                                        setExpandedSubcat(sub);
+                                                                    }
+                                                                } else {
+                                                                    applyCategoryFilter(cat, sub);
+                                                                    setExpandedSubcat(null);
+                                                                }
+                                                            }}
+                                                            activeOpacity={0.7}
+                                                        >
+                                                            <View style={wst.catSubIndent} />
+                                                            <View style={[wst.catSubRadio, isSubSelected && wst.catSubRadioFilled]}>
+                                                                {isSubSelected && <View style={wst.catSubRadioInner} />}
+                                                            </View>
+                                                            <Text style={[wst.catSubLabel, isSubSelected && { color: C.purple, fontFamily: "Outfit_600SemiBold" }]}>{sub}</Text>
+                                                            {hasLeaves && (
+                                                                <Ionicons name={isSubExpanded ? "chevron-up" : "chevron-down"} size={11} color={isSubSelected ? C.purple : C.textLight} />
+                                                            )}
+                                                        </TouchableOpacity>
+
+                                                        {isSubExpanded && hasLeaves && subSubList.map(leaf => {
+                                                            const isLeafSelected =
+                                                                filterCategory === cat && filterSubcategory === leaf;
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={leaf}
+                                                                    style={[wst.catSubSubItem, isLeafSelected && wst.catSubSubItemActive]}
+                                                                    onPress={() => {
+                                                                        applyCategoryFilter(cat, leaf);
+                                                                        setExpandedSubcat(sub);
+                                                                    }}
+                                                                    activeOpacity={0.7}
+                                                                >
+                                                                    <View style={wst.catSubSubIndent} />
+                                                                    <View style={[wst.catSubSubRadio, isLeafSelected && wst.catSubSubRadioFilled]}>
+                                                                        {isLeafSelected && <View style={wst.catSubSubRadioInner} />}
+                                                                    </View>
+                                                                    <Text style={[wst.catSubSubLabel, isLeafSelected && wst.catSubSubLabelActive]}>{leaf}</Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
                                                 );
                                             })}
                                         </View>
@@ -1140,7 +1280,11 @@ const WebProductsScreen: React.FC = () => {
                                         <TextInput
                                             style={wst.priceInputField}
                                             value={String(filterLowPrice)}
-                                            onChangeText={v => { const n = parseInt(v) || 0; setFilterLowPrice(Math.min(n, filterHighPrice)); }}
+                                            onChangeText={v => {
+                                                const n = parsePriceInput(v, priceMin);
+                                                setFilterLowPrice(clampPrice(n, priceMin, filterHighPrice));
+                                            }}
+                                            onEndEditing={() => applyPriceFilter(filterLowPrice, filterHighPrice)}
                                             keyboardType="numeric"
                                         />
                                     </View>
@@ -1150,17 +1294,26 @@ const WebProductsScreen: React.FC = () => {
                                         <TextInput
                                             style={wst.priceInputField}
                                             value={String(filterHighPrice)}
-                                            onChangeText={v => { const n = parseInt(v) || priceMax; setFilterHighPrice(Math.max(n, filterLowPrice)); }}
+                                            onChangeText={v => {
+                                                const n = parsePriceInput(v, priceMax);
+                                                setFilterHighPrice(clampPrice(n, filterLowPrice, priceMax));
+                                            }}
+                                            onEndEditing={() => applyPriceFilter(filterLowPrice, filterHighPrice)}
                                             keyboardType="numeric"
                                         />
                                     </View>
                                 </View>
-                                <View style={wst.priceSliderTrack}>
-                                    <View style={[wst.priceSliderFill, {
-                                        left: `${(filterLowPrice / priceMax) * 100}%` as any,
-                                        width: `${((filterHighPrice - filterLowPrice) / priceMax) * 100}%` as any,
-                                    }]} />
-                                </View>
+                                <RangeSlider
+                                    low={filterLowPrice}
+                                    high={filterHighPrice}
+                                    min={priceMin}
+                                    max={priceMax}
+                                    step={Math.max(50, Math.round((priceMax - priceMin) / 40 / 50) * 50) || 50}
+                                    width={FILTER_SLIDER_W}
+                                    onLowChange={setFilterLowPrice}
+                                    onHighChange={setFilterHighPrice}
+                                    onChangeComplete={(low, high) => applyPriceFilter(low, high)}
+                                />
                             </View>
 
                             <View style={wst.filterDivider} />
@@ -1168,8 +1321,16 @@ const WebProductsScreen: React.FC = () => {
                             {/* Color */}
                             <View style={wst.filterSection}>
                                 <Text style={wst.filterSectionLabel}>Color</Text>
+                                {catalogLoading ? (
+                                    <ActivityIndicator size="small" color={C.navy} style={{ marginVertical: 8 }} />
+                                ) : colorFilterOptions.length <= 1 ? (
+                                    <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textLight }}>
+                                        No colors in database
+                                    </Text>
+                                ) : (
+                                <>
                                 <View style={wst.colorGrid}>
-                                    {colorFilterOptions.filter(c => c !== "All").map(col => (
+                                    {visibleColorOptions.map(col => (
                                         <TouchableOpacity
                                             key={col}
                                             style={[wst.colorDot, {
@@ -1185,15 +1346,41 @@ const WebProductsScreen: React.FC = () => {
                                         </TouchableOpacity>
                                     ))}
                                 </View>
+                                {hasMoreColors && (
+                                    <TouchableOpacity
+                                        style={wst.filterViewAllBtn}
+                                        onPress={() => setShowAllColors(v => !v)}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Text style={wst.filterViewAllTxt}>
+                                            {showAllColors ? "Show less" : `View all (${colorOptionsList.length})`}
+                                        </Text>
+                                        <Ionicons
+                                            name={showAllColors ? "chevron-up" : "chevron-down"}
+                                            size={12}
+                                            color={C.navy}
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                                </>
+                                )}
                             </View>
 
                             <View style={wst.filterDivider} />
 
-                            {/* ── WEB CHANGE 7: SIZE FILTER SECTION ── */}
+                            {/* Size */}
                             <View style={wst.filterSection}>
                                 <Text style={wst.filterSectionLabel}>Size</Text>
+                                {catalogLoading ? (
+                                    <ActivityIndicator size="small" color={C.navy} style={{ marginVertical: 8 }} />
+                                ) : sizeFilterOptions.length <= 1 ? (
+                                    <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 11.5, color: C.textLight }}>
+                                        No sizes in database
+                                    </Text>
+                                ) : (
+                                <>
                                 <View style={wst.sizeGrid}>
-                                    {sizeFilterOptions.map(sz => {
+                                    {visibleSizeOptions.map(sz => {
                                         const isActive = filterSize === sz;
                                         return (
                                             <TouchableOpacity
@@ -1207,6 +1394,24 @@ const WebProductsScreen: React.FC = () => {
                                         );
                                     })}
                                 </View>
+                                {hasMoreSizes && (
+                                    <TouchableOpacity
+                                        style={wst.filterViewAllBtn}
+                                        onPress={() => setShowAllSizes(v => !v)}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Text style={wst.filterViewAllTxt}>
+                                            {showAllSizes ? "Show less" : `View all (${sizeFilterOptions.length})`}
+                                        </Text>
+                                        <Ionicons
+                                            name={showAllSizes ? "chevron-up" : "chevron-down"}
+                                            size={12}
+                                            color={C.navy}
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                                </>
+                                )}
                             </View>
 
                             <TouchableOpacity style={wst.applyFilterBtn} onPress={applyFilters} activeOpacity={0.85}>
@@ -1215,24 +1420,28 @@ const WebProductsScreen: React.FC = () => {
                                     Apply Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                                 </Text>
                             </TouchableOpacity>
-                        </ScrollView>
+                    </View>
                     </View>
 
                     {/* RIGHT TABLE AREA */}
                     <View style={wst.tableArea}>
                         {/* SEARCH BAR */}
-                        <View style={wst.searchBarWrap}>
-                            <Feather name="search" size={15} color={C.textLight} style={{ marginRight: 8 }} />
+                        <View style={[wst.searchBarWrap, wst.searchBarWrapHighlight, searchFocused && wst.searchBarWrapFocused]}>
+                            <View style={wst.searchBarIconBox}>
+                                <Feather name="search" size={16} color={searchFocused || searchQuery ? C.navy : C.textMid} />
+                            </View>
                             <TextInput
                                 style={wst.searchBarInput}
                                 placeholder="Search by name, SKU or category..."
                                 placeholderTextColor={C.textLight}
                                 value={searchQuery}
                                 onChangeText={(v) => { setSearchQuery(v); setVisibleCount(20); }}
+                                onFocus={() => setSearchFocused(true)}
+                                onBlur={() => setSearchFocused(false)}
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Ionicons name="close-circle" size={16} color={C.textLight} />
+                                    <Ionicons name="close-circle" size={18} color={C.navy} />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1271,13 +1480,11 @@ const WebProductsScreen: React.FC = () => {
                             <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false}>
                                 {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
                                 <View style={wst.tableHead}>
-                                    <Text style={[wst.tableHeadCell, { flex: 2.7 }]}>Product</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.6 }]}>SKU</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.5 }]}>Category</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.7 }]}>Size</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.9 }]}>Price</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.7 }]}>Stock</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.0 }]}>Status</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 3.2 }]}>Product</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.8 }]}>Category</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.8 }]}>Size</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.0 }]}>Price</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.1 }]}>Status</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.7, textAlign: "right" }]}>Actions</Text>
                                 </View>
                                 {visibleProducts.length === 0 ? (
@@ -1292,11 +1499,10 @@ const WebProductsScreen: React.FC = () => {
                                 ) : (
                                     visibleProducts.map((product, idx) => {
                                         const st = getStatusStyle(product.status);
-                                        const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                                         return (
                                             <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
-                                                <View style={[wst.tableCell, { flex: 2.7 }]}>
+                                                <View style={[wst.tableCell, { flex: 3.2 }]}>
                                                     <Image source={{ uri: product.image }} style={wst.tableProductImg} />
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
@@ -1304,35 +1510,30 @@ const WebProductsScreen: React.FC = () => {
                                                         <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
                                                     </View>
                                                 </View>
-                                                {/* SKU */}
-                                                <View style={[wst.tableCell, { flex: 1.6 }]}>
-                                                    <Text style={wst.tableCellSku}>{product.sku}</Text>
-                                                </View>
-                                                {/* ── WEB CHANGE 8a: Category col — only category + subcategory ── */}
-                                                <View style={[wst.tableCell, { flex: 1.5, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                                                {/* Category hierarchy: main → category → subcategory */}
+                                                <View style={[wst.tableCell, { flex: 1.8, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                                                     <View style={wst.categoryTag}>
                                                         <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
                                                     </View>
-                                                    <Text style={wst.subcategoryTxt}>{product.subcategory}</Text>
+                                                    {product.categorySub && product.categorySub !== product.subcategory ? (
+                                                        <Text style={wst.subcategoryTxt} numberOfLines={1}>{product.categorySub}</Text>
+                                                    ) : null}
+                                                    <Text style={[wst.subcategoryTxt, product.subSubcategory && { color: C.teal }]} numberOfLines={1}>
+                                                        {product.subSubcategory ?? product.subcategory}
+                                                    </Text>
                                                 </View>
                                                 {/* ── WEB CHANGE 8c: Size col — its own column ── */}
-                                                <View style={[wst.tableCell, { flex: 0.7, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.8, flexDirection: "column", alignItems: "flex-start" }]}>
                                                     <View style={wst.sizePill}>
                                                         <Text style={wst.sizePillTxt}>{product.size}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Price */}
-                                                <View style={[wst.tableCell, { flex: 0.9 }]}>
-                                                    <Text style={wst.tablePriceVal}>₹{product.price.toLocaleString()}</Text>
-                                                </View>
-                                                {/* Stock */}
-                                                <View style={[wst.tableCell, { flex: 0.7, flexDirection: "column", alignItems: "flex-start", gap: 2 }]}>
-                                                    <Text style={[wst.tableStockVal, isLow && { color: C.orange }]}>{product.stock}</Text>
-                                                    {isLow && <Text style={wst.lowStockHint}>Low ⚠</Text>}
-                                                    {product.stock === 0 && <Text style={wst.outStockHint}>Out</Text>}
+                                                <View style={[wst.tableCell, { flex: 1.0 }]}>
+                                                    <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={wst.tablePriceVal} />
                                                 </View>
                                                 {/* Status */}
-                                                <View style={[wst.tableCell, { flex: 1.0 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.1 }]}>
                                                     <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
                                                         <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                         <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
@@ -1391,7 +1592,7 @@ const WebProductsScreen: React.FC = () => {
                                                         <Text style={wst.webGridName} numberOfLines={2}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.webGridSku}>{product.sku}</Text>
                                                         <View style={wst.webGridMeta}>
-                                                            <Text style={wst.webGridPrice}>₹{product.price.toLocaleString()}</Text>
+                                                            <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={wst.webGridPrice} />
                                                             <Text style={wst.webGridStock}>Stock: {product.stock}</Text>
                                                         </View>
                                                         {/* ── WEB CHANGE 8d: Grid card shows category + subSubcategory pill separately ── */}
@@ -1399,11 +1600,18 @@ const WebProductsScreen: React.FC = () => {
                                                             <View style={wst.categoryTag}>
                                                                 <Text style={wst.categoryTagTxt}>{product.category}</Text>
                                                             </View>
-                                                            {product.subSubcategory && (
+                                                            {product.categorySub && product.categorySub !== (product.subSubcategory ?? product.subcategory) ? (
                                                                 <View style={wst.subSubPill}>
-                                                                    <Text style={wst.subSubPillTxt}>{product.subSubcategory}</Text>
+                                                                    <Text style={wst.subSubPillTxt}>{product.categorySub}</Text>
                                                                 </View>
-                                                            )}
+                                                            ) : null}
+                                                            {(product.subSubcategory ?? product.subcategory) ? (
+                                                                <View style={wst.subSubPill}>
+                                                                    <Text style={wst.subSubPillTxt}>
+                                                                        {product.subSubcategory ?? product.subcategory}
+                                                                    </Text>
+                                                                </View>
+                                                            ) : null}
                                                         </View>
                                                         {/* Size badge in grid */}
                                                         <View style={wst.webGridSizeRow}>
@@ -1474,24 +1682,73 @@ const wst = StyleSheet.create({
     statCardVal: { fontFamily: "Outfit_800ExtraBold", fontSize: 26 },
     statCardLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid, marginBottom: 3 },
     statCardTrend: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
-    contentArea: { flexDirection: "row", gap: 14, flex: 1, minHeight: 600 },
+    contentArea: { flexDirection: "row", gap: 14, flex: 1, minHeight: 600, alignItems: "flex-start" },
+
+    filterPanelOuter: {
+        width: 240,
+        flexShrink: 0,
+        ...(Platform.OS === "web"
+            ? {
+                position: "sticky" as const,
+                top: 12,
+                alignSelf: "flex-start" as const,
+                zIndex: 10,
+            }
+            : {}),
+    },
 
     // ── SEARCH BAR ──
     searchBarWrap: {
         flexDirection: "row", alignItems: "center",
         backgroundColor: C.white, borderRadius: 12,
-        paddingHorizontal: 14, paddingVertical: 10,
+        paddingHorizontal: 12, paddingVertical: 10,
         marginBottom: 10,
-        shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-        borderWidth: 1, borderColor: C.border,
+        gap: 10,
+    },
+    searchBarWrapHighlight: {
+        backgroundColor: "#F0F4FF",
+        borderWidth: 2,
+        borderColor: C.navy,
+        shadowColor: C.navy,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        elevation: 4,
+    },
+    searchBarWrapFocused: {
+        borderColor: C.purple,
+        backgroundColor: "#FAFBFF",
+        shadowOpacity: 0.18,
+        shadowRadius: 14,
+    },
+    searchBarIconBox: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        backgroundColor: C.white,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "#DDE3F5",
     },
     searchBarInput: {
-        flex: 1, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textDark,
+        flex: 1, fontFamily: "Outfit_500Medium", fontSize: 14, color: C.textDark,
         ...(Platform.OS === "web" ? { outlineStyle: "none" } as any : {}),
     },
 
     // ── FILTER PANEL ──
-    filterPanel: { width: 240, backgroundColor: C.white, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+    filterPanel: {
+        width: 240,
+        backgroundColor: C.white,
+        borderRadius: 14,
+        padding: 14,
+        paddingBottom: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
     filterPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
     filterPanelHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
     filterPanelTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navyDeep },
@@ -1500,6 +1757,7 @@ const wst = StyleSheet.create({
     filterClearAll: { fontFamily: "Outfit_600SemiBold", fontSize: 11.5, color: C.purple },
     filterSection: { marginBottom: 12 },
     filterSectionLabel: { fontFamily: "Outfit_700Bold", fontSize: 10.5, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 },
+    filterSectionHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight, marginTop: -4, marginBottom: 8 },
     filterDivider: { height: 1, backgroundColor: C.border, marginBottom: 14 },
     filterTabItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 8, marginBottom: 2 },
     filterTabDot: { width: 6, height: 6, borderRadius: 3 },
@@ -1530,12 +1788,14 @@ const wst = StyleSheet.create({
     catSubRadioInner: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.purple },
     catSubLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textMid },
 
-    catSubSubItem: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4, paddingHorizontal: 4, borderRadius: 5, marginBottom: 1 },
-    catSubSubItemActive: { backgroundColor: "#F0FDF8" },
-    catSubSubIndent: { width: 26 },
-    catSubSubDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.border },
-    catSubSubDotActive: { backgroundColor: C.teal },
-    catSubSubLabel: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+    catSubSubItem: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 5, paddingHorizontal: 4, borderRadius: 6, marginBottom: 1 },
+    catSubSubItemActive: { backgroundColor: "#E0F7F4" },
+    catSubSubIndent: { width: 22 },
+    catSubSubRadio: { width: 13, height: 13, borderRadius: 6.5, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+    catSubSubRadioFilled: { borderColor: "#14B8A6" },
+    catSubSubRadioInner: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#14B8A6" },
+    catSubSubLabel: { flex: 1, fontFamily: "Outfit_500Medium", fontSize: 11.5, color: C.textMid },
+    catSubSubLabelActive: { color: "#0D9488", fontFamily: "Outfit_600SemiBold" },
 
     // Price
     priceRangeInputs: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
@@ -1549,6 +1809,19 @@ const wst = StyleSheet.create({
     // Color
     colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
     colorDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+    filterViewAllBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        marginTop: 8,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: "#EEF1FF",
+        borderWidth: 1,
+        borderColor: "#DDE3F5",
+    },
+    filterViewAllTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11.5, color: C.navy },
 
     // ── WEB CHANGE 9: Size filter styles ──
     sizeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
@@ -1561,7 +1834,7 @@ const wst = StyleSheet.create({
     applyFilterBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12.5, color: C.white },
 
     // TABLE
-    tableArea: { flex: 1, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, overflow: "hidden", flexDirection: "column" },
+    tableArea: { flex: 1, minWidth: 0, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, overflow: "hidden", flexDirection: "column" },
     tableToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: "#FAFBFF" },
     tableToolbarLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
     tableResultCount: { fontFamily: "Outfit_500Medium", fontSize: 13, color: C.textMid },
@@ -1650,10 +1923,19 @@ const MobileProductsScreen: React.FC = () => {
         }, [reload])
     );
 
-    const { categoryList, subcategoriesMap, dotColorMap } = useProductFilterCatalog(products);
-    const colorFilterOptions = useMemo(() => ["All", ...uniqueProductColors(products)], [products]);
-    const sizeFilterOptions = useMemo(() => ["All", ...uniqueProductSizes(products)], [products]);
-    const priceMax = useMemo(() => computeProductPriceMax(products, PRICE_MAX), [products]);
+    const {
+        categoryList,
+        categoryTree,
+        colorFilterOptions,
+        sizeFilterOptions,
+        dotColorMap,
+        priceMin,
+        priceMax,
+        catalogLoading,
+        catalogError,
+        reloadCatalog,
+    } = useProductFilterCatalog();
+
     const [viewType, setViewType]               = useState<ViewType>("list");
     const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
     const [sortBy, setSortBy]                   = useState<SortType>("Latest");
@@ -1670,15 +1952,26 @@ const MobileProductsScreen: React.FC = () => {
     const locationProduct     = products.find(p => p.id === locationProductId);
 
     const [filterCategory, setFilterCategory]       = useState("All");
-    const [filterSubcategory, setFilterSubcategory] = useState("All");
+    const [filterMiddle, setFilterMiddle]             = useState("All");
+    const [filterLeaf, setFilterLeaf]               = useState("All");
     const [filterColor, setFilterColor]             = useState("All");
     const [filterSize, setFilterSize]               = useState("All");
     const [filterLowPrice, setFilterLowPrice]       = useState<number>(PRICE_MIN);
-    const [filterHighPrice, setFilterHighPrice]     = useState<number>(PRICE_MAX);
+    const [filterHighPrice, setFilterHighPrice]     = useState<number>(PRICE_MAX_FALLBACK);
     const [applied, setApplied] = useState({
         category: "All", subcategory: "All", color: "All", size: "All",
-        lowPrice: PRICE_MIN, highPrice: PRICE_MAX,
+        lowPrice: PRICE_MIN, highPrice: PRICE_MAX_FALLBACK,
     });
+
+    const mobilePriceBoundsInitialized = useRef(false);
+
+    useEffect(() => {
+        if (catalogLoading || mobilePriceBoundsInitialized.current) return;
+        mobilePriceBoundsInitialized.current = true;
+        setFilterLowPrice(priceMin);
+        setFilterHighPrice(priceMax);
+        setApplied((prev) => ({ ...prev, lowPrice: priceMin, highPrice: priceMax }));
+    }, [catalogLoading, priceMin, priceMax]);
 
     const handleDelete = useCallback(async (id: string) => {
         try {
@@ -1717,8 +2010,11 @@ const MobileProductsScreen: React.FC = () => {
         if (searchQuery.trim()) {
             list = list.filter(p => productMatchesSearch(p, searchQuery));
         }
-        if (applied.category !== "All")    list = list.filter(p => p.category    === applied.category);
-        if (applied.subcategory !== "All") list = list.filter(p => p.subcategory === applied.subcategory);
+        if (applied.category !== "All" || applied.subcategory !== "All") {
+            list = list.filter((p) =>
+                productMatchesCategoryFilter(p, applied.category, applied.subcategory, categoryTree),
+            );
+        }
         if (applied.color !== "All")       list = list.filter(p => p.color       === applied.color);
         if (applied.size !== "All")        list = list.filter(p => p.size        === applied.size);
         list = list.filter(p => p.price >= applied.lowPrice && p.price <= applied.highPrice);
@@ -1731,7 +2027,7 @@ const MobileProductsScreen: React.FC = () => {
             default:                list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
         }
         return list;
-    }, [products, selectedTab, searchQuery, applied, sortBy]);
+    }, [products, selectedTab, searchQuery, applied, sortBy, categoryTree]);
 
     const visibleProducts = processedProducts.slice(0, visibleCount);
     const hasMore         = visibleCount < processedProducts.length;
@@ -1743,30 +2039,60 @@ const MobileProductsScreen: React.FC = () => {
     };
 
     const applyFilters = () => {
-        setApplied({ category: filterCategory, subcategory: filterSubcategory, color: filterColor, size: filterSize, lowPrice: filterLowPrice, highPrice: filterHighPrice });
+        const subcategory =
+            filterLeaf !== "All" ? filterLeaf : filterMiddle !== "All" ? filterMiddle : "All";
+        const safeLow = clampPrice(filterLowPrice, priceMin, priceMax);
+        const safeHigh = clampPrice(Math.max(filterHighPrice, safeLow), priceMin, priceMax);
+        setFilterLowPrice(safeLow);
+        setFilterHighPrice(safeHigh);
+        setApplied({
+            category: filterCategory,
+            subcategory,
+            color: filterColor,
+            size: filterSize,
+            lowPrice: safeLow,
+            highPrice: safeHigh,
+        });
         setVisibleCount(viewRange);
         setShowFilter(false);
     };
 
     const clearFilters = () => {
-        setFilterCategory("All"); setFilterSubcategory("All");
-        setFilterColor("All");    setFilterSize("All");
-        setFilterLowPrice(PRICE_MIN); setFilterHighPrice(priceMax);
-        setApplied({ category:"All", subcategory:"All", color:"All", size:"All", lowPrice:PRICE_MIN, highPrice:priceMax });
+        setFilterCategory("All");
+        setFilterMiddle("All");
+        setFilterLeaf("All");
+        setFilterColor("All");
+        setFilterSize("All");
+        setFilterLowPrice(priceMin);
+        setFilterHighPrice(priceMax);
+        setApplied({
+            category: "All",
+            subcategory: "All",
+            color: "All",
+            size: "All",
+            lowPrice: priceMin,
+            highPrice: priceMax,
+        });
         setVisibleCount(viewRange);
     };
 
     const activeFilterCount = [
         applied.category !== "All", applied.subcategory !== "All",
         applied.color !== "All",    applied.size !== "All",
-        applied.lowPrice > PRICE_MIN, applied.highPrice < priceMax,
+        applied.lowPrice > priceMin, applied.highPrice < priceMax,
     ].filter(Boolean).length;
 
     const handleTabChange       = (tab: TabType) => { setSelectedTab(tab); setVisibleCount(viewRange); };
     const handleSortSelect      = (opt: SortType) => { setSortBy(opt); setShowSortMenu(false); setVisibleCount(viewRange); };
     const handleViewRangeChange = (vr: number)   => { setViewRange(vr); setVisibleCount(vr); };
 
-    const subcatOptions = filterCategory !== "All" ? (subcategoriesMap[filterCategory] ?? ["All"]) : ["All"];
+    const subcatOptions = filterCategory !== "All"
+        ? ["All", ...middleCategoriesForMain(categoryTree, filterCategory)]
+        : ["All"];
+    const leafFilterOptions =
+        filterCategory !== "All" && filterMiddle !== "All"
+            ? leafSubcategoriesForMiddle(categoryTree, filterCategory, filterMiddle)
+            : [];
     const currentSortOption = SORT_OPTIONS.find(o => o.value === sortBy);
 
     if (loading && products.length === 0) {
@@ -1981,9 +2307,13 @@ const MobileProductsScreen: React.FC = () => {
                                     <View style={s.productInfo}>
                                         <Text style={s.productName} numberOfLines={1}>{product.name}</Text>
                                         <Text style={s.productSku}>SKU: {product.sku}</Text>
-                                        <Text style={s.productCategory}>{product.category} · {product.subcategory}</Text>
+                                        <Text style={s.productCategory} numberOfLines={1}>
+                                            {[product.category, product.categorySub, product.subSubcategory ?? product.subcategory]
+                                                .filter(Boolean)
+                                                .join(" · ")}
+                                        </Text>
                                         <Text style={s.productUpdated}>Updated: {product.updated}</Text>
-                                        <Text style={s.productPrice}>₹{product.price.toLocaleString()}</Text>
+                                        <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={s.productPrice} />
                                     </View>
                                     <View style={s.productRight}>
                                         <View style={[s.statusBadge, { backgroundColor: st.bg }]}>
@@ -2011,7 +2341,7 @@ const MobileProductsScreen: React.FC = () => {
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
                                     </View>
                                     <Text style={s.gridName} numberOfLines={2}>{product.name}</Text>
-                                    <Text style={s.gridPrice}>₹{product.price.toLocaleString()}</Text>
+                                    <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={s.gridPrice} />
                                     <Text style={s.gridStock}>Stock: {product.stock}</Text>
                                     <TouchableOpacity style={s.gridMoreBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }}>
                                         <MaterialCommunityIcons name="dots-horizontal" size={18} color={C.textLight} />
@@ -2078,10 +2408,46 @@ const MobileProductsScreen: React.FC = () => {
                         <TouchableOpacity onPress={() => setShowFilter(false)}><Ionicons name="close" size={24} color={C.textDark} /></TouchableOpacity>
                     </View>
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
-                        <Text style={fs.sectionLabel}>Category</Text>
-                        <WrapChipGroup options={categoryList} selected={filterCategory} onSelect={v => { setFilterCategory(v); setFilterSubcategory("All"); }} />
+                        {catalogLoading && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                <ActivityIndicator size="small" color={C.navy} />
+                                <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight }}>
+                                    Loading categories…
+                                </Text>
+                            </View>
+                        )}
+                        {catalogError && !catalogLoading && (
+                            <TouchableOpacity onPress={() => reloadCatalog()} activeOpacity={0.7} style={{ marginBottom: 12 }}>
+                                <Text style={{ fontFamily: "Outfit_400Regular", fontSize: 12, color: C.red }}>
+                                    {catalogError} Tap to retry.
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        <Text style={fs.sectionLabel}>Main Category</Text>
+                        <WrapChipGroup
+                            options={categoryList}
+                            selected={filterCategory}
+                            onSelect={v => { setFilterCategory(v); setFilterMiddle("All"); setFilterLeaf("All"); }}
+                        />
                         {filterCategory !== "All" && (
-                            <><Text style={fs.sectionLabel}>Subcategory</Text><WrapChipGroup options={subcatOptions} selected={filterSubcategory} onSelect={setFilterSubcategory} /></>
+                            <>
+                                <Text style={fs.sectionLabel}>Category</Text>
+                                <WrapChipGroup
+                                    options={subcatOptions}
+                                    selected={filterMiddle}
+                                    onSelect={v => { setFilterMiddle(v); setFilterLeaf("All"); }}
+                                />
+                            </>
+                        )}
+                        {leafFilterOptions.length > 0 && filterMiddle !== "All" && (
+                            <>
+                                <Text style={fs.sectionLabel}>Subcategory</Text>
+                                <WrapChipGroup
+                                    options={["All", ...leafFilterOptions]}
+                                    selected={filterLeaf}
+                                    onSelect={setFilterLeaf}
+                                />
+                            </>
                         )}
                         <Text style={fs.sectionLabel}>Color</Text>
                         <WrapColorGroup options={colorFilterOptions} selected={filterColor} onSelect={setFilterColor} dotColors={dotColorMap} />
@@ -2095,7 +2461,7 @@ const MobileProductsScreen: React.FC = () => {
                         </View>
                         <Text style={fs.sectionLabel}>Price Range</Text>
                         <View style={s.sliderWrap}>
-                            <RangeSlider low={filterLowPrice} high={filterHighPrice} min={PRICE_MIN} max={priceMax} step={100} onLowChange={setFilterLowPrice} onHighChange={setFilterHighPrice} />
+                            <RangeSlider low={filterLowPrice} high={filterHighPrice} min={priceMin} max={priceMax} step={100} onLowChange={setFilterLowPrice} onHighChange={setFilterHighPrice} />
                         </View>
                     </ScrollView>
                     <View style={s.filterActions}>

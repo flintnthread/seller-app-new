@@ -7,7 +7,9 @@ export function productMatchesSearch(product: ProductListItem, query: string): b
         product.name.toLowerCase().includes(q) ||
         product.sku.toLowerCase().includes(q) ||
         product.category.toLowerCase().includes(q) ||
+        (product.categorySub?.toLowerCase().includes(q) ?? false) ||
         (product.subcategory?.toLowerCase().includes(q) ?? false) ||
+        (product.subSubcategory?.toLowerCase().includes(q) ?? false) ||
         (product.color?.toLowerCase().includes(q) ?? false) ||
         (product.size?.toLowerCase().includes(q) ?? false)
     );

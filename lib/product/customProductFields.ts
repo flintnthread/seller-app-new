@@ -61,6 +61,24 @@ export function applyCustomBuyerFieldsToPayload(
     payload.customTextLabel = textLike?.name.trim() ?? "";
 }
 
+export function formatBuyerInstructionsForDisplay(instructions?: string): string {
+    if (!instructions?.trim()) return "";
+    const fields = parseCustomBuyerFieldsFromInstructions(instructions);
+    if (fields.length > 0) {
+        return fields
+            .map((field) => {
+                const requiredLabel = field.required ? "required" : "optional";
+                return `${field.name} (${field.type}, ${requiredLabel})`;
+            })
+            .join("\n");
+    }
+    const trimmed = instructions.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        return "";
+    }
+    return trimmed;
+}
+
 export function parseCustomBuyerFieldsFromInstructions(instructions?: string): CustomBuyerField[] {
     if (!instructions?.trim()) return [];
     try {
