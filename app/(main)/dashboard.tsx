@@ -1713,28 +1713,6 @@ const MobileDashboard: React.FC<{
                         ))}
                     </View>
                 </View>
-
-                {/* ── SUPPORT ── */}
-                <View style={s.section}>
-                    <LinearGradient
-                        colors={[C.navyDeep, "#1E2B6B"]}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                        style={s.supportCard}
-                    >
-                        <View style={s.supportLeft}>
-                            <View style={s.supportIconWrap}>
-                                <MaterialCommunityIcons name="headset" size={28} color={C.purple} />
-                            </View>
-                            <View>
-                                <AppText style={s.supportTitle}>Need Help?</AppText>
-                                <AppText style={s.supportSub}>Our support team is here to assist you.</AppText>
-                            </View>
-                        </View>
-                        <TouchableOpacity style={s.supportBtn} onPress={() => router.push("/(main)/helpsupport")}>
-                            <AppText style={s.supportBtnText}>Contact</AppText>
-                        </TouchableOpacity>
-                    </LinearGradient>
-                </View>
                 </>
                 ) : null}
 
@@ -1955,13 +1933,6 @@ const s = StyleSheet.create({
     annDots: { flexDirection: "row", gap: 5 },
     annDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.border },
     annDotActive: { backgroundColor: C.purple, width: 18 },
-    supportCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 16, overflow: "hidden" },
-    supportLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-    supportIconWrap: { width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(108,99,255,0.15)", alignItems: "center", justifyContent: "center" },
-    supportTitle: { fontFamily: fontFamilies.bold, fontSize: 15, color: "#fff" },
-    supportSub: { fontFamily: fontFamilies.regular, fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2, maxWidth: 130 },
-    supportBtn: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: C.purpleLight, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 50 },
-    supportBtnText: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purpleLight },
     tabBar: {
         flexDirection: "row",
         backgroundColor: C.white,

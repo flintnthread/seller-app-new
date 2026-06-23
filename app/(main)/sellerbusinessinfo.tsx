@@ -42,6 +42,7 @@ import {
   loadBusinessOnboardingDraft,
   saveBusinessOnboardingDraft,
 } from "@/lib/onboarding/onboardingDraft";
+import { scrollToFormField } from "@/lib/form/scrollToFormField";
 const { width: SW } = Dimensions.get("window");
 
 // ─── Design tokens ───────────────────────────────────────────
@@ -360,6 +361,7 @@ const StyledInput: React.FC<{
   note?: string; onBlur?: () => void;
   inputRef?: React.RefObject<TextInput | null>;
   onLayout?: (e: LayoutChangeEvent) => void;
+  innerRef?: (node: View | null) => void;
   rightElement?: React.ReactNode;
   multiline?: boolean;
   numberOfLines?: number;
@@ -367,14 +369,14 @@ const StyledInput: React.FC<{
 }> = ({
   label, value, onChangeText, placeholder, error,
   isValid, maxLength, keyboardType, required, note,
-  onBlur, inputRef, onLayout, rightElement,
+  onBlur, inputRef, onLayout, innerRef, rightElement,
   multiline = false, numberOfLines = 3, autoCapitalize = "characters",
 }) => {
     const [focused, setFocused] = useState(false);
     const borderColor = error ? T.error : isValid ? T.success : focused ? T.orange : T.border;
 
     return (
-      <View style={{ marginBottom: 18 }} onLayout={onLayout}>
+      <View style={{ marginBottom: 18 }} onLayout={onLayout} ref={innerRef} collapsable={false}>
         <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note })} />
         <View style={[
           si.wrap,
@@ -538,7 +540,16 @@ const sc = StyleSheet.create({
 export default function SellerBusinessInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const fieldViewRefs = useRef<Record<string, View | null>>({});
   const { showError, showSuccess, showWarning, SweetAlertHost } = useSweetAlert();
+
+  const registerFieldRef = useCallback(
+    (field: string) => (node: View | null) => {
+      fieldViewRefs.current[field] = node;
+    },
+    []
+  );
 
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -827,6 +838,32 @@ export default function SellerBusinessInfo() {
     }
   }, [gstNumber, gstVerified, isVerifyingGst, applyGstDetailsFromResponse, clearFieldError, showError, showSuccess, showWarning]);
 
+  const showValidationAlert = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    showWarning(first.message, "Cannot continue");
+  }, [showWarning]);
+
+  const scrollToField = useCallback((field: string) => {
+    const fieldNode = fieldViewRefs.current[field];
+    if (fieldNode) {
+      scrollToFormField(scrollViewRef, scrollContentRef, fieldNode);
+    } else {
+      const fieldY = fieldPositions[field];
+      if (fieldY !== undefined) {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
+      }
+    }
+    const ref = fieldRefs[field as keyof typeof fieldRefs];
+    if (ref?.current) setTimeout(() => ref.current?.focus(), 350);
+  }, [fieldPositions, fieldRefs]);
+
+  const scrollToFirstError = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    scrollToField(first.field);
+  }, [scrollToField]);
+
   const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
   const handleNext = async () => {
@@ -859,6 +896,8 @@ export default function SellerBusinessInfo() {
 
     if (errors.length > 0) {
       setValidationErrors(errors);
+      scrollToFirstError(errors);
+      showValidationAlert(errors);
       return;
     }
 
@@ -951,6 +990,7 @@ export default function SellerBusinessInfo() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View ref={scrollContentRef} collapsable={false}>
 
           {/* ── 1. Business Category ── */}
           <SectionCard
@@ -959,7 +999,7 @@ export default function SellerBusinessInfo() {
             accentColor={T.orange}
             icon="archive"
           >
-            <View style={{ flexDirection: "row", gap: 12 }}>
+            <View style={{ flexDirection: "row", gap: 12 }} ref={registerFieldRef("businessCategory")} collapsable={false}>
               <CategoryCard
                 title="B2C"
                 desc="Sell directly to customers"
@@ -1009,6 +1049,7 @@ export default function SellerBusinessInfo() {
               placeholder="Enter your registered business name"
               error={validationErrors.find(e => e.field === "businessName")?.message}
               inputRef={fieldRefs.businessName}
+              innerRef={registerFieldRef("businessName")}
               onLayout={e => handleFieldLayout("businessName", e)}
             />
 
@@ -1043,6 +1084,7 @@ export default function SellerBusinessInfo() {
               note="As per GST or business registration"
               error={validationErrors.find(e => e.field === "businessAddress")?.message}
               inputRef={fieldRefs.businessAddress}
+              innerRef={registerFieldRef("businessAddress")}
               onLayout={e => handleFieldLayout("businessAddress", e)}
               maxLength={500}
             />
@@ -1082,7 +1124,7 @@ export default function SellerBusinessInfo() {
                     </View>
                   </View>
 
-                  <View style={{ marginBottom: 18 }} onLayout={e => handleFieldLayout("gstNumber", e)}>
+                  <View style={{ marginBottom: 18 }} onLayout={e => handleFieldLayout("gstNumber", e)} ref={registerFieldRef("gstNumber")} collapsable={false}>
                     <FieldLabel
                       label="GST Number"
                       required
@@ -1132,7 +1174,6 @@ export default function SellerBusinessInfo() {
                           (gstVerified || isVerifyingGst) && { opacity: 0.65 },
                           pressed && !gstVerified && !isVerifyingGst && { opacity: 0.88 },
                           { zIndex: 2, elevation: 2 },
-                          Platform.OS === "web" ? ({ cursor: gstVerified || isVerifyingGst ? "default" : "pointer" } as const) : null,
                         ]}
                         accessibilityRole="button"
                       >
@@ -1199,6 +1240,7 @@ export default function SellerBusinessInfo() {
               isValid={panValid}
               maxLength={10}
               inputRef={fieldRefs.panNumber}
+              innerRef={registerFieldRef("panNumber")}
               onLayout={e => handleFieldLayout("panNumber", e)}
             />
 
@@ -1226,6 +1268,7 @@ export default function SellerBusinessInfo() {
               maxLength={14}
               keyboardType="numeric"
               inputRef={fieldRefs.aadharNumber}
+              innerRef={registerFieldRef("aadharNumber")}
               onLayout={e => handleFieldLayout("aadharNumber", e)}
             />
 
@@ -1259,6 +1302,7 @@ export default function SellerBusinessInfo() {
           </View>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <SweetAlertHost />

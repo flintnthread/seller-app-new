@@ -46,7 +46,7 @@ export default function ResetPasswordScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isDesktop } = useResponsive();
-    const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
+    const { showSuccess, showError, showWarning, confirmAction, SweetAlertHost } = useSweetAlert();
     const params = useLocalSearchParams<{ token?: string | string[]; error?: string | string[] }>();
 
     const tokenParam = params.token;
@@ -111,25 +111,48 @@ export default function ResetPasswordScreen() {
 
     const handleReset = async () => {
         setFieldError("");
-        if (!newPassword.trim() || !confirmPassword.trim()) {
-            setFieldError("Please fill in both password fields.");
+        if (!token) {
+            showError("This reset link is invalid or has expired.");
+            return;
+        }
+        if (!newPassword.trim()) {
+            showWarning("Please enter a new password.", "Missing information");
+            return;
+        }
+        if (!confirmPassword.trim()) {
+            showWarning("Please confirm your new password.", "Confirm password");
             return;
         }
         if (newPassword !== confirmPassword) {
-            setFieldError("Passwords do not match.");
+            showError(
+                "Make sure your password and confirm password are the same.",
+                "Passwords do not match"
+            );
             return;
         }
         const passwordError = validateStrongPassword(newPassword);
         if (passwordError) {
-            setFieldError(passwordError);
+            showWarning(passwordError, "Invalid password");
             return;
         }
+
+        const confirmed = await confirmAction(
+            "Confirm new password",
+            "Are you sure you want to update your password? You will need to use the new password on your next login.",
+            "Update password"
+        );
+        if (!confirmed) return;
 
         setLoading(true);
         try {
             const message = await resetPasswordWithToken(token, newPassword, confirmPassword);
-            showSuccess(message, "Password updated");
-            router.replace("/(auth)/login");
+            showSuccess(
+                message || "Your password has been updated successfully.",
+                "Password updated"
+            );
+            setTimeout(() => {
+                router.replace("/(auth)/login");
+            }, 2500);
         } catch (e) {
             showError(
                 e instanceof ApiError ? e.message : "Could not reset password. Please try again."
