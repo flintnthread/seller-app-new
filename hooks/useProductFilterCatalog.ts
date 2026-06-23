@@ -1,66 +1,56 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
     fetchProductFormCatalog,
     type ProductFormCatalog,
-    type ProductListItem,
 } from "@/services/productApi";
 import {
-    buildCategoryList,
+    buildCategoryListFromCatalog,
     buildCategoryTreeFromCatalog,
+    buildColorFilterOptions,
     buildDotColorsFromCatalog,
+    buildSizeFilterOptions,
     buildSubcategoriesMap,
-    mergeProductCategoriesIntoTree,
+    catalogPriceBounds,
 } from "@/lib/catalog/catalogFilterOptions";
 
-const DEFAULT_DOT_COLORS: Record<string, string> = {
-    Red: "#EF4444",
-    Blue: "#3B82F6",
-    Green: "#22C55E",
-    Black: "#1F2937",
-    White: "#F9FAFB",
-    Yellow: "#F59E0B",
-    Pink: "#EC4899",
-    Purple: "#8B5CF6",
-    Orange: "#F97316",
-    Gray: "#6B7280",
-    Brown: "#92400E",
-    All: "#1E2B6B",
-};
-
-export function useProductFilterCatalog(products: ProductListItem[]) {
+/** Loads product-management filter options from `/api/catalog/product-form` (database only). */
+export function useProductFilterCatalog() {
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
     const [catalogError, setCatalogError] = useState<string | null>(null);
 
-    useEffect(() => {
-        let cancelled = false;
+    const reloadCatalog = useCallback(() => {
         fetchProductFormCatalog()
             .then((data) => {
-                if (!cancelled) {
-                    setCatalog(data);
-                    setCatalogError(null);
-                }
+                setCatalog(data);
+                setCatalogError(null);
             })
             .catch((err: unknown) => {
-                if (!cancelled) {
-                    setCatalogError(err instanceof Error ? err.message : "Failed to load catalog.");
-                }
+                setCatalogError(err instanceof Error ? err.message : "Failed to load filters from server.");
             });
-        return () => {
-            cancelled = true;
-        };
     }, []);
 
-    const categoryTree = useMemo(() => {
-        const base = buildCategoryTreeFromCatalog(catalog?.categories ?? []);
-        return mergeProductCategoriesIntoTree(base, products);
-    }, [catalog, products]);
+    useEffect(() => {
+        reloadCatalog();
+    }, [reloadCatalog]);
 
-    const categoryList = useMemo(() => buildCategoryList(catalog, products), [catalog, products]);
-    const subcategoriesMap = useMemo(() => buildSubcategoriesMap(categoryTree), [categoryTree]);
-    const dotColorMap = useMemo(
-        () => buildDotColorsFromCatalog(catalog, DEFAULT_DOT_COLORS),
+    useFocusEffect(
+        useCallback(() => {
+            reloadCatalog();
+        }, [reloadCatalog]),
+    );
+
+    const categoryTree = useMemo(
+        () => buildCategoryTreeFromCatalog(catalog?.categories ?? []),
         [catalog],
     );
+
+    const categoryList = useMemo(() => buildCategoryListFromCatalog(catalog), [catalog]);
+    const colorFilterOptions = useMemo(() => buildColorFilterOptions(catalog), [catalog]);
+    const sizeFilterOptions = useMemo(() => buildSizeFilterOptions(catalog), [catalog]);
+    const subcategoriesMap = useMemo(() => buildSubcategoriesMap(categoryTree), [categoryTree]);
+    const dotColorMap = useMemo(() => buildDotColorsFromCatalog(catalog), [catalog]);
+    const { min: priceMin, max: priceMax } = useMemo(() => catalogPriceBounds(catalog), [catalog]);
 
     return {
         catalog,
@@ -68,7 +58,12 @@ export function useProductFilterCatalog(products: ProductListItem[]) {
         categoryList,
         categoryTree,
         subcategoriesMap,
+        colorFilterOptions,
+        sizeFilterOptions,
         dotColorMap,
+        priceMin,
+        priceMax,
         catalogLoading: catalog === null && catalogError === null,
+        reloadCatalog,
     };
 }

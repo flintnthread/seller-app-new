@@ -8,5 +8,5 @@ export function calcDiscountPercent(
     if (mrp <= 0 || sellingPrice <= 0) return "0";
     if (sellingPrice > mrp) return "0";
 
-    return String(Math.round(((mrp - sellingPrice) / mrp) * 100));
+    return ((mrp - sellingPrice) / mrp * 100).toFixed(2);
 }

@@ -18,7 +18,13 @@ import { Checkbox } from "@/lib/seller/sellerComponents";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
-import { buildCreateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { ApiError } from "@/lib/api/client";
+import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { buildCreateProductPayload, buildUpdateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEditForm";
+import {
+    findCategorySubForProductSub,
+} from "@/lib/product/categoryPaths";
 import {
     newCustomBuyerField,
     validateCustomBuyerFields,
@@ -26,6 +32,16 @@ import {
     type CustomBuyerField,
 } from "@/lib/product/customProductFields";
 import { calcDiscountPercent } from "@/lib/product/pricing";
+import {
+    calculateVariantPricingFromStrings,
+    mapPricingPreviewToResult,
+    resolveDeliveryCharges,
+    resolveGstPercentFromCatalog,
+    formatInr,
+    type DeliveryChargeInfo,
+    type VariantPricingResult,
+} from "@/lib/product/variantPricing";
+import { VariantPriceBreakdown } from "@/lib/product/VariantPriceBreakdown";
 import { generateVariantSku } from "@/lib/product/generateVariantSku";
 import { scrollViewsToTop } from "@/lib/product/scrollToTop";
 import {
@@ -34,7 +50,12 @@ import {
     subscribeWebDrop,
 } from "@/lib/ui/webDropCoordinator";
 import { resolveWeightSlab } from "@/lib/product/weightSlab";
-import { getHsnForMaterial, MATERIAL_TYPES } from "@/lib/product/materialHsn";
+import { getHsnForMaterial } from "@/lib/product/materialHsn";
+import {
+    materialsForProductSubcategory,
+    resolveGstForMaterial,
+    resolveMaterialOption,
+} from "@/lib/product/subcategoryMaterials";
 import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 import {
     buildCategoryPathOptions,
@@ -44,25 +65,28 @@ import {
     resolveLeafSubcategorySelection,
 } from "@/lib/product/categoryPaths";
 import {
-    allLeafSubcategoriesFromTree,
     CATEGORY_TREE_FALLBACK,
 } from "@/lib/product/categoryTreeFallback";
 import {
-    allChartSubcategoriesFromCatalog,
-    subcategoriesMapFromCatalog,
-} from "@/lib/catalog/catalogFilterOptions";
-import {
     createProduct,
+    updateProduct,
+    fetchProductDetail,
+    fetchDeliveryChargesForWeight,
+    fetchVariantPricingPreview,
     fetchProductFormCatalog,
     type ProductFormCatalog,
 } from "@/services/productApi";
 import { createSize } from "@/services/sizeApi";
+import { createSizeChart, fetchSizeCharts } from "@/services/sizeChartApi";
+import {
+    buildSizeChartCache,
+    mapFormRowsToApiRows,
+    mergeChartIntoCache,
+} from "@/lib/product/sizeChartForm";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 import {
     ensureSellerSizesInCatalog,
-    formatSizeOption,
-    resolveSizeNameFromLabel,
 } from "@/lib/product/ensureSellerSizesInCatalog";
-import { ApiError } from "@/lib/api/client";
 import {
     applyDeliverySelection,
     applyReturnPolicySelection,
@@ -84,18 +108,34 @@ const PREFILL_WITH_DUMMY = false;
 const DUMMY_PRIMARY_IMAGE_URI =
     "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80";
 
-const getStepScrollContent = (isDesktop: boolean) =>
+const getStepScrollContent = (isDesktop: boolean, compactBottom = false) =>
     isDesktop
         ? {
+              flexGrow: 0,
               paddingHorizontal: 32,
               paddingTop: 24,
-              paddingBottom: 80,
+              paddingBottom: compactBottom ? 0 : 80,
               width: "100%" as const,
               maxWidth: CONTENT_MAX,
               alignSelf: "center" as const,
               ...(Platform.OS === "web" ? ({ alignSelf: "center", marginHorizontal: "auto" } as object) : {}),
           }
-        : { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 48 };
+        : { flexGrow: 0, paddingHorizontal: 14, paddingTop: 16, paddingBottom: compactBottom ? 0 : 48 };
+
+function variantHasRequiredImages(variants: { color?: string; images?: string[] }[], variant: { color?: string; images?: string[] }, index: number): boolean {
+    if ((variant.images?.length ?? 0) > 0) return true;
+    const colorKey = variant.color?.trim().toLowerCase() ?? "";
+    if (!colorKey) return false;
+    const firstSameColorIdx = variants.findIndex(
+        (pv) => pv.color?.trim() && pv.color.trim().toLowerCase() === colorKey,
+    );
+    if (firstSameColorIdx >= 0 && firstSameColorIdx !== index) {
+        return (variants[firstSameColorIdx]?.images?.length ?? 0) > 0;
+    }
+    return false;
+}
+
+const PRODUCT_MANAGEMENT_ROUTE = "/(main)/productmanagement" as const;
 
 // ─── Design Tokens ───────────────────────────────────────────
 const C = {
@@ -126,6 +166,8 @@ const C = {
     accent5: "#1A8A5A",
     toastBg: "#1A2B6D",
     toastErr: "#C0392B",
+    amber: "#D97706",
+    amberPale: "#FEF3C7",
 };
 
 // ─── Data ────────────────────────────────────────────────────
@@ -150,6 +192,10 @@ interface SweetAlertProps {
     productName?: string;
     savedProductId?: string | null;
     isSaving?: boolean;
+    successTitle?: string;
+    successSubtitle?: string;
+    doneLabel?: string;
+    hideSuccessStats?: boolean;
     onConfirm: () => void;
     onCancel: () => void;
     onDone: () => void;
@@ -219,6 +265,10 @@ const SweetAlert = ({
     productName,
     savedProductId,
     isSaving = false,
+    successTitle,
+    successSubtitle,
+    doneLabel,
+    hideSuccessStats = false,
     onConfirm,
     onCancel,
     onDone,
@@ -433,16 +483,18 @@ const SweetAlert = ({
                                     alignItems: "center",
                                 }}
                             >
-                                <AppText style={sa.successTitle}>Product Saved!</AppText>
+                                <AppText style={sa.successTitle}>{successTitle ?? "Product Saved!"}</AppText>
                                 <AppText style={sa.successSubtitle}>
-                                    {productName
-                                        ? `"${productName}" has been submitted for review.`
-                                        : "Your product has been submitted for review."}
-                                    {savedProductId ? `\nProduct ID: ${savedProductId}` : ""}
-                                    {"\n"}You&apos;ll be notified once it goes live.
+                                    {successSubtitle ??
+                                        (productName
+                                            ? `"${productName}" has been submitted for review.`
+                                            : "Your product has been submitted for review.") +
+                                            (savedProductId ? `\nProduct ID: ${savedProductId}` : "") +
+                                            "\nYou'll be notified once it goes live."}
                                 </AppText>
 
                                 {/* Stats row */}
+                                {!hideSuccessStats ? (
                                 <View style={sa.statsRow}>
                                     {[
                                         { icon: "clock-check-outline", label: "24–48 hr approval", color: C.accent4 },
@@ -460,6 +512,7 @@ const SweetAlert = ({
                                         </View>
                                     ))}
                                 </View>
+                                ) : null}
                             </AnimatedView>
 
                             {/* Done button */}
@@ -469,7 +522,7 @@ const SweetAlert = ({
                                     onPress={() => animateOut(onDone)}
                                     activeOpacity={0.88}
                                 >
-                                    <AppText style={sa.doneTxt}>Go to Products</AppText>
+                                    <AppText style={sa.doneTxt}>{doneLabel ?? "Go to Products"}</AppText>
                                     <Ionicons name="arrow-forward" size={17} color="#fff" />
                                 </TouchableOpacity>
                             </AnimatedView>
@@ -806,6 +859,7 @@ const validateBasicInfo = (data: any): string[] => {
     const e: string[] = [];
     if (!data.name?.trim()) e.push("Product Name is required");
     if (!data.category) e.push("Category is required");
+    if (!data.categorySubName) e.push("Category (middle level) is required");
     if (!data.subcategory) e.push("Subcategory is required");
     if (!data.materialType) e.push("Material Type is required");
     if (!data.hsnCode?.trim()) e.push("HSN Code is required");
@@ -830,6 +884,9 @@ const validateVariants = (variants: any[]): string[] => {
         if (!v.stock?.trim()) e.push(`Variant #${n}: Stock Qty is required`);
         if (!v.mrp?.trim()) e.push(`Variant #${n}: MRP is required`);
         if (!v.sellingPrice?.trim()) e.push(`Variant #${n}: Selling Price is required`);
+        if (!variantHasRequiredImages(variants, v, i)) {
+            e.push(`Variant #${n}: At least one image is required`);
+        }
     });
     return e;
 };
@@ -844,6 +901,7 @@ const validateDetails = (data: any): string[] => {
     const e: string[] = [];
     if (!data.returnPolicy) e.push("Return Policy is required");
     if (!data.deliveryOption) e.push("Delivery Option is required");
+    if (!data.codEnabled && !data.onlinePayEnabled) e.push("Payment option is required");
     return e;
 };
 
@@ -862,11 +920,11 @@ const SecHead = ({ icon, title, accent = C.accent1 }: { icon: string; title: str
     </View>
 );
 
-const Lbl = ({ text, required }: { text: string; required?: boolean }) => (
-    <AppText style={at.lbl}>{text}{required && <AppText style={{ color: C.red }}> *</AppText>}</AppText>
+const Lbl = ({ text, required, compact }: { text: string; required?: boolean; compact?: boolean }) => (
+    <AppText style={[at.lbl, compact && { marginTop: 0 }]}>{text}{required && <AppText style={{ color: C.red }}> *</AppText>}</AppText>
 );
 
-const Field = ({ placeholder, value, onChangeText, keyboardType = "default", multiline = false, lines = 1, maxLength, prefix, hasError, editable = true }: any) => {
+const Field = ({ placeholder, value, onChangeText, keyboardType = "default", multiline = false, lines = 1, maxLength, prefix, suffix, hasError, editable = true }: any) => {
     const [focused, setFocused] = useState(false);
     const { isDesktop } = useResponsive();
     return (
@@ -885,6 +943,7 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
             />
+            {suffix && <AppText style={at.fieldSfx}>{suffix}</AppText>}
         </View>
     );
 };
@@ -1107,11 +1166,16 @@ const InlinePicker = ({
                     </TouchableOpacity>
                 </View>
                 <ScrollView
-                    style={fp.inlinePickerList}
+                    style={[
+                        fp.inlinePickerList,
+                        Platform.OS === "web"
+                            ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as object)
+                            : null,
+                    ]}
                     contentContainerStyle={fp.inlinePickerListContent}
                     bounces={false}
                     nestedScrollEnabled
-                    showsVerticalScrollIndicator
+                    showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     {...(Platform.OS === "web" ? { onWheel: (e: any) => e.stopPropagation() } : {})}
                 >
@@ -1509,9 +1573,14 @@ const FormPopupModal = ({
                         </TouchableOpacity>
                     </View>
                     <ScrollView
-                        style={fp.bodyScroll}
+                        style={[
+                            fp.bodyScroll,
+                            Platform.OS === "web"
+                                ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as object)
+                                : null,
+                        ]}
                         contentContainerStyle={fp.bodyContent}
-                        showsVerticalScrollIndicator={isDesktop}
+                        showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         bounces={false}
                     >
@@ -1685,16 +1754,8 @@ const fp = StyleSheet.create({
     footerBtnTxtPrimary: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
 });
 
-const DEFAULT_SIZE_CHART_OPTIONS = [
-    "No Size Chart",
-    "Standard Apparel",
-    "Small Chart",
-    "Large Chart",
-];
+const DEFAULT_SIZE_CHART_OPTIONS: string[] = [];
 
-const CHART_CATEGORY_ALL = "All Categories";
-const CHART_SUB_ALL = "All Subcategories";
-const ALL_CHART_SUBCATEGORIES = allLeafSubcategoriesFromTree(CATEGORY_TREE_FALLBACK);
 const MEASUREMENT_UNIT_OPTIONS = ["Centimetres (cm)", "Inches (in)"] as const;
 const DEFAULT_CHART_UNIT = MEASUREMENT_UNIT_OPTIONS[0];
 
@@ -1733,7 +1794,7 @@ const SIZE_TABLE_COLS = [
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — Basic Info
 // ─────────────────────────────────────────────────────────────
-const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false, scrollRef: externalScrollRef }: any) => {
+const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isDesktop = false, scrollRef: externalScrollRef, editProductId }: any) => {
     const [catPick, setCatPick] = useState(false);
     const [matPick, setMatPick] = useState(false);
 
@@ -1834,6 +1895,9 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
         onChange("categoryId", resolved.categoryId);
         onChange("categorySubId", resolved.categorySubId);
         onChange("categorySubName", resolved.categorySubName);
+        onChange("materialType", "");
+        onChange("hsnCode", "");
+        onChange("gstPercentage", "");
         const leaves = buildLeafSubcategoryOptions(
             catalog,
             resolved.category,
@@ -1857,6 +1921,29 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
         );
         onChange("subcategory", resolved.subcategory);
         onChange("subcategoryId", resolved.subcategoryId);
+        onChange("materialType", "");
+        onChange("hsnCode", "");
+        onChange("gstPercentage", "");
+    };
+    const materialCatalog = materialsForProductSubcategory(
+        catalog,
+        data.category,
+        data.categorySubName ?? "",
+        data.subcategory ?? "",
+    );
+    const materialOptions = materialCatalog.map((m) => m.material);
+    const materialEnabled = materialOptions.length > 0;
+    const applyMaterial = (materialName: string) => {
+        onChange("materialType", materialName);
+        const option = resolveMaterialOption(materialCatalog, materialName);
+        if (option?.hsnCode) {
+            onChange("hsnCode", option.hsnCode);
+        } else {
+            const hsn = getHsnForMaterial(materialName);
+            if (hsn) onChange("hsnCode", hsn);
+        }
+        const gst = resolveGstForMaterial(materialCatalog, materialName);
+        if (gst != null) onChange("gstPercentage", String(gst));
     };
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
@@ -1865,9 +1952,17 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
             ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
-            contentContainerStyle={getStepScrollContent(isDesktop)}
+            contentContainerStyle={getStepScrollContent(isDesktop, true)}
         >
             <Card zIndex={100} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['identity'] = e.nativeEvent.layout.y; }}>
+                {editProductId || data.id ? (
+                    <View style={eb.idBadge}>
+                        <AppText style={eb.idBadgeLbl}>Product ID</AppText>
+                        <AppText style={eb.idBadgeVal}>{data.id || editProductId}</AppText>
+                        <View style={eb.idBadgeDot} />
+                        <AppText style={eb.idBadgeStatus}>Active</AppText>
+                    </View>
+                ) : null}
                 <SecHead icon="tag-outline" title="Product Identity" accent={C.accent1} />
                 <Divider />
                 <View ref={el => { fieldRefs.current['name'] = el; }} onLayout={(e: LayoutChangeEvent) => { fieldLayouts.current['name'] = e.nativeEvent.layout.y; }}>
@@ -1908,8 +2003,16 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 }}>
                     <View ref={el => { fieldRefs.current['materialType'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="Material Type" required />
-                        <Drop placeholder="Select material" value={data.materialType} onPress={() => setMatPick(true)} hasError={hasErr("material")} options={MATERIAL_TYPES} onSelect={(v: string) => { onChange("materialType", v); const hsn = getHsnForMaterial(v); if (hsn) onChange("hsnCode", hsn); }} />
-                        <Hint text="Primary material of the product" />
+                        <Drop
+                            placeholder={materialEnabled ? "Select material" : "Select subcategory first"}
+                            value={data.materialType}
+                            onPress={() => materialEnabled && setMatPick(true)}
+                            disabled={!materialEnabled}
+                            hasError={hasErr("material")}
+                            options={materialOptions}
+                            onSelect={applyMaterial}
+                        />
+                        <Hint text={materialEnabled ? "Materials available for the selected subcategory" : "Choose a subcategory to load materials from catalog"} />
                     </View>
                     <View ref={el => { fieldRefs.current['hsnCode'] = el; }} style={{ flex: 1 }}>
                         <Lbl text="HSN Code" required />
@@ -2032,7 +2135,7 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                 <Hint text="Mark if special protective packaging is required" />
             </Card>
 
-            <Card zIndex={60} style={{ marginTop: 12 }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
+            <Card zIndex={60} style={{ marginTop: 12, marginBottom: 0, alignSelf: "flex-start", width: "100%", ...(isDesktop ? { paddingBottom: 14 } : { paddingBottom: 12 }) }} onLayout={(e: LayoutChangeEvent) => { cardLayouts.current['custom'] = e.nativeEvent.layout.y; }}>
                 <AppText style={at.custSectionTitle}>Customized Product</AppText>
                 <View ref={el => { fieldRefs.current['custCustomFields'] = el; }}>
                     <Checkbox
@@ -2131,13 +2234,9 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
             <PM
                 visible={matPick}
                 title="Select Material"
-                options={MATERIAL_TYPES}
+                options={materialOptions}
                 selected={data.materialType}
-                onSelect={(v: string) => {
-                    onChange("materialType", v);
-                    const hsn = getHsnForMaterial(v);
-                    if (hsn) onChange("hsnCode", hsn);
-                }}
+                onSelect={applyMaterial}
                 onClose={() => setMatPick(false)}
             />
         </ScrollView>
@@ -2149,18 +2248,141 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
 // ─────────────────────────────────────────────────────────────
 const MAX_IMAGES = 6;
 
+function isLightHex(hex: string): boolean {
+    const h = hex.replace("#", "").trim();
+    if (h.length < 6) return false;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return false;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 200;
+}
+
+const ColorSelectField = ({
+    placeholder,
+    value,
+    hex,
+    hasError,
+    onPress,
+}: {
+    placeholder: string;
+    value: string;
+    hex?: string;
+    hasError?: boolean;
+    onPress: () => void;
+}) => (
+    <TouchableOpacity
+        style={[at.drop, hasError && at.fieldError]}
+        onPress={onPress}
+        activeOpacity={0.85}
+    >
+        {value && hex ? (
+            <View style={cpm.selectedRow}>
+                <View style={[cpm.colorDot, { backgroundColor: hex }, isLightHex(hex) && cpm.colorDotBorder]} />
+                <AppText style={at.dropText} numberOfLines={1}>{value}</AppText>
+            </View>
+        ) : (
+            <AppText style={[at.dropText, at.dropPh]} numberOfLines={1}>{placeholder}</AppText>
+        )}
+        <Ionicons name="chevron-down" size={15} color={C.textLight} />
+    </TouchableOpacity>
+);
+
+const ColorPickerModal = ({
+    visible,
+    colors,
+    selected,
+    onSelect,
+    onClose,
+}: {
+    visible: boolean;
+    colors: { id: number; name: string; hex: string }[];
+    selected: string;
+    onSelect: (color: { id: number; name: string; hex: string }) => void;
+    onClose: () => void;
+}) => {
+    const { isDesktop } = useResponsive();
+    return (
+        <Modal visible={visible} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={onClose}>
+            <View style={[cpm.overlay, isDesktop && cpm.overlayCenter]}>
+                <TouchableOpacity style={cpm.backdrop} activeOpacity={1} onPress={onClose} />
+                <View style={[cpm.sheet, isDesktop && cpm.popup]}>
+                    {!isDesktop && <View style={cpm.drag} />}
+                    <View style={cpm.hdr}>
+                        <AppText style={cpm.title}>Select Color</AppText>
+                        <TouchableOpacity onPress={onClose} style={cpm.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                            <Ionicons name="close" size={18} color={C.textMid} />
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                        style={cpm.scroll}
+                        contentContainerStyle={cpm.grid}
+                        showsVerticalScrollIndicator={false}
+                        bounces={false}
+                        {...(Platform.OS === "web"
+                            ? { onWheel: (e: { stopPropagation: () => void }) => e.stopPropagation() }
+                            : {})}
+                    >
+                        {colors.map((color) => {
+                            const isOn = selected === color.name;
+                            return (
+                                <TouchableOpacity
+                                    key={color.id}
+                                    style={[cpm.item, isOn && cpm.itemOn]}
+                                    onPress={() => { onSelect(color); onClose(); }}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[cpm.circle, { backgroundColor: color.hex }, isLightHex(color.hex) && cpm.colorDotBorder, isOn && cpm.circleOn]}>
+                                        {isOn ? <Ionicons name="checkmark" size={18} color={isLightHex(color.hex) ? C.textDark : C.white} /> : null}
+                                    </View>
+                                    <AppText style={[cpm.itemTxt, isOn && cpm.itemTxtOn]} numberOfLines={2}>{color.name}</AppText>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+const cpm = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.22)" },
+    overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "rgba(10,20,60,0.35)" },
+    backdrop: { ...StyleSheet.absoluteFillObject },
+    sheet: { position: "absolute", bottom: 0, left: 0, right: 0, maxHeight: "70%", backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
+    popup: { position: "relative", bottom: undefined, left: undefined, right: undefined, width: "100%", maxWidth: 360, maxHeight: "80%", borderRadius: 20, paddingBottom: 12, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.22, shadowRadius: 32, elevation: 28, zIndex: 2, backgroundColor: C.white, overflow: "hidden" },
+    drag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 6 },
+    hdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+    title: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.textDark },
+    closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+    scroll: Platform.OS === "web"
+        ? ({ maxHeight: 360, overflowY: "auto", scrollbarWidth: "none", msOverflowStyle: "none" } as object)
+        : { maxHeight: 360 },
+    grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingBottom: 12, paddingTop: 4 },
+    item: { width: "25%", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 2 },
+    itemOn: {},
+    circle: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+    circleOn: { borderWidth: 2.5, borderColor: C.navy },
+    colorDot: { width: 18, height: 18, borderRadius: 9 },
+    colorDotBorder: { borderWidth: 1, borderColor: C.border },
+    selectedRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+    itemTxt: { fontFamily: fontFamilies.medium, fontSize: 10, color: C.textMid, textAlign: "center" },
+    itemTxtOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
+});
+
 const ImagePickerGrid = ({
-    images, onAdd, onRemove, maxCount = MAX_IMAGES, hasError = false, label = "Add Photo",
+    images, onAdd, onRemove, maxCount = MAX_IMAGES, unlimited = false, hasError = false, label = "Add Photo",
 }: {
     images: string[]; onAdd: (uris: string[]) => void; onRemove: (index: number) => void;
-    maxCount?: number; hasError?: boolean; label?: string;
+    maxCount?: number; unlimited?: boolean; hasError?: boolean; label?: string;
 }) => {
     const [srcModal, setSrcModal] = useState(false);
+    const effectiveLimit = unlimited ? null : maxCount;
 
     const pickImages = async (source: "camera" | "gallery") => {
         setSrcModal(false);
-        const remaining = maxCount - images.length;
-        if (remaining <= 0) return;
+        if (!unlimited && effectiveLimit != null && images.length >= effectiveLimit) return;
 
         if (source === "camera") {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -2170,17 +2392,18 @@ const ImagePickerGrid = ({
         } else {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== "granted") { Alert.alert("Permission Required", "Gallery access is needed to pick photos."); return; }
+            const remaining = unlimited ? 0 : Math.max(0, (effectiveLimit ?? MAX_IMAGES) - images.length);
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsMultipleSelection: remaining > 1,
-                selectionLimit: remaining,
+                allowsMultipleSelection: unlimited || remaining > 1,
+                selectionLimit: unlimited ? 0 : remaining,
                 quality: 0.85,
             });
             if (!result.canceled && result.assets?.length) onAdd(result.assets.map((a: any) => a.uri));
         }
     };
 
-    const canAdd = images.length < maxCount;
+    const canAdd = unlimited || images.length < (effectiveLimit ?? MAX_IMAGES);
 
     return (
         <>
@@ -2198,7 +2421,6 @@ const ImagePickerGrid = ({
                             <MaterialCommunityIcons name="camera-plus-outline" size={22} color={C.navyLight} />
                         </View>
                         <AppText style={ipg.addTxt}>{label}</AppText>
-                        <AppText style={ipg.addCount}>{images.length}/{maxCount}</AppText>
                     </TouchableOpacity>
                 )}
                 {images.map((uri, i) => (
@@ -2224,7 +2446,7 @@ const ImagePickerGrid = ({
                 title="Add Image"
                 onCamera={() => pickImages("camera")}
                 onGallery={() => pickImages("gallery")}
-                galleryHint={`Pick up to ${maxCount - images.length} photo${maxCount - images.length !== 1 ? "s" : ""}`}
+                galleryHint={unlimited ? "Pick one or more photos" : `Pick up to ${(effectiveLimit ?? MAX_IMAGES) - images.length} photo${(effectiveLimit ?? MAX_IMAGES) - images.length !== 1 ? "s" : ""}`}
             />
         </>
     );
@@ -2261,13 +2483,100 @@ type Variant = {
     videoUrl: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", isDesktop = false, scrollRef, reloadCatalog }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", basicData, isDesktop = false, scrollRef, validationTrigger = 0, onValidationFail }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
-    const [addSizeOpen, setAddSizeOpen] = useState(false);
-    const [newSizeName, setNewSizeName] = useState("");
-    const [newSizeCode, setNewSizeCode] = useState("");
-    const [savingSize, setSavingSize] = useState(false);
+    const variantCardRefs = useRef<Record<number, View | null>>({});
+    const [variantPricingMap, setVariantPricingMap] = useState<Record<string, {
+        pricing: VariantPricingResult;
+        delivery: DeliveryChargeInfo;
+        commissionPercent: number;
+    }>>({});
+
+    const weightKg = parseFloat(String(basicData?.weight ?? "").trim());
+    const hasWeight = Number.isFinite(weightKg) && weightKg > 0;
+
+    const catalogColors: { id: number; name: string; hex: string }[] = catalog?.colors ?? [];
+    const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
+    const sizeOptions = catalogSizes.map((s) =>
+        s.name === s.code ? s.name : `${s.name} (${s.code})`
+    );
+    const catalogReady = catalogColors.length > 0 && catalogSizes.length > 0;
+
+    const fallbackDelivery = resolveDeliveryCharges(
+        {
+            weight: basicData?.weight,
+            intraCityCharge: basicData?.intraCityCharge,
+            metroMetroCharge: basicData?.metroMetroCharge,
+            customDeliveryCharge: basicData?.customDeliveryCharge,
+        },
+        catalog?.deliverySlabs,
+    );
+    const catalogCommission = catalog?.commissionPercent ?? 15;
+    const materialGst = parseFloat(String(basicData?.gstPercentage ?? "").trim());
+    const productGstPercent = Number.isFinite(materialGst) && materialGst >= 0
+        ? materialGst
+        : resolveGstPercentFromCatalog(catalog, {
+            categorySubId: basicData?.categorySubId,
+            categorySubName: basicData?.categorySubName,
+            subcategoryId: basicData?.subcategoryId,
+            mainCategory: basicData?.category,
+        });
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (!hasWeight) {
+                setVariantPricingMap({});
+                return;
+            }
+            variants.forEach((v: Variant) => {
+                const mrpExcl = parseFloat(v.mrp);
+                const sellingExcl = parseFloat(v.sellingPrice);
+                if (!Number.isFinite(mrpExcl) || !Number.isFinite(sellingExcl) || mrpExcl <= 0 || sellingExcl <= 0) {
+                    setVariantPricingMap((prev) => {
+                        if (!prev[v.id]) return prev;
+                        const next = { ...prev };
+                        delete next[v.id];
+                        return next;
+                    });
+                    return;
+                }
+                fetchVariantPricingPreview({
+                    mrpExcl,
+                    sellingExcl,
+                    weightKg,
+                    categorySubId: basicData?.categorySubId ?? null,
+                    subcategoryId: basicData?.subcategoryId ?? null,
+                    discountOverride: parseFloat(v.discount) || null,
+                    gstPercent: productGstPercent,
+                })
+                    .then((preview) => {
+                        setVariantPricingMap((prev) => ({
+                            ...prev,
+                            [v.id]: {
+                                pricing: mapPricingPreviewToResult(preview),
+                                delivery: preview.deliveryCustom
+                                    ? { intraCity: 0, metroMetro: 0, custom: true }
+                                    : {
+                                        intraCity: preview.intraCityCharge,
+                                        metroMetro: preview.metroMetroCharge,
+                                        custom: false,
+                                    },
+                                commissionPercent: preview.commissionPercent,
+                            },
+                        }));
+                    })
+                    .catch(() => {
+                        setVariantPricingMap((prev) => {
+                            const next = { ...prev };
+                            delete next[v.id];
+                            return next;
+                        });
+                    });
+            });
+        }, 280);
+        return () => clearTimeout(timer);
+    }, [variants, hasWeight, weightKg, basicData?.categorySubId, basicData?.subcategoryId, basicData?.gstPercentage, productGstPercent]);
 
     const openColorPicker = (variantId: string) => {
         setSzPick(null);
@@ -2286,6 +2595,11 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         );
 
     const addVariant = () => {
+        const validationErrors = validateVariants(variants);
+        if (validationErrors.length > 0) {
+            onValidationFail?.(validationErrors);
+            return;
+        }
         const id = Date.now().toString();
         setVariants((p: Variant[]) => [
             ...p,
@@ -2296,7 +2610,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
     const addVariantImage = (id: string, uris: string[]) => {
         setVariants((p: Variant[]) => p.map((v: Variant) => {
             if (v.id !== id) return v;
-            return { ...v, images: [...v.images, ...uris].slice(0, MAX_IMAGES) };
+            return { ...v, images: [...v.images, ...uris] };
         }));
     };
 
@@ -2307,27 +2621,45 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         }));
     };
 
-    const colorOptions = uniquePickerOptions(
-        catalog?.colors?.map((c: { name: string }) => c.name) ?? []
-    );
-    const sizeOptions =
-        catalog?.sizes?.map((s: { name: string; code: string }) =>
-            s.name === s.code ? s.name : `${s.name} (${s.code})`
-        ) ?? [];
-    const catalogReady = colorOptions.length > 0 && sizeOptions.length > 0;
+    useEffect(() => {
+        if (validationTrigger <= 0 || !errors?.length) return;
+        const match = errors[0]?.match(/Variant #(\d+)/);
+        const variantIdx = match ? Math.max(0, parseInt(match[1], 10) - 1) : 0;
+        const timer = setTimeout(() => {
+            const card = variantCardRefs.current[variantIdx];
+            const container = scrollRef?.current;
+            if (!card || !container) {
+                scrollViewsToTop(container);
+                return;
+            }
+            if (Platform.OS === "web") {
+                scrollViewsToTop(container);
+                return;
+            }
+            try {
+                card.measureLayout(
+                    container as any,
+                    (_x, y) => container.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+                    () => scrollViewsToTop(container),
+                );
+            } catch {
+                scrollViewsToTop(container);
+            }
+        }, 180);
+        return () => clearTimeout(timer);
+    }, [errors, validationTrigger, scrollRef]);
 
     const resolveSizeFromLabel = (val: string) =>
-        catalog?.sizes?.find(
-            (s: { name: string; code: string }) =>
+        catalogSizes.find(
+            (s) =>
                 s.name === val ||
                 `${s.name} (${s.code})` === val ||
                 s.code === val
         );
 
     const resolveSizeCode = (variant: Variant) =>
-        catalog?.sizes?.find(
-            (s: { id?: number; name: string; code: string }) =>
-                s.id === variant.sizeId || s.name === variant.size
+        catalogSizes.find(
+            (s) => s.id === variant.sizeId || s.name === variant.size
         )?.code;
 
     const withAutoFields = (variant: Variant, index: number): Variant => {
@@ -2367,31 +2699,6 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         }));
     };
 
-    const handleCreateSize = async () => {
-        const name = newSizeName.trim();
-        const code = newSizeCode.trim().toUpperCase();
-        if (!name || !code) {
-            Alert.alert("Required", "Size name and code are required.");
-            return;
-        }
-        setSavingSize(true);
-        try {
-            const created = await createSize({ name, code, status: "Active" });
-            await reloadCatalog?.();
-            if (szPick) {
-                patchVariant(szPick, { size: created.name, sizeId: Number(created.id) });
-            }
-            setAddSizeOpen(false);
-            setNewSizeName("");
-            setNewSizeCode("");
-            setSzPick(null);
-        } catch (e) {
-            Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
-        } finally {
-            setSavingSize(false);
-        }
-    };
-
     if (!catalogReady) {
         return (
             <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
@@ -2407,7 +2714,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
             ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
-            contentContainerStyle={getStepScrollContent(isDesktop)}
+            contentContainerStyle={getStepScrollContent(isDesktop, true)}
         >
             {variants.map((v: Variant, idx: number) => {
                 const firstSameColorIdx = variants.findIndex(
@@ -2415,7 +2722,8 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                 );
                 const reuseColorImages = firstSameColorIdx >= 0 && firstSameColorIdx < idx;
                 return (
-                <Card key={v.id} zIndex={100 - idx} style={{ marginBottom: 12 }}>
+                <View key={v.id} ref={(el) => { variantCardRefs.current[idx] = el; }}>
+                <Card zIndex={100 - idx} style={{ marginBottom: 12, alignSelf: "flex-start", width: "100%", ...(isDesktop ? { paddingBottom: 14 } : { paddingBottom: 12 }) }}>
                     <View style={vt.hdr}>
                         <View style={vt.badge}><AppText style={vt.badgeTxt}>#{idx + 1}</AppText></View>
                         <AppText style={vt.title}>Variant</AppText>
@@ -2430,32 +2738,40 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Color" required />
-                            <Drop dropKey={`variant-${v.id}-color`} placeholder="Select color" value={v.color} onPress={() => openColorPicker(v.id)} hasError={hasErr(v.id, "color")} options={colorOptions} onSelect={(val: string) => {
-                                const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
-                                patchVariant(v.id, { color: val, colorId: color?.id });
-                            }} />
+                            <ColorSelectField
+                                placeholder="Select color"
+                                value={v.color}
+                                {...(() => {
+                                    const colorHex = catalogColors.find((c) => c.name === v.color)?.hex;
+                                    return colorHex ? { hex: colorHex } : {};
+                                })()}
+                                hasError={hasErr(v.id, "color")}
+                                onPress={() => openColorPicker(v.id)}
+                            />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Lbl text="Size" required />
                             <Drop dropKey={`variant-${v.id}-size`} placeholder="Select size" value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
                                 const size = resolveSizeFromLabel(val);
-                                patchVariant(v.id, { size: size?.name ?? val, sizeId: size?.id });
+                                patchVariant(v.id, {
+                                    size: size?.name ?? val,
+                                    ...(size?.id != null ? { sizeId: size.id } : {}),
+                                });
                             }} />
-                            <TouchableOpacity onPress={() => { setSzPick(v.id); setAddSizeOpen(true); }} style={vt.addSizeLink}>
-                                <AppText style={vt.addSizeLinkTxt}>+ Add new size (your account only)</AppText>
-                            </TouchableOpacity>
                         </View>
                     </View>
                     <View style={at.row2}>
                         <View style={{ flex: 1 }}>
                             <View style={vt.lblRow}>
-                                <Lbl text="SKU" />
+                                <Lbl text="SKU" compact />
                                 <View style={vt.auto}><AppText style={vt.autoTxt}>Auto</AppText></View>
                             </View>
                             <Field placeholder="Auto-generated" value={v.sku} editable={false} />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Lbl text="Stock Qty" required />
+                            <View style={vt.lblRow}>
+                                <Lbl text="Stock Qty" required compact />
+                            </View>
                             <Field placeholder="0" value={v.stock} onChangeText={(val: string) => upVariant(v.id, "stock", val)} keyboardType="numeric" hasError={hasErr(v.id, "stock")} />
                         </View>
                     </View>
@@ -2473,21 +2789,49 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     </View>
                     <View style={{ width: "50%" }}>
                         <View style={vt.lblRow}>
-                            <Lbl text="Discount %" />
+                            <Lbl text="Discount %" compact />
                             <View style={vt.auto}><AppText style={vt.autoTxt}>Auto</AppText></View>
                         </View>
-                        <Field placeholder="0" value={v.discount} keyboardType="numeric" editable={false} />
+                        <Field placeholder="0" value={v.discount} keyboardType="numeric" editable={false} suffix="%" />
+                        {v.mrp && v.sellingPrice && parseFloat(v.mrp) > parseFloat(v.sellingPrice) ? (
+                            <AppText style={vt.saveHint}>
+                                Save {formatInr(parseFloat(v.mrp) - parseFloat(v.sellingPrice))} on MRP
+                            </AppText>
+                        ) : null}
                     </View>
+
+                    <VariantPriceBreakdown
+                        pricing={
+                            variantPricingMap[v.id]?.pricing ??
+                            calculateVariantPricingFromStrings({
+                                mrp: v.mrp,
+                                sellingPrice: v.sellingPrice,
+                                gstPercent: productGstPercent,
+                                ...(fallbackDelivery.custom
+                                    ? {}
+                                    : {
+                                        intraCityCharge: fallbackDelivery.intraCity,
+                                        metroMetroCharge: fallbackDelivery.metroMetro,
+                                    }),
+                                discountOverride: parseFloat(v.discount) || null,
+                                commissionPercent: catalogCommission,
+                            })
+                        }
+                        delivery={variantPricingMap[v.id]?.delivery ?? fallbackDelivery}
+                        commissionPercent={variantPricingMap[v.id]?.commissionPercent ?? catalogCommission}
+                        hasWeight={hasWeight}
+                    />
+
                     <Divider />
                     {!reuseColorImages ? (
                         <>
-                            <Lbl text="Variant Images" />
-                            <Hint text="Add up to 6 images · first image is used as primary" />
+                            <Lbl text="Variant Images" required />
+                            <Hint text="Add as many images as you need · first image is used as primary" />
                             <ImagePickerGrid
                                 images={v.images}
                                 onAdd={(uris: string[]) => addVariantImage(v.id, uris)}
                                 onRemove={(i: number) => removeVariantImage(v.id, i)}
-                                maxCount={6}
+                                unlimited
                                 hasError={hasErr(v.id, "image")}
                                 label="Add Photo"
                             />
@@ -2502,6 +2846,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     )}
 
                 </Card>
+                </View>
                 );
             })}
 
@@ -2512,18 +2857,16 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
 
             <View style={vt.infoBox}>
                 <MaterialCommunityIcons name="information-outline" size={16} color={C.navyLight} />
-                <AppText style={vt.infoTxt}>Each variant can have its own price, stock, and images. At least one variant is required.</AppText>
+                <AppText style={vt.infoTxt}>Each variant needs color, size, pricing, stock, and at least one image before you can add another variant.</AppText>
             </View>
 
-            <PM
+            <ColorPickerModal
                 visible={!!clrPick}
-                title="Select Color"
-                options={colorOptions}
+                colors={catalogColors}
                 selected={variants.find((v: Variant) => v.id === clrPick)?.color || ""}
-                onSelect={(val: string) => {
+                onSelect={(color) => {
                     if (!clrPick) return;
-                    const color = catalog?.colors?.find((c: { name: string }) => c.name === val);
-                    patchVariant(clrPick, { color: val, colorId: color?.id });
+                    patchVariant(clrPick, { color: color.name, colorId: color.id });
                 }}
                 onClose={() => setClrPick(null)}
             />
@@ -2535,30 +2878,13 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                 onSelect={(val: string) => {
                     if (!szPick) return;
                     const size = resolveSizeFromLabel(val);
-                    patchVariant(szPick, { size: size?.name ?? val, sizeId: size?.id });
+                    patchVariant(szPick, {
+                        size: size?.name ?? val,
+                        ...(size?.id != null ? { sizeId: size.id } : {}),
+                    });
                 }}
                 onClose={() => setSzPick(null)}
             />
-            <Modal visible={addSizeOpen} transparent animationType="fade" onRequestClose={() => setAddSizeOpen(false)}>
-                <View style={vt.sizeModalOverlay}>
-                    <View style={vt.sizeModalCard}>
-                        <AppText style={vt.sizeModalTitle}>Add New Size</AppText>
-                        <AppText style={vt.sizeModalSub}>Saved for your seller account only</AppText>
-                        <Lbl text="Size Name" required />
-                        <Field placeholder="e.g. Medium" value={newSizeName} onChangeText={setNewSizeName} />
-                        <Lbl text="Size Code" required />
-                        <Field placeholder="e.g. M1" value={newSizeCode} onChangeText={setNewSizeCode} autoCapitalize="characters" />
-                        <View style={vt.sizeModalActions}>
-                            <TouchableOpacity style={vt.sizeModalCancel} onPress={() => setAddSizeOpen(false)} disabled={savingSize}>
-                                <AppText style={vt.sizeModalCancelTxt}>Cancel</AppText>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={vt.sizeModalSave} onPress={handleCreateSize} disabled={savingSize}>
-                                {savingSize ? <ActivityIndicator color={C.white} size="small" /> : <AppText style={vt.sizeModalSaveTxt}>Save Size</AppText>}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
         </ScrollView>
     );
 };
@@ -2566,9 +2892,36 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — Images
 // ─────────────────────────────────────────────────────────────
-const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef }: any) => {
+const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef, validationTrigger = 0 }: any) => {
     const hasErr = errors.some((e: string) => e.toLowerCase().includes("primary"));
     const [srcModal, setSrcModal] = useState(false);
+    const primaryBlockRef = useRef<View>(null);
+
+    useEffect(() => {
+        if (validationTrigger <= 0 || !errors?.length) return;
+        const timer = setTimeout(() => {
+            const block = primaryBlockRef.current;
+            const container = scrollRef?.current;
+            if (!block || !container) {
+                scrollViewsToTop(container);
+                return;
+            }
+            if (Platform.OS === "web") {
+                scrollViewsToTop(container);
+                return;
+            }
+            try {
+                block.measureLayout(
+                    container as any,
+                    (_x, y) => container.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+                    () => scrollViewsToTop(container),
+                );
+            } catch {
+                scrollViewsToTop(container);
+            }
+        }, 180);
+        return () => clearTimeout(timer);
+    }, [errors, validationTrigger, scrollRef]);
 
     const pickPrimaryImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -2605,28 +2958,17 @@ const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef }: an
         }
     };
 
-    const additionalImages: string[] = data.additionalImages ?? [];
-
-    const addAdditionalImages = (uris: string[]) => {
-        onChange("additionalImages", [...additionalImages, ...uris].slice(0, 4));
-    };
-    const removeAdditionalImage = (index: number) => {
-        onChange(
-            "additionalImages",
-            additionalImages.filter((_: string, i: number) => i !== index)
-        );
-    };
-
     return (
         <ScrollView
             ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
-            contentContainerStyle={getStepScrollContent(isDesktop)}
+            contentContainerStyle={getStepScrollContent(isDesktop, true)}
         >
-            <Card>
+            <Card style={{ marginBottom: 0, alignSelf: "flex-start", width: "100%", ...(isDesktop ? { paddingBottom: 14 } : { paddingBottom: 12 }) }}>
                 <SecHead icon="image-multiple-outline" title="Product Images" accent={C.accent2} />
                 <Divider />
+                <View ref={primaryBlockRef}>
                 <Lbl text="Primary Image" required />
                 <Hint text="First image shown to buyers. JPG, PNG or WebP · max 5 MB." />
                 {data.primaryImage ? (
@@ -2661,49 +3003,42 @@ const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef }: an
                         <AppText style={ig.sub}>JPG · PNG · WebP · Max 5 MB</AppText>
                     </TouchableOpacity>
                 )}
-                <View style={{ height: 20 }} />
-                <Lbl text="Additional Images" />
-                <Hint text="Add more images to showcase different angles. Up to 4 additional images." />
-                <ImagePickerGrid
-                    images={additionalImages}
-                    onAdd={addAdditionalImages}
-                    onRemove={removeAdditionalImage}
-                    maxCount={4}
-                    hasError={false}
-                    label="Add More"
-                />
-                <View style={{ height: 20 }} />
+                </View>
                 <Lbl text="Product Video (Optional)" />
                 <Hint text="Upload a video to show your product in action. Max 20 MB." />
                 {data.video ? (
-                    <View style={ig.videoPreviewWrap}>
-                        <View style={ig.videoIconWrap}>
-                            <MaterialCommunityIcons name="video" size={26} color={C.navy} />
-                        </View>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                            <AppText style={ig.videoTitle} numberOfLines={1}>
+                    <View style={ig.previewWrap}>
+                        <View style={ig.videoPreviewBg}>
+                            <MaterialCommunityIcons name="play-circle" size={52} color="rgba(255,255,255,0.92)" />
+                            <AppText style={ig.videoPreviewName} numberOfLines={1}>
                                 {data.video.split("/").pop() || "product_video.mp4"}
                             </AppText>
-                            <AppText style={ig.videoSub}>Video ready for upload</AppText>
                         </View>
-                        <TouchableOpacity style={ig.videoChangeBtn} onPress={() => setSrcModal(true)}>
-                            <MaterialCommunityIcons name="pencil" size={15} color={C.navy} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={ig.videoRemoveBtn} onPress={() => onChange("video", null)}>
-                            <MaterialCommunityIcons name="trash-can-outline" size={15} color={C.red} />
-                        </TouchableOpacity>
+                        <View style={ig.previewOverlay}>
+                            <TouchableOpacity style={ig.changeBtn} onPress={() => setSrcModal(true)}>
+                                <MaterialCommunityIcons name="pencil" size={14} color={C.white} />
+                                <AppText style={ig.changeTxt}>Change</AppText>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={ig.removeBtn} onPress={() => onChange("video", null)}>
+                                <MaterialCommunityIcons name="trash-can-outline" size={14} color={C.white} />
+                                <AppText style={ig.removeTxt}>Remove</AppText>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={ig.checkBadge}>
+                            <MaterialCommunityIcons name="check-circle" size={20} color={C.green} />
+                        </View>
                     </View>
                 ) : (
                     <TouchableOpacity
-                        style={ig.videoBox}
+                        style={ig.box}
                         onPress={() => setSrcModal(true)}
                         activeOpacity={0.75}
                     >
-                        <View style={ig.videoIconWrapLarge}>
-                            <MaterialCommunityIcons name="video-plus-outline" size={28} color={C.navyLight} />
+                        <View style={ig.iconWrap}>
+                            <MaterialCommunityIcons name="video-plus-outline" size={32} color={C.navyLight} />
                         </View>
-                        <AppText style={ig.videoBoxTitle}>Tap to upload product video</AppText>
-                        <AppText style={ig.videoBoxSub}>MP4 · MOV · WebM · Max 20 MB</AppText>
+                        <AppText style={ig.title}>Tap to upload product video</AppText>
+                        <AppText style={ig.sub}>MP4 · MOV · WebM · Max 20 MB</AppText>
                     </TouchableOpacity>
                 )}
                 <ImageSourcePickerModal
@@ -2720,11 +3055,11 @@ const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef }: an
 };
 
 const ig = StyleSheet.create({
-    box: { marginTop: 12, borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 28, gap: 8, backgroundColor: C.inputBg },
+    box: { marginTop: 12, borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 20, gap: 6, backgroundColor: C.inputBg, maxWidth: 320, alignSelf: "center", width: "100%" },
     iconWrap: { width: 60, height: 60, borderRadius: 14, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center" },
     title: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textMid },
     sub: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight },
-    previewWrap: { marginTop: 12, borderRadius: 14, overflow: "hidden", height: 200, position: "relative" },
+    previewWrap: { marginTop: 12, borderRadius: 14, overflow: "hidden", height: 140, maxWidth: 320, alignSelf: "center", width: "100%", position: "relative" },
     previewImg: { width: "100%", height: "100%" },
     previewOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", gap: 8, padding: 10, backgroundColor: "rgba(10,20,60,0.55)" },
     changeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 9, paddingVertical: 7, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
@@ -2732,20 +3067,12 @@ const ig = StyleSheet.create({
     removeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "rgba(220,50,50,0.55)", borderRadius: 9, paddingVertical: 7, borderWidth: 1, borderColor: "rgba(255,100,100,0.3)" },
     removeTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.white },
     checkBadge: { position: "absolute", top: 10, right: 10, backgroundColor: C.white, borderRadius: 12 },
+    videoPreviewBg: { width: "100%", height: "100%", backgroundColor: C.navyDeep, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16 },
+    videoPreviewName: { fontFamily: fontFamilies.medium, fontSize: 11, color: "rgba(255,255,255,0.85)", maxWidth: "90%", textAlign: "center" },
     slot: { width: 100, height: 100, borderWidth: 1.5, borderColor: C.border, borderRadius: 12, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 4 },
     slotTxt: { fontFamily: fontFamilies.medium, fontSize: 11, color: C.navyLight },
     selectedWrap: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: C.greenPale, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
     selectedTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.greenText },
-    videoBox: { marginTop: 12, borderWidth: 1.5, borderColor: C.navyBorder, borderStyle: "dashed", borderRadius: 14, alignItems: "center", paddingVertical: 24, gap: 6, backgroundColor: C.inputBg },
-    videoIconWrapLarge: { width: 56, height: 56, borderRadius: 14, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-    videoBoxTitle: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textMid, textAlign: "center" },
-    videoBoxSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight, textAlign: "center" },
-    videoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, backgroundColor: C.navyGhost, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.navyBorder },
-    videoIconWrap: { width: 44, height: 44, borderRadius: 10, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
-    videoTitle: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.textDark },
-    videoSub: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight, marginTop: 2 },
-    videoChangeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
-    videoRemoveBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.redPale, alignItems: "center", justifyContent: "center" },
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -2799,17 +3126,23 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const [createSizeOpen, setCreateSizeOpen] = useState(false);
     const [customPolicyOpen, setCustomPolicyOpen] = useState(false);
     const [sizeChartOptions, setSizeChartOptions] = useState<string[]>(DEFAULT_SIZE_CHART_OPTIONS);
+    const [sellerSizeCharts, setSellerSizeCharts] = useState<Record<string, SizeChartRow[]>>({});
+    const [sellerSizeChartMeta, setSellerSizeChartMeta] = useState<Record<string, NonNullable<typeof data.sizeChartMeta>>>({});
+    const [chartIdByName, setChartIdByName] = useState<Record<string, number>>({});
+    const chartFieldRefs = useRef<Record<string, any>>({});
     const [newChartName, setNewChartName] = useState("");
-    const [chartCategory, setChartCategory] = useState(CHART_CATEGORY_ALL);
-    const [chartSubcategory, setChartSubcategory] = useState(CHART_SUB_ALL);
+    const [chartCategory, setChartCategory] = useState("");
+    const [chartCategoryId, setChartCategoryId] = useState<number | null>(null);
+    const [chartCategorySubName, setChartCategorySubName] = useState("");
+    const [chartCategorySubId, setChartCategorySubId] = useState<number | null>(null);
+    const [chartSubcategory, setChartSubcategory] = useState("");
+    const [chartSubcategoryId, setChartSubcategoryId] = useState<number | null>(null);
     const [chartImageUri, setChartImageUri] = useState<string | null>(null);
     const [chartRows, setChartRows] = useState<SizeChartRow[]>([]);
     const [chartUnit, setChartUnit] = useState<string>(DEFAULT_CHART_UNIT);
     const [chartNotes, setChartNotes] = useState("");
-    const [chartCatPick, setChartCatPick] = useState(false);
-    const [chartSubPick, setChartSubPick] = useState(false);
+    const [chartErrors, setChartErrors] = useState<string[]>([]);
     const [chartUnitPick, setChartUnitPick] = useState(false);
-    const [chartSizePickRowId, setChartSizePickRowId] = useState<string | null>(null);
     const [addChartSizeOpen, setAddChartSizeOpen] = useState(false);
     const [newChartSizeName, setNewChartSizeName] = useState("");
     const [newChartSizeCode, setNewChartSizeCode] = useState("");
@@ -2820,30 +3153,109 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const specs = data.specifications?.length ? data.specifications : [{ name: "", value: "" }];
 
     const hasErr = (field: string) => errors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
+    const chartHasErr = (field: string) => chartErrors.some((e: string) => e.toLowerCase().includes(field.toLowerCase()));
 
-    const chartCategoryNames = catalog?.categories?.map((c: { name: string }) => c.name) ?? [];
-    const chartCategoryOptions = [CHART_CATEGORY_ALL, ...chartCategoryNames];
-    const chartSubMap = subcategoriesMapFromCatalog(catalog ?? null);
-    const chartSubOptions =
-        chartCategory === CHART_CATEGORY_ALL
-            ? [CHART_SUB_ALL, ...allChartSubcategoriesFromCatalog(catalog ?? null)]
-            : [CHART_SUB_ALL, ...(chartSubMap[chartCategory]?.filter((s: string) => s !== "All") ?? [])];
+    useEffect(() => {
+        fetchSizeCharts()
+            .then((charts) => {
+                const cache = buildSizeChartCache(charts);
+                setSizeChartOptions(cache.options);
+                setSellerSizeCharts(cache.rowsByName);
+                setSellerSizeChartMeta(cache.metaByName);
+                setChartIdByName(cache.idByName);
+            })
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!createSizeOpen || chartErrors.length === 0) return;
+        const getFieldKeyFromError = (error: string): string | null => {
+            const err = error.toLowerCase();
+            if (err.includes("chart name")) return "chartName";
+            if (err.includes("subcategory")) return "chartSubcategory";
+            if (err.includes("category")) return "chartCategory";
+            if (err.includes("size")) return "chartSizes";
+            return null;
+        };
+        const fieldKey = getFieldKeyFromError(chartErrors[0] ?? "");
+        if (!fieldKey) return;
+        const targetRef = chartFieldRefs.current[fieldKey];
+        if (Platform.OS === "web" && targetRef && typeof targetRef.scrollIntoView === "function") {
+            try {
+                targetRef.scrollIntoView({ behavior: "smooth", block: "center" });
+            } catch {
+                // ignore
+            }
+        }
+    }, [chartErrors, createSizeOpen]);
+
+    const applySizeChartSelection = (name: string) => {
+        const rows = sellerSizeCharts[name] ?? [];
+        onChange("sizeChart", name);
+        onChange("sizeChartId", chartIdByName[name]);
+        onChange("sizeChartRows", rows);
+        onChange("sizeChartMeta", sellerSizeChartMeta[name]);
+    };
+
+    const categoryPathOptions = buildCategoryPathOptions(catalog, CATEGORY_TREE_FALLBACK);
+    const chartCategoryDisplay = formatCategoryPath(chartCategory, chartCategorySubName);
+    const chartLeafSubcategoryOptions = buildLeafSubcategoryOptions(
+        catalog,
+        chartCategory,
+        chartCategorySubName,
+        CATEGORY_TREE_FALLBACK,
+    );
+    const chartSubcategoryEnabled = Boolean(chartCategory && chartCategorySubName);
 
     const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
-    const chartSizeOptions = uniquePickerOptions(
-        catalogSizes.map((s) => formatSizeOption(s))
-    );
+
+    const selectChartCategoryPath = (label: string) => {
+        const resolved = resolveCategoryPathSelection(label, catalog);
+        setChartCategory(resolved.category);
+        setChartCategoryId(resolved.categoryId);
+        setChartCategorySubId(resolved.categorySubId);
+        setChartCategorySubName(resolved.categorySubName);
+        const leaves = buildLeafSubcategoryOptions(
+            catalog,
+            resolved.category,
+            resolved.categorySubName,
+            CATEGORY_TREE_FALLBACK,
+        );
+        if (leaves.length === 0) {
+            setChartSubcategory(resolved.categorySubName);
+            setChartSubcategoryId(resolved.categorySubId);
+        } else {
+            setChartSubcategory("");
+            setChartSubcategoryId(null);
+        }
+        setChartErrors((prev) => prev.filter((e) => !e.toLowerCase().includes("category")));
+    };
+
+    const selectChartSubcategory = (leafName: string) => {
+        const resolved = resolveLeafSubcategorySelection(
+            chartCategory,
+            chartCategorySubName,
+            leafName,
+            catalog,
+        );
+        setChartSubcategory(resolved.subcategory);
+        setChartSubcategoryId(resolved.subcategoryId);
+        setChartErrors((prev) => prev.filter((e) => !e.toLowerCase().includes("subcategory")));
+    };
 
     const openCreateSizeChart = () => {
         setNewChartName("");
-        setChartCategory(CHART_CATEGORY_ALL);
-        setChartSubcategory(CHART_SUB_ALL);
+        setChartCategory("");
+        setChartCategoryId(null);
+        setChartCategorySubName("");
+        setChartCategorySubId(null);
+        setChartSubcategory("");
+        setChartSubcategoryId(null);
         setChartImageUri(null);
         setChartUnit(DEFAULT_CHART_UNIT);
         setChartNotes("");
         setChartRows([emptySizeRow()]);
-        setChartCatPick(false);
-        setChartSubPick(false);
+        setChartErrors([]);
         setChartUnitPick(false);
         setCreateSizeOpen(true);
     };
@@ -2854,27 +3266,55 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     };
 
     const saveSizeChart = async () => {
-        const name = newChartName.trim();
-        if (!name) {
-            Alert.alert("Chart name required", "Please enter a name for your size chart.");
-            return;
-        }
+        const validationErrors: string[] = [];
+        if (!newChartName.trim()) validationErrors.push("Chart name is required");
+        if (!chartCategory || !chartCategorySubName) validationErrors.push("Category is required");
+        if (!chartSubcategory.trim()) validationErrors.push("Subcategory is required");
         const validRows = chartRows.filter((r) => r.size.trim());
-        if (validRows.length === 0) {
-            Alert.alert("Sizes required", "Add at least one size row to the chart.");
+        if (validRows.length === 0) validationErrors.push("At least one size is required");
+
+        if (validationErrors.length > 0) {
+            setChartErrors(validationErrors);
             return;
         }
+
+        setChartErrors([]);
+        const name = newChartName.trim();
         setSavingChart(true);
         try {
             const sizeNames = validRows.map((r) => r.size.trim());
             await ensureSellerSizesInCatalog(sizeNames, catalogSizes);
             await reloadCatalog?.();
-            setSizeChartOptions((prev) => {
-                if (prev.includes(name)) return prev;
-                return [...prev, name];
+            const saved = await createSizeChart({
+                name,
+                categoryId: chartCategoryId,
+                subcategoryId: chartSubcategoryId,
+                categoryName: chartCategory,
+                categorySubName: chartCategorySubName,
+                subcategoryName: chartSubcategory,
+                unit: chartUnit,
+                notes: chartNotes,
+                imageUri: chartImageUri,
+                rows: mapFormRowsToApiRows(validRows),
             });
+            const cache = mergeChartIntoCache(
+                {
+                    options: sizeChartOptions,
+                    rowsByName: sellerSizeCharts,
+                    metaByName: sellerSizeChartMeta,
+                    idByName: chartIdByName,
+                },
+                saved,
+            );
+            setSizeChartOptions(cache.options);
+            setSellerSizeCharts(cache.rowsByName);
+            setSellerSizeChartMeta(cache.metaByName);
+            setChartIdByName(cache.idByName);
+            const meta = cache.metaByName[name];
             onChange("sizeChart", name);
-            onChange("sizeChartRows", validRows);
+            onChange("sizeChartId", saved.id);
+            onChange("sizeChartRows", cache.rowsByName[name] ?? validRows);
+            onChange("sizeChartMeta", meta);
             setCreateSizeOpen(false);
         } catch (e) {
             Alert.alert("Error", e instanceof Error ? e.message : "Could not save sizes to your catalog.");
@@ -2919,20 +3359,15 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         try {
             const created = await createSize({ name, code, status: "Active" });
             await reloadCatalog?.();
-            if (chartSizePickRowId) {
-                updateChartRow(chartSizePickRowId, "size", created.name);
+            const emptyRow = chartRows.find((r) => !r.size.trim());
+            if (emptyRow) {
+                updateChartRow(emptyRow.id, "size", created.name);
             } else {
-                const emptyRow = chartRows.find((r) => !r.size.trim());
-                if (emptyRow) {
-                    updateChartRow(emptyRow.id, "size", created.name);
-                } else {
-                    setChartRows((prev) => [...prev, emptySizeRow(created.name)]);
-                }
+                setChartRows((prev) => [...prev, emptySizeRow(created.name)]);
             }
             setAddChartSizeOpen(false);
             setNewChartSizeName("");
             setNewChartSizeCode("");
-            setChartSizePickRowId(null);
         } catch (e) {
             Alert.alert("Error", e instanceof Error ? e.message : "Could not create size.");
         } finally {
@@ -2948,15 +3383,29 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
             ref={scrollRef}
             showsVerticalScrollIndicator={isDesktop}
             style={isDesktop ? ds.stepScroll : undefined}
-            contentContainerStyle={getStepScrollContent(isDesktop)}
+            contentContainerStyle={getStepScrollContent(isDesktop, true)}
         >
             <Card zIndex={100}>
                 <SecHead icon="ruler-square" title="Size Chart" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Select Size Chart" />
+                {sizeChartOptions.length === 0 ? (
+                    <View style={dt.sizeEmptyHint}>
+                        <AppText style={dt.sizeEmptyHintTxt}>
+                            No size charts yet. Create one to attach measurements for this product.
+                        </AppText>
+                    </View>
+                ) : null}
                 <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }, isDesktop && { alignItems: "flex-end" }]}>
                     <View style={fieldFlex}>
-                        <Drop placeholder="No size chart" value={data.sizeChart} onPress={() => setSizePick(true)} options={sizeChartOptions} onSelect={(v: string) => onChange("sizeChart", v)} />
+                        <Drop
+                            placeholder="Select size chart"
+                            value={data.sizeChart}
+                            onPress={() => sizeChartOptions.length > 0 && setSizePick(true)}
+                            options={sizeChartOptions}
+                            disabled={sizeChartOptions.length === 0}
+                            onSelect={applySizeChartSelection}
+                        />
                     </View>
                     <TouchableOpacity
                         style={[dt.outBtn, !isDesktop && dt.outBtnFull]}
@@ -2967,6 +3416,73 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                         <AppText style={dt.outBtnTxt}>Create New</AppText>
                     </TouchableOpacity>
                 </View>
+                {data.sizeChart && (sellerSizeCharts[data.sizeChart] ?? data.sizeChartRows ?? []).length > 0 ? (
+                    <>
+                        <Divider />
+                        <Lbl text="Review Size Chart" />
+                        <View style={dt.sizeChartReview}>
+                            <View style={dt.reviewRow}>
+                                <AppText style={dt.reviewLbl}>Chart Name</AppText>
+                                <AppText style={dt.reviewVal}>{data.sizeChart}</AppText>
+                            </View>
+                            {data.sizeChartMeta?.categorySubName ? (
+                                <View style={dt.reviewRow}>
+                                    <AppText style={dt.reviewLbl}>Category</AppText>
+                                    <AppText style={dt.reviewVal}>
+                                        {formatCategoryPath(data.sizeChartMeta.category, data.sizeChartMeta.categorySubName)}
+                                    </AppText>
+                                </View>
+                            ) : null}
+                            {data.sizeChartMeta?.subcategory ? (
+                                <View style={dt.reviewRow}>
+                                    <AppText style={dt.reviewLbl}>Subcategory</AppText>
+                                    <AppText style={dt.reviewVal}>{data.sizeChartMeta.subcategory}</AppText>
+                                </View>
+                            ) : null}
+                            {(data.sizeChartMeta?.imageUrl || sellerSizeChartMeta[data.sizeChart]?.imageUrl) ? (
+                                <View style={dt.reviewImageWrap}>
+                                    <Image
+                                        source={{
+                                            uri: resolveMediaUrl(
+                                                data.sizeChartMeta?.imageUrl
+                                                    ?? sellerSizeChartMeta[data.sizeChart]?.imageUrl,
+                                            ) ?? undefined,
+                                        }}
+                                        style={dt.reviewChartImage}
+                                        resizeMode="contain"
+                                    />
+                                </View>
+                            ) : null}
+                            <Lbl text="Sizes Added" compact />
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={dt.sizeTableScroll}>
+                                <View style={dt.sizeTableWrap}>
+                                    <View style={dt.sizeTableHeader}>
+                                        {SIZE_TABLE_COLS.map((col) => (
+                                            <View key={col.key} style={[dt.sizeTableTh, { width: col.width, minWidth: col.width }]}>
+                                                <AppText style={dt.sizeTableThTxt} numberOfLines={2}>{col.label}</AppText>
+                                            </View>
+                                        ))}
+                                    </View>
+                                    {(sellerSizeCharts[data.sizeChart] ?? data.sizeChartRows ?? [])
+                                        .filter((r: SizeChartRow) => r.size.trim())
+                                        .map((row: SizeChartRow, idx: number) => (
+                                            <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
+                                                {SIZE_TABLE_COLS.map((col) => (
+                                                    <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
+                                                        <AppText style={dt.reviewSizeCellTxt} numberOfLines={1}>
+                                                            {row[col.key]?.trim()
+                                                                ? `${row[col.key]}${col.key !== "size" && data.sizeChartMeta?.unit?.toLowerCase().includes("inch") ? " in" : col.key !== "size" ? " cm" : ""}`
+                                                                : "—"}
+                                                        </AppText>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                    </>
+                ) : null}
             </Card>
 
             <Card zIndex={90} style={{ marginTop: 12 }}>
@@ -3017,13 +3533,42 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
             <Card zIndex={70} style={{ marginTop: 12 }}>
                 <SecHead icon="credit-card-outline" title="Payment Options" accent={C.accent5} />
                 <Divider />
-                <Hint text="Select all payment methods available for this product." />
-                {([["codEnabled", "Cash on Delivery (COD)"], ["onlinePayEnabled", "Online Payment — Razorpay"]] as [string, string][]).map(([key, label]) => (
-                    <View key={key} style={dt.togRow}>
-                        <Switch value={(data as any)[key]} onValueChange={(v: boolean) => onChange(key, v)} trackColor={{ false: C.border, true: C.navy }} thumbColor={C.white} />
-                        <AppText style={dt.togLbl}>{label}</AppText>
-                    </View>
-                ))}
+                <Hint text="Select one or both payment methods. At least one option is required." />
+                <View style={dt.payRow}>
+                    {([
+                        ["codEnabled", "Cash on Delivery (COD)", "cash-multiple"] as const,
+                        ["onlinePayEnabled", "Online Payment", "credit-card-outline"] as const,
+                    ]).map(([key, label, icon]) => {
+                        const selected = Boolean((data as any)[key]);
+                        const otherKey = key === "codEnabled" ? "onlinePayEnabled" : "codEnabled";
+                        return (
+                            <TouchableOpacity
+                                key={key}
+                                style={[dt.payOption, selected && dt.payOptionOn]}
+                                onPress={() => {
+                                    const otherSelected = Boolean((data as any)[otherKey]);
+                                    if (selected && !otherSelected) return;
+                                    onChange(key, !selected);
+                                }}
+                                activeOpacity={0.85}
+                            >
+                                <View style={[dt.payIconWrap, selected && dt.payIconWrapOn]}>
+                                    <MaterialCommunityIcons
+                                        name={icon}
+                                        size={22}
+                                        color={selected ? C.white : C.navy}
+                                    />
+                                </View>
+                                <AppText style={[dt.payOptionLbl, selected && dt.payOptionLblOn]}>{label}</AppText>
+                                {selected ? (
+                                    <MaterialCommunityIcons name="check-circle" size={18} color={C.navy} />
+                                ) : (
+                                    <View style={dt.payOptionRing} />
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </Card>
 
             <Card zIndex={60} style={{ marginTop: 12 }}>
@@ -3043,13 +3588,18 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 </View>
             </Card>
 
-            <Card zIndex={50} style={{ marginTop: 12 }}>
+            <Card zIndex={50} style={{ marginTop: 12, marginBottom: 0 }}>
                 <SecHead icon="format-list-bulleted" title="Features & Specs" accent={C.accent1} />
                 <Divider />
                 <Lbl text="Product Features" />
                 {features.map((f: string, i: number) => (
-                    <View key={i} style={{ marginBottom: 10 }}>
-                        <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; onChange("features", arr); }} />
+                    <View key={i} style={dt.specRow}>
+                        <View style={{ flex: 1 }}>
+                            <Field placeholder="Enter feature" value={f} onChangeText={(v: string) => { const arr = [...features]; arr[i] = v; onChange("features", arr); }} />
+                        </View>
+                        <TouchableOpacity style={dt.specDel} onPress={() => onChange("features", features.filter((_: string, idx: number) => idx !== i))}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={16} color={C.red} />
+                        </TouchableOpacity>
                     </View>
                 ))}
                 <TouchableOpacity style={dt.addBtn} onPress={() => onChange("features", [...features, ""])}>
@@ -3090,7 +3640,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 title="Size Chart"
                 options={sizeChartOptions}
                 selected={data.sizeChart}
-                onSelect={(v: string) => onChange("sizeChart", v)}
+                onSelect={applySizeChartSelection}
                 onClose={() => setSizePick(false)}
             />
             <PM visible={retPick} title="Return Policy" options={RETURN_POLICY_OPTIONS} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
@@ -3099,9 +3649,8 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
             <FormPopupModal
                 visible={createSizeOpen}
                 onClose={() => {
-                    setChartCatPick(false);
-                    setChartSubPick(false);
                     setChartUnitPick(false);
+                    setChartErrors([]);
                     setCreateSizeOpen(false);
                 }}
                 title="Create Size Chart"
@@ -3111,25 +3660,6 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 overlay={
                     <>
                         <InlinePicker
-                            visible={chartCatPick}
-                            title="Select Category"
-                            options={chartCategoryOptions}
-                            selected={chartCategory}
-                            onSelect={(v: string) => {
-                                setChartCategory(v);
-                                setChartSubcategory(CHART_SUB_ALL);
-                            }}
-                            onClose={() => setChartCatPick(false)}
-                        />
-                        <InlinePicker
-                            visible={chartSubPick}
-                            title="Select Subcategory"
-                            options={chartSubOptions}
-                            selected={chartSubcategory}
-                            onSelect={setChartSubcategory}
-                            onClose={() => setChartSubPick(false)}
-                        />
-                        <InlinePicker
                             visible={chartUnitPick}
                             title="Measurement Unit"
                             options={[...MEASUREMENT_UNIT_OPTIONS]}
@@ -3137,50 +3667,62 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                             onSelect={setChartUnit}
                             onClose={() => setChartUnitPick(false)}
                         />
-                        <InlinePicker
-                            visible={chartSizePickRowId != null}
-                            title="Select Size"
-                            options={chartSizeOptions}
-                            selected={chartRows.find((r) => r.id === chartSizePickRowId)?.size ?? ""}
-                            onSelect={(v: string) => {
-                                if (chartSizePickRowId) {
-                                    updateChartRow(
-                                        chartSizePickRowId,
-                                        "size",
-                                        resolveSizeNameFromLabel(v, catalogSizes)
-                                    );
-                                }
-                                setChartSizePickRowId(null);
-                            }}
-                            onClose={() => setChartSizePickRowId(null)}
-                        />
                     </>
                 }
             >
-                <Lbl text="Chart Name" required />
-                <Field placeholder="e.g. Men's Clothing Size Chart" value={newChartName} onChangeText={setNewChartName} />
-                <View style={[twoCol, { marginTop: 0 }]}>
+                {chartErrors.length > 0 ? (
+                    <View style={dt.chartErrorBox}>
+                        {chartErrors.map((err, i) => (
+                            <AppText key={i} style={dt.chartErrorTxt}>{err}</AppText>
+                        ))}
+                    </View>
+                ) : null}
+                <View ref={(el) => { chartFieldRefs.current.chartName = el; }}>
+                    <Lbl text="Chart Name" required />
+                    <Field
+                        placeholder="e.g. Men's Clothing Size Chart"
+                        value={newChartName}
+                        onChangeText={(v: string) => {
+                            setNewChartName(v);
+                            if (v.trim()) {
+                                setChartErrors((prev) => prev.filter((e) => !e.toLowerCase().includes("chart name")));
+                            }
+                        }}
+                        hasError={chartHasErr("chart name")}
+                    />
+                </View>
+                <View
+                    ref={(el) => { chartFieldRefs.current.chartCategory = el; }}
+                    style={[twoCol, { marginTop: 0 }, Platform.OS === "web" && { zIndex: 30 }]}
+                >
                     <View style={fieldFlex}>
-                        <Lbl text="Category (Optional)" />
+                        <Lbl text="Main Category > Category" required />
                         <Drop
-                            placeholder={CHART_CATEGORY_ALL}
-                            value={chartCategory}
-                            onPress={() => { setChartSubPick(false); setChartUnitPick(false); setChartCatPick(true); }}
+                            dropKey="chart-category-path"
+                            placeholder="Select main category > category"
+                            value={chartCategoryDisplay}
+                            options={categoryPathOptions}
+                            onSelect={selectChartCategoryPath}
+                            hasError={chartHasErr("category")}
                         />
                     </View>
-                    <View style={fieldFlex}>
-                        <Lbl text="Subcategory (Optional)" />
+                    <View style={[fieldFlex, Platform.OS === "web" && { zIndex: 20 }]}>
+                        <Lbl text="Subcategory" required />
                         <Drop
-                            placeholder={CHART_SUB_ALL}
+                            dropKey="chart-subcategory"
+                            placeholder="Select subcategory"
                             value={chartSubcategory}
-                            onPress={() => { setChartCatPick(false); setChartUnitPick(false); setChartSubPick(true); }}
+                            disabled={!chartSubcategoryEnabled}
+                            options={chartLeafSubcategoryOptions}
+                            onSelect={selectChartSubcategory}
+                            hasError={chartHasErr("subcategory")}
                         />
                     </View>
                 </View>
                 <Lbl text="Size Chart Image (Optional)" />
                 <Hint text="Upload an image of your size chart (JPG, PNG, GIF, WebP)" />
                 <CustImagePicker uri={chartImageUri} onPick={setChartImageUri} onRemove={() => setChartImageUri(null)} />
-                <View style={dt.sizeDataHead}>
+                <View ref={(el) => { chartFieldRefs.current.chartSizes = el; }} style={dt.sizeDataHead}>
                     <View style={{ flex: 1 }}>
                         <Lbl text="Size Chart Data" required />
                         <Hint text="Size Information — enter measurements for each size." />
@@ -3198,7 +3740,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                     <AppText style={vt.addSizeLinkTxt}>+ Add new size to your catalog (seller only)</AppText>
                 </TouchableOpacity>
                 {chartRows.length > 0 ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={isDesktop} style={dt.sizeTableScroll}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={dt.sizeTableScroll}>
                         <View style={dt.sizeTableWrap}>
                             <View style={dt.sizeTableHeader}>
                                 {SIZE_TABLE_COLS.map((col) => (
@@ -3210,30 +3752,31 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                             </View>
                             {chartRows.map((row, idx) => (
                                 <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
-                                    {SIZE_TABLE_COLS.map((col) => (
+                                    <View style={[dt.sizeTableTd, { width: SIZE_TABLE_COLS[0].width, minWidth: SIZE_TABLE_COLS[0].width }]}>
+                                        <TextInput
+                                            style={[dt.sizeTableInput, chartHasErr("size") && !row.size.trim() && { borderColor: C.red }]}
+                                            placeholder="S"
+                                            placeholderTextColor={C.textPlaceholder}
+                                            value={row.size}
+                                            onChangeText={(v: string) => {
+                                                updateChartRow(row.id, "size", v);
+                                                if (v.trim()) {
+                                                    setChartErrors((prev) =>
+                                                        prev.filter((e) => !e.toLowerCase().includes("size")),
+                                                    );
+                                                }
+                                            }}
+                                        />
+                                    </View>
+                                    {SIZE_TABLE_COLS.slice(1).map((col) => (
                                         <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
-                                            {col.key === "size" ? (
-                                                <TouchableOpacity
-                                                    style={[dt.sizeTableInput, { justifyContent: "center" }]}
-                                                    onPress={() => setChartSizePickRowId(row.id)}
-                                                    activeOpacity={0.7}
-                                                >
-                                                    <AppText
-                                                        style={{ fontFamily: fontFamilies.regular, fontSize: 12, color: row.size ? C.textDark : C.textPlaceholder }}
-                                                        numberOfLines={1}
-                                                    >
-                                                        {row.size || "Select"}
-                                                    </AppText>
-                                                </TouchableOpacity>
-                                            ) : (
-                                                <TextInput
-                                                    style={dt.sizeTableInput}
-                                                    placeholder={col.placeholder}
-                                                    placeholderTextColor={C.textPlaceholder}
-                                                    value={row[col.key]}
-                                                    onChangeText={(v: string) => updateChartRow(row.id, col.key, v)}
-                                                />
-                                            )}
+                                            <TextInput
+                                                style={dt.sizeTableInput}
+                                                placeholder={col.placeholder}
+                                                placeholderTextColor={C.textPlaceholder}
+                                                value={row[col.key]}
+                                                onChangeText={(v: string) => updateChartRow(row.id, col.key, v)}
+                                            />
                                         </View>
                                     ))}
                                     <View style={dt.sizeTableTdAction}>
@@ -3254,11 +3797,47 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                         <AppText style={dt.sizeEmptyHintTxt}>Use Add Size to add rows and enter measurements for each size.</AppText>
                     </View>
                 )}
+                {chartRows.some((r) => r.size.trim()) ? (
+                    <>
+                        <Lbl text="Preview" compact />
+                        {chartImageUri ? (
+                            <View style={dt.reviewImageWrap}>
+                                <Image source={{ uri: chartImageUri }} style={dt.reviewChartImage} resizeMode="contain" />
+                            </View>
+                        ) : null}
+                        <View style={dt.sizeChartReview}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={dt.sizeTableScroll}>
+                                <View style={dt.sizeTableWrap}>
+                                    <View style={dt.sizeTableHeader}>
+                                        {SIZE_TABLE_COLS.map((col) => (
+                                            <View key={col.key} style={[dt.sizeTableTh, { width: col.width, minWidth: col.width }]}>
+                                                <AppText style={dt.sizeTableThTxt} numberOfLines={2}>{col.label}</AppText>
+                                            </View>
+                                        ))}
+                                    </View>
+                                    {chartRows
+                                        .filter((r) => r.size.trim())
+                                        .map((row, idx) => (
+                                            <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
+                                                {SIZE_TABLE_COLS.map((col) => (
+                                                    <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
+                                                        <AppText style={dt.reviewSizeCellTxt} numberOfLines={1}>
+                                                            {row[col.key]?.trim() || "—"}
+                                                        </AppText>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                    </>
+                ) : null}
                 <Lbl text="Measurement Unit" />
                 <Drop
                     placeholder="Select unit"
                     value={chartUnit}
-                    onPress={() => { setChartCatPick(false); setChartSubPick(false); setChartUnitPick(true); }}
+                    onPress={() => setChartUnitPick(true)}
                 />
                 <Lbl text="Additional Notes" />
                 <Field placeholder="e.g. All measurements are approximate." value={chartNotes} onChangeText={setChartNotes} multiline lines={3} maxLength={500} />
@@ -3365,7 +3944,7 @@ const StepProgressBar = ({
                         style={[sp.seg, {
                             left: lx, top: ly, width: lw, backgroundColor: filled
                                 ? STEPS[i - 1]!.color
-                                : C.border
+                                : "rgba(255,255,255,0.22)"
                         }]}
                     />
                 );
@@ -3389,6 +3968,7 @@ const StepProgressBar = ({
                             isDesktop && sp.lblDesktop,
                             isActive && { color: s.color, fontFamily: fontFamilies.bold },
                             isDone && { color: s.color, fontFamily: fontFamilies.semiBold },
+                            !isActive && !isDone && { color: "rgba(255,255,255,0.55)" },
                         ]}>
                             {s.label}
                         </AppText>
@@ -3400,12 +3980,41 @@ const StepProgressBar = ({
 };
 
 const sp = StyleSheet.create({
-    wrapper: { flexDirection: "row", backgroundColor: C.white, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 10, paddingBottom: 12, position: "relative" },
+    wrapper: { flexDirection: "row", backgroundColor: C.navyDeep, borderBottomWidth: 0, paddingTop: 10, paddingBottom: 14, position: "relative" },
     seg: { position: "absolute", height: LINE_H, borderRadius: LINE_H / 2, zIndex: 0 },
     col: { flex: 1, alignItems: "center", gap: 6, zIndex: 1 },
     circle: { width: ICON_D, height: ICON_D, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-    lbl: { fontFamily: fontFamilies.medium, fontSize: 10, color: C.textLight, textAlign: "center" },
+    lbl: { fontFamily: fontFamilies.medium, fontSize: 10, color: "rgba(255,255,255,0.55)", textAlign: "center" },
     lblDesktop: { fontSize: 12 },
+});
+
+// ─────────────────────────────────────────────────────────────
+// DISCARD MODAL (edit mode)
+// ─────────────────────────────────────────────────────────────
+const DiscardModal = ({ visible, onDiscard, onKeep }: { visible: boolean; onDiscard: () => void; onKeep: () => void }) => (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onKeep}>
+        <View style={dm.overlay}>
+            <View style={dm.sheet}>
+                <View style={dm.iconWrap}><MaterialCommunityIcons name="alert-circle-outline" size={36} color={C.amber} /></View>
+                <AppText style={dm.title}>Discard Changes?</AppText>
+                <AppText style={dm.body}>You have unsaved edits. If you leave now, your changes will be lost.</AppText>
+                <TouchableOpacity style={dm.discardBtn} onPress={onDiscard}><AppText style={dm.discardTxt}>Yes, Discard</AppText></TouchableOpacity>
+                <TouchableOpacity style={dm.keepBtn} onPress={onKeep}><AppText style={dm.keepTxt}>Keep Editing</AppText></TouchableOpacity>
+            </View>
+        </View>
+    </Modal>
+);
+
+const dm = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.45)", alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
+    sheet: { backgroundColor: C.white, borderRadius: 22, padding: 28, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 20, width: "100%" },
+    iconWrap: { width: 68, height: 68, borderRadius: 18, backgroundColor: C.amberPale, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+    title: { fontFamily: fontFamilies.bold, fontSize: 18, color: C.textDark, marginBottom: 10, textAlign: "center" },
+    body: { fontFamily: fontFamilies.regular, fontSize: 13.5, color: C.textMid, textAlign: "center", lineHeight: 20, marginBottom: 24 },
+    discardBtn: { width: "100%", backgroundColor: C.red, borderRadius: 13, paddingVertical: 14, alignItems: "center", marginBottom: 10 },
+    discardTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
+    keepBtn: { width: "100%", backgroundColor: C.navyGhost, borderRadius: 13, paddingVertical: 14, alignItems: "center" },
+    keepTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -3414,11 +4023,12 @@ const sp = StyleSheet.create({
 const initBasicData = () => {
     if (!PREFILL_WITH_DUMMY) {
         return {
+            id: "",
             name: "", category: "", categorySubName: "", subcategory: "",
             categoryId: undefined as number | undefined,
             categorySubId: undefined as number | undefined,
             subcategoryId: undefined as number | undefined,
-            materialType: "", hsnCode: "",
+            materialType: "", hsnCode: "", gstPercentage: "",
             shortDesc: "", fullDesc: "", length: "", width: "", height: "",
             weight: "", weightSlab: "", intraCityCharge: "", metroMetroCharge: "", customDeliveryCharge: false,             fragile: "No", customized: false,
             custCustomFields: [] as CustomBuyerField[],
@@ -3462,18 +4072,37 @@ const initDetailsData = () => {
             sizeChart: "", returnPolicy: "", returnPolicyText: "",
             deliveryOption: "", minDays: "3", maxDays: "7", deliveryInfo: "",
             codEnabled: true, onlinePayEnabled: true, warranty: "", careInstructions: "",
+            sizeChartMeta: undefined as {
+                category: string;
+                categorySubName: string;
+                subcategory: string;
+                unit: string;
+                notes?: string;
+                imageUrl?: string;
+            } | undefined,
+            sizeChartId: undefined as number | undefined,
+            sizeChartRows: [] as SizeChartRow[],
+            selectedReviewSize: "",
             features: [""] as string[],
             specifications: [{ name: "", value: "" }] as { name: string; value: string }[],
         };
     }
     return {
-        sizeChart: "Standard Apparel",
+        sizeChart: "",
         returnPolicy: "7 Days Return",
         returnPolicyText: "Items may be returned within 7 days if unused, with tags attached. Customised products are non-returnable once production starts.",
         deliveryOption: "Standard Delivery",
         minDays: "3", maxDays: "7",
         deliveryInfo: "Ships within 3–7 business days. Free shipping on orders above ₹999.",
         codEnabled: true, onlinePayEnabled: true,
+        sizeChartMeta: undefined as {
+            category: string;
+            categorySubName: string;
+            subcategory: string;
+            unit: string;
+            notes?: string;
+        } | undefined,
+        selectedReviewSize: "",
         warranty: "6-month manufacturing defect warranty",
         careInstructions: "Machine wash cold with similar colours. Do not bleach. Iron on low heat.",
     };
@@ -3490,11 +4119,19 @@ const initImagesData = () => ({
     video: null as string | null,
 });
 
-const AddNewProduct: React.FC = () => {
+const serializeEditFormState = (
+    basic: ReturnType<typeof initBasicData>,
+    variantList: Variant[],
+    images: ReturnType<typeof initImagesData>,
+    details: ReturnType<typeof initDetailsData>,
+) => JSON.stringify({ basic, variants: variantList, images, details });
+
+const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId }) => {
     const router = useRouter();
     const { isDesktop } = useResponsive();
+    const isEditMode = Boolean(editProductId);
     const [step, setStep] = useState(0);
-    const [maxUnlocked, setMaxUnlocked] = useState(0);
+    const [maxUnlocked, setMaxUnlocked] = useState(isEditMode ? STEPS.length - 1 : 0);
     const [basicErrors, setBasicErrors] = useState<string[]>([]);
     const [variantErrors, setVariantErrors] = useState<string[]>([]);
     const [imageErrors, setImageErrors] = useState<string[]>([]);
@@ -3503,6 +4140,12 @@ const AddNewProduct: React.FC = () => {
     const [variants, setVariants] = useState<Variant[]>(initVariants);
     const [imagesData, setImagesData] = useState(initImagesData);
     const [detailsData, setDetailsData] = useState(initDetailsData);
+    const [isDirty, setIsDirty] = useState(false);
+    const [discardModal, setDiscardModal] = useState(false);
+    const [loadingProduct, setLoadingProduct] = useState(isEditMode);
+    const [savingUpdate, setSavingUpdate] = useState(false);
+    const initialSnapshotRef = useRef<string | null>(null);
+    const pendingHydrationRef = useRef(false);
 
     // ── Sweet Alert state ──────────────────────────────────────
     const [sweetAlertVisible, setSweetAlertVisible] = useState(false);
@@ -3548,14 +4191,122 @@ const AddNewProduct: React.FC = () => {
         reloadCatalog();
     }, [reloadCatalog]);
 
+    useEffect(() => {
+        if (!catalog) return;
+        const weightKg = parseFloat(String(basicData.weight ?? "").trim());
+        if (!Number.isFinite(weightKg) || weightKg <= 0) return;
+        fetchDeliveryChargesForWeight(weightKg)
+            .then((slab) => {
+                setBasicData((p) => ({
+                    ...p,
+                    weightSlab: slab.label,
+                    customDeliveryCharge: !!slab.custom,
+                    intraCityCharge: slab.custom ? "" : String(slab.intraCityCharge),
+                    metroMetroCharge: slab.custom ? "" : String(slab.metroMetroCharge),
+                }));
+            })
+            .catch(() => {
+                const slab = resolveWeightSlab(String(basicData.weight), catalog.deliverySlabs);
+                setBasicData((p) => ({
+                    ...p,
+                    weightSlab: slab.label,
+                    customDeliveryCharge: !!slab.custom,
+                    intraCityCharge: slab.custom ? "" : String(slab.intraCityCharge),
+                    metroMetroCharge: slab.custom ? "" : String(slab.metroMetroCharge),
+                }));
+            });
+    }, [catalog]);
+
     useFocusEffect(
         useCallback(() => {
             reloadCatalog();
         }, [reloadCatalog])
     );
 
+    useEffect(() => {
+        if (!isEditMode || !editProductId) return;
+        let cancelled = false;
+
+        (async () => {
+            setLoadingProduct(true);
+            try {
+                await hydrateSellerSession();
+                if (!ensureSellerId()) {
+                    if (!cancelled) showToast("Please sign in to edit products.", "error");
+                    return;
+                }
+                const detail = await fetchProductDetail(String(editProductId));
+                if (cancelled) return;
+                const mapped = mapProductDetailToEditForm(detail);
+                pendingHydrationRef.current = true;
+                initialSnapshotRef.current = null;
+                setBasicData(mapped.basic);
+                setVariants(mapped.variants.length > 0 ? mapped.variants : initVariants());
+                setImagesData(mapped.images);
+                setDetailsData(mapped.details);
+                setIsDirty(false);
+            } catch (err: unknown) {
+                if (cancelled) return;
+                const msg =
+                    err instanceof ApiError
+                        ? err.message
+                        : err instanceof Error
+                          ? err.message
+                          : "Failed to load product.";
+                showToast(msg, "error");
+            } finally {
+                if (!cancelled) setLoadingProduct(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [editProductId, isEditMode, showToast]);
+
+    useEffect(() => {
+        if (!isEditMode || loadingProduct || !pendingHydrationRef.current) return;
+        if (!catalog) return;
+        if (basicData.category && !basicData.categorySubName) return;
+
+        initialSnapshotRef.current = serializeEditFormState(
+            basicData,
+            variants,
+            imagesData,
+            detailsData,
+        );
+        pendingHydrationRef.current = false;
+        setIsDirty(false);
+    }, [isEditMode, loadingProduct, catalog, basicData.category, basicData.categorySubName]);
+
+    useEffect(() => {
+        if (!isEditMode || loadingProduct || initialSnapshotRef.current == null) return;
+        const current = serializeEditFormState(basicData, variants, imagesData, detailsData);
+        setIsDirty(current !== initialSnapshotRef.current);
+    }, [basicData, variants, imagesData, detailsData, isEditMode, loadingProduct]);
+
+    useEffect(() => {
+        if (!isEditMode || !catalog || !basicData.category) return;
+        const middle = findCategorySubForProductSub(
+            catalog,
+            basicData.category,
+            basicData.subcategoryId,
+            basicData.subcategory,
+        );
+        if (!middle.categorySubName) return;
+        setBasicData((prev) => {
+            if (prev.categorySubName === middle.categorySubName && prev.categorySubId === middle.categorySubId) {
+                return prev;
+            }
+            return {
+                ...prev,
+                categorySubName: middle.categorySubName,
+                categorySubId: middle.categorySubId,
+            };
+        });
+    }, [catalog, basicData.category, basicData.subcategoryId, basicData.subcategory, isEditMode]);
+
     useFocusEffect(
         useCallback(() => {
+            if (isEditMode) return;
             setStep(0);
             setMaxUnlocked(PREFILL_WITH_DUMMY ? STEPS.length - 1 : 0);
             setBasicErrors([]);
@@ -3566,9 +4317,17 @@ const AddNewProduct: React.FC = () => {
             setVariants(initVariants());
             setImagesData(initImagesData());
             setDetailsData(initDetailsData());
-        }, [])
+            setIsDirty(false);
+        }, [isEditMode])
     );
 
+    const markDirty = () => { if (isEditMode) setIsDirty(true); };
+
+    const patchDetails = (patch: Record<string, unknown>) => {
+        setDetailsData((p) => ({ ...p, ...patch }));
+        markDirty();
+    };
+    const upDetails = (k: string, v: any) => patchDetails({ [k]: v });
     const upBasic = (k: string, v: any) => {
         let cleanVal = v;
         if (["weight", "length", "width", "height"].includes(k)) {
@@ -3590,22 +4349,77 @@ const AddNewProduct: React.FC = () => {
             }
             return next;
         });
+        if (k === "weight") {
+            const weightKg = parseFloat(cleanVal);
+            if (Number.isFinite(weightKg) && weightKg > 0) {
+                fetchDeliveryChargesForWeight(weightKg)
+                    .then((slab) => {
+                        setBasicData((p) => ({
+                            ...p,
+                            weightSlab: slab.label,
+                            customDeliveryCharge: !!slab.custom,
+                            intraCityCharge: slab.custom ? "" : String(slab.intraCityCharge),
+                            metroMetroCharge: slab.custom ? "" : String(slab.metroMetroCharge),
+                        }));
+                    })
+                    .catch(() => {
+                        /* keep client slab from resolveWeightSlab */
+                    });
+            }
+        }
         setBasicErrors(prev => prev.filter(e => !e.toLowerCase().includes(k.toLowerCase())));
+        markDirty();
     };
-    const upDetails = (k: string, v: any) => setDetailsData(p => ({ ...p, [k]: v }));
-    const rmVariant = (id: string) => setVariants(p => p.filter(v => v.id !== id));
+    const rmVariant = (id: string) => { setVariants(p => p.filter(v => v.id !== id)); markDirty(); };
 
-    const resetAndGoBack = () => {
+    const goToProductManagement = () => {
+        router.replace(PRODUCT_MANAGEMENT_ROUTE);
+    };
+
+    const goBack = () => {
+        if (Platform.OS === "web") {
+            goToProductManagement();
+        } else if (router.canGoBack()) {
+            router.back();
+        } else {
+            goToProductManagement();
+        }
+    };
+
+    const handleBackPress = () => {
+        if (isEditMode && isDirty) {
+            setDiscardModal(true);
+        } else if (isEditMode) {
+            goBack();
+        } else {
+            resetAndGoBack();
+        }
+    };
+
+    const resetFormState = () => {
         setStep(0);
         setMaxUnlocked(PREFILL_WITH_DUMMY ? STEPS.length - 1 : 0);
+        setBasicErrors([]);
+        setVariantErrors([]);
+        setImageErrors([]);
+        setDetailErrors([]);
         setBasicData(initBasicData());
         setVariants(initVariants());
         setImagesData(initImagesData());
         setDetailsData(initDetailsData());
-        router.push("/productmanagement");
+        setSweetAlertVisible(false);
+        setSavedProductId(null);
+        setIsDirty(false);
     };
 
-    const handleTabPress = (i: number) => { if (i <= maxUnlocked) setStep(i); };
+    const resetAndGoBack = () => {
+        resetFormState();
+        goToProductManagement();
+    };
+
+    const handleTabPress = (i: number) => {
+        if (isEditMode || i <= maxUnlocked) setStep(i);
+    };
 
     useEffect(() => {
         const timer = setTimeout(() => scrollViewsToTop(stepScrollRef.current), 50);
@@ -3623,13 +4437,21 @@ const AddNewProduct: React.FC = () => {
         if (step === 1) {
             const errors = validateVariants(variants);
             setVariantErrors(errors);
-            if (errors.length > 0) { showErrors(errors); return; }
+            if (errors.length > 0) {
+                showErrors(errors);
+                setValidationTrigger((prev) => prev + 1);
+                return;
+            }
             setVariantErrors([]);
         }
         if (step === 2) {
             const errors = validateImages(imagesData);
             setImageErrors(errors);
-            if (errors.length > 0) { showErrors(errors); return; }
+            if (errors.length > 0) {
+                showErrors(errors);
+                setValidationTrigger((prev) => prev + 1);
+                return;
+            }
             setImageErrors([]);
         }
         const next = step + 1;
@@ -3653,7 +4475,13 @@ const AddNewProduct: React.FC = () => {
 
         if (allErrors.length > 0) {
             showErrors(allErrors);
-            setValidationTrigger(prev => prev + 1);
+            const targetStep =
+                basicErrs.length > 0 ? 0
+                : variantErrs.length > 0 ? 1
+                : imageErrs.length > 0 ? 2
+                : 3;
+            setStep(targetStep);
+            setTimeout(() => setValidationTrigger((prev) => prev + 1), 80);
             return;
         }
 
@@ -3674,8 +4502,9 @@ const AddNewProduct: React.FC = () => {
             });
             const result = await createProduct(payload);
             setSavedProductId(result.productId);
-            setSweetAlertStage("success");
             showToast(`Product saved (ID ${result.productId})`, "success");
+            resetFormState();
+            goToProductManagement();
         } catch (err: unknown) {
             const msg =
                 err instanceof ApiError
@@ -3693,7 +4522,12 @@ const AddNewProduct: React.FC = () => {
     // ── User closes success stage → navigate away ──────────────
     const handleSweetDone = () => {
         setSweetAlertVisible(false);
-        setTimeout(resetAndGoBack, 180);
+        if (isEditMode) {
+            goToProductManagement();
+            return;
+        }
+        resetFormState();
+        goToProductManagement();
     };
 
     // ── User cancels confirm stage ─────────────────────────────
@@ -3701,9 +4535,64 @@ const AddNewProduct: React.FC = () => {
         setSweetAlertVisible(false);
     };
 
+    const handleUpdate = async () => {
+        if (!editProductId || !isDirty || savingUpdate) return;
+        const basicErrs = validateBasicInfo(basicData);
+        const variantErrs = validateVariants(variants);
+        const imageErrs = validateImages(imagesData);
+        const detailErrs = validateDetails(detailsData);
+        const allErrors = [...basicErrs, ...variantErrs, ...imageErrs, ...detailErrs];
+
+        setBasicErrors(basicErrs);
+        setVariantErrors(variantErrs);
+        setImageErrors(imageErrs);
+        setDetailErrors(detailErrs);
+
+        if (allErrors.length > 0) {
+            showErrors(allErrors);
+            const targetStep =
+                basicErrs.length > 0 ? 0
+                : variantErrs.length > 0 ? 1
+                : imageErrs.length > 0 ? 2
+                : 3;
+            setStep(targetStep);
+            setTimeout(() => setValidationTrigger((prev) => prev + 1), 80);
+            return;
+        }
+
+        setSavingUpdate(true);
+        try {
+            const payload = await buildUpdateProductPayload({
+                basic: basicData,
+                variants: variants.map((v) => ({ ...v, videoUrl: v.videoUrl ?? "" })),
+                images: imagesData,
+                details: detailsData,
+            });
+            await updateProduct(String(editProductId), payload);
+            initialSnapshotRef.current = serializeEditFormState(
+                basicData,
+                variants,
+                imagesData,
+                detailsData,
+            );
+            setIsDirty(false);
+            setSavedProductId(String(editProductId));
+            setSweetAlertStage("success");
+            setSweetAlertVisible(true);
+            showToast("Product updated successfully!", "success");
+        } catch (err: unknown) {
+            const msg = err instanceof ApiError ? err.message : "Failed to update product.";
+            showToast(msg, "error");
+        } finally {
+            setSavingUpdate(false);
+        }
+    };
+
+    const pageTitle = isEditMode ? "Edit Product" : "Add New Product";
+
     const leftAction =
         step === 0 ? (
-            <TouchableOpacity style={isDesktop ? ds.cancelBtn : sc.cancelBtn} onPress={resetAndGoBack}>
+            <TouchableOpacity style={isDesktop ? ds.cancelBtn : sc.cancelBtn} onPress={handleBackPress}>
                 <AppText style={isDesktop ? ds.cancelTxt : sc.cancelTxt}>Cancel</AppText>
             </TouchableOpacity>
         ) : (
@@ -3715,10 +4604,28 @@ const AddNewProduct: React.FC = () => {
 
     const rightAction =
         step === 3 ? (
-            <TouchableOpacity style={isDesktop ? ds.saveBtn : sc.saveBtn} onPress={handleSave}>
-                <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>Save Product</AppText>
-            </TouchableOpacity>
+            isEditMode ? (
+                <TouchableOpacity
+                    style={[isDesktop ? ds.saveBtn : sc.saveBtn, !isDirty && sc.saveBtnDim]}
+                    onPress={handleUpdate}
+                    activeOpacity={isDirty && !savingUpdate ? 0.85 : 0.5}
+                    disabled={!isDirty || savingUpdate}
+                >
+                    {savingUpdate ? (
+                        <ActivityIndicator color={C.white} size="small" />
+                    ) : (
+                        <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+                    )}
+                    <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>
+                        {savingUpdate ? "Saving…" : isDirty ? "Update Product" : "No Changes"}
+                    </AppText>
+                </TouchableOpacity>
+            ) : (
+                <TouchableOpacity style={isDesktop ? ds.saveBtn : sc.saveBtn} onPress={handleSave}>
+                    <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+                    <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>Save Product</AppText>
+                </TouchableOpacity>
+            )
         ) : (
             <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
                 <AppText style={isDesktop ? ds.nextTxt : sc.nextTxt}>Continue</AppText>
@@ -3744,28 +4651,36 @@ const AddNewProduct: React.FC = () => {
                     catalog={catalog}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
+                    editProductId={editProductId}
                 />
             )}
             {step === 1 && (
                 <StepVariants
                     variants={variants}
-                    setVariants={setVariants}
+                    setVariants={(fn: any) => { setVariants(fn); markDirty(); }}
                     rmVariant={rmVariant}
                     errors={variantErrors}
                     catalog={catalog}
                     productName={basicData.name ?? ""}
+                    basicData={basicData}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
-                    reloadCatalog={reloadCatalog}
+                    validationTrigger={validationTrigger}
+                    onValidationFail={(errors: string[]) => {
+                        setVariantErrors(errors);
+                        showErrors(errors);
+                        setValidationTrigger((prev) => prev + 1);
+                    }}
                 />
             )}
             {step === 2 && (
                 <StepImages
                     data={imagesData}
-                    onChange={(k: string, v: any) => setImagesData((p) => ({ ...p, [k]: v }))}
+                    onChange={(k: string, v: any) => { setImagesData((p) => ({ ...p, [k]: v })); markDirty(); }}
                     errors={imageErrors}
                     isDesktop={isDesktop}
                     scrollRef={stepScrollRef}
+                    validationTrigger={validationTrigger}
                 />
             )}
             {step === 3 && (
@@ -3790,33 +4705,72 @@ const AddNewProduct: React.FC = () => {
             productName={basicData.name ?? ""}
             savedProductId={savedProductId}
             isSaving={isSaving}
+            successTitle={isEditMode && sweetAlertStage === "success" ? "Product Updated!" : undefined}
+            successSubtitle={
+                isEditMode && sweetAlertStage === "success"
+                    ? `"${basicData.name || "Product"}" has been updated successfully.${
+                          editProductId ? `\nProduct ID: ${editProductId}` : ""
+                      }`
+                    : undefined
+            }
+            hideSuccessStats={isEditMode && sweetAlertStage === "success"}
             onConfirm={handleSweetConfirm}
             onCancel={handleSweetCancel}
             onDone={handleSweetDone}
         />
     );
 
+    if (isEditMode && loadingProduct) {
+        return (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
+                <ActivityIndicator size="large" color={C.navy} />
+            </View>
+        );
+    }
+
     if (isDesktop) {
         return (
             <View style={ds.page}>
-                <StatusBar barStyle="dark-content" backgroundColor={C.white} />
-                <View style={ds.topBar}>
-                    <TouchableOpacity onPress={resetAndGoBack} style={ds.topBtn}>
-                        <Ionicons name="arrow-back" size={22} color={C.navy} />
-                    </TouchableOpacity>
-                    <View style={ds.topCenter}>
-                        <AppText style={ds.topTitle}>Add New Product</AppText>
-                        <AppText style={ds.topSub}>{STEPS[step]?.label} · Step {step + 1} of {STEPS.length}</AppText>
+                <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
+                <View style={ds.headerBlock}>
+                    <View style={ds.topBar}>
+                        <TouchableOpacity onPress={handleBackPress} style={ds.topBtn}>
+                            <Ionicons name="arrow-back" size={22} color={C.white} />
+                        </TouchableOpacity>
+                        <View style={ds.topCenter}>
+                            <View style={ds.breadcrumb}>
+                                <AppText style={ds.breadcrumbDim}>Dashboard</AppText>
+                                <AppText style={ds.breadcrumbSep}>›</AppText>
+                                <AppText style={ds.breadcrumbActive}>{pageTitle}</AppText>
+                            </View>
+                            <AppText style={ds.topTitle}>{pageTitle}</AppText>
+                            <AppText style={ds.topSub}>{STEPS[step]?.label} · Step {step + 1} of {STEPS.length}</AppText>
+                        </View>
+                        <TouchableOpacity onPress={handleBackPress} style={ds.topBtn}>
+                            {isEditMode && isDirty ? (
+                                <View style={sc.dirtyDot} />
+                            ) : (
+                                <Ionicons name="close" size={22} color={C.white} />
+                            )}
+                        </TouchableOpacity>
                     </View>
-                    <TouchableOpacity onPress={resetAndGoBack} style={ds.topBtn}>
-                        <Ionicons name="close" size={22} color={C.textMid} />
-                    </TouchableOpacity>
+                    <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} isDesktop />
                 </View>
-                <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} isDesktop />
+                {isEditMode && isDirty ? (
+                    <View style={sc.unsavedBanner}>
+                        <MaterialCommunityIcons name="pencil-circle-outline" size={14} color={C.amber} />
+                        <AppText style={sc.unsavedTxt}>Unsaved changes · remember to update the product</AppText>
+                    </View>
+                ) : null}
                 <View style={ds.mainColumn}>
                     <View style={ds.mainScroll} key={`step-${step}`}>{stepContent}</View>
                     <View style={ds.barWrap}>{actionBar}</View>
                 </View>
+                <DiscardModal
+                    visible={discardModal}
+                    onDiscard={() => { setDiscardModal(false); goBack(); }}
+                    onKeep={() => setDiscardModal(false)}
+                />
                 <ToastContainer toasts={toasts} onRemove={removeToast} />
                 {sweetAlert}
             </View>
@@ -3827,25 +4781,45 @@ const AddNewProduct: React.FC = () => {
         <SafeAreaView style={sc.root}>
             <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
             <View style={sc.header}>
-                <TouchableOpacity onPress={resetAndGoBack} style={sc.hBtn}>
+                <TouchableOpacity onPress={handleBackPress} style={sc.hBtn}>
                     <Ionicons name="chevron-back" size={22} color={C.white} />
                 </TouchableOpacity>
                 <View style={sc.hCenter}>
-                    <AppText style={sc.hTitle}>Add New Product</AppText>
-                    <AppText style={sc.hSub}>Step {step + 1} of {STEPS.length}</AppText>
+                    <AppText style={sc.hTitle}>{pageTitle}</AppText>
+                    <AppText style={sc.hSub}>{STEPS[step]?.label} · Step {step + 1} of {STEPS.length}</AppText>
                 </View>
-                <TouchableOpacity onPress={resetAndGoBack} style={sc.hBtn}>
-                    <Ionicons name="close" size={22} color={C.white} />
+                <TouchableOpacity onPress={handleBackPress} style={sc.hBtn}>
+                    {isEditMode && isDirty ? (
+                        <View style={sc.dirtyDot} />
+                    ) : (
+                        <Ionicons name="close" size={22} color={C.white} />
+                    )}
                 </TouchableOpacity>
             </View>
+            {isEditMode && isDirty ? (
+                <View style={sc.unsavedBanner}>
+                    <MaterialCommunityIcons name="pencil-circle-outline" size={14} color={C.amber} />
+                    <AppText style={sc.unsavedTxt}>Unsaved changes · remember to update the product</AppText>
+                </View>
+            ) : null}
             <StepProgressBar step={step} maxUnlocked={maxUnlocked} onTabPress={handleTabPress} />
             <View style={{ flex: 1, backgroundColor: C.bg }} key={`step-${step}`}>{stepContent}</View>
             {actionBar}
+            <DiscardModal
+                visible={discardModal}
+                onDiscard={() => { setDiscardModal(false); goBack(); }}
+                onKeep={() => setDiscardModal(false)}
+            />
             <ToastContainer toasts={toasts} onRemove={removeToast} />
             {sweetAlert}
         </SafeAreaView>
     );
 };
+
+const AddNewProduct: React.FC = () => <ProductFormScreen />;
+
+export default AddNewProduct;
+export { ProductFormScreen };
 
 // ─────────────────────────────────────────────────────────────
 // SHARED ATOM STYLES
@@ -3863,6 +4837,7 @@ const at = StyleSheet.create({
     fieldFocused: { borderColor: C.navy, backgroundColor: C.white },
     fieldError: { borderColor: C.red, backgroundColor: "#FFF8F8" },
     fieldPfx: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid, marginRight: 6 },
+    fieldSfx: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.textMid, marginLeft: 6 },
     fieldInput: { flex: 1, fontFamily: fontFamilies.regular, fontSize: 13, color: C.textDark, paddingVertical: 10 },
     fieldReadOnly: { backgroundColor: "#F8FAFC" },
     fieldInputReadOnly: { color: C.textMid },
@@ -3915,6 +4890,25 @@ const at = StyleSheet.create({
     custAddFieldBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.white },
 });
 
+const eb = StyleSheet.create({
+    idBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: C.navyGhost,
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: C.navyBorder,
+    },
+    idBadgeLbl: { fontFamily: fontFamilies.medium, fontSize: 11, color: C.textMid },
+    idBadgeVal: { fontFamily: fontFamilies.bold, fontSize: 13, color: C.navy },
+    idBadgeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.green, marginLeft: 4 },
+    idBadgeStatus: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.greenText },
+});
+
 const vt = StyleSheet.create({
     hdr: { flexDirection: "row", alignItems: "center", gap: 8 },
     badge: { width: 28, height: 28, borderRadius: 8, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center" },
@@ -3929,15 +4923,16 @@ const vt = StyleSheet.create({
     fileTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textLight, flex: 1 },
     browseBtn: { borderWidth: 1, borderColor: C.navyBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
     browseTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.navy },
-    addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1.5, borderColor: C.navy, borderRadius: 14, paddingVertical: 13, marginBottom: 14 },
+    addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1.5, borderColor: C.navy, borderRadius: 14, paddingVertical: 13, marginBottom: 8 },
     addIcon: { width: 26, height: 26, borderRadius: 8, backgroundColor: C.navyGhost, alignItems: "center", justifyContent: "center" },
     addTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
-    infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12 },
+    infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12, marginBottom: 0 },
     infoTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
     reuseNote: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.navyGhost, borderRadius: 12, padding: 12, marginTop: 8 },
     reuseNoteTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, flex: 1, lineHeight: 18 },
     addSizeLink: { marginTop: 6, alignSelf: "flex-start" },
     addSizeLinkTxt: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.navy },
+    saveHint: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.greenText, marginTop: 4 },
     sizeModalOverlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.35)", justifyContent: "center", alignItems: "center", padding: 20 },
     sizeModalCard: { width: "100%", maxWidth: 400, backgroundColor: C.white, borderRadius: 16, padding: 20 },
     sizeModalTitle: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark },
@@ -3973,7 +4968,73 @@ const dt = StyleSheet.create({
     sizeEmptyHint: { marginTop: 8, padding: 14, borderRadius: 12, backgroundColor: C.navyGhost, borderWidth: 1, borderColor: C.navyBorder },
     sizeEmptyHintTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid, textAlign: "center", lineHeight: 18 },
     togRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
-    togLbl: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textMid },
+    payRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 },
+    payOption: {
+        flex: 1,
+        minWidth: 200,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: C.inputBg,
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        borderWidth: 1.5,
+        borderColor: C.border,
+    },
+    payOptionOn: { borderColor: C.navy, backgroundColor: C.navyGhost },
+    payIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: C.white,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    payIconWrapOn: { backgroundColor: C.navy, borderColor: C.navy },
+    payOptionLbl: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textMid, flex: 1 },
+    payOptionLblOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
+    payOptionRing: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: C.border },
+    chartErrorBox: {
+        backgroundColor: C.redPale,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: "#FECACA",
+        gap: 4,
+    },
+    chartErrorTxt: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.red },
+    sizeChartReview: {
+        marginTop: 8,
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: C.navyGhost,
+        borderWidth: 1,
+        borderColor: C.navyBorder,
+        gap: 8,
+    },
+    reviewRow: { flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "flex-start" },
+    reviewLbl: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.textMid, flex: 1 },
+    reviewVal: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.textDark, flex: 1, textAlign: "right" },
+    reviewMeasurements: { marginTop: 4, padding: 10, borderRadius: 10, backgroundColor: C.white, gap: 4 },
+    reviewMeasureGrid: { gap: 4 },
+    reviewMeasureTxt: { fontFamily: fontFamilies.regular, fontSize: 12, color: C.textMid },
+    reviewSizeCellTxt: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.textDark },
+    reviewImageWrap: {
+        marginTop: 8,
+        borderRadius: 12,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: C.border,
+        backgroundColor: C.white,
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 120,
+    },
+    reviewChartImage: { width: "100%", height: 180 },
     addBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 10, borderWidth: 1.2, borderColor: C.navyBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
     addBtnTxt: { fontFamily: fontFamilies.semiBold, fontSize: 12.5, color: C.navy },
     specRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
@@ -3986,12 +5047,28 @@ const ds = StyleSheet.create({
         backgroundColor: C.bg,
         ...(Platform.OS === "web" ? ({ minHeight: "100vh" } as object) : {}),
     },
-    topBar: { flexDirection: "row", alignItems: "center", backgroundColor: C.white, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, shadowColor: "#0F1A4A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 4 },
-    topBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.navyGhost },
+    headerBlock: {
+        backgroundColor: C.navyDeep,
+        marginHorizontal: 12,
+        marginTop: 12,
+        borderRadius: 22,
+        overflow: "hidden",
+        shadowColor: C.navyDeep,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    topBar: { flexDirection: "row", alignItems: "center", backgroundColor: "transparent", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 },
+    topBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.12)" },
     topCenter: { flex: 1, alignItems: "center", paddingHorizontal: 12 },
-    topTitle: { fontFamily: fontFamilies.bold, fontSize: 20, color: C.textDark, letterSpacing: 0.2 },
-    topSub: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textLight, marginTop: 2 },
-    hStepBar: { paddingTop: 12, paddingBottom: 14, maxWidth: CONTENT_MAX + 64, width: "100%", alignSelf: "center" },
+    breadcrumb: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+    breadcrumbDim: { fontFamily: fontFamilies.medium, fontSize: 12, color: "rgba(255,255,255,0.75)" },
+    breadcrumbSep: { fontFamily: fontFamilies.medium, fontSize: 12, color: "rgba(255,255,255,0.45)" },
+    breadcrumbActive: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.white },
+    topTitle: { fontFamily: fontFamilies.bold, fontSize: 22, color: C.white, letterSpacing: -0.3 },
+    topSub: { fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+    hStepBar: { paddingTop: 8, paddingBottom: 16, maxWidth: CONTENT_MAX + 64, width: "100%", alignSelf: "center", backgroundColor: "transparent" },
     mainColumn: { flex: 1, minWidth: 0, width: "100%", backgroundColor: C.bg },
     mainScroll: { flex: 1 },
     stepScroll: { flex: 1 },
@@ -4007,7 +5084,7 @@ const ds = StyleSheet.create({
     nextTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
     saveBtn: { minWidth: 200, paddingHorizontal: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent5, borderRadius: 12, paddingVertical: 14, shadowColor: C.accent5, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6 },
     saveTxt: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.white },
-    card: { borderRadius: 20, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 22, marginBottom: 20, shadowOpacity: 0.08, shadowRadius: 16 },
+    card: { borderRadius: 20, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 22, marginBottom: 0, shadowOpacity: 0.08, shadowRadius: 16 },
     fieldWrap: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14 },
     fieldFocused: { borderWidth: 2 },
 });
@@ -4029,7 +5106,9 @@ const sc = StyleSheet.create({
     nextBtn: { minWidth: 150, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
     nextTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
     saveBtn: { minWidth: 160, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, borderRadius: 12, paddingVertical: 13 },
+    saveBtnDim: { opacity: 0.45 },
     saveTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
+    dirtyDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.amber },
+    unsavedBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.amberPale, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FDE68A" },
+    unsavedTxt: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.amber, flex: 1 },
 });
-
-export default AddNewProduct;
