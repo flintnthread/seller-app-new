@@ -25,7 +25,6 @@ import { useSweetAlert } from "@/components/common/SweetAlert";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import { ApiError } from "@/lib/api/client";
 import { setSellerSession } from "@/lib/api/sellerSession";
-import { getPostLoginRoute } from "@/lib/auth/postLoginRoute";
 import { loginSeller } from "@/services/authApi";
 
 const C = {
@@ -285,7 +284,7 @@ export default function SellerLogin() {
         "Login successful"
       );
 
-      router.replace(getPostLoginRoute(result));
+      router.replace("/(main)/dashboard");
     } catch (e) {
       const message =
         e instanceof ApiError
@@ -295,6 +294,8 @@ export default function SellerLogin() {
             : "Login failed. Please try again.";
       if (e instanceof ApiError && e.status === 403) {
         showWarning(message, "Cannot log in");
+      } else if (e instanceof ApiError && e.status === 404) {
+        showWarning(message, "Account not found");
       } else {
         showError(message);
       }

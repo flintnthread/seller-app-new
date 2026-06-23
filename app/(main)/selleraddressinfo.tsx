@@ -37,6 +37,7 @@ import {
   type AddressLocationErrors,
 } from "@/components/seller/AddressLocationFields";
 import type { AddressLocationValue } from "@/services/locationApi";
+import { scrollToFormField } from "@/lib/form/scrollToFormField";
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -129,15 +130,17 @@ const InputRow: React.FC<{
   maxLength?: number | undefined;
   borderColor?: string | undefined;
   accentColor?: string | undefined;
+  innerRef?: (node: View | null) => void;
 }> = ({
   label, value, onChangeText, placeholder,
   keyboardType = "default",
   inputRef, error, onLayout, maxLength, borderColor = T.border, accentColor = T.navy,
+  innerRef,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-  <View style={inp.wrap} onLayout={onLayout}>
+  <View style={inp.wrap} onLayout={onLayout} ref={innerRef} collapsable={false}>
     {/* Label — exact Screen 1 style: 11px, weight 700, uppercase, letterSpacing 0.8 */}
     <Text style={inp.label}>
       {label} <Text style={[inp.asterisk, { color: accentColor }]}>*</Text>
@@ -238,7 +241,16 @@ export default function SellerAddressInfo() {
   const { businessCategory: businessCategoryParam } = useLocalSearchParams();
   const businessCategory = typeof businessCategoryParam === "string" ? businessCategoryParam : "";
   const scrollViewRef = useRef<ScrollView>(null);
-  const { showError, SweetAlertHost } = useSweetAlert();
+  const scrollContentRef = useRef<View>(null);
+  const fieldViewRefs = useRef<Record<string, View | null>>({});
+  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
+
+  const registerFieldRef = useCallback(
+    (field: string) => (node: View | null) => {
+      fieldViewRefs.current[field] = node;
+    },
+    []
+  );
 
   // ── State (100% unchanged) ──
   const [streetAddress, setStreetAddress]         = useState("");
@@ -307,7 +319,32 @@ export default function SellerAddressInfo() {
   // ── Logic (100% unchanged) ──
   const fieldRefs = {
     streetAddress: useRef<TextInput>(null),
+    landmark: useRef<TextInput>(null),
+    warehouseAddress: useRef<TextInput>(null),
+    warehouseLandmark: useRef<TextInput>(null),
   };
+
+  const showValidationAlert = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    showWarning(first.message, "Cannot continue");
+  }, [showWarning]);
+
+  const scrollToField = useCallback((field: string) => {
+    const fieldNode = fieldViewRefs.current[field];
+    if (fieldNode) {
+      scrollToFormField(scrollViewRef, scrollContentRef, fieldNode);
+    } else {
+      const fieldY = fieldPositions[field];
+      if (fieldY != null) {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
+      }
+    }
+    if (field === "streetAddress") setTimeout(() => fieldRefs.streetAddress.current?.focus(), 350);
+    else if (field === "landmark") setTimeout(() => fieldRefs.landmark.current?.focus(), 350);
+    else if (field === "warehouseAddress") setTimeout(() => fieldRefs.warehouseAddress.current?.focus(), 350);
+    else if (field === "warehouseLandmark") setTimeout(() => fieldRefs.warehouseLandmark.current?.focus(), 350);
+  }, [fieldPositions, fieldRefs]);
 
   const handleFieldLayout = useCallback((fieldName: string, event: LayoutChangeEvent) => {
     const { y } = event.nativeEvent.layout;
@@ -357,49 +394,46 @@ export default function SellerAddressInfo() {
     warehousePincode: warehouse ? validatePincode(warehouseLocation.pincode) : true,
   };
 
-  const scrollToFirstError = useCallback(() => {
-    const firstError = [
-      { field: "streetAddress", ref: fieldRefs.streetAddress, valid: validations.streetAddress },
-      { field: "city", valid: validations.city },
-      { field: "state", valid: validations.state },
-      { field: "area", valid: validations.area },
-      { field: "pincode", valid: validations.pincode },
-      { field: "warehouseAddress", valid: validations.warehouseAddress },
-      { field: "warehouseCity", valid: validations.warehouseCity },
-      { field: "warehouseState", valid: validations.warehouseState },
-      { field: "warehouseArea", valid: validations.warehouseArea },
-      { field: "warehousePincode", valid: validations.warehousePincode },
-    ].find(f => !f.valid);
-    if (firstError?.ref?.current) {
-      firstError.ref.current?.focus();
-    }
-    const fieldY = firstError ? fieldPositions[firstError.field] : undefined;
-    if (fieldY != null) {
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
-    }
-  }, [validations, fieldRefs, fieldPositions]);
+  const scrollToFirstError = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    scrollToField(first.field);
+  }, [scrollToField]);
 
   const handleBack = () => router.push("/(main)/sellerbusinessinfo");
 
   const handleNext = async () => {
     const errors: ValidationError[] = [];
-    if (!validations.streetAddress)    errors.push({ field: "streetAddress",    message: "Street address is required" });
-    if (!validations.landmark)         errors.push({ field: "landmark",         message: "Landmark is required" });
-    if (!validations.city)             errors.push({ field: "city",             message: "City is required" });
-    if (!validations.state)            errors.push({ field: "state",            message: "State is required" });
-    if (!validations.area)             errors.push({ field: "area",             message: "Area is required" });
-    if (!validations.country)          errors.push({ field: "country",          message: "Country is required" });
-    if (!validations.pincode)          errors.push({ field: "pincode",          message: "Pincode is required" });
-    if (warehouse) {
-      if (!validations.warehouseAddress)  errors.push({ field: "warehouseAddress",  message: "Street address is required" });
-      if (!validations.warehouseLandmark) errors.push({ field: "warehouseLandmark", message: "Landmark is required" });
-      if (!validations.warehouseCity)     errors.push({ field: "warehouseCity",     message: "City is required" });
-      if (!validations.warehouseState)    errors.push({ field: "warehouseState",    message: "State is required" });
-      if (!validations.warehouseArea)     errors.push({ field: "warehouseArea",     message: "Area is required" });
-      if (!validations.warehouseCountry)  errors.push({ field: "warehouseCountry",  message: "Country is required" });
-      if (!validations.warehousePincode)  errors.push({ field: "warehousePincode",  message: "Pincode is required" });
+    if (!validations.streetAddress) errors.push({ field: "streetAddress", message: "Street address is required" });
+    if (!validations.landmark) errors.push({ field: "landmark", message: "Landmark is required" });
+    if (!validations.country) errors.push({ field: "country", message: "Country is required" });
+    if (!validations.state) errors.push({ field: "state", message: "State is required" });
+    if (!validations.city) errors.push({ field: "city", message: "City is required" });
+    if (!validations.area) errors.push({ field: "area", message: "Area is required" });
+    if (!location.pincode.trim()) {
+      errors.push({ field: "pincode", message: "Pincode is required" });
+    } else if (!validatePincode(location.pincode)) {
+      errors.push({ field: "pincode", message: "Enter a valid 6-digit pincode" });
     }
-    if (errors.length > 0) { setValidationErrors(errors); scrollToFirstError(); return; }
+    if (warehouse) {
+      if (!validations.warehouseAddress) errors.push({ field: "warehouseAddress", message: "Warehouse street address is required" });
+      if (!validations.warehouseLandmark) errors.push({ field: "warehouseLandmark", message: "Warehouse landmark is required" });
+      if (!validations.warehouseCountry) errors.push({ field: "warehouseCountry", message: "Warehouse country is required" });
+      if (!validations.warehouseState) errors.push({ field: "warehouseState", message: "Warehouse state is required" });
+      if (!validations.warehouseCity) errors.push({ field: "warehouseCity", message: "Warehouse city is required" });
+      if (!validations.warehouseArea) errors.push({ field: "warehouseArea", message: "Warehouse area is required" });
+      if (!warehouseLocation.pincode.trim()) {
+        errors.push({ field: "warehousePincode", message: "Warehouse pincode is required" });
+      } else if (!validatePincode(warehouseLocation.pincode)) {
+        errors.push({ field: "warehousePincode", message: "Enter a valid 6-digit warehouse pincode" });
+      }
+    }
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      scrollToFirstError(errors);
+      showValidationAlert(errors);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -493,6 +527,7 @@ export default function SellerAddressInfo() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View ref={scrollContentRef} collapsable={false}>
 
           {/* ── Business Address card ── */}
           <SectionCard
@@ -517,6 +552,7 @@ export default function SellerAddressInfo() {
                   onChangeText={(t) => { clearFieldError("streetAddress"); setStreetAddress(t); }}
                   placeholder="Enter your street address"
                   inputRef={fieldRefs.streetAddress}
+                  innerRef={registerFieldRef("streetAddress")}
                   error={validationErrors.find(e => e.field === "streetAddress")?.message}
                   onLayout={(e) => handleFieldLayout("streetAddress", e)}
                   borderColor={T.orange}
@@ -529,6 +565,8 @@ export default function SellerAddressInfo() {
                   value={landmark}
                   onChangeText={(t) => { clearFieldError("landmark"); setLandmark(t); }}
                   placeholder="Enter nearby landmark"
+                  inputRef={fieldRefs.landmark}
+                  innerRef={registerFieldRef("landmark")}
                   error={validationErrors.find(e => e.field === "landmark")?.message}
                   onLayout={(e) => handleFieldLayout("landmark", e)}
                   borderColor={T.orange}
@@ -585,7 +623,10 @@ export default function SellerAddressInfo() {
                     value={warehouseAddress}
                     onChangeText={(t) => { clearFieldError("warehouseAddress"); setWarehouseAddress(t); }}
                     placeholder="Enter warehouse street address"
+                    inputRef={fieldRefs.warehouseAddress}
+                    innerRef={registerFieldRef("warehouseAddress")}
                     error={validationErrors.find(e => e.field === "warehouseAddress")?.message}
+                    onLayout={(e) => handleFieldLayout("warehouseAddress", e)}
                     borderColor={T.navy}
                     accentColor={T.navy}
                   />
@@ -596,7 +637,10 @@ export default function SellerAddressInfo() {
                     value={warehouseLandmark}
                     onChangeText={(t) => { clearFieldError("warehouseLandmark"); setWarehouseLandmark(t); }}
                     placeholder="Enter nearby landmark"
+                    inputRef={fieldRefs.warehouseLandmark}
+                    innerRef={registerFieldRef("warehouseLandmark")}
                     error={validationErrors.find(e => e.field === "warehouseLandmark")?.message}
+                    onLayout={(e) => handleFieldLayout("warehouseLandmark", e)}
                     borderColor={T.navy}
                     accentColor={T.navy}
                   />
@@ -659,6 +703,7 @@ export default function SellerAddressInfo() {
           </View>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <SweetAlertHost />

@@ -10,6 +10,7 @@ import {
     View,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useResponsive } from "@/hooks/useResponsive";
 
 const ORANGE = "#F28520";
@@ -69,10 +70,13 @@ function SweetAlertToast({
     state: ToastState;
     onHide: () => void;
 }) {
+    const { isWeb } = useResponsive();
+    const insets = useSafeAreaInsets();
     const translateX = useRef(new Animated.Value(400)).current;
     const opacity = useRef(new Animated.Value(0)).current;
     const progressWidth = useRef(new Animated.Value(100)).current;
     const colors = TOAST_COLORS[state.variant];
+    const topOffset = isWeb ? 12 : Math.max(insets.top + 8, 56);
 
     useEffect(() => {
         if (!state.visible) return;
@@ -113,27 +117,29 @@ function SweetAlertToast({
     });
 
     return (
-        <View style={toastStyles.wrapper}>
-            <Animated.View
-                style={[
-                    toastStyles.container,
-                    { borderLeftColor: colors.border, opacity, transform: [{ translateX }] },
-                ]}
-            >
-                <View style={[toastStyles.iconCircle, { backgroundColor: colors.iconBg }]}>
-                    <View style={[toastStyles.iconInner, { backgroundColor: colors.icon }]}>
-                        <Ionicons name={iconName} size={20} color="#FFFFFF" />
-                    </View>
-                </View>
-                <View style={toastStyles.textBlock}>
-                    <Text style={[toastStyles.title, { color: colors.title }]}>{state.title}</Text>
-                    <Text style={toastStyles.message}>{state.message}</Text>
-                </View>
+        <Modal visible={state.visible} transparent animationType="none" statusBarTranslucent onRequestClose={onHide}>
+            <View style={[toastStyles.wrapper, { top: topOffset }]} pointerEvents="box-none">
                 <Animated.View
-                    style={[toastStyles.progressBar, { width: progressInterpolate, backgroundColor: colors.bar }]}
-                />
-            </Animated.View>
-        </View>
+                    style={[
+                        toastStyles.container,
+                        { borderLeftColor: colors.border, opacity, transform: [{ translateX }] },
+                    ]}
+                >
+                    <View style={[toastStyles.iconCircle, { backgroundColor: colors.iconBg }]}>
+                        <View style={[toastStyles.iconInner, { backgroundColor: colors.icon }]}>
+                            <Ionicons name={iconName} size={20} color="#FFFFFF" />
+                        </View>
+                    </View>
+                    <View style={toastStyles.textBlock}>
+                        <Text style={[toastStyles.title, { color: colors.title }]}>{state.title}</Text>
+                        <Text style={toastStyles.message}>{state.message}</Text>
+                    </View>
+                    <Animated.View
+                        style={[toastStyles.progressBar, { width: progressInterpolate, backgroundColor: colors.bar }]}
+                    />
+                </Animated.View>
+            </View>
+        </Modal>
     );
 }
 
@@ -333,12 +339,11 @@ export function useSweetAlert() {
 const toastStyles = StyleSheet.create({
     wrapper: {
         position: "absolute",
-        top: 56,
         right: 16,
         left: 16,
         zIndex: 99999,
         alignItems: "flex-end",
-        pointerEvents: "none",
+        pointerEvents: "box-none",
     },
     container: {
         backgroundColor: "#FFFFFF",
