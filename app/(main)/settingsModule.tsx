@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { fetchSellerSettings, updateSellerSettings } from "@/services/settingsApi";
-import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { fetchDashboard } from "@/services/dashboardApi";
+import { deactivateSellerAccount } from "@/services/settingsApi";
+import { useSellerAppPreferences } from "@/hooks/useSellerAppPreferences";
+import { LANGUAGE_OPTIONS, languageLabel } from "@/lib/settings/appPreferences";
 import {
   View,
   TouchableOpacity,
@@ -19,7 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { clearSellerId } from "@/lib/api/sellerSession";
-import { fetchDashboard } from "@/services/dashboardApi";
+import { useSellerProfile } from "@/hooks/useSellerProfile";
 
 interface SettingItem {
   id: string;
@@ -32,17 +34,24 @@ interface SettingItem {
 export default function SettingsScreen() {
   const router = useRouter();
   const { profile } = useSellerProfile();
+  const {
+    darkMode,
+    language,
+    pushNotifications,
+    orderUpdates,
+    payoutAlerts,
+    vacationMode,
+    biometricLogin,
+    setDarkMode,
+    setLanguage,
+    persist,
+  } = useSellerAppPreferences();
   const sellerName =
     profile?.businessName?.trim() ||
     profile?.fullName?.trim() ||
     [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
     "Seller";
   const avatarUri = profile?.profilePicUrl || profile?.profilePic || undefined;
-  const [darkMode, setDarkMode] = useState(false);
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [orderUpdates, setOrderUpdates] = useState(true);
-  const [vacationMode, setVacationMode] = useState(false);
-  const [biometric, setBiometric] = useState(true);
   const [search, setSearch] = useState("");
   const [headerStats, setHeaderStats] = useState({
     revenue: "—",
@@ -64,11 +73,96 @@ export default function SettingsScreen() {
       });
   }, []);
 
+  const confirmDeleteAccount = useCallback(() => {
+    const runDelete = async () => {
+      try {
+        await deactivateSellerAccount();
+        await clearSellerId();
+        router.replace("/(auth)/login");
+      } catch (e) {
+        Alert.alert(
+          "Delete failed",
+          e instanceof Error ? e.message : "Could not deactivate your account."
+        );
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const typed = window.prompt(
+        'Type DELETE to permanently deactivate your seller account. You can contact support to restore it.'
+      );
+      if (typed?.trim().toUpperCase() === "DELETE") void runDelete();
+      return;
+    }
+
+    Alert.alert(
+      "Delete Account",
+      "This will deactivate your seller account. Type DELETE to confirm.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            Alert.prompt?.(
+              "Confirm deletion",
+              'Enter DELETE to confirm',
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Deactivate",
+                  style: "destructive",
+                  onPress: (value?: string) => {
+                    if (value?.trim().toUpperCase() === "DELETE") void runDelete();
+                  },
+                },
+              ],
+              "plain-text"
+            ) ?? void runDelete();
+          },
+        },
+      ]
+    );
+  }, [router]);
+
+  const pickLanguage = useCallback(() => {
+    if (Platform.OS === "web") {
+      const labels = LANGUAGE_OPTIONS.map((o) => o.label).join("\n");
+      const choice = window.prompt(`Choose language:\n${labels}\n\nEnter 1 for English, 2 for Hindi`);
+      if (choice === "2") void setLanguage("hi-IN");
+      else if (choice === "1") void setLanguage("en-IN");
+      return;
+    }
+    Alert.alert(
+      "Language",
+      "Choose your preferred language",
+      LANGUAGE_OPTIONS.map((opt) => ({
+        text: opt.label,
+        onPress: () => void setLanguage(opt.value),
+      }))
+    );
+  }, [setLanguage]);
+
+  const handleChangePassword = useCallback(() => {
+    const email = profile?.email?.trim() ?? "";
+    if (!email.includes("@")) {
+      Alert.alert(
+        "Email required",
+        "Add your registered email in your seller profile before resetting your password."
+      );
+      return;
+    }
+    router.push({
+      pathname: "/(auth)/forgotpassword",
+      params: { email, from: "settings" },
+    });
+  }, [profile?.email, router]);
+
   const handleItemPress = useCallback(
     (item: SettingItem) => {
       switch (item.id) {
         case "1":
-          router.push("/(auth)/forgot-password" as any);
+          handleChangePassword();
           break;
         case "2":
           router.push("/(main)/sellerbanking");
@@ -79,20 +173,11 @@ export default function SettingsScreen() {
         case "4":
           router.push("/(main)/sellerbusinessinfo");
           break;
-        case "6":
-          Alert.alert("Two-Factor Authentication", "Contact support to enable 2FA on your account.");
-          break;
-        case "7":
-          Alert.alert("Connected Devices", "Device management will be available in a future update.");
-          break;
-        case "10":
-          router.push("/(main)/payoutrequest");
-          break;
         case "12":
-          Alert.alert("Shipping Preferences", "Configure shipping in product delivery settings.");
+          router.push("/(main)/Ordersscreen");
           break;
         case "13":
-          Alert.alert("Auto Reply", "Auto reply settings will be available soon.");
+          router.push("/(main)/helpsupport");
           break;
         case "14":
         case "15":
@@ -120,13 +205,16 @@ export default function SettingsScreen() {
           }
           break;
         case "18":
-          Alert.alert("Delete Account", "Please contact support to delete your seller account.");
+          confirmDeleteAccount();
+          break;
+        case "lang":
+          pickLanguage();
           break;
         default:
           break;
       }
     },
-    [router]
+    [router, confirmDeleteAccount, pickLanguage, handleChangePassword]
   );
 
   const filterItems = useCallback(
@@ -142,28 +230,52 @@ export default function SettingsScreen() {
     [search]
   );
 
-  useEffect(() => {
-    fetchSellerSettings()
-      .then((s) => {
-        setPushNotifications(s.pushNotifications);
-        setOrderUpdates(s.orderUpdates);
-        setVacationMode(s.vacationMode);
-        setDarkMode(s.darkMode);
-        setBiometric(s.biometricLogin);
-      })
-      .catch(() => undefined);
-  }, []);
+  const securitySettings: SettingItem[] = useMemo(
+    () => [
+      {
+        id: "5",
+        title: "Biometric Login",
+        subtitle: "Enable Face ID / Fingerprint",
+        icon: "finger-print-outline",
+        type: "toggle",
+      },
+    ],
+    []
+  );
 
-  const persistSettings = useCallback((patch: Parameters<typeof updateSellerSettings>[0]) => {
-    updateSellerSettings(patch).catch(() => undefined);
-  }, []);
+  const notificationSettings: SettingItem[] = useMemo(
+    () => [
+      {
+        id: "8",
+        title: "Push Notifications",
+        subtitle: "Master switch for in-app alerts",
+        icon: "notifications-outline",
+        type: "toggle",
+      },
+      {
+        id: "9",
+        title: "Order Updates",
+        subtitle: "New orders, cancellations & returns",
+        icon: "cube-outline",
+        type: "toggle",
+      },
+      {
+        id: "10",
+        title: "Payout Alerts",
+        subtitle: "Withdrawal & earnings notifications",
+        icon: "wallet-outline",
+        type: "toggle",
+      },
+    ],
+    []
+  );
 
   const accountSettings: SettingItem[] = useMemo(
     () => [
       {
         id: "1",
         title: "Change Password",
-        subtitle: "Update your account password",
+        subtitle: "Reset via forgot-password flow",
         icon: "lock-closed-outline",
       },
       {
@@ -183,57 +295,6 @@ export default function SettingsScreen() {
         title: "Tax Information",
         subtitle: "Manage GST & tax details",
         icon: "document-text-outline",
-      },
-    ],
-    []
-  );
-
-  const securitySettings: SettingItem[] = useMemo(
-    () => [
-      {
-        id: "5",
-        title: "Biometric Login",
-        subtitle: "Enable Face ID / Fingerprint",
-        icon: "finger-print-outline",
-        type: "toggle",
-      },
-      {
-        id: "6",
-        title: "Two-Factor Authentication",
-        subtitle: "Extra account protection",
-        icon: "shield-checkmark-outline",
-      },
-      {
-        id: "7",
-        title: "Connected Devices",
-        subtitle: "Manage active devices",
-        icon: "phone-portrait-outline",
-      },
-    ],
-    []
-  );
-
-  const notificationSettings: SettingItem[] = useMemo(
-    () => [
-      {
-        id: "8",
-        title: "Push Notifications",
-        subtitle: "Receive push notifications",
-        icon: "notifications-outline",
-        type: "toggle",
-      },
-      {
-        id: "9",
-        title: "Order Updates",
-        subtitle: "Get order activity alerts",
-        icon: "cube-outline",
-        type: "toggle",
-      },
-      {
-        id: "10",
-        title: "Payout Alerts",
-        subtitle: "Withdrawal & earnings alerts",
-        icon: "wallet-outline",
       },
     ],
     []
@@ -353,26 +414,26 @@ export default function SettingsScreen() {
           <Switch
             value={
               item.id === "5"
-                ? biometric
+                ? biometricLogin
                 : item.id === "8"
                 ? pushNotifications
                 : item.id === "9"
                 ? orderUpdates
+                : item.id === "10"
+                ? payoutAlerts
                 : vacationMode
             }
             onValueChange={(value) => {
               if (item.id === "5") {
-                setBiometric(value);
-                persistSettings({ biometricLogin: value });
+                void persist({ biometricLogin: value });
               } else if (item.id === "8") {
-                setPushNotifications(value);
-                persistSettings({ pushNotifications: value });
+                void persist({ pushNotifications: value });
               } else if (item.id === "9") {
-                setOrderUpdates(value);
-                persistSettings({ orderUpdates: value });
+                void persist({ orderUpdates: value });
+              } else if (item.id === "10") {
+                void persist({ payoutAlerts: value });
               } else {
-                setVacationMode(value);
-                persistSettings({ vacationMode: value });
+                void persist({ vacationMode: value });
               }
             }}
           />
@@ -541,13 +602,12 @@ export default function SettingsScreen() {
           <Switch
             value={darkMode}
             onValueChange={(value) => {
-              setDarkMode(value);
-              persistSettings({ darkMode: value });
+              void setDarkMode(value);
             }}
           />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingCard} onPress={() => Alert.alert("Language", "English (India) is the only language available right now.")}>
+        <TouchableOpacity style={styles.settingCard} onPress={() => handleItemPress({ id: "lang", title: "Language", icon: "language-outline" })}>
           <View style={styles.settingLeft}>
             <View style={styles.iconContainer}>
               <Ionicons
@@ -561,7 +621,7 @@ export default function SettingsScreen() {
               <AppText style={styles.settingTitle}>Language</AppText>
 
               <AppText style={styles.settingSubtitle}>
-                English (India)
+                {languageLabel(language)}
               </AppText>
             </View>
           </View>

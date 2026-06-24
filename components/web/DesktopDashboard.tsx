@@ -223,7 +223,10 @@ export function DesktopDashboard({
               <MarketingCenter />
             </View>
             <View style={{ flex: 1, minWidth: 280 }}>
-              <FinancialCenter />
+              <FinancialCenter
+                availableBalance={widgets.earningsBalance}
+                bankName={widgets.bankName}
+              />
             </View>
           </View>
 

@@ -1444,7 +1444,33 @@ export const FinancialCenter: React.FC<{
   availableBalance?: number;
   bankName?: string;
 }> = ({ availableBalance = 0, bankName }) => {
+  const router = useRouter();
   const balanceText = `₹${Math.round(availableBalance).toLocaleString("en-IN")}`;
+
+  const handleExportCsv = async () => {
+    try {
+      const { exportPayoutTransactionsCsv } = await import("@/services/payoutApi");
+      const csv = await exportPayoutTransactionsCsv();
+      if (!csv.trim()) {
+        Alert.alert("No data", "No payout transactions available to export.");
+        return;
+      }
+      if (Platform.OS === "web") {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `financial_reconciliation_${new Date().toISOString().split("T")[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else {
+        Alert.alert("Export", "CSV export is available on web. Open earnings on desktop to download.");
+      }
+    } catch (e) {
+      Alert.alert("Export failed", e instanceof Error ? e.message : "Could not export data.");
+    }
+  };
+
   return (
     <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
       <View>
@@ -1465,25 +1491,32 @@ export const FinancialCenter: React.FC<{
         </View>
 
         <View style={finStyles.exportRow}>
-          <TouchableOpacity style={finStyles.btn} onPress={() => Alert.alert("Coming soon", "PDF invoice download will be available in a future release.")}>
+          <TouchableOpacity style={finStyles.btn} onPress={() => void handleExportCsv()}>
             <Feather name="download" size={12} color={C.textMid} />
-            <AppText style={finStyles.btnText}>Export Invoice PDF</AppText>
+            <AppText style={finStyles.btnText}>Export Payout CSV</AppText>
           </TouchableOpacity>
-          <TouchableOpacity style={finStyles.btn} onPress={() => Alert.alert("Coming soon", "Excel report download will be available in a future release.")}>
+          <TouchableOpacity
+            style={finStyles.btn}
+            onPress={() => router.push("/(main)/earning")}
+          >
             <Feather name="file-text" size={12} color={C.textMid} />
-            <AppText style={finStyles.btnText}>Export GST Excel</AppText>
+            <AppText style={finStyles.btnText}>Earnings Overview</AppText>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ── Scheduled Auto-Payout info strip ── */}
-      <View style={finStyles.payoutBox}>
+      <TouchableOpacity
+        style={finStyles.payoutBox}
+        onPress={() => router.push("/(main)/payoutrequest")}
+        activeOpacity={0.85}
+      >
         <MaterialCommunityIcons name="bank-transfer-in" size={16} color={C.green} />
         <View style={{ marginLeft: 6, flex: 1 }}>
           <AppText style={finStyles.payoutTitle}>Withdrawable Balance</AppText>
           <AppText style={finStyles.payoutValue}>{balanceText} available for payout</AppText>
         </View>
-      </View>
+      </TouchableOpacity>
 
       <View style={finStyles.meta}>
         <AppText style={finStyles.metaText}>
