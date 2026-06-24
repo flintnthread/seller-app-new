@@ -28,7 +28,9 @@ import {
   fetchPincodes,
   searchLocations,
   saveLocation,
+  resolvePlace,
   resolveLocationIds,
+  addPincode,
 } from "@/services/locationApi";
 import { getApiErrorMessage } from "@/services/sellerProfileApi";
 
@@ -76,7 +78,7 @@ const LocationDropdown: React.FC<{
   options: LocationItem[];
   disabled?: boolean;
   loading?: boolean;
-  error?: string;
+  error?: string | undefined;
   accentColor: string;
   searchable?: boolean;
   filterText?: string;
@@ -84,7 +86,7 @@ const LocationDropdown: React.FC<{
   filterPlaceholder?: string;
   emptyMessage?: string;
   onSelect: (item: LocationItem) => void;
-  onLayout?: (e: LayoutChangeEvent) => void;
+  onLayout?: ((e: LayoutChangeEvent) => void) | undefined;
   onOpenChange?: (open: boolean) => void;
 }> = ({
   label, value, placeholder, options, disabled, loading, error, accentColor,
@@ -200,6 +202,11 @@ export function AddressLocationFields({
   const [savingLocation, setSavingLocation] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSearchRef = useRef(false);
+  const pendingPincodeRef = useRef("");
+  const [showManualPincode, setShowManualPincode] = useState(false);
+  const [manualPincode, setManualPincode] = useState("");
+  const [addingPincode, setAddingPincode] = useState(false);
+  const [pincodeError, setPincodeError] = useState("");
 
   const [countryFilter, setCountryFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
@@ -234,7 +241,7 @@ export function AddressLocationFields({
   const [elevatedRows, setElevatedRows] = useState<Set<number>>(() => new Set());
 
   const handleRowOpenChange = useCallback((row: number, open: boolean) => {
-    rowOpenCount.current[row] = Math.max(0, rowOpenCount.current[row] + (open ? 1 : -1));
+    rowOpenCount.current[row] = Math.max(0, (rowOpenCount.current[row] ?? 0) + (open ? 1 : -1));
     const next = new Set<number>();
     rowOpenCount.current.forEach((count, index) => {
       if (count > 0) next.add(index);
@@ -391,22 +398,54 @@ export function AddressLocationFields({
   useEffect(() => {
     if (!areaId) {
       setPincodes([]);
+      setShowManualPincode(false);
       return;
     }
     let active = true;
     setLoadingPincodes(true);
     const timer = setTimeout(() => {
       fetchPincodes(areaId, pincodeFilter.trim() || undefined)
-        .then((data) => { if (active) setPincodes(data); })
-        .catch(() => { if (active) setPincodes([]); })
+        .then((data) => {
+          if (!active) return;
+          const pending = pendingPincodeRef.current;
+          if (pending && data.every((p) => p.name !== pending)) {
+            setPincodes([{ id: -1, name: pending }, ...data]);
+          } else {
+            setPincodes(data);
+          }
+
+          // Show manual pincode input when area has no pincodes and none is selected yet
+          if (data.length === 0 && !value.pincode.trim()) {
+            setShowManualPincode(true);
+          } else if (data.length > 0 && value.pincode.trim()) {
+            setShowManualPincode(false);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setPincodes([]);
+            if (!value.pincode.trim()) setShowManualPincode(true);
+          }
+        })
         .finally(() => { if (active) setLoadingPincodes(false); });
     }, pincodeFilter.trim() ? 250 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [areaId, pincodeFilter, areaPickSeq]);
+  }, [areaId, pincodeFilter, areaPickSeq, value.pincode]);
 
   useEffect(() => {
     setPincodeFilter("");
   }, [areaId]);
+
+  // Auto-fill pincode when an area is selected but pincode is still empty.
+  useEffect(() => {
+    if (!areaId || value.pincode.trim() || loadingPincodes || pincodes.length === 0) return;
+    const pin = pincodes.at(0)?.name;
+    if (pin) {
+      onChange({ ...value, pincode: pin });
+      onClearError?.("pincode");
+      setShowManualPincode(false);
+    }
+  }, [areaId, pincodes, value, loadingPincodes, onChange, onClearError]);
 
   const hydratedRef = useRef("");
   useEffect(() => {
@@ -414,12 +453,11 @@ export function AddressLocationFields({
     const hasValue = key.replace(/\|/g, "").trim().length > 0;
     if (!hasValue || hydratedRef.current === key) return;
 
-    // Resolve dropdown IDs only when the user has a full saved location, not partial fields.
-    const isComplete = Boolean(
-      value.country.trim() && value.state.trim() && value.city.trim()
-      && value.area.trim() && value.pincode.trim()
+    // Resolve dropdown IDs when location names are saved; backfill pincode from DB if missing.
+    const hasLocation = Boolean(
+      value.country.trim() && value.state.trim() && value.city.trim() && value.area.trim()
     );
-    if (!isComplete) return;
+    if (!hasLocation || hydratedRef.current === key) return;
 
     let active = true;
     setHydrating(true);
@@ -430,43 +468,53 @@ export function AddressLocationFields({
         setStateId(ids.stateId);
         setCityId(ids.cityId);
         setAreaId(ids.areaId);
-        hydratedRef.current = key;
+        if (ids.pincode && !value.pincode.trim()) {
+          onChange({ ...value, pincode: ids.pincode });
+        }
+        if (ids.areaId && !value.pincode.trim() && !ids.pincode) {
+          setShowManualPincode(true);
+        }
+        hydratedRef.current = ids.pincode && !value.pincode.trim()
+          ? [value.country, value.state, value.city, value.area, ids.pincode].join("|")
+          : key;
       })
       .finally(() => { if (active) setHydrating(false); });
 
     return () => { active = false; };
-  }, [value.country, value.state, value.city, value.area, value.pincode]);
+  }, [value, onChange]);
 
   const formatLocationLabel = (loc: AddressLocationValue) =>
     [loc.area, loc.city, loc.state, loc.pincode, loc.country].filter(Boolean).join(", ");
 
-  const formatSuggestionTitle = (item: LocationSearchResult, query: string) => {
-    if (item.displayName) {
-      const parts = item.displayName.split(",").map((p) => p.trim()).filter(Boolean);
-      if (parts.length >= 2) {
-        return parts.slice(0, 2).join(", ");
-      }
-      return item.displayName;
-    }
-    const q = query.trim().toLowerCase();
-    const isPincodeSearch = /^\d+$/.test(q);
-    if (isPincodeSearch && item.pincode) {
-      return `${item.pincode} — ${item.area}`;
-    }
-    if (item.area && item.area.toLowerCase() !== item.city?.toLowerCase()) {
-      return `${item.area}, ${item.city}`;
-    }
-    return item.city || item.area;
+  const formatSuggestionTitle = (item: LocationSearchResult) => {
+    return item.area || item.displayName?.split(",").map((p) => p.trim()).filter(Boolean)[0] || item.city || "";
   };
 
+  /** Subtitle: mandal, district, state, pincode — e.g. Gurazala, Palnadu, Andhra Pradesh, 522415 */
   const formatSuggestionSubtitle = (item: LocationSearchResult) => {
     if (item.displayName) {
-      return item.displayName;
+      const parts = item.displayName.split(",").map((p) => p.trim()).filter(Boolean);
+      const tail = parts.slice(1).filter((p) => p.toLowerCase() !== "india");
+      if (tail.length > 0) {
+        return tail.join(", ");
+      }
     }
-    const parts = [item.city, item.state];
-    if (item.pincode) parts.push(item.pincode);
-    parts.push(item.country);
-    return parts.filter(Boolean).join(", ");
+    const parts: string[] = [];
+    const mandal = item.mandal?.trim() || "";
+    if (mandal) {
+      parts.push(mandal);
+    }
+    const district = item.district?.trim() || (item.city?.trim() && item.city !== mandal ? item.city.trim() : "");
+    if (district && !parts.some((p) => p.toLowerCase() === district.toLowerCase())) {
+      parts.push(district);
+    }
+    if (item.state?.trim()) {
+      parts.push(item.state.trim());
+    }
+    if (item.pincode?.trim() && /^\d{6}$/.test(item.pincode.trim())) {
+      parts.push(item.pincode.trim());
+    }
+    return parts.join(", ");
   };
 
   const getSearchMinLength = (q: string) => {
@@ -482,6 +530,20 @@ export function AddressLocationFields({
     return t.length >= 5;
   };
 
+  const resolvePincodeForArea = useCallback(async (areaId: number, preferred?: string): Promise<string> => {
+    if (preferred && /^\d{6}$/.test(preferred)) return preferred;
+    try {
+      const list = await fetchPincodes(areaId);
+      if (preferred) {
+        const match = list.find((p) => p.name === preferred);
+        if (match) return match.name;
+      }
+      return list.at(0)?.name ?? preferred ?? "";
+    } catch {
+      return preferred ?? "";
+    }
+  }, []);
+
   const buildAddDraftFromQuery = useCallback((q: string): AddressLocationValue => {
     const trimmed = q.trim();
     const isPincode = /^\d{6}$/.test(trimmed);
@@ -489,77 +551,136 @@ export function AddressLocationFields({
     return {
       country: defaultCountryForAdd || "",
       state: "",
-      city: isWord && !isPincode ? trimmed : "",
+      city: "",
       area: "",
       pincode: isPincode ? trimmed : "",
     };
   }, [defaultCountryForAdd]);
 
+  const isValidPincode = (code: string) => /^\d{6}$/.test(code);
+
   const applySearchResult = useCallback(async (item: LocationSearchResult) => {
-    let resolved = item;
-
-    if (item.external) {
-      const hasPincode = /^\d{6}$/.test(item.pincode || "");
-      if (hasPincode && item.country && item.state && item.city && item.area) {
-        try {
-          const saved = await saveLocation({
-            country: item.country,
-            state: item.state,
-            city: item.city,
-            area: item.area,
-            pincode: item.pincode,
-          });
-          resolved = { ...saved, external: false };
-        } catch {
-          resolved = item;
-        }
-      }
-    }
-
     skipSearchRef.current = true;
-    setCountryId(resolved.countryId > 0 ? resolved.countryId : undefined);
-    setStateId(resolved.stateId > 0 ? resolved.stateId : undefined);
-    setCityId(resolved.cityId > 0 ? resolved.cityId : undefined);
-    setAreaId(resolved.areaId > 0 ? resolved.areaId : undefined);
-    hydratedRef.current = [resolved.country, resolved.state, resolved.city, resolved.area, resolved.pincode].join("|");
-
-    onChange({
-      country: resolved.country,
-      state: resolved.state,
-      city: resolved.city,
-      area: resolved.area,
-      pincode: resolved.pincode || "",
-    });
-    (["country", "state", "city", "area", "pincode"] as FieldKey[]).forEach((f) => onClearError?.(f));
-
-    const label = resolved.displayName
-      || (resolved.pincode
-        ? `${resolved.pincode} — ${resolved.area}, ${resolved.city}, ${resolved.state}, ${resolved.country}`
-        : `${resolved.area}, ${resolved.city}, ${resolved.state}, ${resolved.country}`);
-    setSearchDisplay(label);
-    setSearchQuery("");
     setShowSearchResults(false);
     setSearchResults([]);
     setSearchError("");
     setShowAddForm(false);
     setAddError("");
 
-    try {
-      const ids = resolved.countryId > 0
-        ? {
-            countryId: resolved.countryId,
-            stateId: resolved.stateId > 0 ? resolved.stateId : undefined,
-            cityId: resolved.cityId > 0 ? resolved.cityId : undefined,
-            areaId: resolved.areaId > 0 ? resolved.areaId : undefined,
-          }
-        : await resolveLocationIds({
-            country: resolved.country,
-            state: resolved.state,
-            city: resolved.city,
-            area: resolved.area,
-            pincode: resolved.pincode || "",
-          });
+    setSearchDisplay(item.displayName || item.area || item.city);
+    setSearchQuery("");
 
+    let resolved = item;
+
+    // Maps-style: one place-details call at the selected coordinates.
+    if (
+      item.external
+      && item.latitude != null
+      && item.longitude != null
+      && !Number.isNaN(item.latitude)
+      && !Number.isNaN(item.longitude)
+    ) {
+      try {
+        const details = await resolvePlace(item.latitude, item.longitude);
+        if (details?.area) {
+          resolved = {
+            ...item,
+            ...details,
+            district: details.district || item.district || "",
+            mandal: details.mandal || item.mandal || "",
+            external: true,
+          };
+        }
+      } catch {
+        // Use autocomplete preview if place details unavailable.
+      }
+    }
+
+    let pincode = resolved.pincode?.trim() || "";
+    const cityForForm = resolved.district?.trim() || resolved.city?.trim() || "";
+    resolved = { ...resolved, city: cityForForm };
+
+    let ids = await resolveLocationIds({
+      country: resolved.country,
+      state: resolved.state,
+      city: cityForForm,
+      area: resolved.area,
+      pincode,
+    });
+
+    if (resolved.countryId > 0) {
+      ids = {
+        countryId: resolved.countryId,
+        ...(resolved.stateId > 0 ? { stateId: resolved.stateId } : ids.stateId ? { stateId: ids.stateId } : {}),
+        ...(resolved.cityId > 0 ? { cityId: resolved.cityId } : ids.cityId ? { cityId: ids.cityId } : {}),
+        ...(resolved.areaId > 0 ? { areaId: resolved.areaId } : ids.areaId ? { areaId: ids.areaId } : {}),
+        ...(ids.pincodeId ? { pincodeId: ids.pincodeId } : {}),
+        ...(ids.pincode ? { pincode: ids.pincode } : {}),
+      };
+    }
+
+    if (!isValidPincode(pincode) && ids.pincode) {
+      pincode = ids.pincode;
+    }
+    if (!isValidPincode(pincode) && ids.areaId) {
+      pincode = await resolvePincodeForArea(ids.areaId, pincode);
+    }
+
+    const canSaveHierarchy = resolved.country && resolved.state && cityForForm && resolved.area;
+
+    if (canSaveHierarchy) {
+      try {
+        const saved = await saveLocation({
+          country: resolved.country,
+          state: resolved.state,
+          city: cityForForm,
+          area: resolved.area,
+          ...(isValidPincode(pincode) ? { pincode } : {}),
+        });
+        resolved = { ...saved, external: false, district: cityForForm };
+        ids = {
+          countryId: saved.countryId,
+          ...(saved.stateId > 0 ? { stateId: saved.stateId } : {}),
+          ...(saved.cityId > 0 ? { cityId: saved.cityId } : {}),
+          ...(saved.areaId > 0 ? { areaId: saved.areaId } : {}),
+        };
+        if (isValidPincode(saved.pincode)) {
+          pincode = saved.pincode;
+        }
+      } catch (e) {
+        setSearchError(getApiErrorMessage(e, "Location filled but could not save to database."));
+      }
+    }
+
+    const needsManualPincode = Boolean(ids.areaId) && !isValidPincode(pincode);
+    setShowManualPincode(needsManualPincode);
+    if (!needsManualPincode) {
+      setManualPincode("");
+      setPincodeError("");
+    }
+
+    setCountryId(ids.countryId);
+    setStateId(ids.stateId);
+    setCityId(ids.cityId);
+    setAreaId(ids.areaId);
+    hydratedRef.current = [resolved.country, resolved.state, cityForForm, resolved.area, pincode].join("|");
+    pendingPincodeRef.current = pincode;
+
+    onChange({
+      country: resolved.country,
+      state: resolved.state,
+      city: cityForForm,
+      area: resolved.area,
+      pincode,
+    });
+    (["country", "state", "city", "area", "pincode"] as FieldKey[]).forEach((f) => onClearError?.(f));
+
+    const label = resolved.displayName
+      || [resolved.area, resolved.mandal, cityForForm, resolved.state, pincode].filter(Boolean).join(", ");
+    setSearchDisplay(label);
+    setSearchQuery("");
+
+    try {
       if (ids.countryId) setCountryId(ids.countryId);
       if (ids.stateId) setStateId(ids.stateId);
       if (ids.cityId) setCityId(ids.cityId);
@@ -574,11 +695,19 @@ export function AddressLocationFields({
       setStates(statesData);
       setCities(citiesData);
       setAreas(areasData);
-      setPincodes(pincodesData);
+      if (pincode && pincodesData.every((p) => p.name !== pincode)) {
+        setPincodes([{ id: -1, name: pincode }, ...pincodesData]);
+      } else {
+        setPincodes(pincodesData);
+      }
+
+      if (ids.areaId && !isValidPincode(pincode) && pincodesData.length === 0) {
+        setShowManualPincode(true);
+      }
     } catch {
       // Cascading effects will still load lists from IDs.
     }
-  }, [onChange, onClearError]);
+  }, [onChange, onClearError, resolvePincodeForArea]);
 
   const handleSaveNewLocation = useCallback(async () => {
     setAddError("");
@@ -653,18 +782,11 @@ export function AddressLocationFields({
           setSearchError("");
           setShowAddForm(false);
           setAddError("");
-
-          // Auto-fill only for an exact 6-digit pincode the user typed.
-          if (/^\d{6}$/.test(q)) {
-            const exact = results.find((r) => r.pincode === q);
-            if (exact) {
-              void applySearchResult(exact);
-            }
-          }
         })
-        .catch(() => {
+        .catch((err) => {
           setSearchResults([]);
-          setSearchError("Could not search locations. Please try again.");
+          const msg = err instanceof Error ? err.message : "Could not search locations. Please try again.";
+          setSearchError(msg.includes("Cannot reach API") ? msg : "Could not search locations. Please try again.");
         })
         .finally(() => setSearchLoading(false));
     }, 250);
@@ -672,7 +794,7 @@ export function AddressLocationFields({
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchQuery, searchCountry, applySearchResult, buildAddDraftFromQuery]);
+  }, [searchQuery, searchCountry, buildAddDraftFromQuery]);
 
   const selectCountry = (item: LocationItem) => {
     setCountryId(item.id);
@@ -724,6 +846,23 @@ export function AddressLocationFields({
     setAreaPickSeq((n) => n + 1);
     onChange({ ...value, area: item.name, pincode: "" });
     onClearError?.("area");
+    setShowManualPincode(false);
+    setManualPincode("");
+    setPincodeError("");
+
+    void fetchPincodes(item.id).then((data) => {
+      setPincodes(data);
+      const pin = data.at(0)?.name ?? "";
+      if (pin) {
+        onChange({ ...value, area: item.name, pincode: pin });
+        onClearError?.("pincode");
+        setShowManualPincode(false);
+      } else {
+        setShowManualPincode(true);
+      }
+    }).catch(() => {
+      // areaId effect will retry loading pincodes
+    });
   };
 
   const selectPincode = (item: LocationItem) => {
@@ -731,10 +870,60 @@ export function AddressLocationFields({
     onClearError?.("pincode");
   };
 
+  const handleAddPincode = useCallback(async () => {
+    const pin = manualPincode.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      setPincodeError("Enter a valid 6-digit pincode");
+      return;
+    }
+    setPincodeError("");
+    setAddingPincode(true);
+    try {
+      let targetAreaId = areaId;
+      if (!targetAreaId) {
+        if (!value.country.trim() || !value.state.trim() || !value.city.trim() || !value.area.trim()) {
+          setPincodeError("Select a location first, then add the pincode.");
+          return;
+        }
+        const saved = await saveLocation({
+          country: value.country.trim(),
+          state: value.state.trim(),
+          city: value.city.trim(),
+          area: value.area.trim(),
+          pincode: pin,
+        });
+        targetAreaId = saved.areaId;
+        setCountryId(saved.countryId);
+        setStateId(saved.stateId);
+        setCityId(saved.cityId);
+        setAreaId(saved.areaId);
+        pendingPincodeRef.current = pin;
+        setPincodes([{ id: saved.pincodeId, name: pin }]);
+        onChange({ ...value, pincode: pin });
+        onClearError?.("pincode");
+        setShowManualPincode(false);
+        setManualPincode("");
+        return;
+      }
+
+      const result = await addPincode({ areaId: targetAreaId, pincode: pin });
+      setPincodes([{ ...result }, ...pincodes]);
+      pendingPincodeRef.current = pin;
+      onChange({ ...value, pincode: pin });
+      onClearError?.("pincode");
+      setShowManualPincode(false);
+      setManualPincode("");
+    } catch (e) {
+      setPincodeError(getApiErrorMessage(e, "Could not add pincode. Please try again."));
+    } finally {
+      setAddingPincode(false);
+    }
+  }, [areaId, manualPincode, pincodes, value, onChange, onClearError]);
+
   return (
     <View style={s.wrap}>
       <View style={s.searchWrap}>
-        <Text style={s.label}>Search location (Maps-style auto-fill)</Text>
+        <Text style={s.label}>Search location</Text>
         <View style={[s.searchField, { borderColor: showSearchResults ? accentColor : T.border }]}>
           <Icon name="search" size={14} color={accentColor} />
           <TextInput
@@ -755,9 +944,16 @@ export function AddressLocationFields({
               }
             }}
             onSubmitEditing={() => {
-              if (searchResults.length > 0) {
-                void applySearchResult(searchResults[0]);
-              }
+              const first = searchResults.at(0);
+              if (first !== undefined) void applySearchResult(first);
+            }}
+            onBlur={() => {
+              // Keep dropdown open briefly so tap on suggestion registers (Maps-style).
+              setTimeout(() => {
+                if (!searchQuery.trim()) {
+                  setShowSearchResults(false);
+                }
+              }, 200);
             }}
             placeholder={searchCountry
               ? `Type area, city, state or pincode in ${searchCountry}…`
@@ -785,7 +981,7 @@ export function AddressLocationFields({
           ) : null}
         </View>
         <Text style={s.searchHint}>
-          Type one word — suggestions appear automatically (like Google Maps). Tap a result to auto-fill all fields.
+          Type an area or village name — suggestions appear below like Google Maps. Tap one to fill all fields.
         </Text>
         {showSearchResults && searchQuery.trim().length > 0 && searchLoading && (
           <Text style={s.searchStatus}>Finding locations…</Text>
@@ -793,15 +989,15 @@ export function AddressLocationFields({
         {showSearchResults && searchError && !searchLoading && shouldShowNoResults(searchQuery) ? (
           <Text style={s.searchError}>{searchError}</Text>
         ) : null}
-        {showSearchResults && searchResults.length > 0 && (
+        {showSearchResults && searchQuery.trim().length > 0 && searchResults.length > 0 && (
           <View style={s.searchMenu}>
             <Text style={s.searchCount}>
-              {searchResults.length} suggestion{searchResults.length === 1 ? "" : "s"} — tap to auto-fill
+              {searchResults.length} suggestion{searchResults.length === 1 ? "" : "s"} — tap to select
             </Text>
             <ScrollView
               style={s.searchMenuScroll}
               nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
               showsVerticalScrollIndicator
               bounces={false}
             >
@@ -809,11 +1005,12 @@ export function AddressLocationFields({
                 <TouchableOpacity
                   key={item.external ? `ext-${item.externalId || item.displayName}` : `${item.areaId}-${item.pincodeId || item.cityId}`}
                   style={s.searchOption}
+                  activeOpacity={0.7}
                   onPress={() => { void applySearchResult(item); }}
                 >
                   <View style={s.searchOptionRow}>
                     <Text style={s.searchOptionTitle}>
-                      {formatSuggestionTitle(item, searchQuery)}
+                      {formatSuggestionTitle(item)}
                     </Text>
                     {item.external ? (
                       <View style={[s.mapsBadge, { borderColor: accentColor }]}>
@@ -945,7 +1142,7 @@ export function AddressLocationFields({
           <LocationDropdown
             label="City"
             value={value.city}
-            placeholder="Select City"
+            placeholder="Select City (District)"
             options={cities}
             disabled={!stateId}
             loading={loadingCities}
@@ -990,7 +1187,7 @@ export function AddressLocationFields({
             value={value.pincode}
             placeholder="Select Pincode"
             options={pincodes}
-            disabled={!areaId}
+            disabled={!areaId && !value.pincode}
             loading={loadingPincodes}
             error={errors.pincode}
             accentColor={accentColor}
@@ -1005,6 +1202,48 @@ export function AddressLocationFields({
           />
         </View>
       </View>
+
+      {showManualPincode && (areaId || (value.area.trim() && value.city.trim() && value.state.trim())) && (
+        <View style={s.manualPincodeWrap}>
+          <Text style={s.manualPincodeHint}>
+            If pincode doesn&apos;t auto-fill after selecting a location, enter it manually below and tap Add &amp; select to save it to the database.
+          </Text>
+          <View style={s.manualPincodeRow}>
+            <View style={s.manualPincodeInputWrap}>
+              <TextInput
+                style={s.manualPincodeInput}
+                value={manualPincode}
+                onChangeText={(t) => {
+                  setManualPincode(t.replace(/\D/g, "").slice(0, 6));
+                  setPincodeError("");
+                }}
+                placeholder="6-digit pincode"
+                placeholderTextColor={T.textLight}
+                keyboardType="numeric"
+                maxLength={6}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={handleAddPincode}
+              style={[s.manualPincodeBtn, { backgroundColor: accentColor }]}
+              activeOpacity={0.88}
+              disabled={addingPincode || !/^\d{6}$/.test(manualPincode)}
+            >
+              {addingPincode ? (
+                <ActivityIndicator size="small" color={T.white} />
+              ) : (
+                <Text style={s.manualPincodeBtnText}>Add & select</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {pincodeError ? (
+            <View style={s.pincodeErrorRow}>
+              <Icon name="exclamation-circle" size={11} color={T.error} />
+              <Text style={s.pincodeErrorText}>{pincodeError}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -1089,6 +1328,61 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   addBtnText: { fontSize: 14, fontFamily: fontFamilies.bold, color: T.white },
+  manualPincodeWrap: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: T.navyPale,
+    gap: 8,
+  },
+  manualPincodeHint: {
+    fontSize: 11,
+    color: T.textSoft,
+    lineHeight: 15,
+  },
+  manualPincodeRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  manualPincodeInputWrap: {
+    flex: 1,
+  },
+  manualPincodeInput: {
+    backgroundColor: T.white,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: T.border,
+    paddingHorizontal: 12,
+    height: 44,
+    fontSize: 13,
+    color: T.textDark,
+    fontFamily: fontFamilies.regular,
+  },
+  manualPincodeBtn: {
+    paddingHorizontal: 16,
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 100,
+  },
+  manualPincodeBtnText: {
+    fontSize: 13,
+    fontFamily: fontFamilies.bold,
+    color: T.white,
+  },
+  pincodeErrorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  pincodeErrorText: {
+    fontSize: 11,
+    color: T.error,
+    fontFamily: fontFamilies.regular,
+  },
   searchMenu: {
     backgroundColor: T.white,
     borderRadius: 12,

@@ -165,8 +165,7 @@ const termsOnlySections = allTermsSections.filter((s) => !isPrivacySection(s.tit
 const privacySections = [...introSections, ...privacyFromTerms];
 
 const meta = {
-  effectiveDate: platformMeta.find((m) => /effective date/i.test(m.label))?.value || "May 29, 2026",
-  lastUpdated: platformMeta.find((m) => /last updated/i.test(m.label))?.value || "May 29, 2026",
+  effectiveDate: platformMeta.find((m) => /effective date/i.test(m.label))?.value || "June 19, 2026",
 };
 
 const privacy = {

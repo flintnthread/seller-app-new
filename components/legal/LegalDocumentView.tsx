@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import {
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import type { LegalDocument, LegalSection } from "@/constants/sellerLegalContent
 
 const NAVY = "#1a2b5e";
 const ORANGE = "#f97316";
+const CONTAINER_MAX_WIDTH = 920;
 
 type Props = {
   document: LegalDocument;
@@ -104,99 +106,148 @@ export function LegalDocumentView({ document }: Props) {
     [document.title]
   );
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const dom = globalThis.document;
+    if (!dom) return;
+    const styleId = "legal-document-scrollbar-hide";
+    if (dom.getElementById(styleId)) return;
+    const style = dom.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      #legal-document-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+      #legal-document-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    `;
+    dom.head.appendChild(style);
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <LinearGradient colors={[NAVY, "#243b6e"]} style={styles.hero}>
-        <View style={styles.heroInner}>
-          <View style={styles.heroTopRow}>
-            <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color="#fff" />
-              <AppText weight="semiBold" size="sm" color="#fff" style={{ marginLeft: 4 }}>
-                Back
-              </AppText>
-            </Pressable>
-            <View style={styles.docTypePill}>
-              <Ionicons
-                name={docKind === "privacy" ? "shield-checkmark-outline" : "document-text-outline"}
-                size={14}
-                color="#fff"
-              />
-              <AppText size="xs" weight="bold" color="#fff" style={{ marginLeft: 6 }}>
-                {docKind === "privacy" ? "Privacy" : "Terms"}
+        <View style={styles.container}>
+          <View style={styles.heroInner}>
+            <View style={styles.heroTopRow}>
+              <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+                <Ionicons name="arrow-back" size={22} color="#fff" />
+                <AppText weight="semiBold" size="sm" color="#fff" style={{ marginLeft: 4 }}>
+                  Back
+                </AppText>
+              </Pressable>
+              <View style={styles.docTypePill}>
+                <Ionicons
+                  name={docKind === "privacy" ? "shield-checkmark-outline" : "document-text-outline"}
+                  size={14}
+                  color="#fff"
+                />
+                <AppText size="xs" weight="bold" color="#fff" style={{ marginLeft: 6 }}>
+                  {docKind === "privacy" ? "Privacy" : "Terms"}
+                </AppText>
+              </View>
+            </View>
+
+            <View style={styles.heroBrandRow}>
+              <LinearGradient
+                colors={["#EF7B1A", "#F97316"]}
+                style={styles.logoRing}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Image
+                  source={require("../../assets/images/logo.jpg")}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </LinearGradient>
+              <View style={styles.heroBrandText}>
+                <AppText weight="bold" size="xl" color="#fff" style={styles.heroTitle}>
+                  {document.title}
+                </AppText>
+                <AppText size="sm" color="rgba(255,255,255,0.85)" style={styles.heroSub}>
+                  {document.subtitle}
+                </AppText>
+              </View>
+            </View>
+
+            <View style={styles.effectiveDatePill}>
+              <Ionicons name="calendar-outline" size={14} color="#fff" />
+              <AppText size="xs" weight="semiBold" color="#fff" style={{ marginLeft: 6 }}>
+                Effective Date: {document.effectiveDate}
               </AppText>
             </View>
-          </View>
-
-          <AppText weight="bold" size="xl" color="#fff" style={styles.heroTitle}>
-            {document.title}
-          </AppText>
-          <AppText size="sm" color="rgba(255,255,255,0.85)" style={styles.heroSub}>
-            {document.subtitle}
-          </AppText>
-          <View style={styles.heroMetaRow}>
-            <AppText size="xs" color="rgba(255,255,255,0.75)">
-              Effective: {document.effectiveDate}
-            </AppText>
-            <AppText size="xs" color="rgba(255,255,255,0.75)">
-              Updated: {document.lastUpdated}
-            </AppText>
           </View>
         </View>
       </LinearGradient>
 
       <ScrollView
+        nativeID="legal-document-scroll"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
+        bounces
       >
-        {document.platformMeta && document.platformMeta.length > 0 && (
-          <View style={styles.platformCard}>
-            <View style={styles.platformCardHeader}>
-              <Ionicons name="information-circle" size={20} color={ORANGE} />
-              <AppText weight="bold" size="sm" style={styles.platformCardTitle}>
-                Key Platform Details
-              </AppText>
+        <View style={styles.container}>
+          {document.platformMeta && document.platformMeta.length > 0 && (
+            <View style={styles.platformCard}>
+              <View style={styles.platformCardHeader}>
+                <Ionicons name="information-circle" size={20} color={ORANGE} />
+                <AppText weight="bold" size="sm" style={styles.platformCardTitle}>
+                  Key Platform Details
+                </AppText>
+              </View>
+              <View style={isWide ? styles.platformGridWide : styles.platformGrid}>
+                {document.platformMeta.map((item) => (
+                  <View key={item.label} style={[styles.platformRow, isWide && styles.platformRowWide]}>
+                    <AppText size="xs" weight="bold" color={NAVY} style={styles.platformLabel}>
+                      {item.label}
+                    </AppText>
+                    <AppText size="sm" style={styles.platformValue}>
+                      {item.value}
+                    </AppText>
+                  </View>
+                ))}
+              </View>
             </View>
-            <View style={isWide ? styles.platformGridWide : styles.platformGrid}>
-              {document.platformMeta.map((item) => (
-                <View key={item.label} style={[styles.platformRow, isWide && styles.platformRowWide]}>
-                  <AppText size="xs" weight="bold" color={NAVY} style={styles.platformLabel}>
-                    {item.label}
-                  </AppText>
-                  <AppText size="sm" style={styles.platformValue}>
-                    {item.value}
-                  </AppText>
-                </View>
-              ))}
-            </View>
+          )}
+
+          {document.sections.map((section, index) => (
+            <SectionBlock key={`${section.title}-${index}`} section={section} index={index} />
+          ))}
+
+          <View style={styles.footerNote}>
+            <Ionicons name="alert-circle-outline" size={18} color={ORANGE} />
+            <AppText size="xs" style={styles.footerNoteText}>
+              By registering as a seller on Flint & Thread, you agree to these policies. Please read
+              them carefully before accepting.
+            </AppText>
           </View>
-        )}
-
-        {document.sections.map((section, index) => (
-          <SectionBlock key={`${section.title}-${index}`} section={section} index={index} />
-        ))}
-
-        <View style={styles.footerNote}>
-          <Ionicons name="alert-circle-outline" size={18} color={ORANGE} />
-          <AppText size="xs" style={styles.footerNoteText}>
-            By registering as a seller on Flint & Thread, you agree to these policies. Please read
-            them carefully before accepting.
-          </AppText>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+const webScrollHidden = Platform.OS === "web"
+  ? ({
+      scrollbarWidth: "none",
+      msOverflowStyle: "none",
+    } as object)
+  : {};
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff7ed", width: "100%" },
+  container: {
+    width: "100%",
+    maxWidth: CONTAINER_MAX_WIDTH,
+    alignSelf: "center",
+    ...(Platform.OS === "web" ? ({ marginHorizontal: "auto" } as object) : {}),
+  },
   hero: { paddingBottom: 20, width: "100%" },
   heroInner: { paddingHorizontal: 20, paddingTop: 8, width: "100%" },
   heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   backBtn: { flexDirection: "row", alignItems: "center" },
   docTypePill: {
@@ -207,17 +258,50 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 20,
   },
-  heroTitle: { marginBottom: 6 },
-  heroSub: { lineHeight: 20, marginBottom: 10 },
-  heroMetaRow: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
-  scroll: { flex: 1, width: "100%" },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14, width: "100%" },
+  heroBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 14,
+  },
+  logoRing: {
+    width: 173,
+    height: 55,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 3,
+    flexShrink: 0,
+  },
+  logoImage: {
+    width: 170,
+    height: 50,
+    borderRadius: 5,
+    backgroundColor: "#ffffff",
+  },
+  heroBrandText: { flex: 1, minWidth: 0 },
+  heroTitle: { marginBottom: 4 },
+  heroSub: { lineHeight: 20 },
+  effectiveDatePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  scroll: { flex: 1, width: "100%", ...webScrollHidden },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, width: "100%" },
   platformCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#fed7aa",
+    marginBottom: 14,
     ...Platform.select({
       web: { boxShadow: "0 4px 20px rgba(26,43,94,0.08)" },
       default: {
@@ -252,6 +336,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    marginBottom: 14,
   },
   sectionCardPart: {
     borderColor: "#fdba74",

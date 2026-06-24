@@ -3,7 +3,7 @@
  * Pixel-perfect match to Screen 1 — navy & orange premium onboarding
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  type LayoutChangeEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -27,6 +28,7 @@ import {
   fetchSellerBankDetails,
   updateSellerBankDetails,
 } from "@/services/payoutApi";
+import { scrollToFormField } from "@/lib/form/scrollToFormField";
 
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
@@ -84,6 +86,8 @@ const validateAccountHolderName = (name: string): string => {
   if (name.length < 3) return "Name must be at least 3 characters";
   return "";
 };
+
+interface ValidationError { field: string; message: string; }
 
 // ─── SectionCard — exact Screen 1 pattern ────────────────────
 const SectionCard: React.FC<{
@@ -182,11 +186,15 @@ const InputRow: React.FC<{
   autoFilled?: boolean | undefined;
   accentColor?: string | undefined;
   showTick?: boolean | undefined;
+  inputRef?: React.RefObject<TextInput | null> | undefined;
+  onLayout?: ((e: LayoutChangeEvent) => void) | undefined;
+  innerRef?: (node: View | null) => void;
 }> = ({
   label, value, onChangeText, onBlur, placeholder,
   keyboardType = "default", maxLength, secureTextEntry = false,
   editable = true, autoCapitalize = "none",
   error, success, autoFilled = false, accentColor = T.navy, showTick = true,
+  inputRef, onLayout, innerRef,
 }) => {
   const [focused, setFocused] = useState(false);
 
@@ -203,13 +211,14 @@ const InputRow: React.FC<{
     : T.white;
 
   return (
-    <View style={inp.wrap}>
+    <View style={inp.wrap} onLayout={onLayout} ref={innerRef} collapsable={false}>
       {/* Screen 1 label: 11px 700 uppercase letterSpacing 0.8 textMid */}
       <Text style={inp.label}>
         {label} <Text style={[inp.asterisk, { color: accentColor }]}>*</Text>
       </Text>
       <View style={[inp.field, { borderColor, backgroundColor: bgColor }]}>
         <TextInput
+          ref={inputRef}
           style={[
             inp.input,
             !editable && { color: T.textSoft },
@@ -315,7 +324,25 @@ export default function SellerBanking() {
     typeof searchParams.businessCategory === "string" ? searchParams.businessCategory : "";
   const returnTo = typeof searchParams.returnTo === "string" ? searchParams.returnTo : "";
   const scrollViewRef = useRef<ScrollView>(null);
-  const { showError, SweetAlertHost } = useSweetAlert();
+  const scrollContentRef = useRef<View>(null);
+  const fieldViewRefs = useRef<Record<string, View | null>>({});
+  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
+
+  const registerFieldRef = useCallback(
+    (field: string) => (node: View | null) => {
+      fieldViewRefs.current[field] = node;
+    },
+    []
+  );
+
+  const fieldRefs = {
+    ifscCode: useRef<TextInput>(null),
+    accountHolderName: useRef<TextInput>(null),
+    accountNumber: useRef<TextInput>(null),
+    confirmAccountNumber: useRef<TextInput>(null),
+  };
+
+  const [fieldPositions, setFieldPositions] = useState<Record<string, number>>({});
 
   // ── State (100% unchanged) ──
   const [ifscCode,             setIfscCode]             = useState("");
@@ -324,7 +351,7 @@ export default function SellerBanking() {
   const [accountHolderName,    setAccountHolderName]    = useState("");
   const [accountNumber,        setAccountNumber]        = useState("");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
-  const [validationErrors,     setValidationErrors]     = useState<{ field: string; message: string }[]>([]);
+  const [validationErrors,     setValidationErrors]     = useState<ValidationError[]>([]);
   const [fieldValid, setFieldValid] = useState<Record<string, boolean>>({});
   const [fieldSuccess, setFieldSuccess] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -419,19 +446,63 @@ export default function SellerBanking() {
 
   const autoFilled = bankName.length > 0 && branchName.length > 0;
 
+  const handleFieldLayout = useCallback((fieldName: string, event: LayoutChangeEvent) => {
+    const { y } = event.nativeEvent.layout;
+    setFieldPositions(prev => ({ ...prev, [fieldName]: y }));
+  }, []);
+
+  const showValidationAlert = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    if (first.field === "confirmAccountNumber" && first.message === "Account numbers do not match") {
+      showError(
+        "Make sure your account number and confirmation match.",
+        "Account numbers do not match"
+      );
+      return;
+    }
+    showWarning(first.message, "Cannot continue");
+  }, [showError, showWarning]);
+
+  const scrollToField = useCallback((field: string) => {
+    const fieldNode = fieldViewRefs.current[field];
+    if (fieldNode) {
+      scrollToFormField(scrollViewRef, scrollContentRef, fieldNode);
+    } else {
+      const fieldY = fieldPositions[field];
+      if (fieldY != null) {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
+      }
+    }
+    if (field === "ifscCode") setTimeout(() => fieldRefs.ifscCode.current?.focus(), 350);
+    else if (field === "accountHolderName") setTimeout(() => fieldRefs.accountHolderName.current?.focus(), 350);
+    else if (field === "accountNumber") setTimeout(() => fieldRefs.accountNumber.current?.focus(), 350);
+    else if (field === "confirmAccountNumber") setTimeout(() => fieldRefs.confirmAccountNumber.current?.focus(), 350);
+  }, [fieldPositions, fieldRefs]);
+
+  const scrollToFirstError = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    scrollToField(first.field);
+  }, [scrollToField]);
+
   const handleNext = async () => {
-    const errors: { field: string; message: string }[] = [];
+    const errors: ValidationError[] = [];
     const ifscErr    = validateIfscCode(ifscCode);
     const accErr     = validateAccountNumber(accountNumber);
     const confirmErr = validateConfirmAccountNumber(confirmAccountNumber, accountNumber);
     const nameErr    = validateAccountHolderName(accountHolderName);
-    if (ifscErr)    errors.push({ field: "ifscCode",             message: ifscErr });
-    if (accErr)     errors.push({ field: "accountNumber",        message: accErr });
+    if (ifscErr) errors.push({ field: "ifscCode", message: ifscErr });
+    else if (!bankName.trim() || !branchName.trim()) {
+      errors.push({ field: "ifscCode", message: "Please enter a valid IFSC code to load bank details" });
+    }
+    if (nameErr) errors.push({ field: "accountHolderName", message: nameErr });
+    if (accErr) errors.push({ field: "accountNumber", message: accErr });
     if (confirmErr.error) errors.push({ field: "confirmAccountNumber", message: confirmErr.error });
-    if (nameErr)    errors.push({ field: "accountHolderName",    message: nameErr });
     if (errors.length > 0) {
       setValidationErrors(errors);
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      scrollToFirstError(errors);
+      showValidationAlert(errors);
       return;
     }
 
@@ -508,6 +579,7 @@ export default function SellerBanking() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View ref={scrollContentRef} collapsable={false}>
 
           {/* ── Bank Information card ── */}
           <SectionCard
@@ -534,6 +606,9 @@ export default function SellerBanking() {
               error={getError("ifscCode")}
               accentColor={T.orange}
               showTick={fieldValid.ifscCode ?? false}
+              inputRef={fieldRefs.ifscCode}
+              innerRef={registerFieldRef("ifscCode")}
+              onLayout={(e) => handleFieldLayout("ifscCode", e)}
             />
 
             {/* Divider between IFSC and auto-filled fields */}
@@ -595,6 +670,10 @@ export default function SellerBanking() {
               error={getError("accountHolderName")}
               accentColor={T.navy}
               showTick={false}
+              inputRef={fieldRefs.accountHolderName}
+              inputRef={fieldRefs.accountHolderName}
+              innerRef={registerFieldRef("accountHolderName")}
+              onLayout={(e) => handleFieldLayout("accountHolderName", e)}
             />
 
             {/* Account Number + Confirm: side-by-side on web, stacked on mobile */}
@@ -623,6 +702,10 @@ export default function SellerBanking() {
                   error={getError("accountNumber")}
                   accentColor={T.navy}
                   showTick={fieldValid.accountNumber ?? false}
+                  inputRef={fieldRefs.accountNumber}
+                  inputRef={fieldRefs.accountNumber}
+                  innerRef={registerFieldRef("accountNumber")}
+                  onLayout={(e) => handleFieldLayout("accountNumber", e)}
                 />
               </View>
               <View style={isWeb ? { flex: 1 } : {}}>
@@ -645,6 +728,10 @@ export default function SellerBanking() {
                   success={getSuccess("confirmAccountNumber")}
                   accentColor={T.navy}
                   showTick={fieldValid.confirmAccountNumber ?? false}
+                  inputRef={fieldRefs.confirmAccountNumber}
+                  inputRef={fieldRefs.confirmAccountNumber}
+                  innerRef={registerFieldRef("confirmAccountNumber")}
+                  onLayout={(e) => handleFieldLayout("confirmAccountNumber", e)}
                 />
               </View>
             </InputPairRow>
@@ -678,6 +765,7 @@ export default function SellerBanking() {
           </View>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <SweetAlertHost />

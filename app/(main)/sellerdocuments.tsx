@@ -47,6 +47,7 @@ import {
   uploadSellerDocument,
   type SellerDocumentField,
 } from "@/services/sellerProfileApi";
+import { scrollToFormField } from "@/lib/form/scrollToFormField";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -91,6 +92,8 @@ const validateCompanyPan = (pan: string): string => {
     return "Invalid format — Company PAN must be like AAAC A 1234 A (4th char must be C)";
   return "";
 };
+
+interface ValidationError { field: string; message: string; }
 
 // ─── WEB ONLY: Drag & Drop wrapper ───────────────────────────
 const WebDragWrapper: React.FC<{
@@ -531,13 +534,14 @@ const UploadBox: React.FC<{
   imageOnly?: boolean;
   onRetake?: () => void;
   onWebFileDrop?: (uri: string, fileType: "image" | "pdf") => void;
+  innerRef?: (node: View | null) => void;
 }> = ({
   value, fileType, onPress, onDelete, label, helper, error,
   iconName = "cloud-upload", accentColor = T.navy,
-  isSelfie = false, imageOnly = false, onRetake, onWebFileDrop,
+  isSelfie = false, imageOnly = false, onRetake, onWebFileDrop, innerRef,
 }) => {
   const boxContent = (
-    <View style={ub.wrap}>
+    <View style={ub.wrap} ref={innerRef} collapsable={false}>
       <AppText style={ub.label}>
         {label} <AppText style={[ub.asterisk, { color: accentColor }]}>*</AppText>
       </AppText>
@@ -681,10 +685,12 @@ const InputRow: React.FC<{
   maxLength?: number | undefined;
   error?: string | undefined;
   forceWhiteBg?: boolean;
-}> = ({ label, value, onChangeText, placeholder, iconName, accentColor = T.navy, maxLength, error, forceWhiteBg = false }) => {
+  inputRef?: React.RefObject<TextInput | null>;
+  innerRef?: (node: View | null) => void;
+}> = ({ label, value, onChangeText, placeholder, iconName, accentColor = T.navy, maxLength, error, forceWhiteBg = false, inputRef, innerRef }) => {
   const [focused, setFocused] = useState(false);
   return (
-    <View style={inp.wrap}>
+    <View style={inp.wrap} ref={innerRef} collapsable={false}>
       <AppText style={inp.label}>
         {label} <AppText style={[inp.asterisk, { color: accentColor }]}>*</AppText>
       </AppText>
@@ -693,6 +699,7 @@ const InputRow: React.FC<{
         backgroundColor: forceWhiteBg ? T.white : focused ? (accentColor === T.navy ? T.navyPale : T.orangePale) : T.white,
       }]}>
         <TextInput
+          ref={inputRef}
           style={inp.input}
           value={value}
           onChangeText={onChangeText}
@@ -735,9 +742,19 @@ const inp = StyleSheet.create({
 export default function SellerDocuments() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const fieldViewRefs = useRef<Record<string, View | null>>({});
   const { width } = useWindowDimensions();
-  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
+  const { showError, showSuccess, showWarning, SweetAlertHost } = useSweetAlert();
   const { setIsProfileCompleted } = useProfileStatus();
+  const companyPanRef = useRef<TextInput>(null);
+
+  const registerFieldRef = useCallback(
+    (field: string) => (node: View | null) => {
+      fieldViewRefs.current[field] = node;
+    },
+    []
+  );
 
   // True when running on web AND viewport is wide enough for 2-col layout
   const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
@@ -763,7 +780,7 @@ export default function SellerDocuments() {
   const [partnershipDeed, setPartnershipDeed] = useState<string | null>(null);
   const [msmeUdyamCertificate, setMsmeUdyamCertificate] = useState<string | null>(null);
   const [iecCertificate, setIecCertificate] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([]);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [success, setSuccess] = useState(false);
   const [submitStatusMessage, setSubmitStatusMessage] = useState("");
   const [submitStatusTitle, setSubmitStatusTitle] = useState("Verification in Progress");
@@ -890,6 +907,28 @@ export default function SellerDocuments() {
   const clearFieldError = (field: string) =>
     setValidationErrors(prev => prev.filter(e => e.field !== field));
 
+  const showValidationAlert = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    showWarning(first.message, "Cannot continue");
+  }, [showWarning]);
+
+  const scrollToField = useCallback((field: string) => {
+    const fieldNode = fieldViewRefs.current[field];
+    if (fieldNode) {
+      scrollToFormField(scrollViewRef, scrollContentRef, fieldNode);
+    }
+    if (field === "companyPanNumber") {
+      setTimeout(() => companyPanRef.current?.focus(), 350);
+    }
+  }, []);
+
+  const scrollToFirstError = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    scrollToField(first.field);
+  }, [scrollToField]);
+
   const getError = (field: string) =>
     validationErrors.find(e => e.field === field)?.message;
 
@@ -965,7 +1004,7 @@ export default function SellerDocuments() {
   };
 
   const validateDocuments = () => {
-    const errors: { field: string; message: string }[] = [];
+    const errors: ValidationError[] = [];
     if (!aadharFront) errors.push({ field: "aadharFront", message: "Aadhaar Card (Front) is required" });
     if (!aadharBack) errors.push({ field: "aadharBack", message: "Aadhaar Card (Back) is required" });
     if (!panCard) errors.push({ field: "panCard", message: "PAN Card is required" });
@@ -975,7 +1014,12 @@ export default function SellerDocuments() {
     if ((liveSelfies ?? []).length === 0) errors.push({ field: "liveSelfie", message: "Live Selfie is required" });
     if (!termsAccepted) errors.push({ field: "termsAccepted", message: "You must accept the Terms and Conditions" });
     if (businessCategory === "B2B") {
-      if (!companyPanNumber.trim()) errors.push({ field: "companyPanNumber", message: "Company PAN Number is required" });
+      if (!companyPanNumber.trim()) {
+        errors.push({ field: "companyPanNumber", message: "Company PAN Number is required" });
+      } else {
+        const panErr = validateCompanyPan(companyPanNumber);
+        if (panErr) errors.push({ field: "companyPanNumber", message: panErr });
+      }
       if (!companyPanDocument) errors.push({ field: "companyPanDocument", message: "Company PAN Document is required" });
       if (!certificateOfIncorporation) errors.push({ field: "certificateOfIncorporation", message: "Certificate of Incorporation is required" });
       if (!partnershipDeed) errors.push({ field: "partnershipDeed", message: "Partnership Deed is required" });
@@ -989,6 +1033,8 @@ export default function SellerDocuments() {
     const errors = validateDocuments();
     if (errors.length > 0) {
       setValidationErrors(errors);
+      scrollToFirstError(errors);
+      showValidationAlert(errors);
       return;
     }
     if (uploadingField) {
@@ -1089,6 +1135,7 @@ export default function SellerDocuments() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View ref={scrollContentRef} collapsable={false}>
 
           {/* ── B2B: Business Verification card ── */}
           {businessCategory === "B2B" && (
@@ -1121,6 +1168,8 @@ export default function SellerDocuments() {
                 maxLength={10}
                 error={companyPanNumber.length > 0 ? companyPanError : getError("companyPanNumber")}
                 forceWhiteBg
+                inputRef={companyPanRef}
+                innerRef={registerFieldRef("companyPanNumber")}
               />
 
               {/*
@@ -1133,7 +1182,8 @@ export default function SellerDocuments() {
                   onPress={() => pickDocument("companyPanDocument")}
                   onDelete={() => deleteDocument("companyPanDocument")}
                   onWebFileDrop={makeWebFileDrop("companyPanDocument")}
-                  error={getError("companyPanDocument")} accentColor={T.orange} />
+                  error={getError("companyPanDocument")} accentColor={T.orange}
+                  innerRef={registerFieldRef("companyPanDocument")} />
 
                 <UploadBox label="Certificate of Incorporation" value={certificateOfIncorporation}
                   helper="Pvt Ltd / LLP"
@@ -1141,7 +1191,8 @@ export default function SellerDocuments() {
                   onPress={() => pickDocument("certificateOfIncorporation")}
                   onDelete={() => deleteDocument("certificateOfIncorporation")}
                   onWebFileDrop={makeWebFileDrop("certificateOfIncorporation")}
-                  error={getError("certificateOfIncorporation")} accentColor={T.orange} />
+                  error={getError("certificateOfIncorporation")} accentColor={T.orange}
+                  innerRef={registerFieldRef("certificateOfIncorporation")} />
 
                 <UploadBox label="Partnership Deed" value={partnershipDeed}
                   helper="For partnership firms"
@@ -1149,7 +1200,8 @@ export default function SellerDocuments() {
                   onPress={() => pickDocument("partnershipDeed")}
                   onDelete={() => deleteDocument("partnershipDeed")}
                   onWebFileDrop={makeWebFileDrop("partnershipDeed")}
-                  error={getError("partnershipDeed")} accentColor={T.orange} />
+                  error={getError("partnershipDeed")} accentColor={T.orange}
+                  innerRef={registerFieldRef("partnershipDeed")} />
 
                 <UploadBox label="MSME / Udyam Certificate" value={msmeUdyamCertificate}
                   helper="If registered under MSME"
@@ -1157,7 +1209,8 @@ export default function SellerDocuments() {
                   onPress={() => pickDocument("msmeUdyamCertificate")}
                   onDelete={() => deleteDocument("msmeUdyamCertificate")}
                   onWebFileDrop={makeWebFileDrop("msmeUdyamCertificate")}
-                  error={getError("msmeUdyamCertificate")} accentColor={T.orange} />
+                  error={getError("msmeUdyamCertificate")} accentColor={T.orange}
+                  innerRef={registerFieldRef("msmeUdyamCertificate")} />
 
                 <UploadBox label="Import Export Code (IEC)" value={iecCertificate}
                   helper="For import/export businesses"
@@ -1165,7 +1218,8 @@ export default function SellerDocuments() {
                   onPress={() => pickDocument("iecCertificate")}
                   onDelete={() => deleteDocument("iecCertificate")}
                   onWebFileDrop={makeWebFileDrop("iecCertificate")}
-                  error={getError("iecCertificate")} accentColor={T.orange} />
+                  error={getError("iecCertificate")} accentColor={T.orange}
+                  innerRef={registerFieldRef("iecCertificate")} />
               </TwoColRow>
             </SectionCard>
           )}
@@ -1195,21 +1249,24 @@ export default function SellerDocuments() {
                 onPress={() => pickDocument("aadharFront")}
                 onDelete={() => deleteDocument("aadharFront")}
                 onWebFileDrop={makeWebFileDrop("aadharFront")}
-                error={getError("aadharFront")} accentColor={T.navy} />
+                error={getError("aadharFront")} accentColor={T.navy}
+                innerRef={registerFieldRef("aadharFront")} />
 
               <UploadBox label="Aadhaar Card (Back)" value={aadharBack}
                 fileType={fileTypes["aadharBack"] ?? null}
                 onPress={() => pickDocument("aadharBack")}
                 onDelete={() => deleteDocument("aadharBack")}
                 onWebFileDrop={makeWebFileDrop("aadharBack")}
-                error={getError("aadharBack")} accentColor={T.navy} />
+                error={getError("aadharBack")} accentColor={T.navy}
+                innerRef={registerFieldRef("aadharBack")} />
 
               <UploadBox label="PAN Card" value={panCard}
                 fileType={fileTypes["panCard"] ?? null}
                 onPress={() => pickDocument("panCard")}
                 onDelete={() => deleteDocument("panCard")}
                 onWebFileDrop={makeWebFileDrop("panCard")}
-                error={getError("panCard")} accentColor={T.navy} />
+                error={getError("panCard")} accentColor={T.navy}
+                innerRef={registerFieldRef("panCard")} />
 
               <UploadBox label="Business Proof" value={businessProof}
                 helper="Shop License / Registration Certificate / GST Certificate"
@@ -1217,7 +1274,8 @@ export default function SellerDocuments() {
                 onPress={() => pickDocument("businessProof")}
                 onDelete={() => deleteDocument("businessProof")}
                 onWebFileDrop={makeWebFileDrop("businessProof")}
-                error={getError("businessProof")} accentColor={T.navy} />
+                error={getError("businessProof")} accentColor={T.navy}
+                innerRef={registerFieldRef("businessProof")} />
 
               <UploadBox label="Bank Account Proof" value={bankAccountProof}
                 helper="Bank Statement / Passbook"
@@ -1225,7 +1283,8 @@ export default function SellerDocuments() {
                 onPress={() => pickDocument("bankAccountProof")}
                 onDelete={() => deleteDocument("bankAccountProof")}
                 onWebFileDrop={makeWebFileDrop("bankAccountProof")}
-                error={getError("bankAccountProof")} accentColor={T.navy} />
+                error={getError("bankAccountProof")} accentColor={T.navy}
+                innerRef={registerFieldRef("bankAccountProof")} />
 
               <UploadBox label="Cancelled Cheque" value={cancelledCheque}
                 helper="Upload a clear image of your cancelled cheque"
@@ -1233,7 +1292,8 @@ export default function SellerDocuments() {
                 onPress={() => pickDocument("cancelledCheque")}
                 onDelete={() => deleteDocument("cancelledCheque")}
                 onWebFileDrop={makeWebFileDrop("cancelledCheque")}
-                error={getError("cancelledCheque")} accentColor={T.navy} />
+                error={getError("cancelledCheque")} accentColor={T.navy}
+                innerRef={registerFieldRef("cancelledCheque")} />
             </TwoColRow>
 
             {/* Important note — full width on both platforms */}
@@ -1248,7 +1308,7 @@ export default function SellerDocuments() {
             </View>
 
             {/* Live Selfie section — full width on both platforms */}
-            <View style={s.selfieSection}>
+            <View style={s.selfieSection} ref={registerFieldRef("liveSelfie")} collapsable={false}>
               <AppText style={s.selfieFieldLabel}>
                 Live Selfie <AppText style={{ color: T.navy }}>*</AppText>
               </AppText>
@@ -1371,6 +1431,7 @@ export default function SellerDocuments() {
               iconName="lock"
               color={T.orange}
             />
+            <View ref={registerFieldRef("termsAccepted")} collapsable={false}>
             <TouchableOpacity
               style={[s.checkboxRow, termsAccepted && s.checkboxRowChecked]}
               onPress={() => { const newVal = !termsAccepted; setTermsAccepted(newVal); if (newVal) clearFieldError("termsAccepted"); }}
@@ -1412,6 +1473,7 @@ export default function SellerDocuments() {
                 <AppText style={s.termsErrorText}>{getError("termsAccepted")}</AppText>
               </View>
             )}
+            </View>
           </SectionCard>
 
           {/* ── Buttons ── */}
@@ -1436,6 +1498,7 @@ export default function SellerDocuments() {
           </View>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 

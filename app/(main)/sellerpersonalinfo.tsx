@@ -33,6 +33,7 @@ import {
   resolveDocumentDisplayUrl,
   uploadProfilePhoto,
 } from "@/services/sellerProfileApi";
+import { scrollToFormField } from "@/lib/form/scrollToFormField";
 import {
   CREAM, PRIMARY, PRIMARY_D, PRIMARY_L, TEXT, TEXT_SEC,
   INPUT_BG, SUCCESS, ERROR, SPACING, BORDER_RADIUS,
@@ -153,9 +154,11 @@ const scard = StyleSheet.create({
 export default function SellerPersonalInfo() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const fieldViewRefs = useRef<Record<string, View | null>>({});
   const routerParams = useLocalSearchParams();
   const { width } = useWindowDimensions();
-  const { showError, showSuccess, SweetAlertHost } = useSweetAlert();
+  const { showError, showSuccess, showWarning, SweetAlertHost } = useSweetAlert();
 
   // True when running on web AND viewport is wide enough for 2-col layout
   const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
@@ -168,6 +171,27 @@ export default function SellerPersonalInfo() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [fieldPositions, setFieldPositions] = useState<Record<string, number>>({});
+
+  const registerFieldRef = useCallback(
+    (field: string) => (node: View | null) => {
+      fieldViewRefs.current[field] = node;
+    },
+    []
+  );
+
+  const scrollToField = useCallback((field: string) => {
+    const fieldNode = fieldViewRefs.current[field];
+    if (fieldNode) {
+      scrollToFormField(scrollViewRef, scrollContentRef, fieldNode);
+    } else {
+      const fieldY = fieldPositions[field];
+      if (fieldY !== undefined) {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, fieldY - 100), animated: true });
+      } else if (field === "photo") {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }
+    }
+  }, [fieldPositions]);
 
   // Auto-fill from signup params
   useEffect(() => {
@@ -267,7 +291,49 @@ export default function SellerPersonalInfo() {
     }
   };
 
+  const showValidationAlert = useCallback((errors: ValidationError[]) => {
+    const first = errors[0];
+    if (!first) return;
+    showWarning(first.message, "Cannot continue");
+  }, [showWarning]);
+
+  const collectValidationErrors = useCallback((): ValidationError[] => {
+    const errors: ValidationError[] = [];
+    if (!image) {
+      errors.push({ field: "photo", message: "Please upload a profile photo" });
+    }
+    if (!name.trim()) {
+      errors.push({ field: "name", message: "Full name is required" });
+    }
+    if (!mobile.trim()) {
+      errors.push({ field: "mobile", message: "Mobile number is required" });
+    } else if (!validateMobile(mobile)) {
+      errors.push({
+        field: "mobile",
+        message: getMobileError(mobile) || "Enter a valid 10-digit mobile number",
+      });
+    }
+    if (!email.trim()) {
+      errors.push({ field: "email", message: "Email address is required" });
+    } else if (!validateEmail(email)) {
+      errors.push({
+        field: "email",
+        message: getEmailError(email) || "Enter a valid email address",
+      });
+    }
+    return errors;
+  }, [image, name, mobile, email]);
+
   const handleNext = async () => {
+    const errors = collectValidationErrors();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      const first = errors[0]!;
+      scrollToField(first.field);
+      showValidationAlert(errors);
+      return;
+    }
+
     setIsLoading(true);
     try {
       await hydrateSellerSession();
@@ -337,15 +403,8 @@ export default function SellerPersonalInfo() {
       >
         <SafeAreaView>
           <View style={s.headerInner}>
-            {/* <TouchableOpacity 
-              style={s.backBtnHeader} 
-              onPress={() => router.back()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name="arrow-left" size={20} color={T.white} />
-            </TouchableOpacity> */}
-                <View style={{ flex: 1 }}>
-                <AppText style={s.headerLabel}>STEP 1 OF 5</AppText>
+            <View style={{ flex: 1 }}>
+              <AppText style={s.headerLabel}>STEP 1 OF 5</AppText>
               <AppText style={s.headerTitle}>Personal Profile</AppText>
               <AppText style={s.headerSub}>Set up your seller identity</AppText>
             </View>
@@ -376,8 +435,10 @@ export default function SellerPersonalInfo() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View ref={scrollContentRef} collapsable={false}>
 
           {/* ── Profile photo card ── */}
+          <View ref={registerFieldRef("photo")} collapsable={false}>
           <SectionCard
             title="Profile Photo"
             subtitle="Upload a clear photo helps buyers recognise you"
@@ -415,6 +476,7 @@ export default function SellerPersonalInfo() {
               </View>
             </View>
           </SectionCard>
+          </View>
 
           {/* ── Personal information card ── */}
           <SectionCard
@@ -461,22 +523,32 @@ export default function SellerPersonalInfo() {
             </LinearGradient>
           </View>
 
-          {/* ── Continue button ── */}
-          <TouchableOpacity
-            onPress={handleNext}
-            style={s.continueBtn}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[T.orange, T.orangeDeep]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={s.continueBtnInner}
+          {/* ── Bottom buttons ── */}
+          <View style={s.bottomBtnRow}>
+            <TouchableOpacity
+              onPress={() => router.push("/(main)/dashboard")}
+              style={s.backBtnBottom}
+              activeOpacity={0.85}
             >
-              <AppText style={s.continueBtnText}>{isLoading ? "Please wait…" : "Continue"}</AppText>
-            </LinearGradient>
-          </TouchableOpacity>
+              <AppText style={s.backBtnText}>Back</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleNext}
+              style={s.continueBtn}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={[T.orange, T.orangeDeep]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={s.continueBtnInner}
+              >
+                <AppText style={s.continueBtnText}>{isLoading ? "Please wait…" : "Continue"}</AppText>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <SweetAlertHost />
@@ -501,16 +573,8 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
 
   // ── Header ──
-  topHeader:    { paddingHorizontal: 20, height: 200},
- headerInner: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },  // backBtnHeader: {
-  //   width: 30,
-  //   height: 30,
-    // borderRadius: 20,
-    // backgroundColor: "rgba(255,255,255,0.15)",
-  //   alignItems: "center",
-  //   justifyContent: "center",
-  //   marginTop: 18,
-  // },
+  topHeader:    { paddingHorizontal: 20, height: 200 },
+  headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   headerLabel:  { fontSize: 10, fontFamily: fontFamilies.bold, color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
   headerTitle:  { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
   headerSub:    { fontSize: 12, color: "rgba(255,255,255,0.65)" },
@@ -563,8 +627,20 @@ const s = StyleSheet.create({
   nextDot:       { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   nextLabel:     { flex: 1, fontSize: 13, color: "rgba(255,255,255,0.8)", fontFamily: fontFamilies.medium },
 
-  // ── Continue button ──
-  continueBtn:       { borderRadius: 14, overflow: "hidden", marginBottom: 4 },
-  continueBtnInner:  { height: 54, alignItems: "center", justifyContent: "center" },
-  continueBtnText:   { fontSize: 16, fontFamily: fontFamilies.bold, color: T.white, letterSpacing: 0.2 },
+  // ── Bottom buttons ──
+  bottomBtnRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 4 },
+  backBtnBottom:     {
+    height: 42,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: T.navy,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.cardBg,
+  },
+  backBtnText:       { fontSize: 14, fontFamily: fontFamilies.bold, color: T.navy },
+  continueBtn:       { borderRadius: 10, overflow: "hidden" },
+  continueBtnInner:  { height: 42, paddingHorizontal: 28, alignItems: "center", justifyContent: "center" },
+  continueBtnText:   { fontSize: 14, fontFamily: fontFamilies.bold, color: T.white, letterSpacing: 0.2 },
 });

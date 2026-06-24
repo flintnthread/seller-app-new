@@ -39,6 +39,7 @@ import {
   verifyRegistrationOtp,
 } from "@/services/authApi";
 import { ApiError } from "@/lib/api/client";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 // ─── Suppress browser focus outline globally (web only) ───────────────────────
 if (Platform.OS === "web" && typeof document !== "undefined") {
@@ -55,6 +56,11 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
   document.head.appendChild(style);
 }
 // ─── Design Tokens ────────────────────────────────────────────────────────────
+
+const OTP_RESEND_SECONDS = 120;
+
+const isOtpExpiredMessage = (message: string) =>
+  /expired|timeout|no otp found|request a new otp/i.test(message);
 
 const C = {
   navy: "#1E3A6E",
@@ -581,7 +587,9 @@ const SellerSignUpScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const { setIsProfileCompleted } = useProfileStatus();
+  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
   const scrollViewRef = useRef<ScrollView>(null);
+  const otpSentAtRef = useRef<number | null>(null);
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(isDesktop ? 20 : 0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
@@ -742,6 +750,90 @@ const SellerSignUpScreen: React.FC = () => {
     }
   }, [validations, fieldRefs, fieldPositions]);
 
+  const collectSignUpValidationErrors = useCallback((): ValidationError[] => {
+    const errors: ValidationError[] = [];
+
+    if (!fullName.trim()) {
+      errors.push({ field: "fullName", message: "Full name is required" });
+    }
+
+    if (!mobile.trim()) {
+      errors.push({ field: "mobile", message: "Mobile number is required" });
+    } else if (!validateMobile(mobile)) {
+      const mobileErr = getMobileError(mobile);
+      errors.push({
+        field: "mobile",
+        message: mobileErr || "Enter a valid 10-digit mobile number",
+      });
+    } else if (!otpVerified) {
+      errors.push({
+        field: "mobile",
+        message: "Please verify your mobile number with OTP before signing up.",
+      });
+    }
+
+    if (!otpVerified) {
+      // Skip email/password checks until mobile is verified — mobile error above is enough.
+    } else {
+      if (!email.trim()) {
+        errors.push({ field: "email", message: "Email address is required" });
+      } else if (!validateEmail(email)) {
+        const emailErr = getEmailError(email);
+        errors.push({
+          field: "email",
+          message: emailErr || "Enter a valid email address",
+        });
+      }
+
+      if (!password) {
+        errors.push({ field: "password", message: "Password is required" });
+      } else if (!validatePassword(password)) {
+        const pwdErr = getPasswordError(password);
+        errors.push({
+          field: "password",
+          message: pwdErr || "Password does not meet requirements",
+        });
+      }
+
+      if (!confirmPassword) {
+        errors.push({
+          field: "confirmPassword",
+          message: "Please confirm your password",
+        });
+      } else if (password !== confirmPassword) {
+        errors.push({
+          field: "confirmPassword",
+          message: "Passwords do not match",
+        });
+      }
+
+      if (!agreed) {
+        errors.push({
+          field: "terms",
+          message: "Please accept Terms & Conditions",
+        });
+      }
+    }
+
+    return errors;
+  }, [fullName, mobile, otpVerified, email, password, confirmPassword, agreed]);
+
+  const showSignUpValidationAlert = useCallback(
+    (errors: ValidationError[]) => {
+      const first = errors[0];
+      if (!first) return;
+      if (first.message === "Passwords do not match") {
+        showError(
+          "Make sure your password and confirm password are the same.",
+          "Passwords do not match"
+        );
+        return;
+      }
+      showWarning(first.message, "Cannot sign up");
+    },
+    [showError, showWarning]
+  );
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const redirectToLoginForExistingAccount = useCallback(
@@ -788,7 +880,8 @@ const SellerSignUpScreen: React.FC = () => {
       setOtpVerified(false);
       setMobileVerificationToken("");
       setOtp("");
-      setOtpTimer(60);
+      otpSentAtRef.current = Date.now();
+      setOtpTimer(OTP_RESEND_SECONDS);
       setIsTimerActive(true);
 
       showMessage({
@@ -828,6 +921,18 @@ const SellerSignUpScreen: React.FC = () => {
       return;
     }
 
+    const otpExpired =
+      otpSentAtRef.current != null &&
+      Date.now() - otpSentAtRef.current > OTP_RESEND_SECONDS * 1000;
+    if (otpExpired) {
+      showWarning(
+        "This OTP is no longer valid. Please tap Resend OTP to get a new code.",
+        "OTP expired"
+      );
+      fieldRefs.otp.current?.focus();
+      return;
+    }
+
     setVerifyingOtp(true);
     try {
       const result = await verifyRegistrationOtp(mobile, otp);
@@ -840,53 +945,37 @@ const SellerSignUpScreen: React.FC = () => {
         ...toastConfig,
       });
     } catch (err) {
-      showMessage({
-        message: err instanceof ApiError ? err.message : "Wrong OTP",
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
+      const message = err instanceof ApiError ? err.message : "Invalid OTP. Please try again.";
+      if (isOtpExpiredMessage(message)) {
+        showWarning(message, "OTP expired");
+      } else {
+        showError(message, "Invalid OTP");
+      }
       fieldRefs.otp.current?.focus();
     } finally {
       setVerifyingOtp(false);
     }
-  }, [otp, mobile]);
+  }, [otp, mobile, showError, showWarning]);
 
   const handleSignUp = useCallback(async () => {
-    const errors: ValidationError[] = [];
-
-    if (!validations.fullName) {
-      errors.push({ field: 'fullName', message: 'Full name is required' });
-    }
-    if (!validations.otpVerified) {
-      errors.push({ field: 'mobile', message: 'Mobile number verification required' });
-    }
-    if (!validations.email) {
-      errors.push({ field: 'email', message: 'Enter valid email' });
-    }
-    if (!validations.password) {
-      errors.push({ field: 'password', message: 'Password is required' });
-    }
-    if (password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword) {
-      errors.push({ field: 'confirmPassword', message: 'Passwords do not match' });
-    }
-    if (!validations.agreed) {
-      errors.push({ field: 'terms', message: 'Please accept Terms & Conditions' });
-    }
+    const errors = collectSignUpValidationErrors();
 
     if (errors.length > 0) {
-      setValidationErrors(errors);
+      const inlineErrors = errors.filter(
+        (e) => !(e.field === "confirmPassword" && e.message === "Passwords do not match")
+      );
+      setValidationErrors(inlineErrors);
       scrollToFirstError();
+      showSignUpValidationAlert(errors);
       return;
     }
 
     if (!mobileVerificationToken) {
-      showMessage({
-        message: "Please verify your mobile number first",
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
+      showWarning(
+        "Please verify your mobile number with OTP before signing up.",
+        "Mobile not verified"
+      );
+      scrollToFirstError();
       return;
     }
 
@@ -946,22 +1035,22 @@ const SellerSignUpScreen: React.FC = () => {
     }
 
   }, [
-    validations,
-    password,
-    confirmPassword,
-    agreed,
+    collectSignUpValidationErrors,
+    showSignUpValidationAlert,
+    showWarning,
     scrollToFirstError,
     router,
     fullName,
     mobile,
     email,
+    password,
+    confirmPassword,
     mobileVerificationToken,
     redirectToLoginForExistingAccount,
   ]);
 
   const pwdMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
   const pwdMismatch = password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword;
-
   const wrapField = (index: number, node: React.ReactNode) =>
     isDesktop ? (
       <AnimatedFormBlock index={index} enabled={isDesktop}>
@@ -1041,6 +1130,7 @@ const SellerSignUpScreen: React.FC = () => {
                 setOtpVerified(false);
                 setMobileVerificationToken("");
                 setOtp("");
+                otpSentAtRef.current = null;
                 setIsTimerActive(false);
                 setOtpTimer(0);
               }
@@ -1220,25 +1310,7 @@ const SellerSignUpScreen: React.FC = () => {
           />
         )}
 
-        {otpVerified && password.length > 0 &&
-          wrapField(
-            7,
-            <View style={styles.passwordRequirementsContainer}>
-              {getPasswordRequirements(password).map((requirement, index) => (
-                <AppText
-                  key={index}
-                  style={[
-                    styles.passwordRequirement,
-                    requirement.met
-                      ? styles.passwordRequirementMet
-                      : styles.passwordRequirementUnmet,
-                  ]}
-                >
-                  {requirement.met ? "✓" : "•"} {requirement.text}
-                </AppText>
-              ))}
-            </View>
-          )}
+       
 
         {otpVerified && wrapField(
           8,
@@ -1267,13 +1339,14 @@ const SellerSignUpScreen: React.FC = () => {
           />
         )}
 
-        {otpVerified && (pwdMatch || pwdMismatch) &&
+{otpVerified && (pwdMatch || pwdMismatch) &&
           wrapField(
             9,
             <AppText
-              style={[styles.matchHint, pwdMatch ? styles.matchOk : styles.matchErr]}
-            >
-              {pwdMatch ? "✓ Passwords match" : "✗ Passwords do not match"}
+            style={[styles.matchHint, pwdMatch ? styles.matchOk : styles.matchErr]}
+          >
+            {pwdMatch ? "✓ Passwords match" : "✗ Passwords do not match"}
+         
             </AppText>
           )}
 
@@ -1369,6 +1442,7 @@ const SellerSignUpScreen: React.FC = () => {
   );
 
   return (
+    <>
     <View style={styles.container}>
       {isDesktop ? (
         <LinearGradient
@@ -1467,6 +1541,8 @@ const SellerSignUpScreen: React.FC = () => {
         )}
       </View>
     </View>
+    <SweetAlertHost />
+    </>
   );
 };
 
