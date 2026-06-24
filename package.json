@@ -3,11 +3,12 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --offline --clear",
+    "start:fresh": "npx --yes kill-port 8081 8082 && expo start --offline --clear",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "android": "expo start --android --offline --clear",
+    "ios": "expo start --ios --offline --clear",
+    "web": "expo start --offline --clear",
     "lint": "expo lint"
   },
   "dependencies": {

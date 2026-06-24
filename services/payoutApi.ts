@@ -1,4 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
+import { ensureAccessToken, ensureSellerId } from "@/lib/api/sellerSession";
+import { resolveApiBaseUrl } from "@/lib/api/config";
 
 export type SellerBankDetails = {
   sellerId: number;
@@ -85,4 +87,31 @@ export async function submitPayoutRequest(payload: {
 
 export async function fetchMyPayoutRequests(): Promise<SellerPayoutRequestRow[]> {
   return apiRequest<SellerPayoutRequestRow[]>("/api/payout/requests");
+}
+
+export async function exportPayoutTransactionsCsv(): Promise<string> {
+  const sellerId = ensureSellerId();
+  const accessToken = ensureAccessToken();
+  if (!sellerId || !accessToken) {
+    throw new Error("Seller not logged in.");
+  }
+  const baseUrl = resolveApiBaseUrl();
+  const res = await fetch(`${baseUrl}/api/payout/requests/export`, {
+    headers: {
+      Accept: "text/csv",
+      Authorization: `Bearer ${accessToken}`,
+      "X-Seller-Id": String(sellerId),
+    },
+  });
+  if (!res.ok) {
+    let message = `Export failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.message) message = body.message;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+  return res.text();
 }

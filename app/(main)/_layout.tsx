@@ -78,6 +78,8 @@ function MobileMainLayout() {
       <Tabs.Screen name="helpsupport" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="earning" options={{ href: null }} />
+      <Tabs.Screen name="earningsScreen" options={{ href: null }} />
+      <Tabs.Screen name="totalsales" options={{ href: null }} />
       <Tabs.Screen name="sellerpersonalinfo" options={{ href: null }} />
       <Tabs.Screen name="sellerbusinessinfo" options={{ href: null }} />
       <Tabs.Screen name="selleraddressinfo" options={{ href: null }} />

@@ -9,13 +9,17 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
-import { fetchEarnings } from "@/services/earningsApi";
+import { fetchPayoutSummary, fetchMyPayoutRequests, type SellerPayoutRequestRow } from "@/services/payoutApi";
+import { fetchAnalyticsSales } from "@/services/earningsApi";
 
 const EarningsScreen = () => {
+  const router = useRouter();
   const [filter, setFilter] = useState<"today" | "month">("month");
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<SellerPayoutRequestRow[]>([]);
 
   const [data, setData] = useState({
     totalRevenue: 0,
@@ -27,46 +31,44 @@ const EarningsScreen = () => {
 
   const load = useCallback(async () => {
     try {
-      const earnings = await fetchEarnings();
-      const credits = Number(earnings.totalCredits ?? 0);
-      const debits = Number(earnings.totalDebits ?? 0);
-      const available = Number(earnings.availableBalance ?? 0);
+      const [summary, payoutRequests, sales] = await Promise.all([
+        fetchPayoutSummary(),
+        fetchMyPayoutRequests(),
+        fetchAnalyticsSales(filter === "today" ? "day" : "month").catch(() => null),
+      ]);
 
       const now = new Date();
-      const isToday = (dateStr: string) => {
-        const d = new Date(dateStr);
-        return (
-          d.getDate() === now.getDate() &&
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear()
-        );
-      };
-      const isThisMonth = (dateStr: string) => {
-        const d = new Date(dateStr);
+      const inRange = (iso?: string) => {
+        if (!iso) return false;
+        const d = new Date(iso);
+        if (filter === "today") {
+          return (
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+        }
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       };
 
-      const filtered = earnings.transactions.filter((t) => {
-        if (filter === "today") return isToday(t.date);
-        return isThisMonth(t.date);
-      });
+      const filtered = payoutRequests.filter((row) => inRange(row.requestedAt));
+      const pendingPayout = payoutRequests
+        .filter((row) => row.status === "pending" || row.status === "approved")
+        .reduce((sum, row) => sum + Number(row.requestedAmount ?? 0), 0);
+      const completedPayout = payoutRequests
+        .filter((row) => row.status === "paid")
+        .reduce((sum, row) => sum + Number(row.requestedAmount ?? 0), 0);
 
-      const currentRevenue = filtered
-        .filter((t) => t.type === "credit")
-        .reduce((sum, t) => sum + Math.abs(Number(String(t.amount).replace(/[^\d.]/g, "")) || 0), 0);
-
-      const pendingPayout = earnings.transactions
-        .filter((t) => t.type === "debit" && t.status.toLowerCase() === "pending")
-        .reduce((sum, t) => sum + Math.abs(Number(String(t.amount).replace(/[^\d.]/g, "")) || 0), 0);
-
+      setTransactions(filtered);
       setData({
-        totalRevenue: credits,
-        currentRevenue,
+        totalRevenue: Number(summary.lifetimeEarnings ?? 0),
+        currentRevenue: Number(sales?.totalSales ?? summary.thisMonthEarnings ?? 0),
         pendingPayout,
-        completedPayout: debits,
-        available,
+        completedPayout,
+        available: Number(summary.pendingAmount ?? 0),
       });
     } catch {
+      setTransactions([]);
       setData({
         totalRevenue: 0,
         currentRevenue: 0,
@@ -91,6 +93,14 @@ const EarningsScreen = () => {
 
   const formatCurrency = (num: number) => `₹${num.toLocaleString("en-IN")}`;
 
+  const statusColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === "paid") return "#22c55e";
+    if (s === "pending" || s === "approved") return "#eab308";
+    if (s === "rejected" || s === "cancelled") return "#ef4444";
+    return "#6b7280";
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: "#f4f6fb", justifyContent: "center", alignItems: "center" }}>
@@ -101,7 +111,7 @@ const EarningsScreen = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f6fb" }}>
-      <AppHeader title="Earnings" subtitle="Track your sales performance 💰" showBackButton />
+      <AppHeader title="Transaction History" subtitle="Payout requests & settlements" showBackButton />
       <ScrollView
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -133,7 +143,7 @@ const EarningsScreen = () => {
           </View>
           <View style={styles.smallCard}>
             <Ionicons name="wallet" size={22} color="#f97316" />
-            <Text style={styles.smallLabel}>Total Credits</Text>
+            <Text style={styles.smallLabel}>Lifetime Earnings</Text>
             <Text style={styles.smallValue}>{formatCurrency(data.totalRevenue)}</Text>
           </View>
         </View>
@@ -150,6 +160,37 @@ const EarningsScreen = () => {
             <Text style={styles.smallValue}>{formatCurrency(data.completedPayout)}</Text>
           </View>
         </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          <TouchableOpacity onPress={() => router.push("/(main)/earning")}>
+            <Text style={styles.linkText}>Earnings Overview</Text>
+          </TouchableOpacity>
+        </View>
+
+        {transactions.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Ionicons name="receipt-outline" size={28} color="#9ca3af" />
+            <Text style={styles.emptyText}>No transactions in this period.</Text>
+          </View>
+        ) : (
+          transactions.map((row) => (
+            <View key={String(row.id)} style={styles.txnRow}>
+              <View>
+                <Text style={styles.txnTitle}>ORD{row.orderId}</Text>
+                <Text style={styles.txnDate}>
+                  {row.requestedAt ? new Date(row.requestedAt).toLocaleDateString("en-IN") : "—"}
+                </Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.txnAmount}>{formatCurrency(Number(row.requestedAmount ?? 0))}</Text>
+                <Text style={[styles.txnStatus, { color: statusColor(row.status) }]}>
+                  {row.status.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -189,6 +230,30 @@ const styles = StyleSheet.create({
   },
   smallLabel: { fontSize: 12, color: "#6b7280", marginTop: 6 },
   smallValue: { fontSize: 16, fontWeight: "700", color: "#111827", marginTop: 2 },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  linkText: { fontSize: 13, fontWeight: "600", color: "#f97316" },
+  txnRow: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  txnTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  txnDate: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  txnAmount: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  txnStatus: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+  emptyBox: { alignItems: "center", paddingVertical: 28, gap: 8 },
+  emptyText: { color: "#6b7280", fontSize: 14 },
 });
 
 export default EarningsScreen;

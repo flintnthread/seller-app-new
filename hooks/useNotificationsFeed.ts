@@ -5,6 +5,7 @@ import {
   markNotificationRead,
   type SellerNotificationItem,
 } from "@/services/notificationApi";
+import { fetchSellerSettings, DEFAULT_SETTINGS, type SellerSettings } from "@/services/settingsApi";
 
 export type AppNotification = {
   id: string;
@@ -29,6 +30,22 @@ function mapNotification(n: SellerNotificationItem): AppNotification {
   };
 }
 
+function filterByPreferences(
+  rows: AppNotification[],
+  prefs: SellerSettings
+) {
+  if (!prefs.pushNotifications) return [];
+  return rows.filter((n) => {
+    if (!prefs.orderUpdates && (n.type === "new_order" || n.type === "order_cancelled")) {
+      return false;
+    }
+    if (!prefs.payoutAlerts && n.type === "payment") {
+      return false;
+    }
+    return true;
+  });
+}
+
 export function useNotificationsFeed() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,8 +53,11 @@ export function useNotificationsFeed() {
   const reload = async () => {
     setLoading(true);
     try {
-      const rows = await fetchNotifications();
-      setNotifications(rows.map(mapNotification));
+      const [rows, settings] = await Promise.all([
+        fetchNotifications(),
+        fetchSellerSettings().catch(() => DEFAULT_SETTINGS),
+      ]);
+      setNotifications(filterByPreferences(rows.map(mapNotification), settings));
     } catch {
       setNotifications([]);
     } finally {

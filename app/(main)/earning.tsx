@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -24,7 +25,7 @@ import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useEarningsData } from "@/hooks/useEarningsData";
 import { fetchAnalyticsOverview, fetchAnalyticsSales, requestPayout } from "@/services/earningsApi";
-import { fetchPayoutSummary, type PayoutSummary } from "@/services/payoutApi";
+import { fetchPayoutSummary, exportPayoutTransactionsCsv, type PayoutSummary } from "@/services/payoutApi";
 
 interface Transaction {
   id: string;
@@ -65,8 +66,11 @@ export default function EarningsScreen() {
   const [withdrawError, setWithdrawError] = useState("");
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawSuccessMessage, setWithdrawSuccessMessage] = useState("");
+  const [filterRevenue, setFilterRevenue] = useState("₹0");
+  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
 
-  const availableBalance = earningsData?.availableBalance ?? 0;
+  const availableBalance = payoutSummary?.pendingAmount ?? earningsData?.availableBalance ?? 0;
   const bankAccount = earningsData?.bankAccount;
   const bankName = bankAccount?.bankName?.trim() || "Linked bank account";
   const bankMasked = bankAccount?.accountNumberMasked?.trim() || "—";
@@ -129,10 +133,6 @@ export default function EarningsScreen() {
     []
   );
 
-  const [filterRevenue, setFilterRevenue] = useState("₹0");
-  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
-  const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
-
   useEffect(() => {
     fetchPayoutSummary().then(setPayoutSummary).catch(() => setPayoutSummary(null));
     fetchAnalyticsOverview("month").then((row) => setAvgOrderValue(row.aov ?? null)).catch(() => setAvgOrderValue(null));
@@ -153,7 +153,10 @@ export default function EarningsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    reload().finally(() => setRefreshing(false));
+    Promise.all([
+      reload(),
+      fetchPayoutSummary().then(setPayoutSummary).catch(() => setPayoutSummary(null)),
+    ]).finally(() => setRefreshing(false));
   };
 
   const renderTransaction = ({ item }: { item: Transaction }) => (
@@ -473,9 +476,27 @@ export default function EarningsScreen() {
 
             <TouchableOpacity 
               style={styles.mainDownloadBtn}
-              onPress={() => {
-                setShowDownloadModal(false);
-                setTimeout(() => setShowSuccessModal(true), 500);
+              onPress={async () => {
+                try {
+                  const csv = await exportPayoutTransactionsCsv();
+                  if (!csv.trim()) {
+                    Alert.alert("No data", "No transactions available to export.");
+                    return;
+                  }
+                  if (Platform.OS === "web") {
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `earnings_report_${new Date().toISOString().split("T")[0]}.csv`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }
+                  setShowDownloadModal(false);
+                  setShowSuccessModal(true);
+                } catch (e) {
+                  Alert.alert("Export failed", e instanceof Error ? e.message : "Could not export report.");
+                }
               }}
             >
               <LinearGradient colors={["#1a2b5edc", "#2d448c"]} style={styles.gradientBtn}>

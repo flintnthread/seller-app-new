@@ -317,7 +317,15 @@ export default function SellerProfileScreen() {
   const navigateMenuItem = (title: string) => {
     setSelectedItem(title);
     const route = getProfileMenuRoute(title);
-    if (route) router.push(route);
+    if (!route) {
+      Alert.alert("Unavailable", `The screen "${title}" is not available yet.`);
+      return;
+    }
+    try {
+      router.push(route);
+    } catch (e) {
+      Alert.alert("Navigation error", e instanceof Error ? e.message : "Could not open this screen.");
+    }
   };
 
   // ─── DESKTOP LAYOUT ───────────────────────────────────────────────────────
