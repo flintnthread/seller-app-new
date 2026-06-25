@@ -259,6 +259,16 @@ export default function SellerProfileScreen() {
   const displaySellerId = formatSellerUniqueIdDisplay(sellerUniqueId, sellerId);
   const canViewProfile = profileCompleted && approvalState === "approved";
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || loadingProfile) return;
+    if (
+      profileCompleted &&
+      (approvalState === "pending_review" || approvalState === "rejected")
+    ) {
+      router.replace("/viewsellerprofile");
+    }
+  }, [loadingProfile, profileCompleted, approvalState, router]);
+
   const uploadPickedImage = async (localUri: string) => {
     setProfileImage(localUri);
     setUploadingPhoto(true);

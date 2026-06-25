@@ -18,9 +18,11 @@ export function DesktopHeader({
   const router = useRouter();
   const { profile } = useSellerProfile();
   const { isProfileCompleted } = useProfileStatus();
-  const showViewProfile =
-    (profile?.profileCompleted === true || isProfileCompleted) &&
-    profile?.approvalState === "approved";
+  const profileDone = profile?.profileCompleted === true || isProfileCompleted;
+  const approval = profile?.approvalState ?? profile?.accountStatus?.approvalState;
+  const showViewProfile = profileDone && approval === "approved";
+  const showSubmittedProfile =
+    profileDone && (approval === "pending_review" || approval === "rejected");
   const { showSuccess, confirmAction, SweetAlertHost } = useSweetAlert();
   const [isHovered, setIsHovered] = useState(false);
 
@@ -89,21 +91,7 @@ export function DesktopHeader({
           
           {isHovered && (
             <View style={styles.dropdownMenu}>
-              {showViewProfile ? (
-                <Pressable 
-                  onPress={() => {
-                    setIsHovered(false);
-                    router.push('/viewsellerprofile');
-                  }}
-                  // @ts-ignore
-                  style={({ hovered }) => [
-                    styles.dropdownItem,
-                    hovered && styles.dropdownItemHovered
-                  ]}
-                >
-                  <Text style={styles.dropdownText}>View Profile</Text>
-                </Pressable>
-              ) : null}
+             
               
               <Pressable 
                 onPress={handleLogout}
