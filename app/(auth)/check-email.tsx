@@ -11,6 +11,7 @@ export default function CheckEmailScreen() {
     const params = useLocalSearchParams<{ email?: string }>();
     const [resending, setResending] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
+    const [statusIsError, setStatusIsError] = useState(false);
     const email =
         typeof params.email === "string" && params.email.trim()
             ? params.email.trim().toLowerCase()
@@ -20,11 +21,18 @@ export default function CheckEmailScreen() {
         if (!email || email === "your email") return;
         setResending(true);
         setStatusMessage("");
+        setStatusIsError(false);
         try {
             const message = await resendEmailVerificationOtp(email);
             setStatusMessage(message);
+            setStatusIsError(false);
         } catch (err) {
-            setStatusMessage(err instanceof ApiError ? err.message : "Could not resend code.");
+            setStatusMessage(
+                err instanceof ApiError
+                    ? err.message
+                    : "Verification email could not be sent. Please try again later."
+            );
+            setStatusIsError(true);
         } finally {
             setResending(false);
         }
@@ -49,7 +57,14 @@ export default function CheckEmailScreen() {
                     Did not receive it? Check spam folder or tap Resend link below.
                 </AppText>
                 {statusMessage ? (
-                    <AppText style={styles.statusMessage}>{statusMessage}</AppText>
+                    <AppText
+                        style={[
+                            styles.statusMessage,
+                            statusIsError ? styles.statusMessageError : styles.statusMessageSuccess,
+                        ]}
+                    >
+                        {statusMessage}
+                    </AppText>
                 ) : null}
                 <TouchableOpacity
                     style={styles.secondaryButton}
@@ -145,10 +160,15 @@ const styles = StyleSheet.create({
     },
     statusMessage: {
         fontSize: 13,
-        color: "#3D9E5A",
         textAlign: "center",
         marginBottom: 12,
         fontFamily: fontFamilies.semiBold,
+    },
+    statusMessageSuccess: {
+        color: "#3D9E5A",
+    },
+    statusMessageError: {
+        color: "#DC2626",
     },
     secondaryButton: {
         marginTop: 12,

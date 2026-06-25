@@ -220,12 +220,12 @@ const getMobileError = (mobile: string | undefined): string => {
     return "Only numbers are allowed";
   }
 
-  if (mobile.length !== 10) {
-    return "Enter valid Indian mobile (10 digits, start with 6-9)";
+  if (mobile.length >= 1 && !/^[6-9]/.test(mobile)) {
+    return "First digit must be from 6 to 9";
   }
 
-  if (!/^[6-9]/.test(mobile)) {
-    return "Mobile number must start with 6-9";
+  if (mobile.length >= 7 && mobile.length !== 10) {
+    return "Enter a valid 10-digit mobile number";
   }
 
   return "";
@@ -861,9 +861,10 @@ const SellerSignUpScreen: React.FC = () => {
       /already registered|already exists|already in use/i.test(err.message));
 
   const handleSendOtp = useCallback(async () => {
-    if (!mobile || mobile.replace(/\D/g, "").length < 10) {
+    if (!validateMobile(mobile)) {
+      const mobileErr = getMobileError(mobile) || "Enter a valid 10-digit mobile number";
       showMessage({
-        message: "Invalid Number",
+        message: mobileErr,
         type: "danger",
         icon: "danger",
         ...toastConfig,

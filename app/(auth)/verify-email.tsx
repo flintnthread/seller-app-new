@@ -257,7 +257,11 @@ export default function VerifyEmailScreen() {
                 setMessage(result);
             }
         } catch (err) {
-            setMessage(err instanceof ApiError ? err.message : "Could not resend.");
+            setMessage(
+                err instanceof ApiError
+                    ? err.message
+                    : "Verification email could not be sent. Please try again later."
+            );
         } finally {
             setResending(false);
         }
