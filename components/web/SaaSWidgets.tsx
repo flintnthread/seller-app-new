@@ -71,8 +71,8 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
     { label: "Add Product", icon: "plus-circle-outline", path: "/(main)/productmanagement", color: C.purple, bg: C.purplePale },
     { label: "View Orders", icon: "clipboard-text-outline", path: "/(main)/Ordersscreen", color: C.blue, bg: C.bluePale },
     { label: "Withdraw Money", icon: "wallet-outline", path: "/(main)/payoutrequest", color: C.green, bg: C.greenPale },
-    { label: "Create Coupon", icon: "tag-outline", action: "coupon", color: C.pink, bg: C.pinkPale },
-    { label: "Upload Banner", icon: "image-outline", action: "banner", color: C.orange, bg: C.orangePale },
+    { label: "Create Coupon", icon: "tag-outline", action: "coupon", color: C.pink, bg: C.pinkPale, hidden: true },
+    { label: "Upload Banner", icon: "image-outline", action: "banner", color: C.orange, bg: C.orangePale, hidden: true },
   ];
 
   const handlePress = (act: typeof actions[0]) => {
@@ -137,7 +137,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         </View>
 
         <View style={welcomeStyles.actionsRow}>
-          {actions.map((act, i) => (
+          {actions.filter((act) => !act.hidden).map((act, i) => (
             <Pressable
               key={i}
               onPress={() => handlePress(act)}
@@ -170,20 +170,24 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
             </AppText>
           </View>
           <View style={welcomeStyles.statDivider} />
-          <View style={welcomeStyles.statItem}>
+          <View style={[welcomeStyles.statItem, welcomeStyles.statItemSales]}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.green }]} />
             <AppText style={welcomeStyles.statText}>
               Total Sales: <AppText style={welcomeStyles.statValue}>{salesFormatted}</AppText>
             </AppText>
           </View>
           <View style={welcomeStyles.statDivider} />
-          <View style={welcomeStyles.statItem}>
-            <View style={[welcomeStyles.statDot, { backgroundColor: C.purple }]} />
-            <AppText style={welcomeStyles.statText}>
-              Pending Orders: <AppText style={welcomeStyles.statValue}>{pendingOrders}</AppText>
-            </AppText>
+          <View style={[welcomeStyles.statItem, welcomeStyles.statItemPending]}>
+            <View style={welcomeStyles.statMainRow}>
+              <View style={[welcomeStyles.statDot, { backgroundColor: C.purple }]} />
+              <AppText style={welcomeStyles.statText}>
+                Pending: <AppText style={welcomeStyles.statValue}>{pendingOrders}</AppText>
+              </AppText>
+            </View>
             {pendingOrders > 0 ? (
-              <AppText style={[welcomeStyles.statBadge, { color: C.purple, backgroundColor: C.purplePale }]}>Action</AppText>
+              <View style={[welcomeStyles.statBadge, { backgroundColor: C.purplePale }]}>
+                <AppText style={[welcomeStyles.statBadgeText, { color: C.purple }]}>Action</AppText>
+              </View>
             ) : null}
           </View>
           <View style={welcomeStyles.statDivider} />
@@ -233,15 +237,15 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
 
         {/* Code row */}
         <View style={welcomeStyles.refCodeWrap}>
-          <View style={{ flex: 1 }}>
-            <AppText style={welcomeStyles.refCodeLabel}>YOUR REFERRAL CODE</AppText>
-            <AppText style={welcomeStyles.refCode}>{referralCode || "—"}</AppText>
-          </View>
-          <View style={{ flexDirection: "row", gap: 6 }}>
+          <AppText style={welcomeStyles.refCodeLabel}>YOUR REFERRAL CODE</AppText>
+          <AppText style={welcomeStyles.refCode} numberOfLines={1} ellipsizeMode="middle">
+            {referralCode || "—"}
+          </AppText>
+          <View style={welcomeStyles.refCodeActions}>
             <TouchableOpacity
               style={[
                 welcomeStyles.refCopyBtn,
-                copied && { backgroundColor: C.greenPale, borderColor: C.green }
+                copied && { backgroundColor: C.greenPale, borderColor: C.green },
               ]}
               onPress={handleCopy}
               activeOpacity={0.8}
@@ -364,18 +368,36 @@ const welcomeStyles = StyleSheet.create({
   },
   statsStrip: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     backgroundColor: C.bg,
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     marginTop: 10,
     borderWidth: 1,
     borderColor: C.border,
-    gap: 12,
+    gap: 8,
+    rowGap: 10,
   },
   statItem: {
-    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  statItemSales: {
+    flexShrink: 0,
+  },
+  statItemPending: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  statMainRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -384,28 +406,42 @@ const welcomeStyles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+    flexShrink: 0,
   },
   statText: {
+    flexShrink: 0,
     fontSize: 11,
     fontFamily: "Poppins_500Medium",
     color: C.textMid,
+    ...Platform.select({
+      web: { whiteSpace: "nowrap" },
+    }),
   },
   statValue: {
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
   },
   statBadge: {
+    flexShrink: 0,
+    alignSelf: "flex-start",
+    marginLeft: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statBadgeText: {
     fontSize: 9,
     fontFamily: "Poppins_700Bold",
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    overflow: "hidden",
+    ...Platform.select({
+      web: { whiteSpace: "nowrap" },
+    }),
   },
   statDivider: {
     width: 1,
-    height: 14,
+    alignSelf: "stretch",
+    minHeight: 16,
     backgroundColor: C.border,
+    flexShrink: 0,
   },
   // ── Divider ──
   divider: {
@@ -416,7 +452,9 @@ const welcomeStyles = StyleSheet.create({
   },
   // ── Right column — Referral ──
   referralCol: {
-    width: 280,
+    width: 300,
+    minWidth: 280,
+    flexShrink: 0,
     paddingLeft: 16,
     justifyContent: "space-between",
     ...Platform.select({
@@ -507,15 +545,15 @@ const welcomeStyles = StyleSheet.create({
     lineHeight: 14,
   },
   refCodeWrap: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "stretch",
     backgroundColor: C.white,
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: "#F59E0B",
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
+    paddingVertical: 10,
+    gap: 8,
     ...Platform.select({
       web: {
         boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
@@ -524,28 +562,45 @@ const welcomeStyles = StyleSheet.create({
     }),
   },
   refCodeLabel: {
-    fontSize: 8,
+    fontSize: 9,
     fontFamily: "Poppins_700Bold",
     color: C.textLight,
-    letterSpacing: 0.8,
-    marginBottom: 2,
+    letterSpacing: 0.6,
+    ...Platform.select({
+      web: { whiteSpace: "nowrap" },
+    }),
   },
   refCode: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    ...Platform.select({
+      web: {
+        whiteSpace: "nowrap",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      },
+    }),
   },
-  refCopyBtn: {
+  refCodeActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  refCopyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 4,
     backgroundColor: C.bg,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 6,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    minHeight: 32,
   },
   refCopyText: {
     fontSize: 11,
@@ -553,13 +608,16 @@ const welcomeStyles = StyleSheet.create({
     color: C.textMid,
   },
   refShareBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
     backgroundColor: C.orange,
     borderRadius: 6,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    minHeight: 32,
   },
   refShareText: {
     fontSize: 11,

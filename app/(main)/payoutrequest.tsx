@@ -39,6 +39,7 @@ import {
 } from "@/services/payoutApi";
 import { lookupIfscCode, fetchSellerProfile } from "@/services/sellerProfileApi";
 import { sendRegistrationOtp } from "@/services/authApi";
+import { submitBankEditRequest } from "@/services/bankEditApi";
 
 interface BankAccount {
   id: string;
@@ -195,6 +196,26 @@ const DesktopStatCard = ({
 );
 
 export default function EnhancedPayoutRequest() {
+
+  const openEditBankModal = async () => {
+    try {
+      const profile = await fetchSellerProfile();
+  
+      setModalAccountHolder(profile.accountHolder || "");
+      setModalAccountNumber(profile.accountNumber || "");
+      setModalConfirmAccountNumber(profile.accountNumber || "");
+      setModalIfsc(profile.ifscCode || "");
+      setModalBankName(profile.bankName || "");
+      setModalBranchName(profile.branchName || "");
+  
+      setShowEditBankModal(true);
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "Failed to load seller bank details."
+      );
+    }
+  };
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
@@ -220,13 +241,14 @@ export default function EnhancedPayoutRequest() {
 
   const formatInr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
 
-  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [showEditBankModal, setShowEditBankModal] = useState(false);
   const [modalAccountHolder, setModalAccountHolder] = useState("");
   const [modalAccountNumber, setModalAccountNumber] = useState("");
   const [modalConfirmAccountNumber, setModalConfirmAccountNumber] = useState("");
   const [modalIfsc, setModalIfsc] = useState("");
   const [modalBankName, setModalBankName] = useState("");
   const [modalBranchName, setModalBranchName] = useState("");
+  const [modalReason, setModalReason] = useState("");
   const [isLookingUpIfsc, setIsLookingUpIfsc] = useState(false);
   const [isSavingBank, setIsSavingBank] = useState(false);
   const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
@@ -306,6 +328,7 @@ export default function EnhancedPayoutRequest() {
   const validateAddBankForm = () => {
     const errors: Record<string, string> = {};
     if (!modalAccountHolder.trim()) errors.accountHolder = "Account holder name is required";
+    if (!modalBankName.trim()) errors.bankName = "Bank name is required";
     if (!modalAccountNumber.trim()) errors.accountNumber = "Account number is required";
     if (!modalConfirmAccountNumber.trim()) errors.confirmAccountNumber = "Please confirm account number";
     if (modalAccountNumber.trim() !== modalConfirmAccountNumber.trim()) errors.confirmAccountNumber = "Account numbers do not match";
@@ -314,6 +337,7 @@ export default function EnhancedPayoutRequest() {
     } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(modalIfsc.toUpperCase())) {
       errors.ifsc = "Invalid IFSC code format";
     }
+    if (!modalReason.trim()) errors.reason = "Reason for bank change is required";
     return errors;
   };
 
@@ -356,15 +380,20 @@ export default function EnhancedPayoutRequest() {
     setModalErrors({});
     setIsSavingBank(true);
     try {
-      const updated = await updateSellerBankDetails({
+      await updateBankingProfile({
         ifscCode: modalIfsc.trim().toUpperCase(),
         bankName: modalBankName.trim(),
         branchName: modalBranchName.trim(),
-        accountHolder: modalAccountHolder.trim(),
+        accountHolderName: modalAccountHolder.trim(),
         accountNumber: modalAccountNumber.trim(),
       });
-      setStoredBankDetails(updated);
-      setBanks([bankDetailsToAccount(updated)]);
+      setBanks([{
+        id: "1",
+        bankName: modalBankName.trim(),
+        accountNumber: "•••• " + modalAccountNumber.trim().slice(-4),
+        isDefault: true,
+        isVerified: true,
+      }]);
       setShowAddBankModal(false);
       // Reset form
       setModalAccountHolder("");
@@ -373,9 +402,10 @@ export default function EnhancedPayoutRequest() {
       setModalIfsc("");
       setModalBankName("");
       setModalBranchName("");
-      Alert.alert("Success", "Bank account details updated successfully.");
+      setModalReason("");
+      Alert.alert("Success", "Bank edit request submitted successfully. Admin will review your request.");
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save bank details.");
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to submit bank edit request.");
     } finally {
       setIsSavingBank(false);
     }
@@ -568,96 +598,126 @@ export default function EnhancedPayoutRequest() {
         </View>
       </Modal>
 
-      <Modal visible={showAddBankModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 460 }]}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%", alignItems: "center", marginBottom: 18 }}>
-              <Text style={[styles.modalTitle, { fontSize: 18 }]}>Add / Change Bank Account</Text>
-              <TouchableOpacity onPress={() => setShowAddBankModal(false)} style={{ padding: 4 }}>
-                <MaterialCommunityIcons name="close" size={22} color="#64748b" />
+      <Modal visible={showEditBankModal} transparent animationType="slide">
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxWidth: 460 }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%", alignItems: "center", marginBottom: 18 }}>
+                <Text style={[styles.modalTitle, { fontSize: 18 }]}>Edit Bank Account</Text>
+                <TouchableOpacity onPress={() => setShowEditBankModal(false)} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={22} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ width: "100%", maxHeight: 400 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {/* Account Holder Name */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Holder Name</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.accountHolder ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                    value={modalAccountHolder}
+                    onChangeText={setModalAccountHolder}
+                    placeholder="e.g. John Doe"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {!!modalErrors.accountHolder && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountHolder}</Text>}
+                </View>
+
+                {/* IFSC Code */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>IFSC Code</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.ifsc ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                    value={modalIfsc}
+                    onChangeText={handleIfscLookup}
+                    placeholder="e.g. SBIN0000345"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="characters"
+                    maxLength={11}
+                  />
+                  {isLookingUpIfsc && <ActivityIndicator size="small" color="#f97316" style={{ alignSelf: "flex-start", marginTop: 4 }} />}
+                  {!!modalErrors.ifsc && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.ifsc}</Text>}
+                  {!!modalBankName && (
+                    <View style={{ backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0", borderRadius: 8, padding: 8, marginTop: 6 }}>
+                      <Text style={{ color: "#16a34a", fontSize: 12, fontWeight: "600" }}>{modalBankName}</Text>
+                      <Text style={{ color: "#16a34a", fontSize: 11, marginTop: 2 }}>Branch: {modalBranchName}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Bank Name */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Bank Name</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.bankName ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                    value={modalBankName}
+                    onChangeText={setModalBankName}
+                    placeholder="e.g. State Bank of India"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {!!modalErrors.bankName && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.bankName}</Text>}
+                </View>
+
+                {/* Account Number */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Number</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.accountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                    value={modalAccountNumber}
+                    onChangeText={setModalAccountNumber}
+                    placeholder="Enter Account Number"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    secureTextEntry
+                  />
+                  {!!modalErrors.accountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountNumber}</Text>}
+                </View>
+
+                {/* Confirm Account Number */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Confirm Account Number</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.confirmAccountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
+                    value={modalConfirmAccountNumber}
+                    onChangeText={setModalConfirmAccountNumber}
+                    placeholder="Confirm Account Number"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    secureTextEntry
+                  />
+                  {!!modalErrors.confirmAccountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.confirmAccountNumber}</Text>}
+                </View>
+
+                {/* Reason for Bank Change */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Reason for Bank Change</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: modalErrors.reason ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 80, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc", textAlignVertical: "top" }}
+                    value={modalReason}
+                    onChangeText={setModalReason}
+                    placeholder="Please explain why you need to change your bank account details"
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                    numberOfLines={4}
+                  />
+                  {!!modalErrors.reason && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.reason}</Text>}
+                </View>
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[styles.verifyBtn, { marginTop: 14 }]}
+                onPress={handleSaveBank}
+                disabled={isSavingBank}
+              >
+                {isSavingBank ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.verifyBtnText}>Submit Request</Text>
+                )}
               </TouchableOpacity>
             </View>
-
-            <ScrollView style={{ width: "100%", maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-              {/* Account Holder Name */}
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Holder Name</Text>
-                <TextInput
-                  style={{ borderWidth: 1.5, borderColor: modalErrors.accountHolder ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
-                  value={modalAccountHolder}
-                  onChangeText={setModalAccountHolder}
-                  placeholder="e.g. John Doe"
-                  placeholderTextColor="#94a3b8"
-                />
-                {!!modalErrors.accountHolder && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountHolder}</Text>}
-              </View>
-
-              {/* IFSC Code */}
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>IFSC Code</Text>
-                <TextInput
-                  style={{ borderWidth: 1.5, borderColor: modalErrors.ifsc ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
-                  value={modalIfsc}
-                  onChangeText={handleIfscLookup}
-                  placeholder="e.g. SBIN0000345"
-                  placeholderTextColor="#94a3b8"
-                  autoCapitalize="characters"
-                  maxLength={11}
-                />
-                {isLookingUpIfsc && <ActivityIndicator size="small" color="#f97316" style={{ alignSelf: "flex-start", marginTop: 4 }} />}
-                {!!modalErrors.ifsc && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.ifsc}</Text>}
-                {!!modalBankName && (
-                  <View style={{ backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0", borderRadius: 8, padding: 8, marginTop: 6 }}>
-                    <Text style={{ color: "#16a34a", fontSize: 12, fontWeight: "600" }}>{modalBankName}</Text>
-                    <Text style={{ color: "#16a34a", fontSize: 11, marginTop: 2 }}>Branch: {modalBranchName}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Account Number */}
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Number</Text>
-                <TextInput
-                  style={{ borderWidth: 1.5, borderColor: modalErrors.accountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
-                  value={modalAccountNumber}
-                  onChangeText={setModalAccountNumber}
-                  placeholder="Enter Account Number"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  secureTextEntry
-                />
-                {!!modalErrors.accountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.accountNumber}</Text>}
-              </View>
-
-              {/* Confirm Account Number */}
-              <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Confirm Account Number</Text>
-                <TextInput
-                  style={{ borderWidth: 1.5, borderColor: modalErrors.confirmAccountNumber ? "#ef4444" : "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 42, fontSize: 14, color: "#0f172a", backgroundColor: "#f8fafc" }}
-                  value={modalConfirmAccountNumber}
-                  onChangeText={setModalConfirmAccountNumber}
-                  placeholder="Confirm Account Number"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  secureTextEntry
-                />
-                {!!modalErrors.confirmAccountNumber && <Text style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>{modalErrors.confirmAccountNumber}</Text>}
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.verifyBtn, { marginTop: 14 }]}
-              onPress={handleSaveBank}
-              disabled={isSavingBank}
-            >
-              {isSavingBank ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.verifyBtnText}>Save Bank Details</Text>
-              )}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -790,18 +850,18 @@ export default function EnhancedPayoutRequest() {
                     </TouchableOpacity>
                   ))}
 
-                  {/* Add / Change Bank Account Card */}
+                  {/* Edit Bank Account Card */}
                   <TouchableOpacity
                     style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }]}
-                    onPress={() => void openBankEditModal()}
+                    onPress={() => setShowAddBankModal(true)}
                   >
                     <View style={desktopStyles.bankCardLeft}>
                       <View style={[desktopStyles.bankIconBox, { backgroundColor: "#fff4ec" }]}>
-                        <MaterialCommunityIcons name="plus" size={20} color="#f97316" />
+                        <MaterialCommunityIcons name="pencil" size={20} color="#f97316" />
                       </View>
                       <View>
-                        <Text style={desktopStyles.bankName}>Add / Change Bank</Text>
-                        <Text style={desktopStyles.bankAcc}>Setup payout details</Text>
+                        <Text style={desktopStyles.bankName}>Edit Bank Account</Text>
+                        <Text style={desktopStyles.bankAcc}>Request to change bank details</Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -1106,11 +1166,11 @@ export default function EnhancedPayoutRequest() {
 
                 <TouchableOpacity
                   style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
-                  onPress={() => void openBankEditModal()}
+                  onPress={() => setShowAddBankModal(true)}
                 >
-                  <MaterialCommunityIcons name="plus" size={24} color="#f97316" />
-                  <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Add / Change</Text>
-                  <Text style={styles.bankAcc}>Bank details</Text>
+                  <MaterialCommunityIcons name="pencil" size={24} color="#f97316" />
+                  <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Edit Bank</Text>
+                  <Text style={styles.bankAcc}>Account details</Text>
                 </TouchableOpacity>
               </ScrollView>
 
