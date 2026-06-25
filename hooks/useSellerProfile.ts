@@ -8,6 +8,7 @@ import {
 /** Flat profile shape for legacy dashboard/settings consumers. */
 export type SellerProfile = {
     id: number;
+    sellerUniqueId?: string;
     firstName?: string;
     lastName?: string;
     fullName?: string;
@@ -18,6 +19,7 @@ export type SellerProfile = {
     profilePicUrl?: string;
     profilePic?: string;
     profileCompleted?: boolean;
+    approvalState?: string;
 };
 
 function mapResponseToProfile(response: SellerProfileResponse): SellerProfile {
@@ -26,6 +28,7 @@ function mapResponseToProfile(response: SellerProfileResponse): SellerProfile {
 
     return {
         id: response.sellerId,
+        sellerUniqueId: response.sellerUniqueId?.trim() || undefined,
         firstName: response.firstName,
         lastName: response.lastName,
         fullName: response.fullName,
@@ -36,6 +39,7 @@ function mapResponseToProfile(response: SellerProfileResponse): SellerProfile {
         profilePicUrl: resolvedPic,
         profilePic: resolvedPic,
         profileCompleted: response.profileCompleted,
+        approvalState: response.accountStatus?.approvalState,
     };
 }
 

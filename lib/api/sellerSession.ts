@@ -89,10 +89,21 @@ async function hydrateFromStorage(): Promise<void> {
     } else {
         memoryLastActiveAt = Date.now();
     }
-
 }
 
-export function hydrateSellerSession(): Promise<void> {
+/** Clears the in-memory hydration cache so the next call re-reads storage (web client boot). */
+export function invalidateSellerSessionHydration(): void {
+    hydratePromise = null;
+}
+
+export function hydrateSellerSession(force = false): Promise<void> {
+    // Expo web SSR has no window/localStorage — never cache an empty hydration from the server.
+    if (Platform.OS === "web" && typeof window === "undefined") {
+        return Promise.resolve();
+    }
+    if (force) {
+        hydratePromise = null;
+    }
     if (!hydratePromise) {
         hydratePromise = hydrateFromStorage();
     }

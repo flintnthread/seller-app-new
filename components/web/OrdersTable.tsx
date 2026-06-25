@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     minWidth: "100%",
   },
   table: {
-    minWidth: 800,
+    minWidth: 1100,
     width: "100%",
   },
   headerRow: {
@@ -126,6 +126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     justifyContent: "center",
+    overflow: "hidden",
   },
   cellText: {
     fontSize: 14,

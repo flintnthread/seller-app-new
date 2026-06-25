@@ -11,6 +11,7 @@ import {
   subscribeToOrderChanges,
 } from "@/lib/orders/ordersStore";
 import type { OrderStatus } from "@/lib/orders/ordersData";
+import { resolveLineItemAmount } from "@/lib/orders/orderLineAmount";
 
 const C = {
   navy: "#1E2B6B",
@@ -57,27 +58,26 @@ const STATUS_CONFIG: Record<OrderStatus, { bg: string; text: string; color: stri
 };
 
 function mapOrdersToRows(): OrderRow[] {
-  return getLiveOrders().slice(0, 20).map((o) => {
-    const item = o.items[0];
-    const variantParts = [item?.color, item?.size].filter(Boolean);
-    const priceNum =
-      o.pricing?.totalAmount ??
-      (typeof o.pricing?.total === "string"
-        ? Number(o.pricing.total.replace(/[^\d.]/g, ""))
-        : item?.price ?? 0);
-    const dateParts = (o.date || "").split(" ");
-    return {
-      id: o.id,
-      date: dateParts.slice(0, 3).join(" ") || o.date || "—",
-      time: dateParts.slice(3).join(" ") || "—",
-      productName: item?.name ?? item?.productName ?? "—",
-      variant: variantParts.length ? variantParts.join(" • ") : "—",
-      qty: item?.qty ?? 1,
-      price: typeof priceNum === "number" ? priceNum : Number(priceNum) || 0,
-      status: o.status,
-      customer: o.customer?.name ?? "—",
-    };
+  const rows: OrderRow[] = [];
+  getLiveOrders().forEach((o) => {
+    const lineItems = o.items.length ? o.items : [undefined];
+    lineItems.forEach((item) => {
+      const variantParts = [item?.color, item?.size].filter(Boolean);
+      const dateParts = (o.date || "").split(" ");
+      rows.push({
+        id: o.id,
+        date: dateParts.slice(0, 3).join(" ") || o.date || "—",
+        time: dateParts.slice(3).join(" ") || "—",
+        productName: item?.name?.trim() || "—",
+        variant: variantParts.length ? variantParts.join(" • ") : item?.variant?.trim() || "—",
+        qty: item?.qty ?? 1,
+        price: resolveLineItemAmount(item),
+        status: o.status,
+        customer: o.customer?.name ?? "—",
+      });
+    });
   });
+  return rows.slice(0, 20);
 }
 
 export const DashboardTables: React.FC = () => {
@@ -116,7 +116,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "id",
       title: "Order ID",
-      width: "14%",
+      width: "12%",
       render: (item) => (
         <AppText style={styles.orderIdText}>{item.id}</AppText>
       ),
@@ -124,7 +124,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "customer",
       title: "Customer",
-      width: "22%",
+      width: "18%",
       render: (item) => (
         <View style={styles.customerCol}>
           <View style={styles.avatarCircle}>
@@ -132,18 +132,18 @@ export const DashboardTables: React.FC = () => {
               {item.customer.split(" ").map((n) => n[0]).join("").slice(0, 2)}
             </AppText>
           </View>
-          <AppText style={styles.customerName}>{item.customer}</AppText>
+          <AppText style={styles.customerName} numberOfLines={1}>{item.customer}</AppText>
         </View>
       ),
     },
     {
       key: "productName",
       title: "Product",
-      width: "20%",
+      width: "26%",
       render: (item) => (
         <View style={styles.productCol}>
-          <AppText style={styles.productNameText}>{item.productName}</AppText>
-          <AppText style={styles.productVariantText}>{item.variant}</AppText>
+          <AppText style={styles.productNameText} numberOfLines={1}>{item.productName}</AppText>
+          <AppText style={styles.productVariantText} numberOfLines={1}>{item.variant}</AppText>
         </View>
       ),
     },
@@ -251,6 +251,8 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     paddingVertical: 24,
     marginBottom: 24,
+    width: "100%",
+    alignSelf: "stretch",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)",
@@ -338,6 +340,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    flex: 1,
+    minWidth: 0,
   },
   avatarCircle: {
     width: 28,
@@ -356,8 +360,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_500Medium",
     color: C.textDark,
+    flex: 1,
+    minWidth: 0,
   },
-  productCol: {},
+  productCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   productNameText: {
     fontSize: 14,
     fontFamily: "Poppins_600SemiBold",

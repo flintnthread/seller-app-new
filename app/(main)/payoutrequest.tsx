@@ -196,26 +196,6 @@ const DesktopStatCard = ({
 );
 
 export default function EnhancedPayoutRequest() {
-
-  const openEditBankModal = async () => {
-    try {
-      const profile = await fetchSellerProfile();
-  
-      setModalAccountHolder(profile.accountHolder || "");
-      setModalAccountNumber(profile.accountNumber || "");
-      setModalConfirmAccountNumber(profile.accountNumber || "");
-      setModalIfsc(profile.ifscCode || "");
-      setModalBankName(profile.bankName || "");
-      setModalBranchName(profile.branchName || "");
-  
-      setShowEditBankModal(true);
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        "Failed to load seller bank details."
-      );
-    }
-  };
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
@@ -322,7 +302,7 @@ export default function EnhancedPayoutRequest() {
       setModalBankName("");
       setModalBranchName("");
     }
-    setShowAddBankModal(true);
+    setShowEditBankModal(true);
   };
 
   const validateAddBankForm = () => {
@@ -380,21 +360,15 @@ export default function EnhancedPayoutRequest() {
     setModalErrors({});
     setIsSavingBank(true);
     try {
-      await updateBankingProfile({
+      await submitBankEditRequest({
         ifscCode: modalIfsc.trim().toUpperCase(),
         bankName: modalBankName.trim(),
         branchName: modalBranchName.trim(),
-        accountHolderName: modalAccountHolder.trim(),
+        accountHolder: modalAccountHolder.trim(),
         accountNumber: modalAccountNumber.trim(),
+        reason: modalReason.trim(),
       });
-      setBanks([{
-        id: "1",
-        bankName: modalBankName.trim(),
-        accountNumber: "•••• " + modalAccountNumber.trim().slice(-4),
-        isDefault: true,
-        isVerified: true,
-      }]);
-      setShowAddBankModal(false);
+      setShowEditBankModal(false);
       // Reset form
       setModalAccountHolder("");
       setModalAccountNumber("");
@@ -432,7 +406,6 @@ export default function EnhancedPayoutRequest() {
     if (!orderLookupValid) return "Invalid Order ID";
     const num = parseFloat(amount);
     if (isNaN(num)) return "Invalid Amount";
-    if (num < 500) return "Minimum ₹500 required";
     if (num > availableBalance) return "Insufficient balance";
     return "";
   };
@@ -853,7 +826,7 @@ export default function EnhancedPayoutRequest() {
                   {/* Edit Bank Account Card */}
                   <TouchableOpacity
                     style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }]}
-                    onPress={() => setShowAddBankModal(true)}
+                    onPress={openBankEditModal}
                   >
                     <View style={desktopStyles.bankCardLeft}>
                       <View style={[desktopStyles.bankIconBox, { backgroundColor: "#fff4ec" }]}>
@@ -1166,7 +1139,7 @@ export default function EnhancedPayoutRequest() {
 
                 <TouchableOpacity
                   style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
-                  onPress={() => setShowAddBankModal(true)}
+                  onPress={openBankEditModal}
                 >
                   <MaterialCommunityIcons name="pencil" size={24} color="#f97316" />
                   <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Edit Bank</Text>

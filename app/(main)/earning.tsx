@@ -71,6 +71,13 @@ export default function EarningsScreen() {
   const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
 
   const availableBalance = payoutSummary?.pendingAmount ?? earningsData?.availableBalance ?? 0;
+  const totalRevenueAmount =
+    (payoutSummary?.lifetimeEarnings ?? 0) > 0
+      ? payoutSummary!.lifetimeEarnings
+      : (payoutSummary?.thisMonthEarnings ?? payoutSummary?.pendingAmount ?? 0);
+  const currentMonthAmount = payoutSummary?.thisMonthEarnings ?? 0;
+  const formatInr = (value: number) =>
+    `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const bankAccount = earningsData?.bankAccount;
   const bankName = bankAccount?.bankName?.trim() || "Linked bank account";
   const bankMasked = bankAccount?.accountNumberMasked?.trim() || "—";
@@ -283,7 +290,7 @@ export default function EarningsScreen() {
               <Text style={styles.revenueLabel}>Total Revenue</Text>
 
               <Text style={styles.revenueValue}>
-                {showBalance ? filterRevenue : "XXXXXX"}
+                {showBalance ? formatInr(totalRevenueAmount) : "XXXXXX"}
               </Text>
             </View>
 
@@ -300,7 +307,7 @@ export default function EarningsScreen() {
             <View>
               <Text style={styles.smallText}>Current Month</Text>
               <Text style={styles.smallValue}>
-                {showBalance ? `₹${availableBalance.toLocaleString("en-IN")}` : "XXXXXX"}
+                {showBalance ? formatInr(currentMonthAmount) : "XXXXXX"}
               </Text>
             </View>
 

@@ -25,6 +25,7 @@ export type SellerAccountStatus = {
 
 export type SellerProfileResponse = {
     sellerId: number;
+    sellerUniqueId?: string | null;
     email: string;
     mobile: string;
     firstName: string;

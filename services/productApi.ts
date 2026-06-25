@@ -459,8 +459,14 @@ function toDetail(row: ApiProductDetail): ProductDetail {
 }
 
 export async function fetchProducts(): Promise<ProductListItem[]> {
-    const rows = await apiRequest<ApiProductListItem[]>("/api/products");
-    return rows.map(toListItem);
+    const rows = await apiRequest<ApiProductListItem[] | { content?: ApiProductListItem[] }>(
+        "/api/products"
+    );
+    const list = Array.isArray(rows) ? rows : Array.isArray(rows?.content) ? rows.content : [];
+    if (!Array.isArray(rows) && __DEV__) {
+        console.warn("[fetchProducts] Unexpected API shape — expected an array.", rows);
+    }
+    return list.map(toListItem);
 }
 
 export async function fetchProductDetail(productId: string): Promise<ProductDetail> {

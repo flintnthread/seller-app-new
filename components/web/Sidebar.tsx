@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, Image, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Image, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,7 +33,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     profileDone && (approval === "pending_review" || approval === "rejected");
   const showFullMenu =
     canShowFullSellerTools(summary, isProfileCompleted) && approval === "approved";
-  const { confirmAction, SweetAlertHost } = useSweetAlert();
+  const { confirmAction, showSuccess, SweetAlertHost } = useSweetAlert();
 
   useEffect(() => {
     void refreshProfileStatus();
@@ -87,7 +87,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           title: 'ACCOUNT',
           items: [
             { name: 'Profile', path: '/Profile', icon: 'person.crop.circle' as const, iconColor: '#EC4899' },
-            { name: 'Settings', path: '/settingsModule', icon: 'gearshape.fill' as const, iconColor: '#64748B' },
             { name: 'Logout', path: 'logout', icon: 'arrow.right.to.line' as const, iconColor: '#EF4444' },
           ],
         },
@@ -146,24 +145,17 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                     key={item.path}
                     onPress={async () => {
                       if (item.path === 'logout') {
-                        if (Platform.OS === 'web') {
-                          const confirmLogout = await confirmAction("Logout", "Are you sure you want to logout?", "Logout");
-                          if (confirmLogout) {
-                            void clearSellerId();
+                        const confirmed = await confirmAction(
+                          "Confirm Logout",
+                          "Are you sure you want to sign out from your seller account?",
+                          "Logout"
+                        );
+                        if (confirmed) {
+                          await clearSellerId();
+                          showSuccess("You have been signed out successfully.", "Logged Out");
+                          setTimeout(() => {
                             router.replace("/(auth)/login");
-                          }
-                        } else {
-                          Alert.alert("Logout", "Are you sure you want to logout?", [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Logout",
-                              style: "destructive",
-                              onPress: () => {
-                                void clearSellerId();
-                                router.replace("/(auth)/login");
-                              },
-                            },
-                          ]);
+                          }, 1500);
                         }
                       } else if (item.name === 'Complete Profile') {
                         router.push("/(main)/sellerpersonalinfo");
