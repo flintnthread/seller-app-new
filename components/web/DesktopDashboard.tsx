@@ -229,9 +229,6 @@ export function DesktopDashboard({
               />
             </View>
           </View>
-
-          {/* Recent Orders Data Table */}
-          <DashboardTables />
         </View>
 
         {/* RIGHT COLUMN: Performance indicators, live alerts, logs (30% width) */}
@@ -270,6 +267,9 @@ export function DesktopDashboard({
         </View>
 
       </View>
+
+      {/* Recent Orders — full width below the dashboard grid */}
+      <DashboardTables />
       </>
       ) : null}
     </View>

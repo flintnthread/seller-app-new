@@ -1,18 +1,25 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
     type StyleProp,
     type ViewStyle,
 } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { resolveDocumentDisplayUrl, type SellerProfileResponse } from "@/services/sellerProfileApi";
+import {
+    resolveDocumentDisplayUrl,
+    updateAddressProfile,
+    type AddressProfilePayload,
+    type SellerProfileResponse,
+} from "@/services/sellerProfileApi";
 import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
+import { formatSellerUniqueIdDisplay } from "@/lib/profile/sellerDisplayFormat";
 
 
 
@@ -54,11 +61,13 @@ type SectionCardProps = {
 
     onEdit?: () => void;
 
+    headerActions?: React.ReactNode;
+
 };
 
 
 
-function SectionCard({ headerColor, title, children, cardStyle, onEdit }: SectionCardProps) {
+function SectionCard({ headerColor, title, children, cardStyle, onEdit, headerActions }: SectionCardProps) {
 
     return (
 
@@ -68,7 +77,7 @@ function SectionCard({ headerColor, title, children, cardStyle, onEdit }: Sectio
 
                 <Text style={styles.cardHeaderText}>{title}</Text>
 
-                {onEdit ? (
+                {headerActions ?? (onEdit ? (
 
                     <TouchableOpacity style={styles.editBtn} onPress={onEdit} activeOpacity={0.75}>
 
@@ -78,7 +87,7 @@ function SectionCard({ headerColor, title, children, cardStyle, onEdit }: Sectio
 
                     </TouchableOpacity>
 
-                ) : null}
+                ) : null)}
 
             </View>
 
@@ -192,15 +201,101 @@ function maskAadhaar(value?: string | null): string {
 
 
 
+function EditField({ label, value, onChangeText, multiline }: { label: string; value: string; onChangeText: (v: string) => void; multiline?: boolean }) {
+    return (
+        <View style={styles.editField}>
+            <Text style={styles.infoLabel}>{label}</Text>
+            <TextInput
+                style={[styles.editInput, multiline && styles.editInputMultiline]}
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={`Enter ${label.toLowerCase()}`}
+                placeholderTextColor={C.textSecondary}
+                multiline={multiline}
+                textAlignVertical={multiline ? "top" : "center"}
+            />
+        </View>
+    );
+}
+
+
+
 type Props = {
     profile: SellerProfileResponse | null;
     loading?: boolean;
     isDesktop?: boolean;
+    onProfileUpdated?: (profile: SellerProfileResponse) => void;
 };
 
-export function SellerProfileCardsContent({ profile, loading, isDesktop = false }: Props) {
-    const router = useRouter();
+export function SellerProfileCardsContent({ profile, loading, isDesktop = false, onProfileUpdated }: Props) {
     const picUrl = resolveProfilePicUrl(profile);
+    const [isEditingAddress, setIsEditingAddress] = useState(false);
+    const [isSavingAddress, setIsSavingAddress] = useState(false);
+    const [addressForm, setAddressForm] = useState({
+        streetAddress: "",
+        landmark: "",
+        city: "",
+        state: "",
+        area: "",
+        country: "",
+        pincode: "",
+    });
+
+    const startAddressEdit = () => {
+        if (!profile) return;
+        setAddressForm({
+            streetAddress: profile.address?.streetAddress?.trim() || "",
+            landmark: profile.address?.landmark?.trim() || "",
+            city: profile.address?.city?.trim() || "",
+            state: profile.address?.state?.trim() || "",
+            area: profile.address?.area?.trim() || "",
+            country: profile.address?.country?.trim() || "",
+            pincode: profile.address?.pincode?.trim() || "",
+        });
+        setIsEditingAddress(true);
+    };
+
+    const cancelAddressEdit = () => {
+        setIsEditingAddress(false);
+    };
+
+    const saveAddressEdit = async () => {
+        if (!profile) return;
+        const payload: AddressProfilePayload = {
+            streetAddress: addressForm.streetAddress.trim(),
+            landmark: addressForm.landmark.trim(),
+            city: addressForm.city.trim(),
+            state: addressForm.state.trim(),
+            area: addressForm.area.trim(),
+            country: addressForm.country.trim(),
+            pincode: addressForm.pincode.trim(),
+            warehouseDifferent: profile.address?.warehouseDifferent ?? false,
+            warehouseAddress: profile.address?.warehouseAddress?.trim() || undefined,
+            warehouseLandmark: profile.address?.warehouseLandmark?.trim() || undefined,
+            warehouseCity: profile.address?.warehouseCity?.trim() || undefined,
+            warehouseState: profile.address?.warehouseState?.trim() || undefined,
+            warehouseArea: profile.address?.warehouseArea?.trim() || undefined,
+            warehouseCountry: profile.address?.warehouseCountry?.trim() || undefined,
+            warehousePincode: profile.address?.warehousePincode?.trim() || undefined,
+        };
+
+        if (!payload.streetAddress || !payload.city || !payload.state || !payload.pincode || !payload.country) {
+            Alert.alert("Required fields", "Please fill address, city, state, pincode, and country.");
+            return;
+        }
+
+        setIsSavingAddress(true);
+        try {
+            const updated = await updateAddressProfile(payload);
+            onProfileUpdated?.(updated);
+            setIsEditingAddress(false);
+            Alert.alert("Saved", "Address updated successfully.");
+        } catch (err) {
+            Alert.alert("Error", err instanceof Error ? err.message : "Failed to update address.");
+        } finally {
+            setIsSavingAddress(false);
+        }
+    };
 
 
 
@@ -308,7 +403,7 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
 
             <InfoRow label="STATUS" value={statusTitle} />
 
-            <InfoRow label="SELLER ID" value={`SEL${profile.sellerId}`} />
+            <InfoRow label="SELLER ID" value={formatSellerUniqueIdDisplay(profile.sellerUniqueId, profile.sellerId)} />
 
         </SectionCard>
 
@@ -371,10 +466,49 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
 
             cardStyle={isDesktop ? styles.desktopCard : undefined}
 
-            onEdit={() => router.push("/(main)/selleraddressinfo")}
+            onEdit={!isEditingAddress ? startAddressEdit : undefined}
+
+            headerActions={isEditingAddress ? (
+                <View style={styles.headerActions}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={cancelAddressEdit} disabled={isSavingAddress}>
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.saveBtn} onPress={saveAddressEdit} disabled={isSavingAddress}>
+                        {isSavingAddress ? (
+                            <ActivityIndicator size="small" color={C.white} />
+                        ) : (
+                            <Text style={styles.saveBtnText}>Save</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            ) : undefined}
 
         >
 
+            {isEditingAddress ? (
+                <>
+                    <EditField label="ADDRESS" value={addressForm.streetAddress} onChangeText={(v) => setAddressForm((f) => ({ ...f, streetAddress: v }))} multiline />
+                    <View style={styles.infoGrid}>
+                        <View style={styles.infoGridCell}>
+                            <EditField label="CITY" value={addressForm.city} onChangeText={(v) => setAddressForm((f) => ({ ...f, city: v }))} />
+                        </View>
+                        <View style={styles.infoGridCell}>
+                            <EditField label="STATE" value={addressForm.state} onChangeText={(v) => setAddressForm((f) => ({ ...f, state: v }))} />
+                        </View>
+                    </View>
+                    <View style={styles.infoGrid}>
+                        <View style={styles.infoGridCell}>
+                            <EditField label="PINCODE" value={addressForm.pincode} onChangeText={(v) => setAddressForm((f) => ({ ...f, pincode: v }))} />
+                        </View>
+                        <View style={styles.infoGridCell}>
+                            <EditField label="COUNTRY" value={addressForm.country} onChangeText={(v) => setAddressForm((f) => ({ ...f, country: v }))} />
+                        </View>
+                    </View>
+                    <EditField label="LANDMARK" value={addressForm.landmark} onChangeText={(v) => setAddressForm((f) => ({ ...f, landmark: v }))} />
+                    <EditField label="AREA" value={addressForm.area} onChangeText={(v) => setAddressForm((f) => ({ ...f, area: v }))} />
+                </>
+            ) : (
+                <>
             <InfoRow label="ADDRESS" value={profile.address?.streetAddress || "—"} />
 
             <InfoGrid
@@ -394,8 +528,10 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false 
             />
 
             <InfoRow label="LANDMARK" value={profile.address?.landmark || "—"} />
+                </>
+            )}
 
-            {profile.address?.warehouseDifferent ? (
+            {!isEditingAddress && profile.address?.warehouseDifferent ? (
 
                 <>
 
@@ -611,6 +747,43 @@ const styles = StyleSheet.create({
     },
 
     editBtnText: { color: C.white, fontSize: 12, fontWeight: "600" },
+
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+
+    cancelBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        backgroundColor: "rgba(255,255,255,0.15)",
+    },
+
+    cancelBtnText: { color: C.white, fontSize: 12, fontWeight: "600" },
+
+    saveBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 8,
+        backgroundColor: "rgba(255,255,255,0.95)",
+        minWidth: 52,
+        alignItems: "center",
+    },
+
+    saveBtnText: { color: C.navyHeader, fontSize: 12, fontWeight: "700" },
+
+    editField: { gap: 4, marginBottom: 8 },
+
+    editInput: {
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 14,
+        color: C.textPrimary,
+        backgroundColor: C.offWhite,
+    },
+
+    editInputMultiline: { minHeight: 72, textAlignVertical: "top" },
 
     cardBody: { padding: 16, gap: 10 },
 

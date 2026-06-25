@@ -3,7 +3,8 @@ import { View, StyleSheet, TouchableOpacity, Pressable, Platform, Image, Alert }
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import Svg, { Rect, Circle } from "react-native-svg";
+import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
+import Svg, { Circle } from "react-native-svg";
 
 const C = {
   navy: "#1E2B6B",
@@ -59,6 +60,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const router = useRouter();
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
+  const displayReferralCode = formatReferralCodeDisplay(referralCode);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -93,7 +95,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const handleCopy = () => {
     if (Platform.OS === "web") {
       // @ts-ignore
-      if (referralCode) navigator?.clipboard?.writeText(referralCode);
+      if (displayReferralCode && displayReferralCode !== "—") navigator?.clipboard?.writeText(displayReferralCode);
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -102,7 +104,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const handleShare = async () => {
     const shareData = {
       title: "Join F&T Marketplace!",
-      text: `Use my referral code ${referralCode || "—"} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
+      text: `Use my referral code ${displayReferralCode} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
       url: "https://fandt.app/register",
     };
     if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
@@ -239,7 +241,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         <View style={welcomeStyles.refCodeWrap}>
           <AppText style={welcomeStyles.refCodeLabel}>YOUR REFERRAL CODE</AppText>
           <AppText style={welcomeStyles.refCode} numberOfLines={1} ellipsizeMode="middle">
-            {referralCode || "—"}
+            {displayReferralCode}
           </AppText>
           <View style={welcomeStyles.refCodeActions}>
             <TouchableOpacity

@@ -8,6 +8,7 @@
 import type { OrderDetail, OrderStatus, OrderStep, StepStatus } from "./ordersData";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import { fetchSellerOrderDetails, fetchSellerOrderStats, updateSellerOrderStatus } from "@/services/orderApi";
+import { fetchProducts } from "@/services/productApi";
 
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
@@ -172,6 +173,43 @@ function parsePriceString(price: string): number {
     return Number(price.replace(/[₹,\s]/g, "")) || 0;
 }
 
+function isGenericProductLabel(name?: string | null): boolean {
+    const trimmed = name?.trim() ?? "";
+    return !trimmed || trimmed.toLowerCase() === "product";
+}
+
+/** Fill missing line-item titles from the seller products catalog. */
+async function enrichOrderItemsWithCatalogNames(details: OrderDetail[]): Promise<void> {
+    const needsEnrich = details.some((order) =>
+        order.items.some((item) => isGenericProductLabel(item.name) && item.productId != null),
+    );
+    if (!needsEnrich) return;
+
+    try {
+        const products = await fetchProducts();
+        const nameByProductId = new Map<number, string>();
+        products.forEach((product) => {
+            const id = Number(product.id);
+            const name = product.name?.trim();
+            if (id > 0 && name && !isGenericProductLabel(name)) {
+                nameByProductId.set(id, name);
+            }
+        });
+
+        details.forEach((order) => {
+            order.items.forEach((item) => {
+                if (!isGenericProductLabel(item.name) || item.productId == null) return;
+                const fromCatalog = nameByProductId.get(item.productId);
+                if (fromCatalog) {
+                    item.name = fromCatalog;
+                }
+            });
+        });
+    } catch {
+        // Keep API-provided names when catalog lookup fails.
+    }
+}
+
 export function isOrdersLoaded(): boolean {
     return liveOrders.size > 0;
 }
@@ -190,6 +228,7 @@ export async function loadOrdersFromApi(force = false): Promise<void> {
             fetchSellerOrderDetails(),
             fetchSellerOrderStats(),
         ]);
+        await enrichOrderItemsWithCatalogNames(details);
         liveOrders.clear();
         details.forEach((order) => {
             liveOrders.set(order.id, { ...order, steps: [...order.steps] });

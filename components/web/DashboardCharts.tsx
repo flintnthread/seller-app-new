@@ -102,17 +102,20 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
 
   // Render SVG Area Chart
   const renderSVGChart = () => {
-    const W = chartWidth || mainChartWidth;
+    const W = Math.max(chartWidth || mainChartWidth, 1);
     const H = mainChartHeight;
     // Enough padding so 2.5px stroke + round linecap never bleeds outside
     const padding = 24;
-    const chartW = W - padding * 2;
-    const chartH = H - padding * 2;
+    const chartW = Math.max(W - padding * 2, 1);
+    const chartH = Math.max(H - padding * 2, 1);
+
+    if (W <= 0 || H <= 0) return null;
 
     if (activeMetric === "Revenue" || activeMetric === "Expenses") {
       const points = currentSales.points;
       const expensePoints = points.map((p) => Math.round(p * 0.45 + 10));
       if (points.length === 0) return null;
+      if (points.length === 1) return null;
 
       const max = Math.max(...points, ...expensePoints);
       const min = Math.min(...points, ...expensePoints);
@@ -206,23 +209,27 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
               const hOrders = (val / max) * chartH;
               const hReturns = (returns[idx]! / max) * chartH;
 
+              const safeBarW = Math.max(barW, 1);
+              const safeHOrders = Math.max(Number.isFinite(hOrders) ? hOrders : 0, 0);
+              const safeHReturns = Math.max(Number.isFinite(hReturns) ? hReturns : 0, 0);
+
               return (
                 <React.Fragment key={idx}>
                   {/* Orders Bar */}
                   <Rect
                     x={xOrders}
-                    y={padding + chartH - hOrders}
-                    width={barW}
-                    height={hOrders}
+                    y={padding + chartH - safeHOrders}
+                    width={safeBarW}
+                    height={safeHOrders}
                     fill={C.purple}
                     rx={4}
                   />
                   {/* Returns Bar */}
                   <Rect
                     x={xReturns}
-                    y={padding + chartH - hReturns}
-                    width={barW}
-                    height={hReturns}
+                    y={padding + chartH - safeHReturns}
+                    width={safeBarW}
+                    height={safeHReturns}
                     fill={C.pink}
                     rx={2}
                   />
@@ -322,9 +329,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
 
         <View style={styles.chartDetailsRow}>
           <View style={styles.detailItem}>
-            <AppText style={styles.detailLabel}>Total Revenue</AppText>
+            <AppText style={styles.detailLabel}>{salesPeriod} Revenue</AppText>
             <View style={styles.detailValRow}>
-              <AppText style={styles.detailValue}>{currentSales.totalSales}</AppText>
+              <AppText style={styles.detailValue}>{currentStats.sales || currentSales.totalSales}</AppText>
               <View style={styles.changeBadge}>
                 <Ionicons name="caret-up" size={12} color={C.green} />
                 <AppText style={styles.changeText}>{currentSales.salesChange}</AppText>

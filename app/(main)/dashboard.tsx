@@ -60,6 +60,7 @@ import {
 } from "@/components/web/DesktopDashboard";
 import { useActiveHeader } from "@/components/web/HeaderContext";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
@@ -785,11 +786,12 @@ const ReferralSection: React.FC<{
     qualified: number;
 }> = ({ referralCode, goal, totalReferred, qualified }) => {
     const [copied, setCopied] = useState(false);
+    const displayReferralCode = formatReferralCodeDisplay(referralCode);
     const progressPercent = goal > 0 ? Math.min((totalReferred / goal) * 100, 100) : 0;
 
     const handleCopy = () => {
-        if (!referralCode) return;
-        Clipboard.setString(referralCode);
+        if (!displayReferralCode || displayReferralCode === "—") return;
+        Clipboard.setString(displayReferralCode);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -810,7 +812,7 @@ const ReferralSection: React.FC<{
                     <AppText style={rf.codeLabel}>YOUR CODE</AppText>
                     <View style={rf.codePill}>
                         <MaterialCommunityIcons name="gift-outline" size={15} color={C.orangeDeep} />
-                        <AppText style={rf.codeText}>{referralCode || "—"}</AppText>
+                        <AppText style={rf.codeText}>{displayReferralCode}</AppText>
                         <TouchableOpacity style={rf.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
                             <MaterialCommunityIcons
                                 name={copied ? "check" : "content-copy"}

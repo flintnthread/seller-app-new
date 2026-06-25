@@ -18,7 +18,9 @@ export function DesktopHeader({
   const router = useRouter();
   const { profile } = useSellerProfile();
   const { isProfileCompleted } = useProfileStatus();
-  const showViewProfile = profile?.profileCompleted === true || isProfileCompleted;
+  const showViewProfile =
+    (profile?.profileCompleted === true || isProfileCompleted) &&
+    profile?.approvalState === "approved";
   const { showSuccess, confirmAction, SweetAlertHost } = useSweetAlert();
   const [isHovered, setIsHovered] = useState(false);
 
@@ -72,10 +74,6 @@ export function DesktopHeader({
 
         <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/helpsupport')}>
           <Ionicons name="headset-outline" size={20} color="#666666" />
-        </Pressable>
-
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/settingsModule')}>
-          <Ionicons name="settings-outline" size={20} color="#666666" />
         </Pressable>
         
         {/* Profile Avatar with Dropdown */}

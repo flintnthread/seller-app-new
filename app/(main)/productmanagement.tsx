@@ -820,7 +820,7 @@ const truncateTitle = (title: string) => {
 // ─────────────────────────────────────────────────────────────
 const WebProductsScreen: React.FC = () => {
     const router = useRouter();
-    const { products, setProducts, loading, error, reload } = useSellerProducts();
+    const { products, setProducts, loading, error, needsLogin, reload } = useSellerProducts();
 
     useFocusEffect(
         useCallback(() => {
@@ -1004,6 +1004,26 @@ const WebProductsScreen: React.FC = () => {
             <View style={[wst.root, { alignItems: "center", justifyContent: "center" }]}>
                 <ActivityIndicator size="large" color={C.navy} />
                 <Text style={{ marginTop: 12, fontFamily: "Outfit_500Medium", color: C.textMid }}>Loading products…</Text>
+            </View>
+        );
+    }
+
+    if (needsLogin) {
+        return (
+            <View style={[wst.root, { alignItems: "center", justifyContent: "center", padding: 24 }]}>
+                <MaterialCommunityIcons name="account-lock-outline" size={56} color={C.textLight} />
+                <Text style={{ marginTop: 16, fontFamily: "Outfit_700Bold", fontSize: 18, color: C.textDark, textAlign: "center" }}>
+                    Sign in to view your products
+                </Text>
+                <Text style={{ marginTop: 8, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight, textAlign: "center", maxWidth: 360 }}>
+                    {error ?? "Your seller session is missing or expired. Log in to load products from the backend."}
+                </Text>
+                <TouchableOpacity
+                    style={{ marginTop: 20, backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
+                    onPress={() => router.replace("/(auth)/login")}
+                >
+                    <Text style={{ fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.white }}>Go to Login</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -1915,7 +1935,7 @@ const wst = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const MobileProductsScreen: React.FC = () => {
     const router = useRouter();
-    const { products, setProducts, loading, error, reload } = useSellerProducts();
+    const { products, setProducts, loading, error, needsLogin, reload } = useSellerProducts();
 
     useFocusEffect(
         useCallback(() => {
@@ -2101,6 +2121,27 @@ const MobileProductsScreen: React.FC = () => {
                 <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
                 <ActivityIndicator size="large" color={C.navy} />
                 <Text style={{ marginTop: 12, fontFamily: "Outfit_500Medium", color: C.textMid }}>Loading products…</Text>
+            </SafeAreaView>
+        );
+    }
+
+    if (needsLogin) {
+        return (
+            <SafeAreaView style={[s.root, { alignItems: "center", justifyContent: "center", padding: 24 }]}>
+                <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
+                <MaterialCommunityIcons name="account-lock-outline" size={56} color={C.textLight} />
+                <Text style={{ marginTop: 16, fontFamily: "Outfit_700Bold", fontSize: 18, color: C.textDark, textAlign: "center" }}>
+                    Sign in to view your products
+                </Text>
+                <Text style={{ marginTop: 8, fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight, textAlign: "center" }}>
+                    {error ?? "Your seller session is missing or expired. Log in to load products from the backend."}
+                </Text>
+                <TouchableOpacity
+                    style={{ marginTop: 20, backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
+                    onPress={() => router.replace("/(auth)/login")}
+                >
+                    <Text style={{ fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.white }}>Go to Login</Text>
+                </TouchableOpacity>
             </SafeAreaView>
         );
     }

@@ -38,6 +38,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import { AUTH_ACTION_FAILED } from "@/lib/api/apiErrors";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 import {
   createTicket as apiCreateTicket,
   getTickets as apiGetTickets,
@@ -1336,9 +1337,11 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [activeTopic, setActiveTopic] = useState<HelpTopic | string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
+  const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1349,6 +1352,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [helpTopics, setHelpTopics] = useState<HelpTopic[]>([]);
   const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
   const [contactConfig, setContactConfig] = useState<SupportContactConfig | null>(null);
+  const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
 
   // ── Sweet alert state ────────────────────────────────────────────────────
   const [successModalVisible, setSuccessModalVisible] = useState(false);
@@ -1487,20 +1491,16 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   );
 
   // ── Contact options ──────────────────────────────────────────────────────
-  type ContactType = "chat" | "email" | "call";
+  type ContactType = "ticket" | "email" | "call";
+
+  const openTicketModal = () => setTicketModalVisible(true);
 
   const contactOptions: { type: ContactType; label: string; sub: string; action: () => void }[] = [
     {
-      type: "chat",
-      label: "Chat with Support",
-      sub: contactConfig?.chat?.subtitle ?? "Live Chat · Typically replies in minutes",
-      action: () => {
-        if (contactConfig?.chat?.enabled === false) {
-          Alert.alert("Unavailable", "Live chat is temporarily unavailable.");
-          return;
-        }
-        setChatVisible(true);
-      },
+      type: "ticket",
+      label: "Raise a Ticket",
+      sub: "Submit your issue and we will respond within 24 hours",
+      action: openTicketModal,
     },
     {
       type: "email",
@@ -1571,6 +1571,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setDescriptionError(false);
 
       setSuccessModalVisible(true);
+      setTicketModalVisible(false);
       setTicketSubmitted(true);
       setTimeout(() => setTicketSubmitted(false), 5000);
 
@@ -1613,34 +1614,175 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   const handleFeedbackSubmit = async () => {
     if (!rating) {
-      Alert.alert(
-        "Rating Required",
-        "Please select a star rating before submitting."
-      );
+      showWarning("Rating Required", "Please select a star rating before submitting.");
       return;
     }
 
+    if (isSubmittingFeedback) return;
+
+    setIsSubmittingFeedback(true);
     try {
-      await submitSupportFeedback({ rating, feedbackText: feedback });
+      const result = await submitSupportFeedback({ rating, feedbackText: feedback });
       setFeedbackSubmitted(true);
+      showSuccess("Thanks!", result.message || "Your feedback has been submitted.");
       setTimeout(() => {
         setFeedbackSubmitted(false);
         setRating(0);
         setFeedback("");
       }, 3000);
     } catch (e: any) {
-      Alert.alert(
+      showError(
         "Feedback Failed",
         e?.message || "Could not submit your feedback. Please try again."
       );
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
+  // ── Raise Ticket Form (modal) ────────────────────────────────────────────
+  const renderRaiseTicketForm = () => (
+    <View style={s.cardInner}>
+      {ticketSubmitted ? (
+        <View style={s.successBox}>
+          <Ionicons name="checkmark-circle" size={48} color="#27AE60" />
+          <Text style={s.successTitle}>Ticket submitted!</Text>
+          <Text style={s.successSub}>We&apos;ll get back to you within 24 hours.</Text>
+        </View>
+      ) : (
+        <>
+          <View style={s.fieldLabelRow}>
+            <Ionicons name="create-outline" size={13} color={C.textMid} />
+            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
+              Subject <Text style={s.requiredStar}>*</Text>
+            </Text>
+          </View>
+          <TextInput
+            style={[s.fieldInput, { fontFamily: F.regular }, issueTitleError && s.fieldInputError]}
+            placeholder="e.g. Payment not received"
+            placeholderTextColor={C.textLight}
+            value={issueTitle}
+            onChangeText={(t) => { setIssueTitle(t); if (t.trim()) setIssueTitleError(false); }}
+            returnKeyType="next"
+          />
+          {issueTitleError && (
+            <View style={s.errorRow}>
+              <Ionicons name="alert-circle-outline" size={13} color="#DC2626" />
+              <Text style={[s.errorText, { fontFamily: F.regular }]}>Subject is required</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+            <View style={{ flex: 1 }}>
+              <View style={s.fieldLabelRow}>
+                <Ionicons name="pricetag-outline" size={13} color={C.textMid} />
+                <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Category</Text>
+              </View>
+              <View style={s.pickerWrap}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[s.chipBtn, selectedCategory === cat.value && s.chipBtnActive]}
+                      onPress={() => setSelectedCategory(cat.value)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, selectedCategory === cat.value && s.chipBtnTxtActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <View style={s.fieldLabelRow}>
+              <Ionicons name="flag-outline" size={13} color={C.textMid} />
+              <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Priority</Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {PRIORITIES.map((p) => {
+                const priorityColors: Record<string, string> = { low: "#16A34A", medium: "#D97706", high: "#DC2626" };
+                const isActive = selectedPriority === p.value;
+                return (
+                  <TouchableOpacity
+                    key={p.value}
+                    style={[s.chipBtn, isActive && { backgroundColor: priorityColors[p.value], borderColor: priorityColors[p.value] }]}
+                    onPress={() => setSelectedPriority(p.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, isActive && { color: "#fff" }]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          <View style={[s.fieldLabelRow, { marginTop: 14 }]}>
+            <Ionicons name="document-text-outline" size={13} color={C.textMid} />
+            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
+              Description <Text style={s.requiredStar}>*</Text>
+            </Text>
+          </View>
+          <TextInput
+            style={[s.fieldTextarea, { fontFamily: F.regular }, descriptionError && s.fieldInputError]}
+            placeholder="Describe your issue in detail..."
+            placeholderTextColor={C.textLight}
+            value={description}
+            onChangeText={(t) => { setDescription(t); if (t.trim()) setDescriptionError(false); }}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+          <TouchableOpacity style={s.uploadBox} activeOpacity={0.7} onPress={handlePickImage}>
+            {uploadedImage ? (
+              <View style={s.uploadPreviewWrap}>
+                <Image source={{ uri: uploadedImage }} style={s.uploadPreview} />
+                <TouchableOpacity
+                  style={s.uploadRemoveBtn}
+                  onPress={() => setUploadedImage(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={22} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Ionicons name="cloud-upload-outline" size={28} color={C.textLight} />
+                <Text style={[s.uploadText, { fontFamily: F.regular }]}>
+                  {Platform.OS === "web" ? "Click to upload image" : "Tap to upload image"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.submitBtn, isSubmitting && s.submitBtnDisabled]}
+            onPress={handleTicketSubmit}
+            activeOpacity={0.8}
+            disabled={isSubmitting}
+          >
+            <View style={s.btnInner}>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name="send" size={15} color="#fff" style={{ marginRight: 8 }} />
+              )}
+              <Text style={[s.submitBtnText, { fontFamily: F.semiBold }]}>
+                {isSubmitting ? "Submitting..." : "Create Support Ticket"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+
   // ── Contact Row ──────────────────────────────────────────────────────────
   const ContactRow = ({ option, isLast }: { option: (typeof contactOptions)[0]; isLast: boolean }) => {
-    const bgMap: Record<ContactType, string> = { chat: C.softBlue, email: "#E1F5EE", call: C.orangePale };
+    const bgMap: Record<ContactType, string> = { ticket: "#F0FDF4", email: "#E1F5EE", call: C.orangePale };
     const iconMap: Record<ContactType, { name: string; color: string }> = {
-      chat: { name: "chatbubble-ellipses-outline", color: C.navy },
+      ticket: { name: "ticket-outline", color: "#16A34A" },
       email: { name: "mail-outline", color: "#27AE60" },
       call: { name: "call-outline", color: C.orange },
     };
@@ -1655,14 +1797,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           <Text style={[s.contactLabel, { fontFamily: F.semiBold }]}>{option.label}</Text>
           <Text style={[s.contactSub, { fontFamily: F.regular }]}>{option.sub}</Text>
         </View>
-        {option.type === "chat" ? (
-          <View style={s.liveBadge}>
-            <View style={s.liveDot} />
-            <Text style={[s.liveBadgeTxt, { fontFamily: F.semiBold }]}>Live</Text>
-          </View>
-        ) : (
-          <Ionicons name="chevron-forward" size={16} color={C.textLight} />
-        )}
+        <Ionicons name="chevron-forward" size={16} color={C.textLight} />
       </TouchableOpacity>
     );
   };
@@ -1689,6 +1824,41 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         }}
         onClose={() => setSuccessModalVisible(false)}
       />
+
+      <Modal
+        visible={ticketModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTicketModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={tm.overlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableOpacity style={tm.backdrop} activeOpacity={1} onPress={() => setTicketModalVisible(false)} />
+          <View style={[tm.sheet, isDesktop && tm.sheetDesktop]}>
+            <View style={tm.header}>
+              <View style={tm.headerLeft}>
+                <MaterialCommunityIcons name="ticket-outline" size={20} color="#16A34A" />
+                <Text style={[tm.headerTitle, { fontFamily: F.bold }]}>Raise a Ticket</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTicketModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={C.textMid} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={tm.scroll}
+              contentContainerStyle={tm.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={s.card}>{renderRaiseTicketForm()}</View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <SweetAlertHost />
 
       <AppHeader
         title="Help & Support"
@@ -1728,10 +1898,10 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
-            <Text style={[s.bannerSub, { fontFamily: F.regular }]}>Live chat · typically replies in minutes</Text>
+            <Text style={[s.bannerSub, { fontFamily: F.regular }]}>Raise a ticket · we typically respond within 24 hours</Text>
           </View>
-          <TouchableOpacity style={s.bannerBtn} onPress={() => setChatVisible(true)} activeOpacity={0.85}>
-            <Text style={[s.bannerBtnTxt, { fontFamily: F.semiBold }]}>Chat now</Text>
+          <TouchableOpacity style={s.bannerBtn} onPress={openTicketModal} activeOpacity={0.85}>
+            <Text style={[s.bannerBtnTxt, { fontFamily: F.semiBold }]}>Raise a ticket</Text>
           </TouchableOpacity>
         </View>
 
@@ -1755,37 +1925,6 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           </View>
         </View>
 
-        {/* General FAQs */}
-        <View style={s.section}>
-          <View style={s.sectionLabelRow}>
-            <View style={[s.sectionLabelPill, { backgroundColor: "#FFF3E8" }]}>
-              <Ionicons name="help-buoy-outline" size={14} color={C.orange} />
-              <Text style={[s.sectionLabel, { fontFamily: F.bold, color: C.orange }]}>Frequently Asked Questions</Text>
-            </View>
-          </View>
-          <View style={s.card}>
-            {isLoadingFaqs ? (
-              <View style={s.noResultWrap}>
-                <ActivityIndicator size="small" color={C.navy} />
-                <Text style={[s.noResult, { fontFamily: F.regular, marginTop: 8 }]}>
-                  Loading FAQs...
-                </Text>
-              </View>
-            ) : filteredFaqs.length === 0 ? (
-              <View style={s.noResultWrap}>
-                <Ionicons name="search-outline" size={28} color={C.textLight} />
-                <Text style={[s.noResult, { fontFamily: F.regular }]}>
-                  {search ? `No results for "${search}"` : "No questions available at the moment."}
-                </Text>
-              </View>
-            ) : (
-              filteredFaqs.map((faq) => (
-                <FAQItem key={faq.id} faq={faq} isLast={faq.id === filteredFaqs[filteredFaqs.length - 1]?.id} />
-              ))
-            )}
-          </View>
-        </View>
-
         {/* Contact Support */}
         <View style={s.section}>
           <View style={s.sectionLabelRow}>
@@ -1800,193 +1939,6 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
             ))}
           </View>
         </View>
-
-        {/* Raise a Ticket */}
-<View style={[s.section, isWeb && s.sectionWeb]}>
-  <View style={s.sectionLabelRow}>
-    <View style={[s.sectionLabelPill, { backgroundColor: "#F0FDF4" }]}>
-      <MaterialCommunityIcons
-        name="ticket-outline"
-        size={14}
-        color="#16A34A"
-      />
-      <Text
-        style={[
-          s.sectionLabel,
-          { fontFamily: F.bold, color: "#16A34A" },
-        ]}
-      >
-        Raise a Ticket
-      </Text>
-    </View>
-  </View>
-
-  <View style={s.card}>
-    <View style={s.cardInner}>
-
-      {ticketSubmitted ? (
-
-        <View style={s.successBox}>
-          <Ionicons
-            name="checkmark-circle"
-            size={48}
-            color="#27AE60"
-          />
-
-          <Text style={s.successTitle}>
-            Ticket submitted!
-          </Text>
-
-          <Text style={s.successSub}>
-            We&apos;ll get back to you within 24 hours.
-          </Text>
-        </View>
-
-      ) : (
-
-        <>
-          {/* Issue Title */}
-          <View style={s.fieldLabelRow}>
-            <Ionicons name="create-outline" size={13} color={C.textMid} />
-            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
-              Subject <Text style={s.requiredStar}>*</Text>
-            </Text>
-          </View>
-
-          <TextInput
-            style={[s.fieldInput, { fontFamily: F.regular }, issueTitleError && s.fieldInputError]}
-            placeholder="e.g. Payment not received"
-            placeholderTextColor={C.textLight}
-            value={issueTitle}
-            onChangeText={(t) => { setIssueTitle(t); if (t.trim()) setIssueTitleError(false); }}
-            returnKeyType="next"
-          />
-
-          {issueTitleError && (
-            <View style={s.errorRow}>
-              <Ionicons name="alert-circle-outline" size={13} color="#DC2626" />
-              <Text style={[s.errorText, { fontFamily: F.regular }]}>Subject is required</Text>
-            </View>
-          )}
-
-          {/* Category & Priority Row */}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-            <View style={{ flex: 1 }}>
-              <View style={s.fieldLabelRow}>
-                <Ionicons name="pricetag-outline" size={13} color={C.textMid} />
-                <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Category</Text>
-              </View>
-              <View style={s.pickerWrap}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                  {CATEGORIES.map((cat) => (
-                    <TouchableOpacity
-                      key={cat.value}
-                      style={[s.chipBtn, selectedCategory === cat.value && s.chipBtnActive]}
-                      onPress={() => setSelectedCategory(cat.value)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, selectedCategory === cat.value && s.chipBtnTxtActive]}>
-                        {cat.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
-          </View>
-
-          <View style={{ marginTop: 10 }}>
-            <View style={s.fieldLabelRow}>
-              <Ionicons name="flag-outline" size={13} color={C.textMid} />
-              <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>Priority</Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {PRIORITIES.map((p) => {
-                const priorityColors: Record<string, string> = { low: "#16A34A", medium: "#D97706", high: "#DC2626" };
-                const isActive = selectedPriority === p.value;
-                return (
-                  <TouchableOpacity
-                    key={p.value}
-                    style={[s.chipBtn, isActive && { backgroundColor: priorityColors[p.value], borderColor: priorityColors[p.value] }]}
-                    onPress={() => setSelectedPriority(p.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.chipBtnTxt, { fontFamily: F.medium }, isActive && { color: "#fff" }]}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Description */}
-          <View style={[s.fieldLabelRow, { marginTop: 14 }]}>
-            <Ionicons name="document-text-outline" size={13} color={C.textMid} />
-            <Text style={[s.fieldLabel, { fontFamily: F.medium }]}>
-              Description <Text style={s.requiredStar}>*</Text>
-            </Text>
-          </View>
-
-          <TextInput
-            style={[s.fieldTextarea, { fontFamily: F.regular }, descriptionError && s.fieldInputError]}
-            placeholder="Describe your issue in detail..."
-            placeholderTextColor={C.textLight}
-            value={description}
-            onChangeText={(t) => { setDescription(t); if (t.trim()) setDescriptionError(false); }}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-
-          {/* Upload */}
-          <TouchableOpacity style={s.uploadBox} activeOpacity={0.7} onPress={handlePickImage}>
-            {uploadedImage ? (
-              <View style={s.uploadPreviewWrap}>
-                <Image source={{ uri: uploadedImage }} style={s.uploadPreview} />
-                <TouchableOpacity
-                  style={s.uploadRemoveBtn}
-                  onPress={() => setUploadedImage(null)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close-circle" size={22} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <Ionicons name="cloud-upload-outline" size={28} color={C.textLight} />
-                <Text style={[s.uploadText, { fontFamily: F.regular }]}>
-                  {Platform.OS === "web" ? "Click to upload image" : "Tap to upload image"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[s.submitBtn, isSubmitting && s.submitBtnDisabled]}
-            onPress={handleTicketSubmit}
-            activeOpacity={0.8}
-            disabled={isSubmitting}
-          >
-            <View style={s.btnInner}>
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-              ) : (
-                <Ionicons name="send" size={15} color="#fff" style={{ marginRight: 8 }} />
-              )}
-              <Text style={[s.submitBtnText, { fontFamily: F.semiBold }]}>
-                {isSubmitting ? "Submitting..." : "Create Support Ticket"}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </>
-
-      )}
-
-    </View>
-  </View>
-</View>
 
         {/* Help Topics */}
         <View style={s.section}>
@@ -2114,13 +2066,20 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
                     textAlignVertical="top"
                   />
                   <TouchableOpacity
-                    style={[s.outlineBtn, !rating && s.submitBtnDisabled]}
+                    style={[s.outlineBtn, (!rating || isSubmittingFeedback) && s.submitBtnDisabled]}
                     onPress={handleFeedbackSubmit}
+                    disabled={!rating || isSubmittingFeedback}
                     activeOpacity={0.8}
                   >
                     <View style={s.btnInner}>
-                      <Ionicons name="checkmark-done-outline" size={16} color={C.navy} style={{ marginRight: 7 }} />
-                      <Text style={[s.outlineBtnText, { fontFamily: F.medium }]}>Submit Feedback</Text>
+                      {isSubmittingFeedback ? (
+                        <ActivityIndicator size="small" color={C.navy} style={{ marginRight: 7 }} />
+                      ) : (
+                        <Ionicons name="checkmark-done-outline" size={16} color={C.navy} style={{ marginRight: 7 }} />
+                      )}
+                      <Text style={[s.outlineBtnText, { fontFamily: F.medium }]}>
+                        {isSubmittingFeedback ? "Submitting..." : "Submit Feedback"}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 </>
@@ -2593,6 +2552,35 @@ const sm = StyleSheet.create({
     fontSize: 15,
     color: C.textLight,
   },
+});
+
+const tm = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16 },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "88%",
+    backgroundColor: C.white,
+    borderRadius: 16,
+    overflow: "hidden",
+    zIndex: 1,
+  },
+  sheetDesktop: { maxHeight: "85%" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.08)",
+    backgroundColor: "#F0FDF4",
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerTitle: { fontSize: 17, color: C.textDark },
+  scroll: { maxHeight: 520 },
+  scrollContent: { padding: 16 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { useProfileStatus } from "@/hooks/useProfileStatus";
 import { clearSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { getProfileMenuRoute } from "@/lib/profile/profileMenuRoutes";
 import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
+import { formatSellerUniqueIdDisplay } from "@/lib/profile/sellerDisplayFormat";
 import {
   fetchSellerProfile,
   getApiErrorMessage,
@@ -40,7 +41,38 @@ import {
 } from "@expo/vector-icons";
 import { Modal, Text } from "react-native";
 
-const PLACEHOLDER_AVATAR = "https://i.pravatar.cc/300";
+function ProfileAvatar({
+  uri,
+  size,
+  style,
+  iconSize,
+}: {
+  uri: string | null;
+  size: number;
+  style?: object;
+  iconSize: number;
+}) {
+  if (uri) {
+    return <Image source={{ uri }} style={[{ width: size, height: size, borderRadius: size / 2 }, style]} />;
+  }
+  return (
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#E5E7EB",
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        style,
+      ]}
+    >
+      <MaterialCommunityIcons name="account" size={iconSize} color="#9CA3AF" />
+    </View>
+  );
+}
 
 function formatMobileDisplay(mobile: string): string {
   const digits = mobile.replace(/\D/g, "").slice(-10);
@@ -134,6 +166,8 @@ export default function SellerProfileScreen() {
   const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
   const [sellerId, setSellerIdDisplay] = useState("");
+  const [sellerUniqueId, setSellerUniqueId] = useState("");
+  const [approvalState, setApprovalState] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [profileCompleted, setProfileCompletedLocal] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -148,7 +182,7 @@ export default function SellerProfileScreen() {
     avgRating: "—",
   });
   const router = useRouter();
-  const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
+  const { showSuccess, showError, confirmAction, SweetAlertHost } = useSweetAlert();
   const { setIsProfileCompleted } = useProfileStatus();
 
   const { width } = useWindowDimensions();
@@ -163,6 +197,8 @@ export default function SellerProfileScreen() {
       setMobile(profile.mobile?.replace(/\D/g, "").slice(-10) || "");
       setEmail(profile.email || "");
       setSellerIdDisplay(String(profile.sellerId));
+      setSellerUniqueId(profile.sellerUniqueId?.trim() || "");
+      setApprovalState(profile.accountStatus?.approvalState ?? null);
       setBusinessName(profile.business?.businessName?.trim() || "");
       setProfileCompletedLocal(profile.profileCompleted);
       setIsProfileCompleted(profile.profileCompleted);
@@ -220,8 +256,8 @@ export default function SellerProfileScreen() {
 
   const displayName = fullName || businessName || "Seller";
   const displayMobile = formatMobileDisplay(mobile);
-  const displaySellerId = sellerId ? `SEL${sellerId}` : "—";
-  const avatarUri = profileImage || PLACEHOLDER_AVATAR;
+  const displaySellerId = formatSellerUniqueIdDisplay(sellerUniqueId, sellerId);
+  const canViewProfile = profileCompleted && approvalState === "approved";
 
   const uploadPickedImage = async (localUri: string) => {
     setProfileImage(localUri);
@@ -291,24 +327,20 @@ export default function SellerProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    const doLogout = async () => {
-      await clearSellerId();
-      setIsProfileCompleted(false);
+  const handleLogout = async () => {
+    const confirmed = await confirmAction(
+      "Confirm Logout",
+      "Are you sure you want to sign out from your seller account?",
+      "Logout"
+    );
+    if (!confirmed) return;
+
+    await clearSellerId();
+    setIsProfileCompleted(false);
+    showSuccess("You have been signed out successfully.", "Logged Out");
+    setTimeout(() => {
       router.replace("/(auth)/login");
-    };
-
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      if (window.confirm("Are you sure you want to logout?")) {
-        void doLogout();
-      }
-      return;
-    }
-
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => void doLogout() },
-    ]);
+    }, 1500);
   };
 
   const openViewProfile = () => router.push("/viewsellerprofile");
@@ -355,9 +387,11 @@ export default function SellerProfileScreen() {
             <View style={desktopStyles.sidebarProfileCard}>
               <View style={desktopStyles.sidebarAvatarWrap}>
                 <TouchableOpacity onPress={() => setModalVisible(true)} disabled={uploadingPhoto}>
-                  <Image
-                    source={{ uri: avatarUri }}
+                  <ProfileAvatar
+                    uri={profileImage}
+                    size={80}
                     style={desktopStyles.sidebarAvatar}
+                    iconSize={40}
                   />
                   {uploadingPhoto && (
                     <View style={desktopStyles.avatarLoadingOverlay}>
@@ -398,7 +432,7 @@ export default function SellerProfileScreen() {
                   <AppText style={desktopStyles.sidebarCompleteBtnText}>Complete profile</AppText>
                 </TouchableOpacity>
               )}
-              {profileCompleted ? (
+              {canViewProfile ? (
                 <TouchableOpacity
                   style={desktopStyles.sidebarEditBtn}
                   onPress={openViewProfile}
@@ -443,7 +477,7 @@ export default function SellerProfileScreen() {
               ))}
             </View>
             {/* Desktop Logout Button */}
-   <TouchableOpacity style={desktopStyles.desktopLogoutBtn} onPress={handleLogout}>
+   <TouchableOpacity style={desktopStyles.desktopLogoutBtn} onPress={() => void handleLogout()}>
   <AntDesign name="logout" size={18} color="#FF6B35" />
   <AppText style={desktopStyles.desktopLogoutText}>
     Logout
@@ -484,7 +518,6 @@ export default function SellerProfileScreen() {
                     { icon: 'box', color: '#4caf50', title: 'Manage Products' },
                     { icon: 'shopping-cart', color: '#2196f3', title: 'Orders Management' },
                     { icon: 'bar-chart-2', color: '#9c27b0', title: 'Store Analytics' },
-                    { icon: 'settings', color: '#666', title: 'Store Settings' },
                   ].map((item) => (
                     <DesktopListItem
                       key={item.title}
@@ -504,7 +537,6 @@ export default function SellerProfileScreen() {
                     { icon: 'dollar-sign', color: '#4caf50', title: 'Earnings Overview' },
                     { icon: 'credit-card', color: '#9c27b0', title: 'Payouts & Withdrawals' },
                     { icon: 'file-text', color: '#f5a623', title: 'Transactions History' },
-                    { icon: 'home', color: '#2196f3', title: 'Payout Settings' },
                   ].map((item) => (
                     <DesktopListItem
                       key={item.title}
@@ -543,7 +575,6 @@ export default function SellerProfileScreen() {
                   {[
                     { icon: 'headphones', color: '#9c27b0', title: 'Help & Support' },
                     { icon: 'file-text', color: '#2196f3', title: 'Privacy & Policy' },
-                    { icon: 'help-circle', color: '#f5a623', title: 'FAQs' },
                   ].map((item) => (
                     <DesktopListItem
                       key={item.title}
@@ -630,9 +661,11 @@ export default function SellerProfileScreen() {
           <View style={styles.profileTop}>
             <View style={styles.imageContainer}>
               <TouchableOpacity onPress={() => setModalVisible(true)} disabled={uploadingPhoto}>
-                <Image
-                  source={{ uri: avatarUri }}
+                <ProfileAvatar
+                  uri={profileImage}
+                  size={90}
                   style={styles.profileImage}
+                  iconSize={44}
                 />
                 {uploadingPhoto && (
                   <View style={styles.avatarLoadingOverlay}>
@@ -677,7 +710,7 @@ export default function SellerProfileScreen() {
             </TouchableOpacity>
           )}
 
-          {profileCompleted ? (
+          {canViewProfile ? (
             <TouchableOpacity style={styles.editBtn} onPress={openViewProfile}>
               <View style={styles.editBtnHighlight}>
                 <Ionicons name="create-outline" size={20} color="#FF6B35" />
@@ -707,7 +740,6 @@ export default function SellerProfileScreen() {
           <ListItem icon="box" color="#4caf50" title="Manage Products" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
           <ListItem icon="shopping-cart" color="#2196f3" title="Orders Management" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
           <ListItem icon="bar-chart-2" color="#9c27b0" title="Store Analytics" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
-          <ListItem icon="settings" color="#666" title="Store Settings" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* EARNINGS */}
@@ -716,7 +748,6 @@ export default function SellerProfileScreen() {
           <ListItem icon="dollar-sign" color="#4caf50" title="Earnings Overview" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
           <ListItem icon="credit-card" color="#9c27b0" title="Payouts & Withdrawals" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
           <ListItem icon="file-text" color="#f5a623" title="Transactions History" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
-          <ListItem icon="home" color="#2196f3" title="Payout Settings" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* GROWTH */}
@@ -733,11 +764,10 @@ export default function SellerProfileScreen() {
         <View style={styles.card}>
           <ListItem icon="headphones" color="#9c27b0" title="Help & Support" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
           <ListItem icon="file-text" color="#2196f3" title="Privacy & Support" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
-          <ListItem icon="help-circle" color="#f5a623" title="FAQs" selectedItem={selectedItem} setSelectedItem={navigateMenuItem} />
         </View>
 
         {/* LOGOUT */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={() => void handleLogout()}>
           <AntDesign name="logout" size={20} color="#FF6B35" />
           <AppText style={styles.logoutText}>Logout</AppText>
         </TouchableOpacity>
