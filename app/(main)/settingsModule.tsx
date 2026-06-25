@@ -22,6 +22,8 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { clearSellerId } from "@/lib/api/sellerSession";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
+import { formatSellerUniqueIdDisplay } from "@/lib/profile/sellerDisplayFormat";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 interface SettingItem {
   id: string;
@@ -34,6 +36,7 @@ interface SettingItem {
 export default function SettingsScreen() {
   const router = useRouter();
   const { profile } = useSellerProfile();
+  const { confirmAction, confirmDelete, showSuccess, showError, SweetAlertHost } = useSweetAlert();
   const {
     darkMode,
     language,
@@ -73,57 +76,42 @@ export default function SettingsScreen() {
       });
   }, []);
 
-  const confirmDeleteAccount = useCallback(() => {
-    const runDelete = async () => {
-      try {
-        await deactivateSellerAccount();
-        await clearSellerId();
-        router.replace("/(auth)/login");
-      } catch (e) {
-        Alert.alert(
-          "Delete failed",
-          e instanceof Error ? e.message : "Could not deactivate your account."
-        );
-      }
-    };
-
-    if (Platform.OS === "web") {
-      const typed = window.prompt(
-        'Type DELETE to permanently deactivate your seller account. You can contact support to restore it.'
-      );
-      if (typed?.trim().toUpperCase() === "DELETE") void runDelete();
-      return;
-    }
-
-    Alert.alert(
+  const confirmDeleteAccount = useCallback(async () => {
+    const confirmed = await confirmDelete(
       "Delete Account",
-      "This will deactivate your seller account. Type DELETE to confirm.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            Alert.prompt?.(
-              "Confirm deletion",
-              'Enter DELETE to confirm',
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Deactivate",
-                  style: "destructive",
-                  onPress: (value?: string) => {
-                    if (value?.trim().toUpperCase() === "DELETE") void runDelete();
-                  },
-                },
-              ],
-              "plain-text"
-            ) ?? void runDelete();
-          },
-        },
-      ]
+      "This will permanently deactivate your seller account. You can contact support to restore it. Are you sure you want to continue?"
     );
-  }, [router]);
+    if (!confirmed) return;
+
+    try {
+      await deactivateSellerAccount();
+      await clearSellerId();
+      showSuccess("Your seller account has been deactivated.", "Account Deleted");
+      setTimeout(() => {
+        router.replace("/(auth)/login");
+      }, 1500);
+    } catch (e) {
+      showError(
+        e instanceof Error ? e.message : "Could not deactivate your account.",
+        "Delete Failed"
+      );
+    }
+  }, [router, confirmDelete, showSuccess, showError]);
+
+  const confirmLogout = useCallback(async () => {
+    const confirmed = await confirmAction(
+      "Confirm Logout",
+      "Are you sure you want to sign out from your seller account?",
+      "Logout"
+    );
+    if (!confirmed) return;
+
+    await clearSellerId();
+    showSuccess("You have been signed out successfully.", "Logged Out");
+    setTimeout(() => {
+      router.replace("/(auth)/login");
+    }, 1500);
+  }, [router, confirmAction, showSuccess]);
 
   const pickLanguage = useCallback(() => {
     if (Platform.OS === "web") {
@@ -187,25 +175,10 @@ export default function SettingsScreen() {
           router.push("/legal-document?type=privacy");
           break;
         case "17":
-          if (Platform.OS === "web") {
-            if (window.confirm("Are you sure you want to logout?")) {
-              void clearSellerId().then(() => router.replace("/(auth)/login"));
-            }
-          } else {
-            Alert.alert("Logout", "Are you sure you want to logout?", [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Logout",
-                style: "destructive",
-                onPress: () => {
-                  void clearSellerId().then(() => router.replace("/(auth)/login"));
-                },
-              },
-            ]);
-          }
+          void confirmLogout();
           break;
         case "18":
-          confirmDeleteAccount();
+          void confirmDeleteAccount();
           break;
         case "lang":
           pickLanguage();
@@ -214,7 +187,7 @@ export default function SettingsScreen() {
           break;
       }
     },
-    [router, confirmDeleteAccount, pickLanguage, handleChangePassword]
+    [router, confirmDeleteAccount, confirmLogout, pickLanguage, handleChangePassword]
   );
 
   const filterItems = useCallback(
@@ -511,7 +484,7 @@ export default function SettingsScreen() {
                 </AppText>
 
                 <AppText style={styles.profileId}>
-                  {profile?.id != null ? `Seller ID: ${profile.id}` : "Seller ID: —"}
+                  {formatSellerUniqueIdDisplay(profile?.sellerUniqueId, profile?.id)}
                 </AppText>
               </View>
             </View>
@@ -653,6 +626,7 @@ export default function SettingsScreen() {
 
         {filterItems(dangerZone).map(renderItem)}
       </ScrollView>
+      <SweetAlertHost />
     </SafeAreaView>
   );
 }

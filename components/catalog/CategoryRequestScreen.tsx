@@ -65,6 +65,8 @@ export function CategoryRequestScreen() {
     const [description, setDescription] = useState("");
     const [reason, setReason] = useState("");
     const [nameError, setNameError] = useState("");
+    const [descriptionError, setDescriptionError] = useState("");
+    const [reasonError, setReasonError] = useState("");
     const [requests, setRequests] = useState<CategoryRequestRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
@@ -115,6 +117,8 @@ export function CategoryRequestScreen() {
         setDescription("");
         setReason("");
         setNameError("");
+        setDescriptionError("");
+        setReasonError("");
     };
 
     const handleReset = async () => {
@@ -159,12 +163,35 @@ export function CategoryRequestScreen() {
 
     const handleSubmit = async () => {
         const name = categoryName.trim();
+        const desc = description.trim();
+        const reasonText = reason.trim();
+        let hasError = false;
+
         if (!name) {
             setNameError("Category name is required");
-            showWarning("Please enter a category name.", "Required field");
+            hasError = true;
+        } else {
+            setNameError("");
+        }
+
+        if (!desc) {
+            setDescriptionError("Description is required");
+            hasError = true;
+        } else {
+            setDescriptionError("");
+        }
+
+        if (!reasonText) {
+            setReasonError("Reason for request is required");
+            hasError = true;
+        } else {
+            setReasonError("");
+        }
+
+        if (hasError) {
+            showWarning("Please fill in all required fields.", "Required fields");
             return;
         }
-        setNameError("");
 
         const actionText = editingId ? "Save changes to" : "Submit request for";
         const confirmTitle = editingId ? "Save changes?" : "Submit request?";
@@ -182,8 +209,8 @@ export function CategoryRequestScreen() {
             if (editingId) {
                 const updated = await updateCategoryRequest(editingId, {
                     categoryName: name,
-                    description: description.trim(),
-                    reason: reason.trim(),
+                    description: desc,
+                    reason: reasonText,
                 });
                 setRequests((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
                 setEditingId(null);
@@ -195,8 +222,8 @@ export function CategoryRequestScreen() {
             } else {
                 const created = await createCategoryRequest({
                     categoryName: name,
-                    description: description.trim(),
-                    reason: reason.trim(),
+                    description: desc,
+                    reason: reasonText,
                 });
                 setRequests((prev) => [created, ...prev]);
                 resetForm();
@@ -262,33 +289,45 @@ export function CategoryRequestScreen() {
             </View>
 
             <View style={pg.field}>
-                <Text style={pg.label}>Description</Text>
+                <Text style={pg.label}>
+                    Description <Text style={pg.required}>*</Text>
+                </Text>
                 <TextInput
-                    style={[pg.input, pg.textArea]}
+                    style={[pg.input, pg.textArea, descriptionError ? pg.inputError : null]}
                     placeholder="Provide a detailed description of what products would fall under this category"
                     placeholderTextColor="#9CA3AF"
                     value={description}
-                    onChangeText={setDescription}
+                    onChangeText={(t) => {
+                        setDescription(t);
+                        if (descriptionError) setDescriptionError("");
+                    }}
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
                     editable={!submitting}
                 />
+                {descriptionError ? <Text style={pg.errorTxt}>{descriptionError}</Text> : null}
             </View>
 
             <View style={pg.field}>
-                <Text style={pg.label}>Reason for Request</Text>
+                <Text style={pg.label}>
+                    Reason for Request <Text style={pg.required}>*</Text>
+                </Text>
                 <TextInput
-                    style={[pg.input, pg.textArea]}
+                    style={[pg.input, pg.textArea, reasonError ? pg.inputError : null]}
                     placeholder="Why do you need this category? How will it benefit your business?"
                     placeholderTextColor="#9CA3AF"
                     value={reason}
-                    onChangeText={setReason}
+                    onChangeText={(t) => {
+                        setReason(t);
+                        if (reasonError) setReasonError("");
+                    }}
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
                     editable={!submitting}
                 />
+                {reasonError ? <Text style={pg.errorTxt}>{reasonError}</Text> : null}
             </View>
 
             <View style={pg.formActions}>

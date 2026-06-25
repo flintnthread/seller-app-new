@@ -32,14 +32,14 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
-import type { Order, OrderStatus } from "@/lib/orders/ordersData";
+import type { Order, OrderItem, OrderStatus } from "@/lib/orders/ordersData";
+import { resolveLineItemAmount } from "@/lib/orders/orderLineAmount";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import {
   getLiveOrder,
   getLiveOrders,
   getOrderStats,
   getOrderTabCount,
-  loadOrdersFromApi,
   refreshOrdersFromApi,
   subscribeToOrderChanges,
 } from "@/lib/orders/ordersStore";
@@ -79,6 +79,26 @@ const C = {
 };
 
 const DESKTOP_BREAKPOINT = 1024;
+
+const webBoxShadow = (value: string) =>
+  Platform.OS === "web" ? ({ boxShadow: value } as object) : {};
+
+const nativeShadow = (
+  color: string,
+  offset: { width: number; height: number },
+  opacity: number,
+  radius: number,
+  elevation: number
+) =>
+  Platform.OS === "web"
+    ? {}
+    : {
+        shadowColor: color,
+        shadowOffset: offset,
+        shadowOpacity: opacity,
+        shadowRadius: radius,
+        elevation,
+      };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -270,6 +290,41 @@ function orderMatchesTab(orderStatus: OrderStatus, tab: TabKey): boolean {
   return orderStatus === target;
 }
 
+function formatInr(amount: number): string {
+  return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function formatLinePrice(item: OrderItem): string {
+  const amount = resolveLineItemAmount(item);
+  if (amount > 0) return formatInr(amount);
+  const raw = item.price?.trim();
+  return raw || "₹0";
+}
+
+function formatLineVariant(item: OrderItem): string {
+  const variant = item.variant?.trim();
+  if (variant) return variant;
+  const parts = [item.color, item.size].filter((v) => v?.trim()).map((v) => v!.trim());
+  return parts.join(" · ");
+}
+
+function isGenericProductLabel(name?: string | null): boolean {
+  const trimmed = name?.trim() ?? "";
+  return !trimmed || trimmed.toLowerCase() === "product";
+}
+
+function resolveDisplayProductName(item: OrderItem, catalogNames?: Map<number, string>): string {
+  const raw = item.name?.trim() ?? "";
+  if (!isGenericProductLabel(raw)) return raw;
+  if (item.productId != null && catalogNames?.has(item.productId)) {
+    const fromCatalog = catalogNames.get(item.productId)?.trim();
+    if (fromCatalog && !isGenericProductLabel(fromCatalog)) return fromCatalog;
+  }
+  const sku = item.sku?.trim();
+  if (sku) return sku;
+  return raw || "Product";
+}
+
 /** One list row per order_items row for this seller (matches DB order_items count). */
 function deriveLineItemRows(): Order[] {
   return getLiveOrders().flatMap((d) => {
@@ -280,10 +335,10 @@ function deriveLineItemRows(): Order[] {
         listKey: lineKey,
         id: d.id,
         date: d.date,
-        product: item.name,
-        variant: item.variant,
+        product: resolveDisplayProductName(item),
+        variant: formatLineVariant(item),
         qty: item.qty,
-        price: item.price,
+        price: formatLinePrice(item),
         status: resolveLineStatus(item, d.status),
         customer: d.customer.name,
         image: item.image,
@@ -356,9 +411,10 @@ const DesktopListRow: React.FC<{ order: Order; isLast: boolean }> = ({ order, is
 
       {/* ITEMS */}
       <View style={listRow.colItems}>
+        <Text style={listRow.productName} numberOfLines={3} ellipsizeMode="tail">{order.product}</Text>
         <View style={listRow.itemsPill}>
           <MaterialCommunityIcons name="package-variant-closed" size={12} color={C.textMid} style={{ marginRight: 4 }} />
-          <Text style={listRow.itemsPillText}>{order.qty} item{order.qty > 1 ? "s" : ""}</Text>
+          <Text style={listRow.itemsPillText}>Qty: {order.qty}</Text>
         </View>
       </View>
 
@@ -427,17 +483,24 @@ const DesktopListRow: React.FC<{ order: Order; isLast: boolean }> = ({ order, is
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OrderCard — unchanged layout for mobile; slightly wider on desktop
+// OrderCard — responsive card with backend product name, qty, and line amount
 // ─────────────────────────────────────────────────────────────────────────────
-const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
+const OrderCard: React.FC<{ order: Order; isDesktop?: boolean }> = ({ order, isDesktop }) => {
   const statusCfg = STATUS_CONFIG[order.status];
   if (!statusCfg) return null;
+
+  const imageUri = order.image?.trim() || "";
+  const openDetails = () =>
+    router.push({ pathname: "/(main)/orderDetails", params: { orderId: order.id } });
+  const openShippingLabel = () =>
+    router.push({ pathname: "/(main)/orderDetails", params: { orderId: order.id, openLabel: "1" } });
+
   return (
-    <View style={styles.orderCard}>
+    <View style={[styles.orderCard, isDesktop && deskStyles.orderCardDesktop]}>
       <View style={styles.orderCardTopRow}>
         <View style={styles.orderCardLeft}>
-          <Text style={styles.orderId}>{order.id}</Text>
-          <Text style={styles.orderDate}>{order.date}</Text>
+          <Text style={styles.orderId} numberOfLines={1}>{order.id}</Text>
+          <Text style={styles.orderDate} numberOfLines={1}>{order.date}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
           <Text style={[styles.statusText, { color: statusCfg.color }]}>
@@ -445,59 +508,56 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
           </Text>
         </View>
       </View>
+
       <View style={styles.productRow}>
-        <TouchableOpacity
-          onPress={() =>
-            router.push({
-              pathname: "/(main)/orderDetails",
-              params: { orderId: order.id },
-            })
-          }
-          activeOpacity={0.85}
-        >
-          <Image source={{ uri: order.image }} style={styles.productImage} />
+        <TouchableOpacity onPress={openDetails} activeOpacity={0.85}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.productImage} />
+          ) : (
+            <View style={[styles.productImage, styles.productImagePlaceholder]}>
+              <MaterialCommunityIcons name="package-variant" size={26} color={C.textLight} />
+            </View>
+          )}
         </TouchableOpacity>
-        <View style={styles.productInfo}>
-          <Text style={styles.productName}>{order.product}</Text>
-          <Text style={styles.productVariant}>{order.variant}</Text>
-          <Text style={styles.productQty}>Qty: {order.qty}</Text>
-        </View>
-        <View style={styles.priceCol}>
-          <Text style={styles.priceText}>{order.price}</Text>
-          <Text
-            style={styles.shippingLabelText}
-            onPress={() =>
-              router.push({
-                pathname: "/(main)/orderDetails",
-                params: { orderId: order.id, openLabel: "1" },
-              })
-            }
-          >
-            Shipping Label
-          </Text>
+
+        <View style={styles.productMiddle}>
+          <View style={styles.productTitleRow}>
+            <Text
+              style={styles.productName}
+              numberOfLines={4}
+              ellipsizeMode="tail"
+              // @ts-ignore — web tooltip for full product title
+              title={order.product}
+            >
+              {order.product}
+            </Text>
+            <Text style={styles.priceText}>{order.price}</Text>
+          </View>
+          {order.variant ? (
+            <Text style={styles.productVariant} numberOfLines={1}>
+              {order.variant}
+            </Text>
+          ) : null}
+          <View style={styles.qtyRow}>
+            <MaterialCommunityIcons name="package-variant-closed" size={12} color={C.textMid} />
+            <Text style={styles.productQty}>Qty: {order.qty}</Text>
+          </View>
         </View>
       </View>
+
+      <TouchableOpacity style={styles.shippingLabelBtn} onPress={openShippingLabel} activeOpacity={0.75}>
+        <MaterialCommunityIcons name="truck-outline" size={14} color={C.navy} />
+        <Text style={styles.shippingLabelText}>Shipping Label</Text>
+      </TouchableOpacity>
+
       <View style={styles.orderCardBottom}>
-        <Text style={styles.customerLabel}>
+        <Text style={styles.customerLabel} numberOfLines={1}>
           <Text style={styles.customerKey}>Customer: </Text>
           {order.customer}
         </Text>
-        <TouchableOpacity
-          style={styles.viewDetailsBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/(main)/orderDetails",
-              params: { orderId: order.id },
-            })
-          }
-        >
+        <TouchableOpacity style={styles.viewDetailsBtn} onPress={openDetails}>
           <Text style={styles.viewDetailsText}>View Details</Text>
-          <Ionicons
-            name="chevron-forward"
-            size={13}
-            color={C.navy}
-            style={{ marginLeft: 2 }}
-          />
+          <Ionicons name="chevron-forward" size={13} color={C.navy} style={{ marginLeft: 2 }} />
         </TouchableOpacity>
       </View>
     </View>
@@ -908,7 +968,7 @@ export default function OrdersScreen() {
       setOrdersError(null);
       try {
         await hydrateSellerSession();
-        await loadOrdersFromApi();
+        await refreshOrdersFromApi();
         if (!cancelled) syncOrdersFromStore();
       } catch (err: unknown) {
         if (!cancelled) {
@@ -1561,9 +1621,7 @@ export default function OrdersScreen() {
             viewMode === "grid" ? (
               <View style={deskStyles.desktopGrid}>
                 {sortedOrders.map((order) => (
-                  <View key={order.listKey} style={deskStyles.desktopGridItem}>
-                    <OrderCard order={order} />
-                  </View>
+                  <OrderCard key={order.listKey} order={order} isDesktop />
                 ))}
               </View>
             ) : (
@@ -2034,8 +2092,7 @@ export default function OrdersScreen() {
 
       {/* ── Sort Overlay ── */}
       <Animated.View
-        style={[styles.overlay, { opacity: overlayOpacity }]}
-        pointerEvents={sheetVisible ? "auto" : "none"}
+        style={[styles.overlay, { opacity: overlayOpacity, pointerEvents: sheetVisible ? "auto" : "none" }]}
       >
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject}
@@ -2046,8 +2103,7 @@ export default function OrdersScreen() {
 
       {/* ── Sort Bottom Sheet ── */}
       <Animated.View
-        style={[styles.sortBottomSheet, { transform: [{ translateY }] }]}
-        pointerEvents={sheetVisible ? "auto" : "none"}
+        style={[styles.sortBottomSheet, { transform: [{ translateY }], pointerEvents: sheetVisible ? "auto" : "none" }]}
       >
         <View style={styles.handleArea} {...sortPanResponder.panHandlers}>
           <View style={styles.dragHandle} />
@@ -2114,8 +2170,7 @@ export default function OrdersScreen() {
 
       {/* ── Filter Overlay ── */}
       <Animated.View
-        style={[styles.overlay, { opacity: filterOverlayOpacity }]}
-        pointerEvents={filterVisible ? "auto" : "none"}
+        style={[styles.overlay, { opacity: filterOverlayOpacity, pointerEvents: filterVisible ? "auto" : "none" }]}
       >
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject}
@@ -2128,9 +2183,8 @@ export default function OrdersScreen() {
       <Animated.View
         style={[
           styles.filterBottomSheet,
-          { transform: [{ translateY: filterTranslateY }] },
+          { transform: [{ translateY: filterTranslateY }], pointerEvents: filterVisible ? "auto" : "none" },
         ]}
-        pointerEvents={filterVisible ? "auto" : "none"}
       >
         <View style={styles.handleArea} {...filterPanResponder.panHandlers}>
           <View style={styles.dragHandle} />
@@ -2585,7 +2639,12 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     borderRadius: 16,
     padding: 14,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: C.border,
+    ...Platform.select({
+      web: { boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)" as unknown as undefined },
+      default: { elevation: 2 },
+    }),
   },
   orderCardTopRow: {
     flexDirection: "row",
@@ -2600,21 +2659,62 @@ const styles = StyleSheet.create({
   productRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 10,
+    gap: 12,
   },
   productImage: {
     width: 72,
     height: 72,
     borderRadius: 10,
-    backgroundColor: C.border,
-    marginRight: 12,
+    backgroundColor: C.bg,
+    flexShrink: 0,
   },
-  productInfo: { flex: 1 },
-  productName: { fontSize: 14, fontWeight: "700", color: C.textDark },
-  productVariant: { fontSize: 12, color: C.textLight, marginTop: 3 },
-  productQty: { fontSize: 12, color: C.textLight, marginTop: 2 },
-  priceCol: { alignItems: "flex-end" },
-  priceText: { fontSize: 14, fontWeight: "800", color: C.textDark },
+  productImagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  productMiddle: { flex: 1, minWidth: 0, gap: 4 },
+  productTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  productName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: C.textDark,
+    lineHeight: 18,
+    flexShrink: 1,
+  },
+  productVariant: { fontSize: 12, color: C.textLight },
+  qtyRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  productQty: { fontSize: 12, color: C.textMid, fontWeight: "600" },
+  priceText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: C.textDark,
+    flexShrink: 0,
+    textAlign: "right",
+    minWidth: 56,
+  },
+  shippingLabelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 10,
+    paddingVertical: 2,
+  },
+  shippingLabelText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.navy,
+    textDecorationLine: "underline",
+  },
   orderCardBottom: {
     flexDirection: "row",
     alignItems: "center",
@@ -2623,7 +2723,7 @@ const styles = StyleSheet.create({
     borderTopColor: C.border,
     paddingTop: 10,
   },
-  customerLabel: { fontSize: 13, color: C.textMid },
+  customerLabel: { fontSize: 13, color: C.textMid, flex: 1, marginRight: 8 },
   customerKey: { fontWeight: "700", color: C.textDark },
   viewDetailsBtn: {
     flexDirection: "row",
@@ -2635,13 +2735,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   viewDetailsText: { fontSize: 12, fontWeight: "700", color: C.navy },
-  shippingLabelText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: C.navy,
-    textDecorationLine: "underline",
-    marginTop: 35,
-  },
   emptyState: {
     backgroundColor: C.white,
     borderRadius: 16,
@@ -2726,11 +2819,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
-    shadowColor: C.orange,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 4,
+    ...webBoxShadow("0 6px 10px rgba(249, 115, 22, 0.2)"),
+    ...nativeShadow(C.orange, { width: 0, height: 6 }, 0.2, 10, 4),
   },
   applyBtnText: { color: C.white, fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
   sortBottomSheet: {
@@ -2744,11 +2834,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
     zIndex: 1000,
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: -4 },
-    shadowRadius: 20,
-    elevation: 30,
+    ...webBoxShadow("0 -4px 20px rgba(0, 0, 0, 0.18)"),
+    ...nativeShadow("#000", { width: 0, height: -4 }, 0.18, 20, 30),
   },
   filterBottomSheet: {
     position: "absolute",
@@ -2762,11 +2849,8 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     zIndex: 1000,
     maxHeight: "82%",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: -4 },
-    shadowRadius: 20,
-    elevation: 30,
+    ...webBoxShadow("0 -4px 20px rgba(0, 0, 0, 0.18)"),
+    ...nativeShadow("#000", { width: 0, height: -4 }, 0.18, 20, 30),
   },
   filterSectionLabel: {
     fontSize: 13,
@@ -2819,11 +2903,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 100,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
+    ...webBoxShadow("0 -4px 8px rgba(0, 0, 0, 0.05)"),
+    ...nativeShadow("#000000", { width: 0, height: -4 }, 0.05, 8, 8),
   },
   tabItem: {
     alignItems: "center",
@@ -2869,11 +2950,8 @@ const deskStyles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 14,
     gap: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 6,
+    ...webBoxShadow("0 2px 8px rgba(0, 0, 0, 0.12)"),
+    ...nativeShadow("#000", { width: 0, height: 2 }, 0.12, 8, 6),
   },
   desktopTopBarLeft: {
     flexDirection: "row",
@@ -3051,21 +3129,26 @@ const deskStyles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  /* ── 3-column grid ── */
-  desktopGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 18,
-    gap: 16,
-    marginTop: 4,
-  },
-  desktopGridItem: {
-    // Each item is exactly 1/3 of the container minus gaps
-    // We use flexBasis with calc-style approximation via percentage
-    flexBasis: "31.5%",
-    flexGrow: 1,
-    maxWidth: "33.33%",
-    minWidth: 280,
+  /* ── responsive grid ── */
+  desktopGrid: Platform.select({
+    web: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+      gap: 16,
+      paddingHorizontal: 24,
+      marginTop: 4,
+    } as object,
+    default: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      paddingHorizontal: 18,
+      gap: 16,
+      marginTop: 4,
+    },
+  }),
+  orderCardDesktop: {
+    width: "100%",
+    minHeight: 240,
   },
   desktopEmptyState: {
     flex: 1,
@@ -3120,11 +3203,8 @@ const deskStyles = StyleSheet.create({
     padding: 28,
     width: 420,
     maxWidth: "90%",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 24,
-    elevation: 20,
+    ...webBoxShadow("0 8px 24px rgba(0, 0, 0, 0.2)"),
+    ...nativeShadow("#000", { width: 0, height: 8 }, 0.2, 24, 20),
   },
   filterModalBox: {
     maxHeight: "80%",
@@ -3197,6 +3277,7 @@ const listRow = StyleSheet.create({
   customerSub:  { fontSize: 11, color: C.textLight, marginTop: 2 },
 
   // Items pill
+  productName:   { fontSize: 12, fontWeight: "700", color: C.textDark, marginBottom: 4 },
   itemsPill:     { flexDirection: "row", alignItems: "center", backgroundColor: C.bg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: C.border },
   itemsPillText: { fontSize: 11, color: C.textMid, fontWeight: "600" },
 

@@ -3,7 +3,10 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { LogBox, Platform } from "react-native";
 import NotificationsProvider from "@/app/providers/NotificationsProvider";
-import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import {
+  hydrateSellerSession,
+  invalidateSellerSessionHydration,
+} from "@/lib/api/sellerSession";
 import { applyDarkMode, readStoredDarkMode } from "@/lib/settings/appPreferences";
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -27,7 +30,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     applyDarkMode(readStoredDarkMode());
-    void hydrateSellerSession().finally(() => setSessionReady(true));
+    const bootSession = async () => {
+      if (Platform.OS === "web") {
+        invalidateSellerSessionHydration();
+      }
+      await hydrateSellerSession();
+      setSessionReady(true);
+    };
+    void bootSession();
   }, []);
 
   useEffect(() => {
