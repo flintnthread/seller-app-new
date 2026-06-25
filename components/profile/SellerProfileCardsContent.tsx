@@ -224,10 +224,11 @@ type Props = {
     profile: SellerProfileResponse | null;
     loading?: boolean;
     isDesktop?: boolean;
+    readOnly?: boolean;
     onProfileUpdated?: (profile: SellerProfileResponse) => void;
 };
 
-export function SellerProfileCardsContent({ profile, loading, isDesktop = false, onProfileUpdated }: Props) {
+export function SellerProfileCardsContent({ profile, loading, isDesktop = false, readOnly = false, onProfileUpdated }: Props) {
     const picUrl = resolveProfilePicUrl(profile);
     const [isEditingAddress, setIsEditingAddress] = useState(false);
     const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -466,7 +467,7 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
 
             cardStyle={isDesktop ? styles.desktopCard : undefined}
 
-            onEdit={!isEditingAddress ? startAddressEdit : undefined}
+            onEdit={!readOnly && !isEditingAddress ? startAddressEdit : undefined}
 
             headerActions={isEditingAddress ? (
                 <View style={styles.headerActions}>

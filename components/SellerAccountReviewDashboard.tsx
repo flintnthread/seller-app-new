@@ -74,7 +74,7 @@ export function SellerAccountReviewDashboard({ profile, loading, onRefresh, embe
     };
 
     const goToSupport = () => router.push("/(main)/helpsupport");
-    const goToViewProfile = () => router.push("/(main)/Profile");
+    const goToViewProfile = () => router.push("/(main)/viewsellerprofile");
 
     const handleRefresh = async () => {
         if (!onRefresh || refreshing) return;

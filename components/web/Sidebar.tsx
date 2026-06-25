@@ -50,7 +50,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         {
           title: "ACCOUNT",
           items: [
-            { name: "View Submitted Profile", path: "/Profile", icon: "person.crop.circle" as const, iconColor: "#EC4899" },
+            { name: "View Submitted Profile", path: "/viewsellerprofile", icon: "person.crop.circle" as const, iconColor: "#EC4899" },
             ...(approval === "rejected"
               ? [{ name: "Contact Support", path: "/helpsupport", icon: "headphones" as const, iconColor: "#F87171" }]
               : []),
@@ -139,7 +139,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             <Text style={styles.sectionHeading}>{section.title}</Text>
             <View style={styles.sectionItems}>
               {section.items.map((item) => {
-                const isActive = pathname === item.path || pathname.includes(item.path) || (pathname === '/' && item.path === '/dashboard');
+                const isActive =
+                  item.path === "logout"
+                    ? false
+                    : pathname === item.path ||
+                      (item.path !== "/Profile" && pathname.includes(item.path)) ||
+                      (pathname === "/" && item.path === "/dashboard");
                 return (
                   <Pressable
                     key={item.path}
