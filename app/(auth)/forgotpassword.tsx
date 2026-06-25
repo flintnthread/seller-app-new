@@ -32,7 +32,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams<{ email?: string }>();
+    const params = useLocalSearchParams<{ email?: string; from?: string }>();
     const insets = useSafeAreaInsets();
     const { isDesktop } = useResponsive();
     const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
@@ -44,6 +44,15 @@ export default function ForgotPasswordScreen() {
     const [sent, setSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [fieldError, setFieldError] = useState("");
+    const fromSettings = params.from === "settings";
+
+    const handleBack = () => {
+        if (fromSettings && router.canGoBack()) {
+            router.back();
+            return;
+        }
+        router.replace("/(auth)/login");
+    };
 
     const handleSendLink = async () => {
         const value = email.trim();
@@ -179,9 +188,11 @@ export default function ForgotPasswordScreen() {
                 </View>
             )}
 
-            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <Pressable style={styles.backBtn} onPress={handleBack}>
                 <MaterialIcons name="arrow-back-ios" size={16} color={isDesktop ? C.orange : "#1e293b"} />
-                <AppText style={[styles.backTxt, isDesktop && styles.backTxtDesktop]}>Back to login</AppText>
+                <AppText style={[styles.backTxt, isDesktop && styles.backTxtDesktop]}>
+                    {fromSettings ? "Back to settings" : "Back to login"}
+                </AppText>
             </Pressable>
         </>
     );

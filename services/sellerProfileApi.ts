@@ -99,6 +99,24 @@ export type ProfileSubmitResponse = {
     accountStatus?: SellerAccountStatus | null;
 };
 
+export type RegistrationPaymentOrderResponse = {
+    keyId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    receipt: string;
+    paid: boolean;
+};
+
+export type RegistrationPaymentStatusResponse = {
+    paid: boolean;
+    orderId?: string | null;
+    paymentId?: string | null;
+    paidAt?: string | null;
+    amount: number;
+    currency: string;
+};
+
 export type GstVerifyResponse = {
     verified?: boolean;
     isVerified?: boolean;
@@ -312,7 +330,7 @@ export async function uploadSellerDocument(
     localUri: string,
     fileName?: string
 ): Promise<DocumentUploadResponse> {
-    const part = await buildUploadPart(localUri, { name: fileName });
+    const part = await buildUploadPart(localUri, fileName ? { name: fileName } : {});
     const formData = new FormData();
     appendFileToFormData(formData, "file", part);
     return apiUpload<DocumentUploadResponse>("/api/seller/profile/documents", formData, {
@@ -374,6 +392,40 @@ export async function submitSellerProfile(): Promise<ProfileSubmitResponse> {
         return body;
     }
     throw new ApiError(body?.message ?? `Request failed (${res.status})`, res.status);
+}
+
+export async function getRegistrationPaymentStatus(): Promise<RegistrationPaymentStatusResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
+    }
+    return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/status");
+}
+
+export async function createRegistrationPaymentOrder(): Promise<RegistrationPaymentOrderResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
+    }
+    return apiRequest<RegistrationPaymentOrderResponse>("/api/seller/profile/registration-payment/order", {
+        method: "POST",
+        body: JSON.stringify({}),
+    });
+}
+
+export async function verifyRegistrationPayment(payload: {
+    razorpayOrderId: string;
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+}): Promise<RegistrationPaymentStatusResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
+    }
+    return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 }
 
 /** Resolve display URL for uploaded assets (local file, data URI, or server URL). */

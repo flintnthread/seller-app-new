@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -24,10 +24,20 @@ import {
   Ionicons,
   MaterialIcons,
 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { fetchEarnings, fetchPayouts, lookupOrderPayoutAmount, requestPayout } from "@/services/earningsApi";
-import { fetchPayoutSummary, fetchMyPayoutRequests, type PayoutSummary } from "@/services/payoutApi";
-import { updateBankingProfile, lookupIfscCode, fetchSellerProfile } from "@/services/sellerProfileApi";
+import { useRouter, useFocusEffect } from "expo-router";
+import { lookupOrderPayoutAmount } from "@/services/earningsApi";
+import {
+  fetchPayoutSummary,
+  fetchMyPayoutRequests,
+  fetchSellerBankDetails,
+  updateSellerBankDetails,
+  submitPayoutRequest,
+  exportPayoutTransactionsCsv,
+  type PayoutSummary,
+  type SellerBankDetails,
+  type SellerPayoutRequestRow,
+} from "@/services/payoutApi";
+import { lookupIfscCode, fetchSellerProfile } from "@/services/sellerProfileApi";
 import { sendRegistrationOtp } from "@/services/authApi";
 import { submitBankEditRequest } from "@/services/bankEditApi";
 
@@ -49,6 +59,77 @@ interface Transaction {
 }
 
 const THEME_COLOR = "#1a2b5edc";
+
+function maskAccountNumber(account?: string | null): string {
+  if (!account || account.length < 4) return "••••";
+  return `•••• ${account.slice(-4)}`;
+}
+
+function mapPayoutStatus(status: string): Transaction["status"] {
+  const s = status.toLowerCase();
+  if (s === "pending" || s === "approved") return "Pending";
+  if (s === "rejected" || s === "cancelled") return "Failed";
+  return "Completed";
+}
+
+function formatOrderId(orderId?: number | null): string {
+  if (!orderId) return "—";
+  return `ORD${orderId}`;
+}
+
+function mapPayoutRequestToTransaction(row: SellerPayoutRequestRow): Transaction {
+  return {
+    id: String(row.id),
+    orderId: formatOrderId(row.orderId),
+    amount: Number(row.requestedAmount ?? 0),
+    date: row.requestedAt ?? row.updatedAt ?? "",
+    status: mapPayoutStatus(row.status),
+    type: "Payout",
+  };
+}
+
+function bankDetailsToAccount(details: SellerBankDetails): BankAccount {
+  return {
+    id: "1",
+    bankName: details.bankName?.trim() || "Bank Account",
+    accountNumber: maskAccountNumber(details.accountNumber),
+    isDefault: true,
+    isVerified: Boolean(details.bankVerified),
+  };
+}
+
+async function saveCsvFile(csvContent: string, filenamePrefix: string) {
+  if (Platform.OS === "web") {
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${filenamePrefix}_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const FileSystem = require("expo-file-system");
+  const Sharing = require("expo-sharing");
+  const filename = `${FileSystem.documentDirectory}${filenamePrefix}_${Date.now()}.csv`;
+  await FileSystem.writeAsStringAsync(filename, csvContent, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  const avail = await Sharing.isAvailableAsync();
+  if (avail) {
+    await Sharing.shareAsync(filename, {
+      mimeType: "text/csv",
+      dialogTitle: "Download Payout Transactions",
+      UTI: "public.comma-separated-values-text",
+    });
+  } else {
+    throw new Error("Sharing is not available on this device.");
+  }
+}
 
 // ─── SHARED SUB-COMPONENTS ────────────────────────────────────────────────────
 
@@ -155,7 +236,8 @@ export default function EnhancedPayoutRequest() {
   const [availableBalance, setAvailableBalance] = useState(0);
   const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
   const [orderLookupValid, setOrderLookupValid] = useState(false);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [storedBankDetails, setStoredBankDetails] = useState<SellerBankDetails | null>(null);
 
   const formatInr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
 
@@ -171,94 +253,76 @@ export default function EnhancedPayoutRequest() {
   const [isSavingBank, setIsSavingBank] = useState(false);
   const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const loadPayoutData = useCallback(async () => {
     setSummaryError(null);
-    Promise.all([fetchEarnings(), fetchPayouts(), fetchPayoutSummary(), fetchMyPayoutRequests()])
-      .then(([earnings, payouts, summary, payoutRequests]) => {
-        setAvailableBalance(Number(earnings.availableBalance ?? 0));
-        setPayoutSummary(summary);
-        if (earnings.bankAccount?.bankName) {
-          setBanks([{
-            id: "1",
-            bankName: earnings.bankAccount.bankName ?? "Bank",
-            accountNumber: earnings.bankAccount.accountNumberMasked ?? "••••",
-            isDefault: true,
-            isVerified: earnings.bankAccount.verified,
-          }]);
-        }
-        const txFromPayouts = payouts.map((p) => ({
-          id: p.id,
-          orderId: p.orderId,
-          amount: Number(p.amount),
-          date: p.date,
-          status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
-          type: "Payout" as const,
-        }));
-        const txFromRequests = payoutRequests.map((p) => ({
-          id: String(p.id),
-          orderId: String(p.orderId),
-          amount: Number(p.requestedAmount),
-          date: p.requestedAt ?? "",
-          status: (p.status === "pending" ? "Pending" : p.status === "rejected" ? "Failed" : "Completed") as Transaction["status"],
-          type: "Payout" as const,
-        }));
-        setApiTransactions([...txFromRequests, ...txFromPayouts]);
-      })
-      .catch((e) => {
-        setSummaryError(e instanceof Error ? e.message : "Failed to load payout data.");
-      });
+    setIsLoadingData(true);
+    try {
+      const [summary, bankDetails, payoutRequests] = await Promise.all([
+        fetchPayoutSummary(),
+        fetchSellerBankDetails(),
+        fetchMyPayoutRequests(),
+      ]);
+      setPayoutSummary(summary);
+      setAvailableBalance(Number(summary.pendingAmount ?? 0));
+      setStoredBankDetails(bankDetails);
+      if (bankDetails.bankName?.trim() || bankDetails.accountNumber?.trim()) {
+        setBanks([bankDetailsToAccount(bankDetails)]);
+      } else {
+        setBanks([]);
+      }
+      setApiTransactions(payoutRequests.map(mapPayoutRequestToTransaction));
+    } catch (e) {
+      setSummaryError(e instanceof Error ? e.message : "Failed to load payout data.");
+    } finally {
+      setIsLoadingData(false);
+    }
   }, []);
 
-  const handleDownloadTransactions = () => {
-    if (filteredTransactions.length === 0) {
-      Alert.alert("No Transactions", "There are no transactions to download.");
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      void loadPayoutData();
+    }, [loadPayoutData])
+  );
 
-    const headers = ["Transaction ID", "Order ID", "Amount (INR)", "Date", "Status"];
-    const rows = filteredTransactions.map((t) => [
-      t.id,
-      t.orderId,
-      t.amount,
-      new Date(t.date).toLocaleDateString(),
-      t.status,
-    ]);
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-
-    if (Platform.OS === "web") {
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `payout_transactions_${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      try {
-        const FileSystem = require("expo-file-system");
-        const Sharing = require("expo-sharing");
-        const filename = `${FileSystem.documentDirectory}payout_transactions_${new Date().getTime()}.csv`;
-        void (async () => {
-          await FileSystem.writeAsStringAsync(filename, csvContent, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          const avail = await Sharing.isAvailableAsync();
-          if (avail) {
-            await Sharing.shareAsync(filename, {
-              mimeType: "text/csv",
-              dialogTitle: "Download Payout Transactions",
-              UTI: "public.comma-separated-values-text",
-            });
-          } else {
-            Alert.alert("Sharing Not Available", "Sharing is not available on this device.");
-          }
-        })();
-      } catch (error) {
-        Alert.alert("Error", "Could not export transaction history on this device.");
+  const handleDownloadTransactions = async () => {
+    try {
+      const csvContent = await exportPayoutTransactionsCsv();
+      if (!csvContent.trim()) {
+        Alert.alert("No Transactions", "There are no transactions to download.");
+        return;
       }
+      await saveCsvFile(csvContent, "payout_transactions");
+    } catch (error) {
+      Alert.alert(
+        "Download failed",
+        error instanceof Error ? error.message : "Could not export transaction history."
+      );
     }
+  };
+
+  const openBankEditModal = async () => {
+    setModalErrors({});
+    try {
+      const details = storedBankDetails ?? (await fetchSellerBankDetails());
+      setStoredBankDetails(details);
+      setModalAccountHolder(details.accountHolder ?? "");
+      setModalIfsc(details.ifscCode ?? "");
+      setModalBankName(details.bankName ?? "");
+      setModalBranchName(details.branchName ?? "");
+      const acct = details.accountNumber ?? "";
+      setModalAccountNumber(acct);
+      setModalConfirmAccountNumber(acct);
+    } catch {
+      setModalAccountHolder("");
+      setModalAccountNumber("");
+      setModalConfirmAccountNumber("");
+      setModalIfsc("");
+      setModalBankName("");
+      setModalBranchName("");
+    }
+    setShowAddBankModal(true);
   };
 
   const validateAddBankForm = () => {
@@ -316,15 +380,21 @@ export default function EnhancedPayoutRequest() {
     setModalErrors({});
     setIsSavingBank(true);
     try {
-      await submitBankEditRequest({
-        bankName: modalBankName.trim(),
-        accountNumber: modalAccountNumber.trim(),
+      await updateBankingProfile({
         ifscCode: modalIfsc.trim().toUpperCase(),
-        accountHolder: modalAccountHolder.trim(),
+        bankName: modalBankName.trim(),
         branchName: modalBranchName.trim(),
-        reason: modalReason.trim(),
+        accountHolderName: modalAccountHolder.trim(),
+        accountNumber: modalAccountNumber.trim(),
       });
-      setShowEditBankModal(false);
+      setBanks([{
+        id: "1",
+        bankName: modalBankName.trim(),
+        accountNumber: "•••• " + modalAccountNumber.trim().slice(-4),
+        isDefault: true,
+        isVerified: true,
+      }]);
+      setShowAddBankModal(false);
       // Reset form
       setModalAccountHolder("");
       setModalAccountNumber("");
@@ -383,6 +453,10 @@ export default function EnhancedPayoutRequest() {
       Alert.alert("Error", errorMsg);
       return;
     }
+    if (banks.length === 0) {
+      Alert.alert("Bank account required", "Please add your bank account details before requesting a payout.");
+      return;
+    }
     try {
       const profile = await fetchSellerProfile();
       const mobile = profile.mobile?.trim();
@@ -413,29 +487,16 @@ export default function EnhancedPayoutRequest() {
     setShowOtpModal(false);
     setIsRequesting(true);
     try {
-      const payload: { amount: number; otp: string; description: string; orderId?: string } = {
-        amount: amt,
-        otp,
-        description: "Seller payout request",
-      };
-      if (orderId.trim()) {
-        payload.orderId = orderId.trim();
-      }
-      const result = await requestPayout(payload);
-      setAvailableBalance(Number(result.remainingBalance ?? availableBalance));
+      await submitPayoutRequest({
+        orderId: orderId.trim(),
+        sellerNote: "Seller payout request",
+      });
+      await loadPayoutData();
       setShowSuccessModal(true);
       setOrderId("");
       setAmount("");
       setOtp("");
-      const payouts = await fetchPayouts();
-      setApiTransactions(payouts.map((p) => ({
-        id: p.id,
-        orderId: p.orderId,
-        amount: Number(p.amount),
-        date: p.date,
-        status: (p.status === "Pending" || p.status === "Failed" ? p.status : "Completed") as Transaction["status"],
-        type: "Payout" as const,
-      })));
+      setOrderLookupValid(false);
     } catch (e) {
       Alert.alert("Payout failed", e instanceof Error ? e.message : "Could not submit payout request.");
     } finally {
@@ -461,7 +522,9 @@ export default function EnhancedPayoutRequest() {
         </View>
         <View style={styles.txnInfo}>
           <Text style={styles.txnTitle}>{item.orderId}</Text>
-          <Text style={styles.txnDate}>{new Date(item.date).toLocaleDateString()}</Text>
+          <Text style={styles.txnDate}>
+            {item.date ? new Date(item.date).toLocaleDateString() : "—"}
+          </Text>
         </View>
         <View style={styles.txnRight}>
           <Text style={styles.txnAmount}>₹{item.amount.toLocaleString()}</Text>
@@ -705,6 +768,11 @@ export default function EnhancedPayoutRequest() {
           </View>
         </View>
 
+        {!!summaryError && (
+          <View style={{ marginHorizontal: 24, marginBottom: 8, padding: 12, borderRadius: 8, backgroundColor: "#fef2f2" }}>
+            <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
+          </View>
+        )}
 
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
@@ -785,7 +853,7 @@ export default function EnhancedPayoutRequest() {
                   {/* Edit Bank Account Card */}
                   <TouchableOpacity
                     style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }]}
-                    onPress={openEditBankModal}
+                    onPress={() => setShowAddBankModal(true)}
                   >
                     <View style={desktopStyles.bankCardLeft}>
                       <View style={[desktopStyles.bankIconBox, { backgroundColor: "#fff4ec" }]}>
@@ -963,11 +1031,13 @@ export default function EnhancedPayoutRequest() {
                       <View style={desktopStyles.txnRowInfo}>
                         <Text style={desktopStyles.txnOrderId}>{item.orderId}</Text>
                         <Text style={desktopStyles.txnDate}>
-                          {new Date(item.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          {item.date
+                            ? new Date(item.date).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "—"}
                         </Text>
                       </View>
                       <View style={desktopStyles.txnRowRight}>
@@ -1045,6 +1115,11 @@ export default function EnhancedPayoutRequest() {
           contentContainerStyle={{ paddingBottom: 120 }}
           ListHeaderComponent={
             <View style={{ padding: 20 }}>
+              {!!summaryError && (
+                <View style={{ marginBottom: 12, padding: 12, borderRadius: 8, backgroundColor: "#fef2f2" }}>
+                  <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
+                </View>
+              )}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1091,7 +1166,7 @@ export default function EnhancedPayoutRequest() {
 
                 <TouchableOpacity
                   style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
-                  onPress={() => setShowEditBankModal(true)}
+                  onPress={() => setShowAddBankModal(true)}
                 >
                   <MaterialCommunityIcons name="pencil" size={24} color="#f97316" />
                   <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Edit Bank</Text>

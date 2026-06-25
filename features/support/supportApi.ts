@@ -2,7 +2,12 @@ import { Platform } from "react-native";
 
 import { AUTH_ACTION_FAILED } from "@/lib/api/apiErrors";
 import { resolveApiBaseUrl } from "@/lib/api/config";
-import { ensureSellerId } from "@/lib/api/sellerSession";
+import {
+  ensureAccessToken,
+  ensureSellerId,
+  hydrateSellerSession,
+} from "@/lib/api/sellerSession";
+import { tryRefreshSession } from "@/lib/api/sessionRefresh";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -90,6 +95,20 @@ async function appendFileToFormData(
 
 
 
+function buildAuthHeaders(sellerId: number, accessToken: string, options: RequestInit): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${accessToken}`,
+    "X-Seller-Id": String(sellerId),
+  };
+  const extra = options.headers as Record<string, string> | undefined;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (!isFormData && !extra?.["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  return { ...headers, ...extra };
+}
+
 async function fetchWithTimeout(
 
   url: string,
@@ -100,6 +119,13 @@ async function fetchWithTimeout(
 
 ): Promise<Response> {
 
+  await hydrateSellerSession();
+  const sellerId = ensureSellerId();
+  const accessToken = ensureAccessToken();
+  if (!sellerId || !accessToken) {
+    throw new Error(AUTH_ACTION_FAILED);
+  }
+
   const controller = new AbortController();
 
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -108,17 +134,23 @@ async function fetchWithTimeout(
 
   const bustUrl = url.includes("?") ? `${url}&_=${Date.now()}` : `${url}?_=${Date.now()}`;
 
+  const makeInit = (token: string): RequestInit => ({
+    ...options,
+    signal: controller.signal,
+    headers: buildAuthHeaders(sellerId, token, options),
+  });
+
   try {
 
-    return await fetch(bustUrl, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-        ...(options.headers as Record<string, string>),
-      },
-    });
+    let res = await fetch(bustUrl, makeInit(accessToken));
+    if (res.status === 401) {
+      const refreshed = await tryRefreshSession(true);
+      const retryToken = ensureAccessToken();
+      if (refreshed && retryToken) {
+        res = await fetch(bustUrl, makeInit(retryToken));
+      }
+    }
+    return res;
 
   } catch (err: any) {
 
@@ -246,12 +278,30 @@ export { getBaseUrl };
 
 /** Call on Help screen load to verify phone can reach the backend */
 export async function checkServerConnection(): Promise<{ ok: boolean; url: string; error?: string }> {
-  const url = `${getBaseUrl()}/tickets/seller/${requireSellerId()}`;
+  await hydrateSellerSession();
+  const sellerId = ensureSellerId();
+  const accessToken = ensureAccessToken();
+  const url = sellerId
+    ? `${getBaseUrl()}/tickets/seller/${sellerId}`
+    : getBaseUrl();
+
+  if (!sellerId || !accessToken) {
+    return { ok: false, url, error: "not_authenticated" };
+  }
+
   try {
     const res = await fetchWithTimeout(url, {}, 8000);
-    return { ok: res.ok, url };
+    // Any HTTP response means the backend is reachable (even 4xx/5xx).
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, url, error: "not_authenticated" };
+    }
+    return { ok: true, url, httpStatus: res.status };
   } catch (err: any) {
-    return { ok: false, url, error: err?.message || "Cannot reach server" };
+    const message = err?.message || "Cannot reach server";
+    if (message.includes(AUTH_ACTION_FAILED)) {
+      return { ok: false, url, error: "not_authenticated" };
+    }
+    return { ok: false, url, error: message };
   }
 }
 

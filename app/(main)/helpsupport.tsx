@@ -36,6 +36,8 @@ import {
   Outfit_800ExtraBold,
 } from "@expo-google-fonts/outfit";
 import { useRouter, useFocusEffect } from "expo-router";
+import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { AUTH_ACTION_FAILED } from "@/lib/api/apiErrors";
 import {
   createTicket as apiCreateTicket,
   getTickets as apiGetTickets,
@@ -204,6 +206,16 @@ const ADMIN_NOTES: Record<TicketStatus, string> = {
     "Our team has replied to your ticket. Please check the message and respond if needed.",
   closed:
     "This ticket has been resolved and closed. If the problem persists, please raise a new ticket.",
+};
+
+const isUnreachableError = (err: unknown): boolean => {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (msg.includes(AUTH_ACTION_FAILED.toLowerCase())) return false;
+  return (
+    msg.includes("cannot reach") ||
+    msg.includes("network request failed") ||
+    msg.includes("failed to fetch")
+  );
 };
 
 const normalizeStatus = (status: string): TicketStatus => {
@@ -1084,10 +1096,18 @@ const LiveChatModal: React.FC<{
     if (key === "human") setShowEscalate(true);
   };
 
-  const restartChat = () => {
-    setMessages([{ id: genId(), text: "Chat restarted! How can I help you? 😊", sender: "bot", timestamp: new Date() }]);
+  const restartChat = async () => {
     setShowEscalate(false);
     setIsTyping(false);
+    setChatLoading(true);
+    try {
+      const history = await getLiveChatHistory(sellerId);
+      setMessages(history.length > 0 ? history.map(mapChatApiToUi) : [WELCOME]);
+    } catch {
+      setMessages([WELCOME]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   const waNum = contactConfig?.chat?.whatsappNumber ?? "919063499092";
@@ -1357,11 +1377,12 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   const mapApiTicket = useCallback((t: TicketResponse): Ticket => {
     const status = normalizeStatus(t.status);
+    const firstSellerMsg = (t.messages ?? []).find((m) => m.senderType === "seller");
     return {
       id: String(t.id),
       ticketNumber: t.ticketNumber,
       title: t.subject,
-      description: "",
+      description: firstSellerMsg?.message ?? "",
       status,
       category: t.category,
       priority: t.priority,
@@ -1381,7 +1402,9 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setServerOffline(false);
     } catch (err) {
       console.warn("Failed to load tickets:", err);
-      setServerOffline(true);
+      if (isUnreachableError(err)) {
+        setServerOffline(true);
+      }
     } finally {
       setIsLoadingTickets(false);
     }
@@ -1429,10 +1452,23 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   useFocusEffect(
     useCallback(() => {
-      loadTickets();
-      loadFaqs();
-      loadContactConfig();
-      checkServerConnection().then((r) => setServerOffline(!r.ok));
+      let cancelled = false;
+      void (async () => {
+        await hydrateSellerSession();
+        if (cancelled) return;
+        await Promise.allSettled([loadTickets(), loadFaqs(), loadContactConfig()]);
+        if (cancelled) return;
+        const conn = await checkServerConnection();
+        if (cancelled) return;
+        if (conn.error === "not_authenticated") {
+          setServerOffline(false);
+          return;
+        }
+        setServerOffline(!conn.ok);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }, [loadTickets, loadFaqs, loadContactConfig])
   );
 

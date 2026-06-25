@@ -24,6 +24,7 @@ import {
   TextInput,
   useWindowDimensions,
 } from "react-native";
+
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -38,6 +39,8 @@ import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import {
   fetchSellerProfile,
+  createRegistrationPaymentOrder,
+  getRegistrationPaymentStatus,
   getApiErrorMessage,
   resolveDocumentDisplayUrl,
   submitSellerProfile,
@@ -45,9 +48,19 @@ import {
   toUiBusinessCategory,
   updateCompanyPan,
   uploadSellerDocument,
+  verifyRegistrationPayment,
   type SellerDocumentField,
 } from "@/services/sellerProfileApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on: (event: string, callback: () => void) => void;
+    };
+  }
+}
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -790,6 +803,11 @@ export default function SellerDocuments() {
   const [selfieCameraActive, setSelfieCameraActive] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid">("pending");
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentAmountPaise, setPaymentAmountPaise] = useState(199.00);
+  const [showPaymentSummary, setShowPaymentSummary] = useState(false);
 
   const setFileType = (field: string, type: "image" | "pdf") =>
     setFileTypes(prev => ({ ...prev, [field]: type }));
@@ -895,6 +913,15 @@ export default function SellerDocuments() {
 
         const selfie = profile.documents?.liveSelfieUrl;
         if (selfie) setLiveSelfies([resolveDocumentDisplayUrl(selfie) || selfie]);
+
+        try {
+          const payment = await getRegistrationPaymentStatus();
+          if (!active) return;
+          setPaymentStatus(payment.paid ? "paid" : "pending");
+          setPaymentAmountPaise(payment.amount || 199.00);
+        } catch {
+          // keep payment state as pending
+        }
       } catch {
         // keep local state
       }
@@ -1012,6 +1039,7 @@ export default function SellerDocuments() {
     if (!bankAccountProof) errors.push({ field: "bankAccountProof", message: "Bank Account Proof is required" });
     if (!cancelledCheque) errors.push({ field: "cancelledCheque", message: "Cancelled Cheque is required" });
     if ((liveSelfies ?? []).length === 0) errors.push({ field: "liveSelfie", message: "Live Selfie is required" });
+    if (paymentStatus !== "paid") errors.push({ field: "registrationPayment", message: "Please complete Rs 199 registration payment to continue." });
     if (!termsAccepted) errors.push({ field: "termsAccepted", message: "You must accept the Terms and Conditions" });
     if (businessCategory === "B2B") {
       if (!companyPanNumber.trim()) {
@@ -1078,6 +1106,90 @@ export default function SellerDocuments() {
     void uploadDocumentForField(field, uri, type);
   };
 
+  const loadRazorpayScript = useCallback(async () => {
+    if (Platform.OS !== "web") return false;
+    if (window.Razorpay) return true;
+    return await new Promise<boolean>((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }, []);
+
+  const handlePayRegistrationFee = useCallback(async () => {
+    if (paymentStatus === "paid") return;
+    setPaymentBusy(true);
+    setPaymentMessage("");
+    try {
+      if (Platform.OS !== "web") {
+        throw new Error("Registration payment is currently supported on web.");
+      }
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error("Could not load Razorpay checkout. Please refresh and try again.");
+      }
+      await hydrateSellerSession();
+      const order = await createRegistrationPaymentOrder();
+      setPaymentAmountPaise(order.amount);
+      if (order.paid) {
+        setPaymentStatus("paid");
+        setPaymentMessage("Registration payment already completed.");
+        return;
+      }
+      await new Promise<void>((resolve, reject) => {
+        const RazorpayCtor = window.Razorpay;
+        if (!RazorpayCtor) {
+          reject(new Error("Could not load Razorpay checkout. Please refresh and try again."));
+          return;
+        }
+        const razorpay = new RazorpayCtor({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Flint & Thread",
+          description: "Seller registration fee",
+          order_id: order.orderId,
+          handler: async (response: {
+            razorpay_order_id?: string;
+            razorpay_payment_id?: string;
+            razorpay_signature?: string;
+          }) => {
+            try {
+              if (!response.razorpay_order_id || !response.razorpay_payment_id || !response.razorpay_signature) {
+                throw new Error("Incomplete payment response from Razorpay.");
+              }
+              await verifyRegistrationPayment({
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+              setPaymentStatus("paid");
+              setPaymentMessage("Payment successful. Invoice has been sent to your email.");
+              clearFieldError("registrationPayment");
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          },
+          theme: { color: T.orange },
+          modal: {
+            ondismiss: () => reject(new Error("Payment was cancelled.")),
+          },
+        });
+        razorpay.on("payment.failed", () => reject(new Error("Payment failed. Please try again.")));
+        razorpay.open();
+      });
+    } catch (e) {
+      setPaymentStatus("pending");
+      setPaymentMessage(getApiErrorMessage(e, "Could not complete payment."));
+    } finally {
+      setPaymentBusy(false);
+    }
+  }, [clearFieldError, loadRazorpayScript, paymentStatus]);
+
   // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
   const TwoColRow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const childArray = React.Children.toArray(children);
@@ -1095,7 +1207,11 @@ export default function SellerDocuments() {
       </>
     );
   };
-
+  const registrationFee = 199;
+  const gstAmount = registrationFee * 0.18;
+  const totalAmount = registrationFee + gstAmount;
+  
+ 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
@@ -1431,6 +1547,44 @@ export default function SellerDocuments() {
               iconName="lock"
               color={T.orange}
             />
+            <View ref={registerFieldRef("registrationPayment")} collapsable={false} style={s.paymentCard}>
+              <View style={s.paymentTopRow}>
+                <View style={s.paymentIconWrap}>
+                  <Icon name="credit-card" size={16} color={T.orange} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText style={s.paymentTitle}>Registration Fee</AppText>
+                  <AppText style={s.paymentSub}>Pay once to complete seller profile submission.</AppText>
+                </View>
+                <AppText style={s.paymentAmount}>Rs {(paymentAmountPaise / 100).toFixed(2)}</AppText>
+              </View>
+              {paymentStatus === "paid" ? (
+                <View style={s.paymentSuccessBadge}>
+                  <Icon name="check-circle" size={12} color={T.success} />
+                  <AppText style={s.paymentSuccessText}>Payment completed</AppText>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[s.payNowBtn, paymentBusy && { opacity: 0.7 }]}
+                  onPress={() => setShowPaymentSummary(true)}
+                  disabled={paymentBusy}
+                  activeOpacity={0.85}
+                >
+                  <AppText style={s.payNowBtnText}>{paymentBusy ? "Processing..." : "Pay now"}</AppText>
+                </TouchableOpacity>
+              )}
+              {!!paymentMessage && (
+                <AppText style={[s.paymentMessage, paymentStatus === "paid" ? { color: T.success } : { color: T.error }]}>
+                  {paymentMessage}
+                </AppText>
+              )}
+              {!!getError("registrationPayment") && (
+                <View style={s.termsErrorRow}>
+                  <Icon name="exclamation-circle" size={11} color={T.error} style={{ marginTop: 4 }} />
+                  <AppText style={s.termsErrorText}>{getError("registrationPayment")}</AppText>
+                </View>
+              )}
+            </View>
             <View ref={registerFieldRef("termsAccepted")} collapsable={false}>
             <TouchableOpacity
               style={[s.checkboxRow, termsAccepted && s.checkboxRowChecked]}
@@ -1570,6 +1724,131 @@ export default function SellerDocuments() {
           </Animated.View>
         </View>
       </Modal>
+      <Modal
+  visible={showPaymentSummary}
+  transparent
+  animationType="fade"
+>
+  <View
+    style={{
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    }}
+  >
+    <View
+      style={{
+        width: 400,
+        backgroundColor: "#fff",
+        borderRadius: 12,
+        padding: 20,
+      }}
+    >
+      <AppText
+        style={{
+          fontSize: 20,
+          fontWeight: "700",
+          marginBottom: 20,
+        }}
+      >
+        Registration Fee Summary
+      </AppText>
+
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <AppText>Registration Fee</AppText>
+        <AppText>₹{registrationFee.toFixed(2)}</AppText>
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <AppText>GST (18%)</AppText>
+        <AppText>₹{gstAmount.toFixed(2)}</AppText>
+      </View>
+
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: "#ddd",
+          marginVertical: 10,
+        }}
+      />
+
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+        }}
+      >
+        <AppText
+          style={{
+            fontWeight: "700",
+          }}
+        >
+          Total
+        </AppText>
+
+        <AppText
+          style={{
+            fontWeight: "700",
+            color: "#F97316",
+          }}
+        >
+          ₹{totalAmount.toFixed(2)}
+        </AppText>
+      </View>
+
+      <TouchableOpacity
+        style={{
+          marginTop: 20,
+          backgroundColor: "#F97316",
+          padding: 14,
+          borderRadius: 10,
+        }}
+        onPress={() => {
+          setShowPaymentSummary(false);
+          handlePayRegistrationFee();
+        }}
+      >
+        <AppText
+          style={{
+            color: "#fff",
+            textAlign: "center",
+            fontWeight: "700",
+          }}
+        >
+          Proceed To Pay
+        </AppText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={{
+          marginTop: 10,
+        }}
+        onPress={() => setShowPaymentSummary(false)}
+      >
+        <AppText
+          style={{
+            textAlign: "center",
+          }}
+        >
+          Cancel
+        </AppText>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
       <SweetAlertHost />
     </View>
   );
@@ -1624,6 +1903,17 @@ const s = StyleSheet.create({
   scrollContentWeb: { width: "100%", maxWidth: "100%", alignSelf: "stretch" },
   checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight },
   checkboxRowChecked: { borderColor: T.orangeSoft },
+  paymentCard: { borderWidth: 1, borderColor: T.orangeSoft, borderRadius: 12, backgroundColor: T.orangePale, padding: 12, marginBottom: 12 },
+  paymentTopRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  paymentIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
+  paymentTitle: { fontSize: 13, fontWeight: "800", color: T.textDark },
+  paymentSub: { fontSize: 11, color: T.textSoft, marginTop: 1 },
+  paymentAmount: { fontSize: 15, fontWeight: "800", color: T.orangeDeep },
+  payNowBtn: { marginTop: 10, alignSelf: "flex-start", borderRadius: 10, backgroundColor: T.orange, paddingHorizontal: 12, paddingVertical: 9 },
+  payNowBtnText: { fontSize: 12, fontWeight: "800", color: T.white },
+  paymentSuccessBadge: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
+  paymentSuccessText: { fontSize: 12, fontWeight: "700", color: T.success },
+  paymentMessage: { marginTop: 8, fontSize: 11, lineHeight: 16, fontWeight: "600" },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", marginTop: 1 },
   termsText: { flex: 1, fontSize: 12, color: T.textMid, lineHeight: 17, fontWeight: "500" },
   termsLink: { color: T.orange, fontWeight: "700" },

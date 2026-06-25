@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useNotificationsFeed } from "@/hooks/useNotificationsFeed";
-import { fetchEarnings } from "@/services/earningsApi";
+import { fetchPayoutSummary, fetchSellerBankDetails } from "@/services/payoutApi";
 import { fetchTopSellingProducts } from "@/services/earningsApi";
 import { fetchProducts } from "@/services/productApi";
 import { fetchDashboardCharts } from "@/services/dashboardApi";
@@ -37,6 +37,7 @@ export function useDashboardWidgets() {
     const { notifications } = useNotificationsFeed();
 
     const [earningsBalance, setEarningsBalance] = useState(0);
+    const [bankName, setBankName] = useState("");
     const [topProducts, setTopProducts] = useState<WidgetTopProduct[]>([]);
     const [lowStock, setLowStock] = useState<WidgetLowStock[]>([]);
     const [recentOrders, setRecentOrders] = useState<OrderDetail[]>([]);
@@ -46,15 +47,17 @@ export function useDashboardWidgets() {
     const reload = useCallback(async () => {
         setLoading(true);
         try {
-            const [earnings, products, tops, charts] = await Promise.all([
-                fetchEarnings().catch(() => null),
+            const [summary, bankDetails, products, tops, charts] = await Promise.all([
+                fetchPayoutSummary().catch(() => null),
+                fetchSellerBankDetails().catch(() => null),
                 fetchProducts().catch(() => []),
                 fetchTopSellingProducts(8).catch(() => []),
                 fetchDashboardCharts("week").catch(() => null),
             ]);
             await loadOrdersFromApi(true).catch(() => undefined);
 
-            setEarningsBalance(Number(earnings?.availableBalance ?? 0));
+            setEarningsBalance(Number(summary?.pendingAmount ?? 0));
+            setBankName(bankDetails?.bankName?.trim() || profile?.bankName?.trim() || "");
             setTopProducts(
                 tops.map((p) => ({
                     id: p.id,
@@ -79,7 +82,7 @@ export function useDashboardWidgets() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [profile?.bankName]);
 
     useEffect(() => {
         reload();
@@ -116,7 +119,7 @@ export function useDashboardWidgets() {
         orderSummary,
         totalProducts: dashboard.totalProducts,
         earningsBalance,
-        bankName: profile?.bankName ?? "",
+        bankName: bankName || (profile?.bankName ?? ""),
         topProducts,
         lowStock,
         recentOrders,
