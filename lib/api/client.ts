@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import { sanitizeAuthErrorMessage } from "./apiErrors";
-import { resolveApiBaseUrl } from "./config";
+import {
+    clearWorkingApiBaseUrl,
+    ensureApiReachable,
+    resolveApiBaseUrl,
+} from "./config";
 import { ensureAccessToken, ensureSellerId, touchSessionActivity } from "./sellerSession";
 import { refreshSessionIfActive, tryRefreshSession } from "./sessionRefresh";
 
@@ -58,6 +62,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 
     touchSessionActivity();
 
+    await ensureApiReachable();
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -65,16 +70,17 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     try {
         res = await fetchAuthed(url, sellerId, accessToken, init);
     } catch {
+        clearWorkingApiBaseUrl();
         const emulatorHint =
             Platform.OS === "android"
-                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true in .env, or use http://10.0.2.2:8080"
+                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true in .env"
                 : "";
         const phoneHint =
             Platform.OS !== "web"
-                ? "\n• Physical device: set EXPO_PUBLIC_API_BASE_URL to your PC IP in .env (ipconfig)"
+                ? "\n• Phone and PC must be on the same Wi‑Fi (API host is detected from Expo automatically)."
                 : "";
         throw new ApiError(
-            `Cannot reach API at ${baseUrl}.${phoneHint}${emulatorHint}\n• Ensure backend is running: cd seller-backend && .\\mvnw.cmd spring-boot:run`
+            `Cannot reach API.${phoneHint}${emulatorHint}\n• Start backend: cd flintnthread-platform/seller-service && ..\\mvnw.cmd spring-boot:run`
         );
     }
 

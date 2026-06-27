@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { resolveApiBaseUrl } from "@/lib/api/config";
+import { ensureApiReachable, resolveApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/client";
 
 export type MarketplaceStats = {
@@ -14,6 +14,7 @@ export type MarketplaceStats = {
 };
 
 async function publicFetch<T>(path: string): Promise<T> {
+    await ensureApiReachable();
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -28,8 +29,8 @@ async function publicFetch<T>(path: string): Promise<T> {
         const detail = err instanceof Error ? err.message : "Network error";
         const hint =
             Platform.OS !== "web"
-                ? " Check EXPO_PUBLIC_API_BASE_URL in .env and that the backend is running."
-                : " Ensure seller-service is running on port 8080.";
+                ? " Ensure seller-service is running and phone/PC are on the same Wi‑Fi."
+                : " Ensure seller-service is running on port 8080 or 8083.";
         throw new ApiError(`Cannot reach API at ${url}. (${detail})${hint}`);
     }
 

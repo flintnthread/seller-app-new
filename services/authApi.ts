@@ -1,8 +1,9 @@
 import { Platform } from "react-native";
-import { resolveApiBaseUrl } from "@/lib/api/config";
+import { ensureApiReachable, resolveApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/client";
 
 async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
+    await ensureApiReachable();
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -17,19 +18,18 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
             },
         });
     } catch (err) {
-        const pcIp = baseUrl.replace(/^https?:\/\//, "").split(":")[0];
         const emulatorHint =
             Platform.OS === "android"
-                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true and use http://10.0.2.2:8080"
+                ? "\n• Android emulator: set EXPO_PUBLIC_API_ANDROID_EMULATOR=true in .env"
                 : "";
         const phoneHint =
             Platform.OS !== "web"
-                ? `\n• Physical device: set EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:8080 in seller-app-new/.env (run ipconfig), then restart: npx expo start --clear`
-                : "\n• Web: start backend on localhost:8080";
+                ? "\n• Ensure phone and PC are on the same Wi‑Fi (API host is detected from Expo automatically)."
+                : "\n• Web: start seller-service on localhost:8080 or :8083";
         const detail =
             err instanceof Error && err.message ? ` (${err.message})` : "";
         throw new ApiError(
-            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Ensure backend is running: cd seller-backend && .\\mvnw.cmd spring-boot:run\n• Phone and PC must be on the same Wi‑Fi. PC IP in .env: ${pcIp}`
+            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Start backend: cd flintnthread-platform/seller-service && ..\\mvnw.cmd spring-boot:run`
         );
     }
 

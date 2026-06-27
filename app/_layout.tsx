@@ -7,6 +7,7 @@ import {
   hydrateSellerSession,
   invalidateSellerSessionHydration,
 } from "@/lib/api/sellerSession";
+import { ensureApiReachable } from "@/lib/api/config";
 import { applyDarkMode, readStoredDarkMode } from "@/lib/settings/appPreferences";
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -34,6 +35,7 @@ export default function RootLayout() {
       if (Platform.OS === "web") {
         invalidateSellerSessionHydration();
       }
+      await ensureApiReachable().catch(() => {});
       await hydrateSellerSession();
       setSessionReady(true);
     };

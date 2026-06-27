@@ -1,4 +1,4 @@
-/** Loads .env and exposes API settings to Expo (required for physical device). */
+/** Expo config — API host is auto-detected from Metro (no ipconfig / .env IP needed). */
 const fs = require("fs");
 const path = require("path");
 const appJson = require("./app.json");
@@ -28,23 +28,13 @@ function readEnvFile(name) {
     return process.env[name] || "";
 }
 
-const apiBaseUrl = readEnvFile("EXPO_PUBLIC_API_BASE_URL").replace(/\/$/, "");
 const devSellerId = readEnvFile("EXPO_PUBLIC_DEV_SELLER_ID") || "1";
 const androidEmulatorApi = readEnvFile("EXPO_PUBLIC_API_ANDROID_EMULATOR") === "true";
-
-if (!apiBaseUrl) {
-    console.warn(
-        "[app.config] EXPO_PUBLIC_API_BASE_URL is missing in .env — physical devices will fail to reach the API."
-    );
-} else {
-    console.log("[app.config] API base URL:", apiBaseUrl);
-}
 
 module.exports = {
     expo: {
         ...appJson.expo,
         extra: {
-            apiBaseUrl,
             devSellerId,
             androidEmulatorApi,
         },
