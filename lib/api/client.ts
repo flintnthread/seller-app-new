@@ -7,6 +7,7 @@ import {
 } from "./config";
 import { ensureAccessToken, ensureSellerId, touchSessionActivity } from "./sellerSession";
 import { legacySellerApiPath } from "./sellerPaths";
+import { refreshSessionIfActive, tryRefreshSession } from "./sessionRefresh";
 
 export class ApiError extends Error {
     constructor(
