@@ -34,14 +34,14 @@ function toRecord(row: ApiCategoryRequest): CategoryRequestRecord {
 }
 
 export async function fetchCategoryRequests(): Promise<CategoryRequestRecord[]> {
-    const rows = await apiRequest<ApiCategoryRequest[]>("/api/category-requests");
+    const rows = await apiRequest<ApiCategoryRequest[]>("/api/seller/category-requests");
     return rows.map(toRecord);
 }
 
 export async function createCategoryRequest(
     payload: CategoryRequestPayload
 ): Promise<CategoryRequestRecord> {
-    const row = await apiRequest<ApiCategoryRequest>("/api/category-requests", {
+    const row = await apiRequest<ApiCategoryRequest>("/api/seller/category-requests", {
         method: "POST",
         body: JSON.stringify({
             categoryName: payload.categoryName,
@@ -56,7 +56,7 @@ export async function updateCategoryRequest(
     id: string,
     payload: CategoryRequestPayload
 ): Promise<CategoryRequestRecord> {
-    const row = await apiRequest<ApiCategoryRequest>(`/api/category-requests/${id}`, {
+    const row = await apiRequest<ApiCategoryRequest>(`/api/seller/category-requests/${id}`, {
         method: "PUT",
         body: JSON.stringify({
             categoryName: payload.categoryName,
@@ -68,7 +68,7 @@ export async function updateCategoryRequest(
 }
 
 export async function deleteCategoryRequest(id: string): Promise<void> {
-    await apiRequest<void>(`/api/category-requests/${id}`, {
+    await apiRequest<void>(`/api/seller/category-requests/${id}`, {
         method: "DELETE",
     });
 }

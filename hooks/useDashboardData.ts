@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { sellerApiErrorMessage, withSellerAuthRetry } from "@/lib/api/withSellerAuthRetry";
 import {
     fetchDashboard,
     fetchDashboardStatsByPeriod,
@@ -29,18 +30,18 @@ export function useDashboardData() {
         setLoading(true);
         setError(null);
         try {
-            await hydrateSellerSession();
+            await hydrateSellerSession(true);
             if (!ensureSellerId()) {
                 setData(null);
-                setLoading(false);
+                setError("Please log in to view dashboard.");
                 return;
             }
 
-            const row = await fetchDashboard();
+            const row = await withSellerAuthRetry(() => fetchDashboard());
             let todayOverview: DashboardPeriodStats | undefined;
 
             try {
-                const periodRow = await fetchDashboardStatsByPeriod();
+                const periodRow = await withSellerAuthRetry(() => fetchDashboardStatsByPeriod());
                 todayOverview = periodRow.day;
             } catch {
                 todayOverview = overviewToPeriodStats(row.overview);
@@ -49,11 +50,7 @@ export function useDashboardData() {
             setData({ ...row, todayOverview });
         } catch (e) {
             setData(null);
-            if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-                setError(null);
-            } else {
-                setError(e instanceof Error ? e.message : "Failed to load dashboard.");
-            }
+            setError(sellerApiErrorMessage(e, "Failed to load dashboard."));
         } finally {
             setLoading(false);
         }
@@ -92,8 +89,6 @@ export function useDashboardData() {
         category: p.category,
     }));
 
-    const allProducts = topProducts;
-
     return {
         data,
         loading,
@@ -102,7 +97,7 @@ export function useDashboardData() {
         overviewStats,
         orderSummary,
         topProducts,
-        allProducts,
+        allProducts: topProducts,
         totalProducts: data?.totalProducts ?? 0,
         totalOrders: data?.overview?.orders ?? 0,
         averageRating: data?.overview?.rating ?? 0,

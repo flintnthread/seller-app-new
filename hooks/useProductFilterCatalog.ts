@@ -14,7 +14,7 @@ import {
     catalogPriceBounds,
 } from "@/lib/catalog/catalogFilterOptions";
 
-/** Loads product-management filter options from `/api/catalog/product-form` (database only). */
+/** Loads product-management filter options from `/api/seller/catalog/product-form` (database only). */
 export function useProductFilterCatalog() {
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
     const [catalogError, setCatalogError] = useState<string | null>(null);

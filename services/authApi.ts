@@ -25,11 +25,11 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
         const phoneHint =
             Platform.OS !== "web"
                 ? "\n• Ensure phone and PC are on the same Wi‑Fi (API host is detected from Expo automatically)."
-                : "\n• Web: start seller-service on localhost:8080 or :8083";
+                : "\n• Web: use EXPO_PUBLIC_API_USE_LOCAL=true for localhost:8083";
         const detail =
             err instanceof Error && err.message ? ` (${err.message})` : "";
         throw new ApiError(
-            `Cannot reach API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Start backend: cd flintnthread-platform/seller-service && ..\\mvnw.cmd spring-boot:run`
+            `Cannot reach seller API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Check https://flintnthread.online/api/public/marketplace-stats`
         );
     }
 

@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 import { AUTH_ACTION_FAILED } from "@/lib/api/apiErrors";
-import { resolveApiBaseUrl } from "@/lib/api/config";
+import { ensureApiReachable, resolveApiBaseUrl } from "@/lib/api/config";
 import {
   ensureAccessToken,
   ensureSellerId,
@@ -33,22 +33,7 @@ function getBaseUrl(): string {
 
 
 /** Turn relative /uploads/... paths into full URLs for Image components */
-
-export function resolveMediaUrl(url: string | null | undefined): string | null {
-
-  if (!url) return null;
-
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
-
-    return url;
-
-  }
-
-  const base = resolveApiBaseUrl().replace(/\/$/, "");
-  const path = url.startsWith("/") ? url : `/${url}`;
-  return `${base}${path}`;
-
-}
+export { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 
 
 
@@ -120,6 +105,7 @@ async function fetchWithTimeout(
 ): Promise<Response> {
 
   await hydrateSellerSession();
+  await ensureApiReachable().catch(() => {});
   const sellerId = ensureSellerId();
   const accessToken = ensureAccessToken();
   if (!sellerId || !accessToken) {
@@ -158,7 +144,7 @@ async function fetchWithTimeout(
 
     if (err?.name === "AbortError") {
       throw new Error(
-        `Cannot reach server at ${base}. Start the backend (mvn spring-boot:run), ensure MySQL is running, and allow port 8080 in Windows Firewall.`
+        `Cannot reach seller API at ${base}. Check https://flintnthread.online and VPS nginx seller routes.`
       );
     }
 

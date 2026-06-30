@@ -30,7 +30,7 @@ export type ProductListItem = {
 export type ProductDetailSpec = { label: string; value: string };
 export type ProductDetailDeliveryCharge = { zone: string; standard: string; express: string };
 
-/** Full product_variants row + UI aliases from GET /api/products/{id} */
+/** Full product_variants row + UI aliases from GET /api/seller/products/{id} */
 export type ProductDetailVariant = {
     id: string;
     productId: string;
@@ -460,17 +460,20 @@ function toDetail(row: ApiProductDetail): ProductDetail {
 
 export async function fetchProducts(): Promise<ProductListItem[]> {
     const rows = await apiRequest<ApiProductListItem[] | { content?: ApiProductListItem[] }>(
-        "/api/products"
+        "/api/seller/products"
     );
-    const list = Array.isArray(rows) ? rows : Array.isArray(rows?.content) ? rows.content : [];
-    if (!Array.isArray(rows) && __DEV__) {
-        console.warn("[fetchProducts] Unexpected API shape — expected an array.", rows);
+    if (rows && typeof rows === "object" && !Array.isArray(rows) && "content" in rows) {
+        throw new ApiError(
+            "Products API returned user-service paginated response. Check nginx routes seller /api/seller/* to port 8083.",
+            502
+        );
     }
+    const list = Array.isArray(rows) ? rows : [];
     return list.map(toListItem);
 }
 
 export async function fetchProductDetail(productId: string): Promise<ProductDetail> {
-    const row = await apiRequest<ApiProductDetail>(`/api/products/${productId}`);
+    const row = await apiRequest<ApiProductDetail>(`/api/seller/products/${productId}`);
     return toDetail(row);
 }
 
@@ -601,7 +604,7 @@ type ApiCreateProductResponse = {
 };
 
 export async function fetchProductFormCatalog(): Promise<ProductFormCatalog> {
-    return apiRequest<ProductFormCatalog>("/api/catalog/product-form");
+    return apiRequest<ProductFormCatalog>("/api/seller/catalog/product-form");
 }
 
 export type DeliveryChargeSlab = {
@@ -617,7 +620,7 @@ export type DeliveryChargeSlab = {
 /** Resolve intra-city / metro-metro charges for a weight from existing delivery tables. */
 export async function fetchDeliveryChargesForWeight(weightKg: number): Promise<DeliveryChargeSlab> {
     return apiRequest<DeliveryChargeSlab>(
-        `/api/catalog/delivery-charges?weightKg=${encodeURIComponent(String(weightKg))}`
+        `/api/seller/catalog/delivery-charges?weightKg=${encodeURIComponent(String(weightKg))}`
     );
 }
 
@@ -659,14 +662,14 @@ export async function fetchVariantPricingPreview(input: {
     if (input.subcategoryId != null) body.subcategoryId = input.subcategoryId;
     if (input.discountOverride != null) body.discountOverride = input.discountOverride;
     if (input.gstPercent != null) body.gstPercent = input.gstPercent;
-    return apiRequest<VariantPricingPreview>("/api/catalog/variant-pricing-preview", {
+    return apiRequest<VariantPricingPreview>("/api/seller/catalog/variant-pricing-preview", {
         method: "POST",
         body: JSON.stringify(body),
     });
 }
 
 export async function createProduct(payload: CreateProductPayload): Promise<CreateProductResult> {
-    const row = await apiRequest<ApiCreateProductResponse>("/api/products", {
+    const row = await apiRequest<ApiCreateProductResponse>("/api/seller/products", {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -687,7 +690,7 @@ export async function updateProduct(
     productId: string,
     payload: UpdateProductPayload
 ): Promise<CreateProductResult> {
-    const row = await apiRequest<ApiCreateProductResponse>(`/api/products/${productId}`, {
+    const row = await apiRequest<ApiCreateProductResponse>(`/api/seller/products/${productId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
     });
@@ -701,7 +704,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-    await apiRequest<void>(`/api/products/${productId}`, { method: "DELETE" });
+    await apiRequest<void>(`/api/seller/products/${productId}`, { method: "DELETE" });
 }
 
 export type VariantMutationPayload = {
@@ -722,7 +725,7 @@ export async function createProductVariant(
     productId: string,
     payload: VariantMutationPayload
 ): Promise<{ variantId: string }> {
-    const row = await apiRequest<{ variantId?: number }>(`/api/products/${productId}/variants`, {
+    const row = await apiRequest<{ variantId?: number }>(`/api/seller/products/${productId}/variants`, {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -735,14 +738,14 @@ export async function updateProductVariant(
     payload: VariantMutationPayload
 ): Promise<{ variantId: string }> {
     const row = await apiRequest<{ variantId?: number }>(
-        `/api/products/${productId}/variants/${variantId}`,
+        `/api/seller/products/${productId}/variants/${variantId}`,
         { method: "PUT", body: JSON.stringify(payload) }
     );
     return { variantId: String(row.variantId ?? variantId) };
 }
 
 export async function deleteProductVariant(productId: string, variantId: string): Promise<void> {
-    await apiRequest<void>(`/api/products/${productId}/variants/${variantId}`, {
+    await apiRequest<void>(`/api/seller/products/${productId}/variants/${variantId}`, {
         method: "DELETE",
     });
 }
@@ -773,7 +776,7 @@ export async function bulkImportProducts(fileUri: string, fileName: string): Pro
         } as unknown as Blob);
     }
 
-    const res = await fetch(`${baseUrl}/api/products/bulk-import`, {
+    const res = await fetch(`${baseUrl}/api/seller/products/bulk-import`, {
         method: "POST",
         headers: { "X-Seller-Id": String(sellerId) },
         body: formData,
@@ -813,14 +816,14 @@ export async function fetchProductDeliverySettings(
     search?: string
 ): Promise<ProductDeliverySettings> {
     const q = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
-    return apiRequest<ProductDeliverySettings>(`/api/products/${productId}/delivery-settings${q}`);
+    return apiRequest<ProductDeliverySettings>(`/api/seller/products/${productId}/delivery-settings${q}`);
 }
 
 export async function updateProductDeliverySettings(
     productId: string,
     payload: { deliverAllLocations: boolean; pincodeIds: number[] }
 ): Promise<ProductDeliverySettings> {
-    return apiRequest<ProductDeliverySettings>(`/api/products/${productId}/delivery-settings`, {
+    return apiRequest<ProductDeliverySettings>(`/api/seller/products/${productId}/delivery-settings`, {
         method: "PUT",
         body: JSON.stringify(payload),
     });

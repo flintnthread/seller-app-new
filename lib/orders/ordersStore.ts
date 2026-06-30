@@ -6,9 +6,11 @@
  */
 
 import type { OrderDetail, OrderStatus, OrderStep, StepStatus } from "./ordersData";
-import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { hydrateSellerSession, ensureSellerId } from "@/lib/api/sellerSession";
 import { fetchSellerOrderDetails, fetchSellerOrderStats, updateSellerOrderStatus } from "@/services/orderApi";
 import { fetchProducts } from "@/services/productApi";
+import { ApiError } from "@/lib/api/client";
+import { isAuthErrorStatus } from "@/lib/api/apiErrors";
 
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
@@ -24,6 +26,11 @@ export type SellerOrderStats = {
 };
 
 let cachedStats: SellerOrderStats | null = null;
+let lastLoadError: string | null = null;
+
+export function getOrdersLoadError(): string | null {
+    return lastLoadError;
+}
 
 export function subscribeToOrderChanges(fn: Listener): () => void {
     listeners.add(fn);
@@ -223,18 +230,38 @@ export async function loadOrdersFromApi(force = false): Promise<void> {
     }
 
     loadPromise = (async () => {
-        await hydrateSellerSession();
-        const [details, stats] = await Promise.all([
-            fetchSellerOrderDetails(),
-            fetchSellerOrderStats(),
-        ]);
-        await enrichOrderItemsWithCatalogNames(details);
-        liveOrders.clear();
-        details.forEach((order) => {
-            liveOrders.set(order.id, { ...order, steps: [...order.steps] });
-        });
-        cachedStats = stats;
-        notify();
+        lastLoadError = null;
+        try {
+            await hydrateSellerSession(true);
+            if (!ensureSellerId()) {
+                lastLoadError = "Please log in to view orders.";
+                return;
+            }
+            const [details, stats] = await Promise.all([
+                fetchSellerOrderDetails(),
+                fetchSellerOrderStats(),
+            ]);
+            await enrichOrderItemsWithCatalogNames(details);
+            liveOrders.clear();
+            details.forEach((order) => {
+                liveOrders.set(order.id, { ...order, steps: [...order.steps] });
+            });
+            cachedStats = stats;
+            notify();
+        } catch (e) {
+            const status = e instanceof ApiError ? e.status : undefined;
+            if (status === 401) {
+                lastLoadError = "Your session expired. Please log in again.";
+            } else if (status === 403) {
+                lastLoadError =
+                    "Orders could not be loaded (server access denied). Try logging in again or contact support.";
+            } else if (isAuthErrorStatus(status)) {
+                lastLoadError = "Please log in to view orders.";
+            } else {
+                lastLoadError =
+                    e instanceof Error ? e.message : "Could not load orders. Try again.";
+            }
+        }
     })().finally(() => {
         loadPromise = null;
     });

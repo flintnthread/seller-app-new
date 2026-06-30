@@ -1,8 +1,9 @@
 import { Tabs, Slot, usePathname } from "expo-router";
 import React from "react";
-import { Platform, View } from "react-native";
+import { Platform, View, ActivityIndicator } from "react-native";
 import { HapticTab } from "@/components/haptic-tab";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSellerSessionGate } from "@/hooks/useSellerSessionGate";
 import { WebLayout } from "@/components/web/WebLayout";
 import { SellerTopNav } from "@/components/common/SellerTopNav";
 import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
@@ -11,6 +12,15 @@ import { Ionicons } from "@expo/vector-icons";
 function MobileMainLayout() {
   const pathname = usePathname();
   const showNav = shouldShowSellerTopNav(pathname);
+  const sessionReady = useSellerSessionGate();
+
+  if (!sessionReady) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#1E3A6E" />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -99,8 +109,16 @@ function MobileMainLayout() {
 
 export default function TabLayout() {
   useColorScheme();
+  const sessionReady = useSellerSessionGate();
 
   if (Platform.OS === "web") {
+    if (!sessionReady) {
+      return (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#1E3A6E" />
+        </View>
+      );
+    }
     return (
       <WebLayout>
         <Slot />

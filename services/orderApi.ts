@@ -541,7 +541,7 @@ function withSellerId(path: string): string {
 }
 
 export async function fetchSellerOrderStats(): Promise<import("@/lib/orders/ordersStore").SellerOrderStats> {
-    const stats = await apiRequest<ApiOrderStats>(withSellerId("/api/orders/stats"));
+    const stats = await apiRequest<ApiOrderStats>(withSellerId("/api/seller/orders/stats"));
     return {
         totalLineItems: stats.totalLineItems,
         totalOrders: stats.totalOrders,
@@ -559,18 +559,18 @@ export async function fetchSellerOrderStats(): Promise<import("@/lib/orders/orde
 }
 
 export async function fetchSellerOrderSummaries(): Promise<Order[]> {
-    const rows = await apiRequest<ApiOrderSummary[]>(withSellerId("/api/orders"));
+    const rows = await apiRequest<ApiOrderSummary[]>(withSellerId("/api/seller/orders"));
     return rows.map(mapSummary);
 }
 
 export async function fetchSellerOrderDetails(): Promise<OrderDetail[]> {
-    const details = await apiRequest<ApiOrderDetail[]>(withSellerId("/api/orders/details"));
+    const details = await apiRequest<ApiOrderDetail[]>(withSellerId("/api/seller/orders/details"));
     return details.map(mapDetail);
 }
 
 export async function fetchSellerOrderDetail(orderKey: string): Promise<OrderDetail> {
     const detail = await apiRequest<ApiOrderDetail>(
-        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}`)
+        withSellerId(`/api/seller/orders/${encodeURIComponent(orderKey)}`)
     );
     return mapDetail(detail);
 }
@@ -595,7 +595,7 @@ export type ShiprocketSyncResult = {
 
 export async function syncShiprocketTracking(orderKey: string): Promise<ShiprocketSyncResult> {
     return apiRequest<ShiprocketSyncResult>(
-        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}/shiprocket/sync`),
+        withSellerId(`/api/seller/orders/${encodeURIComponent(orderKey)}/shiprocket/sync`),
         { method: "POST" }
     );
 }
@@ -606,7 +606,7 @@ export async function updateSellerOrderStatus(
     comment?: string
 ): Promise<OrderDetail> {
     const detail = await apiRequest<ApiOrderDetail>(
-        withSellerId(`/api/orders/${encodeURIComponent(orderKey)}/status`),
+        withSellerId(`/api/seller/orders/${encodeURIComponent(orderKey)}/status`),
         {
             method: "PATCH",
             body: JSON.stringify({

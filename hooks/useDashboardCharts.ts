@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError } from "@/lib/api/client";
-import { isAuthErrorStatus } from "@/lib/api/apiErrors";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
+import { sellerApiErrorMessage, withSellerAuthRetry } from "@/lib/api/withSellerAuthRetry";
 import {
     dashboardPeriodFromUi,
     fetchDashboardCharts,
@@ -17,17 +16,19 @@ export function useDashboardCharts(uiPeriod: string) {
         setLoading(true);
         setError(null);
         try {
-            await hydrateSellerSession();
+            await hydrateSellerSession(true);
             if (!ensureSellerId()) {
                 setCharts(null);
+                setError("Please log in to view charts.");
                 return;
             }
-            const data = await fetchDashboardCharts(dashboardPeriodFromUi(uiPeriod));
+            const data = await withSellerAuthRetry(() =>
+                fetchDashboardCharts(dashboardPeriodFromUi(uiPeriod))
+            );
             setCharts(data);
         } catch (e) {
             setCharts(null);
-            const status = e instanceof ApiError ? e.status : undefined;
-            setError(isAuthErrorStatus(status) ? null : e instanceof Error ? e.message : "Failed to load charts.");
+            setError(sellerApiErrorMessage(e, "Failed to load charts."));
         } finally {
             setLoading(false);
         }

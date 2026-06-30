@@ -36,12 +36,12 @@ function toBody(payload: SizePayload) {
 }
 
 export async function fetchSizes(): Promise<SizeRecord[]> {
-    const rows = await apiRequest<ApiSize[]>("/api/sizes");
+    const rows = await apiRequest<ApiSize[]>("/api/seller/sizes");
     return rows.map(toRecord);
 }
 
 export async function createSize(payload: SizePayload): Promise<SizeRecord> {
-    const row = await apiRequest<ApiSize>("/api/sizes", {
+    const row = await apiRequest<ApiSize>("/api/seller/sizes", {
         method: "POST",
         body: JSON.stringify(toBody(payload)),
     });
@@ -49,7 +49,7 @@ export async function createSize(payload: SizePayload): Promise<SizeRecord> {
 }
 
 export async function updateSize(id: string, payload: SizePayload): Promise<SizeRecord> {
-    const row = await apiRequest<ApiSize>(`/api/sizes/${id}`, {
+    const row = await apiRequest<ApiSize>(`/api/seller/sizes/${id}`, {
         method: "PUT",
         body: JSON.stringify(toBody(payload)),
     });
@@ -57,5 +57,5 @@ export async function updateSize(id: string, payload: SizePayload): Promise<Size
 }
 
 export async function deleteSize(id: string): Promise<void> {
-    await apiRequest<void>(`/api/sizes/${id}`, { method: "DELETE" });
+    await apiRequest<void>(`/api/seller/sizes/${id}`, { method: "DELETE" });
 }

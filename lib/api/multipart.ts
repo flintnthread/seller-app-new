@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { resolveApiBaseUrl } from "./config";
+import { ensureApiReachable, resolveApiBaseUrl } from "./config";
 import { sanitizeAuthErrorMessage } from "./apiErrors";
 import { ApiError } from "./client";
 import { ensureAccessToken, ensureSellerId } from "./sellerSession";
@@ -76,6 +76,7 @@ export async function apiUpload<T>(
         throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
     }
 
+    await ensureApiReachable();
     const baseUrl = resolveApiBaseUrl();
     const qs =
         query && Object.keys(query).length > 0

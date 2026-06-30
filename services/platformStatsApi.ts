@@ -30,7 +30,7 @@ async function publicFetch<T>(path: string): Promise<T> {
         const hint =
             Platform.OS !== "web"
                 ? " Ensure seller-service is running and phone/PC are on the same Wi‑Fi."
-                : " Ensure seller-service is running on port 8080 or 8083.";
+                : " Check https://flintnthread.online/api/public/marketplace-stats on VPS.";
         throw new ApiError(`Cannot reach API at ${url}. (${detail})${hint}`);
     }
 

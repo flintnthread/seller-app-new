@@ -79,11 +79,18 @@ export function DesktopDashboard({
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1200;
-  const { data, reviewCount, referral } = useDashboardData();
+  const {
+    data,
+    reviewCount,
+    referral,
+    loading: dashboardLoading,
+    error: dashboardError,
+    reload: reloadDashboard,
+  } = useDashboardData();
   const widgets = useDashboardWidgets();
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
-  const { salesChart, ordersChart } = useDashboardCharts(salesPeriod);
+  const { salesChart, ordersChart, error: chartsError } = useDashboardCharts(salesPeriod);
   const [categoryPerformance, setCategoryPerformance] = useState<{ category: string; value: number }[]>([]);
 
   useEffect(() => {
@@ -107,9 +114,18 @@ export function DesktopDashboard({
       .catch(() => setCategoryPerformance([]));
   }, []);
   const welcomeName = profile?.fullName ?? (profileLoading ? "…" : "Seller");
+  const loadError = dashboardError || chartsError || widgets.dashboard.error;
 
   const salesDataMerged = useMemo(() => {
-    const chart = salesChart ?? EMPTY_SALES_CHART;
+    if (!salesChart) {
+      return {
+        Day: EMPTY_SALES_CHART,
+        Week: EMPTY_SALES_CHART,
+        Month: EMPTY_SALES_CHART,
+        Year: EMPTY_SALES_CHART,
+      };
+    }
+    const chart = salesChart;
     return {
       Day: chart,
       Week: chart,
@@ -151,6 +167,14 @@ export function DesktopDashboard({
 
     return (
         <View style={styles.container}>
+            {loadError && !dashboardLoading ? (
+              <View style={styles.errorBanner}>
+                <AppText style={styles.errorBannerText}>{loadError}</AppText>
+                <TouchableOpacity onPress={() => void reloadDashboard()} style={styles.errorRetry}>
+                  <AppText style={styles.errorRetryText}>Retry</AppText>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {showAccountReviewDashboard ? (
               <SellerAccountReviewDashboard
                 profile={profile}
@@ -163,10 +187,10 @@ export function DesktopDashboard({
             {!showAccountReviewDashboard && !profileIncomplete ? (
               <SmartWelcomeHeader
                 name={welcomeName}
-                totalOrders={widgets.overview?.orders ?? 0}
-                salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
-                pendingOrders={widgets.orderSummary?.pending ?? 0}
-                views={widgets.overview?.views ?? 0}
+                totalOrders={data?.overview?.orders ?? widgets.overview?.orders ?? 0}
+                salesFormatted={data?.overview?.salesFormatted ?? widgets.overview?.salesFormatted ?? "₹0"}
+                pendingOrders={data?.orderSummary?.pending ?? widgets.orderSummary?.pending ?? 0}
+                views={data?.overview?.views ?? widgets.overview?.views ?? 0}
                 referralCode={referral?.referralCode ?? ""}
                 referralGoal={referral?.goal ?? 6}
                 referralTotalReferred={referral?.totalReferred ?? 0}
@@ -257,10 +281,10 @@ export function DesktopDashboard({
           />
 
           <CustomerAnalytics
-            rating={widgets.overview?.rating ?? 0}
-            views={widgets.overview?.views ?? 0}
-            orders={widgets.overview?.orders ?? 0}
-            salesFormatted={widgets.overview?.salesFormatted ?? "₹0"}
+            rating={data?.overview?.rating ?? widgets.overview?.rating ?? 0}
+            views={data?.overview?.views ?? widgets.overview?.views ?? 0}
+            orders={data?.overview?.orders ?? widgets.overview?.orders ?? 0}
+            salesFormatted={data?.overview?.salesFormatted ?? widgets.overview?.salesFormatted ?? "₹0"}
           />
 
 
@@ -277,6 +301,38 @@ export function DesktopDashboard({
 }
 
 const styles = StyleSheet.create({
+  errorBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#DC2626",
+    fontFamily: "Poppins_500Medium",
+  },
+  errorRetry: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: C.navy,
+  },
+  errorRetryText: {
+    color: C.white,
+    fontSize: 12,
+    fontFamily: "Poppins_600SemiBold",
+  },
   container: {
     flex: 1,
   },

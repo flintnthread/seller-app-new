@@ -1886,7 +1886,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
           <View style={s.offlineBanner}>
             <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
             <Text style={[s.offlineBannerText, { fontFamily: F.medium }]}>
-              Backend offline. Start server on port 8080, then reload app.
+              Cannot reach https://flintnthread.online. Check your connection and reload.
             </Text>
           </View>
         )}

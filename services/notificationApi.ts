@@ -10,13 +10,13 @@ export type SellerNotificationItem = {
 };
 
 export async function fetchNotifications(): Promise<SellerNotificationItem[]> {
-    return apiRequest<SellerNotificationItem[]>("/api/notifications");
+    return apiRequest<SellerNotificationItem[]>("/api/seller/notifications");
 }
 
 export async function markNotificationRead(id: number): Promise<void> {
-    await apiRequest<void>(`/api/notifications/${id}/read`, { method: "PATCH" });
+    await apiRequest<void>(`/api/seller/notifications/${id}/read`, { method: "PATCH" });
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-    await apiRequest<void>("/api/notifications/read-all", { method: "PATCH" });
+    await apiRequest<void>("/api/seller/notifications/read-all", { method: "PATCH" });
 }

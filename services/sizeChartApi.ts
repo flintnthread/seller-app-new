@@ -102,17 +102,17 @@ async function buildBody(input: SaveSizeChartInput) {
 }
 
 export async function fetchSizeCharts(): Promise<SizeChartRecord[]> {
-    const rows = await apiRequest<ApiSizeChart[]>("/api/size-charts");
+    const rows = await apiRequest<ApiSizeChart[]>("/api/seller/size-charts");
     return rows.map(toRecord);
 }
 
 export async function fetchSizeChart(id: number): Promise<SizeChartRecord> {
-    const row = await apiRequest<ApiSizeChart>(`/api/size-charts/${id}`);
+    const row = await apiRequest<ApiSizeChart>(`/api/seller/size-charts/${id}`);
     return toRecord(row);
 }
 
 export async function createSizeChart(input: SaveSizeChartInput): Promise<SizeChartRecord> {
-    const row = await apiRequest<ApiSizeChart>("/api/size-charts", {
+    const row = await apiRequest<ApiSizeChart>("/api/seller/size-charts", {
         method: "POST",
         body: JSON.stringify(await buildBody(input)),
     });
@@ -120,7 +120,7 @@ export async function createSizeChart(input: SaveSizeChartInput): Promise<SizeCh
 }
 
 export async function updateSizeChart(id: number, input: SaveSizeChartInput): Promise<SizeChartRecord> {
-    const row = await apiRequest<ApiSizeChart>(`/api/size-charts/${id}`, {
+    const row = await apiRequest<ApiSizeChart>(`/api/seller/size-charts/${id}`, {
         method: "PUT",
         body: JSON.stringify(await buildBody(input)),
     });

@@ -17,15 +17,15 @@ export type ProductReviewItem = {
 
 export async function fetchProductReviews(productId?: string): Promise<ProductReviewItem[]> {
     const q = productId ? `?productId=${encodeURIComponent(productId)}` : "";
-    return apiRequest<ProductReviewItem[]>(`/api/reviews${q}`);
+    return apiRequest<ProductReviewItem[]>(`/api/seller/reviews${q}`);
 }
 
 export async function fetchReviewsForProduct(productId: string): Promise<ProductReviewItem[]> {
-    return apiRequest<ProductReviewItem[]>(`/api/reviews/product/${productId}`);
+    return apiRequest<ProductReviewItem[]>(`/api/seller/reviews/product/${productId}`);
 }
 
 export async function replyToReview(reviewId: number, reply: string): Promise<ProductReviewItem> {
-    return apiRequest<ProductReviewItem>(`/api/reviews/${reviewId}/reply`, {
+    return apiRequest<ProductReviewItem>(`/api/seller/reviews/${reviewId}/reply`, {
         method: "POST",
         body: JSON.stringify({ reply }),
     });

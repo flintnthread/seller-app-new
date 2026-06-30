@@ -9,7 +9,7 @@ import type {
 const DEFAULT_PRICE_MIN = 0;
 const DEFAULT_PRICE_MAX = 5000;
 
-/** Main → middle category → leaf subcategory names from `/api/catalog/product-form`. */
+/** Main → middle category → leaf subcategory names from `/api/seller/catalog/product-form`. */
 export function buildCategoryTreeFromCatalog(
     categories: CatalogCategory[],
 ): Record<string, Record<string, string[]>> {

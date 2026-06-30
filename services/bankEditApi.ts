@@ -31,14 +31,14 @@ export interface BankEditResponse {
 }
 
 export async function submitBankEditRequest(request: BankEditRequest): Promise<BankEditResponse> {
-  return apiRequest<BankEditResponse>("/payout/bank-edit-requests", {
+  return apiRequest<BankEditResponse>("/api/seller/payout/bank-edit-requests", {
     method: "POST",
     body: JSON.stringify(request),
   });
 }
 
 export async function fetchBankEditRequests(): Promise<BankEditResponse[]> {
-  return apiRequest<BankEditResponse[]>("/payout/bank-edit-requests", {
+  return apiRequest<BankEditResponse[]>("/api/seller/payout/bank-edit-requests", {
     method: "GET",
   });
 }

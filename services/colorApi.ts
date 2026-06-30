@@ -36,12 +36,12 @@ function toBody(payload: ColorPayload) {
 }
 
 export async function fetchColors(): Promise<ColorRecord[]> {
-    const rows = await apiRequest<ApiColor[]>("/api/colors");
+    const rows = await apiRequest<ApiColor[]>("/api/seller/colors");
     return rows.map(toRecord);
 }
 
 export async function createColor(payload: ColorPayload): Promise<ColorRecord> {
-    const row = await apiRequest<ApiColor>("/api/colors", {
+    const row = await apiRequest<ApiColor>("/api/seller/colors", {
         method: "POST",
         body: JSON.stringify(toBody(payload)),
     });
@@ -49,7 +49,7 @@ export async function createColor(payload: ColorPayload): Promise<ColorRecord> {
 }
 
 export async function updateColor(id: string, payload: ColorPayload): Promise<ColorRecord> {
-    const row = await apiRequest<ApiColor>(`/api/colors/${id}`, {
+    const row = await apiRequest<ApiColor>(`/api/seller/colors/${id}`, {
         method: "PUT",
         body: JSON.stringify(toBody(payload)),
     });
@@ -57,5 +57,5 @@ export async function updateColor(id: string, payload: ColorPayload): Promise<Co
 }
 
 export async function deleteColor(id: string): Promise<void> {
-    await apiRequest<void>(`/api/colors/${id}`, { method: "DELETE" });
+    await apiRequest<void>(`/api/seller/colors/${id}`, { method: "DELETE" });
 }

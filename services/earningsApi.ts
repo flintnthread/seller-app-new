@@ -57,26 +57,26 @@ export type AnalyticsSales = {
 };
 
 export async function fetchEarnings(): Promise<EarningsData> {
-    return apiRequest<EarningsData>("/api/earnings");
+    return apiRequest<EarningsData>("/api/seller/earnings");
 }
 
 export async function fetchPayouts(): Promise<PayoutTransaction[]> {
-    return apiRequest<PayoutTransaction[]>("/api/earnings/payouts");
+    return apiRequest<PayoutTransaction[]>("/api/seller/earnings/payouts");
 }
 
 export async function fetchAnalyticsSales(period = "month"): Promise<AnalyticsSales> {
-    return apiRequest<AnalyticsSales>(`/api/analytics/sales?period=${encodeURIComponent(period)}`);
+    return apiRequest<AnalyticsSales>(`/api/seller/analytics/sales?period=${encodeURIComponent(period)}`);
 }
 
 export async function fetchTopSellingProducts(limit = 20): Promise<TopSellingProduct[]> {
-    return apiRequest<TopSellingProduct[]>(`/api/analytics/top-products?limit=${limit}`);
+    return apiRequest<TopSellingProduct[]>(`/api/seller/analytics/top-products?limit=${limit}`);
 }
 
 export type SalesTrendPoint = { label: string; value: number };
 
 export async function fetchOrdersTrend(period = "week"): Promise<SalesTrendPoint[]> {
     return apiRequest<SalesTrendPoint[]>(
-        `/api/analytics/orders-trend?period=${encodeURIComponent(period)}`
+        `/api/seller/analytics/orders-trend?period=${encodeURIComponent(period)}`
     );
 }
 
@@ -90,7 +90,7 @@ export async function fetchSalesTrend(
         params.set("from", from);
         params.set("to", to);
     }
-    return apiRequest<SalesTrendPoint[]>(`/api/analytics/sales-trend?${params.toString()}`);
+    return apiRequest<SalesTrendPoint[]>(`/api/seller/analytics/sales-trend?${params.toString()}`);
 }
 
 export type PaymentMethodBreakdown = {
@@ -116,13 +116,13 @@ export async function fetchAnalyticsOverview(
     channel = "All Channels"
 ): Promise<AnalyticsOverview> {
     return apiRequest<AnalyticsOverview>(
-        `/api/analytics/overview?period=${encodeURIComponent(period)}&channel=${encodeURIComponent(channel)}`
+        `/api/seller/analytics/overview?period=${encodeURIComponent(period)}&channel=${encodeURIComponent(channel)}`
     );
 }
 
 export async function fetchPaymentMethods(period = "month"): Promise<PaymentMethodBreakdown[]> {
     return apiRequest<PaymentMethodBreakdown[]>(
-        `/api/analytics/payment-methods?period=${encodeURIComponent(period)}`
+        `/api/seller/analytics/payment-methods?period=${encodeURIComponent(period)}`
     );
 }
 
@@ -140,7 +140,7 @@ export async function requestPayout(body: {
     otp: string;
     description?: string;
 }): Promise<PayoutRequestResult> {
-    return apiRequest<PayoutRequestResult>("/api/earnings/payout-request", {
+    return apiRequest<PayoutRequestResult>("/api/seller/earnings/payout-request", {
         method: "POST",
         body: JSON.stringify(body),
     });
@@ -152,5 +152,5 @@ export async function lookupOrderPayoutAmount(orderKey: string): Promise<{
     amount: number;
     found: boolean;
 }> {
-    return apiRequest(`/api/earnings/order-lookup/${encodeURIComponent(orderKey.trim())}`);
+    return apiRequest(`/api/seller/earnings/order-lookup/${encodeURIComponent(orderKey.trim())}`);
 }

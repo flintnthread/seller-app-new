@@ -2,14 +2,21 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
-/** Seller API ports — 8083 when all 3 backends run locally; 8080 when seller runs alone (prod). */
+/** Production seller API — same domain as user app; nginx routes seller paths → 8083 */
+export const PRODUCTION_API_URL = "https://flintnthread.online";
+
+/** Seller API ports — local dev only */
 const API_PORTS = [8083, 8080];
 
 type ExpoExtra = {
     apiBaseUrl?: string;
+    mediaBaseUrl?: string;
     devSellerId?: string;
     androidEmulatorApi?: boolean;
 };
+
+/** CDN for /uploads/... (production: https://flintnthread.in) */
+export const PRODUCTION_MEDIA_URL = "https://flintnthread.in";
 
 let cachedWorkingBaseUrl: string | null = null;
 let cacheExpiresAt = 0;
@@ -108,15 +115,37 @@ function pushHostPorts(candidates: string[], hosts: string[]): void {
     }
 }
 
+function getProductionApiUrl(): string {
+    const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
+    const fromExtra = getExtra().apiBaseUrl?.trim().replace(/\/$/, "");
+    return fromEnv || fromExtra || PRODUCTION_API_URL;
+}
+
+export function resolvePublicMediaBaseUrl(): string {
+    const fromEnv = process.env.EXPO_PUBLIC_MEDIA_BASE_URL?.trim().replace(/\/$/, "");
+    const fromExtra = getExtra().mediaBaseUrl?.trim().replace(/\/$/, "");
+    return fromEnv || fromExtra || PRODUCTION_MEDIA_URL;
+}
+
+function useLocalApiFallbacks(): boolean {
+    return process.env.EXPO_PUBLIC_API_USE_LOCAL === "true";
+}
+
 /**
  * Candidate seller API base URLs (most likely first).
- * No ipconfig / .env IP needed — uses Expo Metro host on physical devices.
+ * Default: https://flintnthread.online (VPS nginx → seller :8083).
+ * Local fallbacks only when EXPO_PUBLIC_API_USE_LOCAL=true.
  */
 export function getApiBaseUrlCandidates(): string[] {
+    const candidates: string[] = [getProductionApiUrl()];
+
+    if (!useLocalApiFallbacks()) {
+        return uniqueUrls(candidates);
+    }
+
     const manualOverride =
         getExtra().apiBaseUrl?.trim().replace(/\/$/, "") ||
         process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
-    const candidates: string[] = [];
     const hosts: string[] = [];
 
     if (Platform.OS === "web") {
@@ -162,7 +191,7 @@ export function resolveApiBaseUrl(): string {
     if (cachedWorkingBaseUrl && Date.now() < cacheExpiresAt) {
         return cachedWorkingBaseUrl;
     }
-    return getApiBaseUrlCandidates()[0] ?? buildUrl("localhost", 8080);
+    return getApiBaseUrlCandidates()[0] ?? PRODUCTION_API_URL;
 }
 
 export function setWorkingApiBaseUrl(url: string): void {
@@ -220,7 +249,7 @@ export async function ensureApiReachable(): Promise<string> {
     clearWorkingApiBaseUrl();
     if (lastError instanceof Error) throw lastError;
     throw new Error(
-        "Seller API not reachable. Start backend: cd flintnthread-platform/seller-service && ..\\mvnw.cmd spring-boot:run"
+        `Seller API not reachable at ${PRODUCTION_API_URL}. Check VPS nginx seller routes and flint-seller service.`
     );
 }
 
@@ -241,6 +270,8 @@ export function getApiDebugInfo(): {
     platform: string;
     isEmulator: boolean;
     devHost: string | null;
+    productionUrl: string;
+    localFallbacks: boolean;
 } {
     return {
         baseUrl: resolveApiBaseUrl(),
@@ -248,5 +279,7 @@ export function getApiDebugInfo(): {
         platform: Platform.OS,
         isEmulator: Platform.OS === "android" && isAndroidEmulator(),
         devHost: getExpoDevLanHost(),
+        productionUrl: getProductionApiUrl(),
+        localFallbacks: useLocalApiFallbacks(),
     };
 }

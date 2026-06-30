@@ -70,7 +70,7 @@ export function dashboardPeriodFromUi(period: string): string {
 
 export async function fetchDashboardCharts(period = "week"): Promise<DashboardCharts> {
     return apiRequest<DashboardCharts>(
-        `/api/dashboard/charts?period=${encodeURIComponent(period)}`
+        `/api/seller/dashboard/charts?period=${encodeURIComponent(period)}`
     );
 }
 
@@ -94,7 +94,7 @@ export type DashboardStatsByPeriod = {
 };
 
 export async function fetchDashboardStatsByPeriod(): Promise<DashboardStatsByPeriod> {
-    return apiRequest<DashboardStatsByPeriod>("/api/dashboard/stats-by-period");
+    return apiRequest<DashboardStatsByPeriod>("/api/seller/dashboard/stats-by-period");
 }
 
 export async function fetchDashboard(): Promise<DashboardData> {
@@ -104,7 +104,7 @@ export async function fetchDashboard(): Promise<DashboardData> {
         topProducts: DashboardTopProduct[];
         totalProducts: number;
         referral?: DashboardReferral;
-    }>("/api/dashboard");
+    }>("/api/seller/dashboard");
     return {
         overview: row.overview,
         orderSummary: row.orderSummary,

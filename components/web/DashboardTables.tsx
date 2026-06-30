@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, TextInput, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, TextInput, Platform, ActivityIndicator } from "react-native";
 import { AppText } from "@/components/AppText";
 import { OrdersTable } from "./OrdersTable";
 import type { Column } from "./OrdersTable";
@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   getLiveOrders,
+  getOrdersLoadError,
   loadOrdersFromApi,
   subscribeToOrderChanges,
 } from "@/lib/orders/ordersStore";
@@ -85,12 +86,19 @@ export const DashboardTables: React.FC = () => {
   const [searchText, setSearchText] = useState("");
   const [activeTab, setActiveTab] = useState<string>("All");
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     const refresh = () => {
-      if (mounted) setOrders(mapOrdersToRows());
+      if (mounted) {
+        setOrders(mapOrdersToRows());
+        setLoadError(getOrdersLoadError());
+        setLoading(false);
+      }
     };
+    setLoading(true);
     loadOrdersFromApi(true).finally(refresh);
     const unsub = subscribeToOrderChanges(refresh);
     return () => {
@@ -231,12 +239,41 @@ export const DashboardTables: React.FC = () => {
         ))}
       </View>
 
+      {loadError ? (
+        <View style={styles.errorBanner}>
+          <AppText style={styles.errorBannerText}>{loadError}</AppText>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => {
+              setLoading(true);
+              setLoadError(null);
+              loadOrdersFromApi(true).finally(() => {
+                setOrders(mapOrdersToRows());
+                setLoadError(getOrdersLoadError());
+                setLoading(false);
+              });
+            }}
+          >
+            <AppText style={styles.retryBtnText}>Retry</AppText>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.tableWrap}>
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={C.purple} />
+            <AppText style={styles.emptyStateText}>Loading orders…</AppText>
+          </View>
+        ) : (
+          <>
         <OrdersTable data={filteredOrders} columns={columns} />
-        {filteredOrders.length === 0 && (
+        {filteredOrders.length === 0 && !loadError && (
           <View style={styles.emptyState}>
             <AppText style={styles.emptyStateText}>No orders match the filters</AppText>
           </View>
+        )}
+          </>
         )}
       </View>
     </View>
@@ -423,6 +460,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 32,
+  },
+  loadingState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    gap: 10,
+  },
+  errorBanner: {
+    marginHorizontal: 24,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: C.red,
+  },
+  retryBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: C.navy,
+  },
+  retryBtnText: {
+    color: C.white,
+    fontSize: 12,
+    fontWeight: "600",
   },
   emptyStateText: {
     fontSize: 14,

@@ -1,4 +1,4 @@
-import { resolveApiBaseUrl } from "@/lib/api/config";
+import { resolveApiBaseUrl, ensureApiReachable } from "@/lib/api/config";
 
 export type LocationItem = {
     id: number;
@@ -50,6 +50,7 @@ function withQuery(base: string, params: Record<string, string | number | undefi
 
 /** Public read-only location APIs (no auth required). */
 async function publicLocationRequest<T>(path: string, init?: RequestInit): Promise<T> {
+    await ensureApiReachable();
     const baseUrl = resolveApiBaseUrl();
     const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
     let res: Response;
@@ -63,7 +64,7 @@ async function publicLocationRequest<T>(path: string, init?: RequestInit): Promi
             },
         });
     } catch {
-        throw new Error(`Cannot reach API at ${baseUrl}. Ensure the seller backend is running.`);
+        throw new Error(`Cannot reach seller API at ${baseUrl}. Check https://flintnthread.online`);
     }
     if (!res.ok) {
         let message = `Request failed (${res.status})`;
@@ -79,39 +80,39 @@ async function publicLocationRequest<T>(path: string, init?: RequestInit): Promi
 }
 
 export async function fetchCountries(search?: string): Promise<LocationItem[]> {
-    return publicLocationRequest<LocationItem[]>(withQuery("/api/locations/countries", { search }));
+    return publicLocationRequest<LocationItem[]>(withQuery("/api/seller/locations/countries", { search }));
 }
 
 export async function fetchStates(countryId?: number, search?: string): Promise<LocationItem[]> {
-    return publicLocationRequest<LocationItem[]>(withQuery("/api/locations/states", { countryId, search }));
+    return publicLocationRequest<LocationItem[]>(withQuery("/api/seller/locations/states", { countryId, search }));
 }
 
 export async function fetchCities(stateId?: number, search?: string): Promise<LocationItem[]> {
-    return publicLocationRequest<LocationItem[]>(withQuery("/api/locations/cities", { stateId, search }));
+    return publicLocationRequest<LocationItem[]>(withQuery("/api/seller/locations/cities", { stateId, search }));
 }
 
 export async function fetchAreas(cityId?: number, search?: string): Promise<LocationItem[]> {
-    return publicLocationRequest<LocationItem[]>(withQuery("/api/locations/areas", { cityId, search }));
+    return publicLocationRequest<LocationItem[]>(withQuery("/api/seller/locations/areas", { cityId, search }));
 }
 
 export async function fetchPincodes(areaId?: number, search?: string): Promise<LocationItem[]> {
-    return publicLocationRequest<LocationItem[]>(withQuery("/api/locations/pincodes", { areaId, search }));
+    return publicLocationRequest<LocationItem[]>(withQuery("/api/seller/locations/pincodes", { areaId, search }));
 }
 
 export async function searchLocations(q: string, country?: string): Promise<LocationSearchResult[]> {
-    return publicLocationRequest<LocationSearchResult[]>(withQuery("/api/locations/search", { q, country }));
+    return publicLocationRequest<LocationSearchResult[]>(withQuery("/api/seller/locations/search", { q, country }));
 }
 
 /** Google Maps-style place details — full address from map coordinates. */
 export async function resolvePlace(lat: number, lon: number): Promise<LocationSearchResult> {
     return publicLocationRequest<LocationSearchResult>(
-        withQuery("/api/locations/place", { lat, lon }),
+        withQuery("/api/seller/locations/place", { lat, lon }),
     );
 }
 
 /** Resolve missing pincode for an external map suggestion (India Post lookup). */
 export async function enrichLocationSearch(item: LocationSearchResult): Promise<LocationSearchResult> {
-    return publicLocationRequest<LocationSearchResult>("/api/locations/enrich", {
+    return publicLocationRequest<LocationSearchResult>("/api/seller/locations/enrich", {
         method: "POST",
         body: JSON.stringify(item),
     });
@@ -128,7 +129,7 @@ export type CreateLocationPayload = {
 
 /** Save a new location to the database when it is not found by search. */
 export async function saveLocation(payload: CreateLocationPayload): Promise<LocationSearchResult> {
-    return publicLocationRequest<LocationSearchResult>("/api/locations", {
+    return publicLocationRequest<LocationSearchResult>("/api/seller/locations", {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -141,7 +142,7 @@ export type AddPincodePayload = {
 
 /** Add a new pincode to an existing area in the database. */
 export async function addPincode(payload: AddPincodePayload): Promise<LocationItem> {
-    return publicLocationRequest<LocationItem>("/api/locations/pincodes", {
+    return publicLocationRequest<LocationItem>("/api/seller/locations/pincodes", {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -151,7 +152,7 @@ export async function addPincode(payload: AddPincodePayload): Promise<LocationIt
 export async function resolveLocation(value: AddressLocationValue): Promise<LocationSearchResult | null> {
     if (!value.country.trim()) return null;
     return publicLocationRequest<LocationSearchResult>(
-        withQuery("/api/locations/resolve", {
+        withQuery("/api/seller/locations/resolve", {
             country: value.country.trim(),
             state: value.state.trim() || undefined,
             city: value.city.trim() || undefined,

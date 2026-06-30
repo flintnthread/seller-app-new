@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 import { sanitizeAuthErrorMessage } from "@/lib/api/apiErrors";
 import { apiRequest, ApiError } from "@/lib/api/client";
 import { apiUpload, appendFileToFormData, buildUploadPart } from "@/lib/api/multipart";
@@ -429,24 +429,15 @@ export async function verifyRegistrationPayment(payload: {
     });
 }
 
-/** Resolve display URL for uploaded assets (local file, data URI, or server URL). */
+/** Resolve display URL for uploaded assets (CDN https://flintnthread.in or API domain). */
 export function resolveDocumentDisplayUrl(value: string | null | undefined): string | null {
     if (!value) return null;
     if (
-        value.startsWith("http://") ||
-        value.startsWith("https://") ||
         value.startsWith("file://") ||
         value.startsWith("data:") ||
         value.startsWith("blob:")
     ) {
         return value;
     }
-    if (value.startsWith("/")) {
-        return `${resolveApiBaseUrl()}${value}`;
-    }
-    const base = resolveApiBaseUrl();
-    if (Platform.OS === "web") {
-        return `${base}/uploads/sellers/${value}`;
-    }
-    return `${base}/uploads/sellers/${value}`;
+    return resolveMediaUrl(value);
 }

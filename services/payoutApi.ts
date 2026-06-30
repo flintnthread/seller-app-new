@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
 import { ensureAccessToken, ensureSellerId } from "@/lib/api/sellerSession";
-import { resolveApiBaseUrl } from "@/lib/api/config";
+import { ensureApiReachable, resolveApiBaseUrl } from "@/lib/api/config";
 
 export type SellerBankDetails = {
   sellerId: number;
@@ -42,11 +42,11 @@ export type SellerPayoutRequestRow = {
 };
 
 export async function fetchPayoutSummary(): Promise<PayoutSummary> {
-  return apiRequest<PayoutSummary>("/api/payout/summary");
+  return apiRequest<PayoutSummary>("/api/seller/payout/summary");
 }
 
 export async function fetchSellerBankDetails(): Promise<SellerBankDetails> {
-  return apiRequest<SellerBankDetails>("/api/payout/bank-details");
+  return apiRequest<SellerBankDetails>("/api/seller/payout/bank-details");
 }
 
 export async function updateSellerBankDetails(payload: {
@@ -56,14 +56,14 @@ export async function updateSellerBankDetails(payload: {
   accountNumber: string;
   ifscCode: string;
 }): Promise<SellerBankDetails> {
-  return apiRequest<SellerBankDetails>("/api/payout/bank-details", {
+  return apiRequest<SellerBankDetails>("/api/seller/payout/bank-details", {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export async function confirmSellerBankDetails(note?: string): Promise<string> {
-  const res = await apiRequest<{ message: string }>("/api/payout/bank-details/confirm", {
+  const res = await apiRequest<{ message: string }>("/api/seller/payout/bank-details/confirm", {
     method: "POST",
     body: JSON.stringify({
       ...(note?.trim() ? { note: note.trim() } : {}),
@@ -76,7 +76,7 @@ export async function submitPayoutRequest(payload: {
   orderId: string;
   sellerNote?: string;
 }): Promise<SellerPayoutRequestRow> {
-  return apiRequest<SellerPayoutRequestRow>("/api/payout/requests", {
+  return apiRequest<SellerPayoutRequestRow>("/api/seller/payout/requests", {
     method: "POST",
     body: JSON.stringify({
       orderId: payload.orderId.trim(),
@@ -86,7 +86,7 @@ export async function submitPayoutRequest(payload: {
 }
 
 export async function fetchMyPayoutRequests(): Promise<SellerPayoutRequestRow[]> {
-  return apiRequest<SellerPayoutRequestRow[]>("/api/payout/requests");
+  return apiRequest<SellerPayoutRequestRow[]>("/api/seller/payout/requests");
 }
 
 export async function exportPayoutTransactionsCsv(): Promise<string> {
@@ -95,8 +95,9 @@ export async function exportPayoutTransactionsCsv(): Promise<string> {
   if (!sellerId || !accessToken) {
     throw new Error("Seller not logged in.");
   }
+  await ensureApiReachable();
   const baseUrl = resolveApiBaseUrl();
-  const res = await fetch(`${baseUrl}/api/payout/requests/export`, {
+  const res = await fetch(`${baseUrl}/api/seller/payout/requests/export`, {
     headers: {
       Accept: "text/csv",
       Authorization: `Bearer ${accessToken}`,
