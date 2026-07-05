@@ -100,6 +100,11 @@ export function isOnboardingScreen(pathname: string): boolean {
     return SUB_SCREEN_PATTERNS.some((p) => pathname.includes(p));
 }
 
+/** Product flows use mobile-first layout on narrow web — drop outer padding. */
+export function isMobileFirstProductScreen(pathname: string): boolean {
+    return ["Productdetail", "Editproduct", "Addnewproduct"].some((p) => pathname.includes(p));
+}
+
 export const NAV_SUBTITLES: Record<string, string> = {
     dashboard: "Your seller overview",
     products: "Manage your products",

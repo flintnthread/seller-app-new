@@ -17,7 +17,7 @@ import type { LegalDocument, LegalSection } from "@/constants/sellerLegalContent
 
 const NAVY = "#1a2b5e";
 const ORANGE = "#f97316";
-const CONTAINER_MAX_WIDTH = 920;
+const CONTAINER_MAX_WIDTH = 1200;
 
 type Props = {
   document: LegalDocument;
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  platformRowWide: { width: "48%", minWidth: 280 },
+  platformRowWide: { width: "48%", minWidth: 320 },
   platformLabel: { marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 },
   platformValue: { color: "#334155", lineHeight: 20 },
   sectionCard: {
