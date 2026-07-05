@@ -79,12 +79,12 @@ export function DesktopHeader({
             <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/helpsupport')}>
               <Ionicons name="headset-outline" size={18} color="#666666" />
             </Pressable>
+
+            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/settingsModule')}>
+              <Ionicons name="settings-outline" size={18} color="#666666" />
+            </Pressable>
           </>
         ) : null}
-
-        <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/settingsModule')}>
-          <Ionicons name="settings-outline" size={18} color="#666666" />
-        </Pressable>
         
         <View 
           // @ts-ignore

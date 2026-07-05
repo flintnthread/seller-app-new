@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Linking,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
@@ -13,9 +15,11 @@ import {
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import {
+    getRegistrationPaymentStatus,
     resolveDocumentDisplayUrl,
     updateAddressProfile,
     type AddressProfilePayload,
+    type RegistrationPaymentStatusResponse,
     type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
 import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
@@ -34,6 +38,8 @@ const C = {
     navyHeader: "#2C3E50",
 
     purpleHeader: "#7B2FBE",
+
+    tealHeader: "#0D9488",
 
     white: "#FFFFFF",
 
@@ -153,40 +159,6 @@ function InfoGrid({ left, right }: { left: { label: string; value: string }; rig
 
 
 
-function DocImage({ label, url }: { label: string; url: string | null | undefined }) {
-
-    const resolved = url ? resolveDocumentDisplayUrl(url) : null;
-
-    if (!resolved) return null;
-
-    return (
-
-        <View style={styles.docBlock}>
-
-            <Text style={styles.infoLabel}>{label}</Text>
-
-            <Image
-
-                source={{ uri: resolved }}
-
-                style={styles.docImage}
-
-                contentFit="cover"
-
-                cachePolicy="memory-disk"
-
-                transition={150}
-
-            />
-
-        </View>
-
-    );
-
-}
-
-
-
 function maskAadhaar(value?: string | null): string {
 
     if (!value?.trim()) return "—";
@@ -197,6 +169,92 @@ function maskAadhaar(value?: string | null): string {
 
     return `****${digits.slice(-4)}`;
 
+}
+
+type DocumentViewItem = {
+    label: string;
+    keys: string[];
+    b2bOnly?: boolean;
+    useLiveSelfieUrl?: boolean;
+};
+
+const DOCUMENT_VIEW_ITEMS: DocumentViewItem[] = [
+    { label: "Aadhaar Card (Front)", keys: ["aadharFront"] },
+    { label: "Aadhaar Card (Back)", keys: ["aadharBack"] },
+    { label: "PAN Card", keys: ["panCard"] },
+    { label: "Business Proof", keys: ["businessProof"] },
+    { label: "Bank Account Proof", keys: ["bankProof", "bankAccountProof"] },
+    { label: "Cancelled Cheque", keys: ["cancelledCheque"] },
+    { label: "Live Selfie", keys: ["liveSelfie"], useLiveSelfieUrl: true },
+    { label: "Company PAN Document", keys: ["companyPanDocument"], b2bOnly: true },
+    { label: "Certificate of Incorporation", keys: ["certificateOfIncorporation"], b2bOnly: true },
+    { label: "Partnership Deed", keys: ["partnershipDeed"], b2bOnly: true },
+    { label: "MSME / Udyam Certificate", keys: ["msmeUdyamCertificate"], b2bOnly: true },
+    { label: "Import Export Code (IEC)", keys: ["iecCertificate"], b2bOnly: true },
+];
+
+function inferDocumentFileType(url: string): "image" | "pdf" {
+    const lower = url.toLowerCase();
+    if (lower.includes(".pdf") || lower.includes("application/pdf")) return "pdf";
+    return "image";
+}
+
+function resolveDocUrl(
+    files: Record<string, string>,
+    keys: string[],
+    liveSelfieUrl?: string | null,
+    useLiveSelfieUrl?: boolean,
+): string | null {
+    if (useLiveSelfieUrl && liveSelfieUrl) return liveSelfieUrl;
+    for (const key of keys) {
+        const url = files[key];
+        if (url) return url;
+    }
+    return null;
+}
+
+function DocPreview({ label, url, compact }: { label: string; url: string | null | undefined; compact?: boolean }) {
+    const resolved = url ? resolveDocumentDisplayUrl(url) : null;
+    const fileType = resolved ? inferDocumentFileType(resolved) : null;
+    const mediaStyle = compact ? styles.docImageCompact : styles.docImage;
+    const placeholderStyle = compact ? styles.docPlaceholderCompact : styles.docPlaceholder;
+
+    const openDocument = () => {
+        if (!resolved) return;
+        Linking.openURL(resolved).catch(() => undefined);
+    };
+
+    return (
+        <View style={[styles.docBlock, compact && styles.docBlockCompact]}>
+            <Text style={styles.infoLabel}>{label}</Text>
+            {resolved ? (
+                <TouchableOpacity activeOpacity={0.85} onPress={openDocument} disabled={Platform.OS !== "web"}>
+                    {fileType === "pdf" ? (
+                        <View style={placeholderStyle}>
+                            <Ionicons name="document-text-outline" size={30} color={C.tealHeader} />
+                            <Text style={styles.docPdfText}>PDF uploaded</Text>
+                            {Platform.OS === "web" ? (
+                                <Text style={styles.docOpenHint}>Click to open</Text>
+                            ) : null}
+                        </View>
+                    ) : (
+                        <Image
+                            source={{ uri: resolved }}
+                            style={mediaStyle}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            transition={150}
+                        />
+                    )}
+                </TouchableOpacity>
+            ) : (
+                <View style={placeholderStyle}>
+                    <Ionicons name="image-outline" size={28} color={C.textSecondary} />
+                    <Text style={styles.docPlaceholderText}>Not uploaded</Text>
+                </View>
+            )}
+        </View>
+    );
 }
 
 
@@ -232,6 +290,7 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
     const picUrl = resolveProfilePicUrl(profile);
     const [isEditingAddress, setIsEditingAddress] = useState(false);
     const [isSavingAddress, setIsSavingAddress] = useState(false);
+    const [paymentInfo, setPaymentInfo] = useState<RegistrationPaymentStatusResponse | null>(null);
     const [addressForm, setAddressForm] = useState({
         streetAddress: "",
         landmark: "",
@@ -330,6 +389,21 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
 
     }, [profile]);
 
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const payment = await getRegistrationPaymentStatus();
+                if (active) setPaymentInfo(payment);
+            } catch {
+                if (active) setPaymentInfo(null);
+            }
+        })();
+        return () => {
+            active = false;
+        };
+    }, [profile?.sellerId]);
+
     if (loading && !profile) {
 
         return (
@@ -367,6 +441,14 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
     const statusTitle = profile.accountStatus?.title ?? profile.profileCompleted ? "Active" : "Pending";
 
     const docs = profile.documents?.files ?? {};
+    const isB2B = (profile.business?.businessCategory ?? "").toUpperCase() === "B2B";
+    const visibleDocumentItems = DOCUMENT_VIEW_ITEMS.filter(
+        (item) => !item.b2bOnly || isB2B || resolveDocUrl(docs, item.keys, profile.documents?.liveSelfieUrl, item.useLiveSelfieUrl),
+    );
+    const registrationPaid = paymentInfo?.subscriptionActive ?? paymentInfo?.paid ?? false;
+    const registrationTotal =
+        paymentInfo?.totalAmount ??
+        (paymentInfo?.amount && paymentInfo.amount > 0 ? paymentInfo.amount / 100 : null);
 
 
 
@@ -438,18 +520,6 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
             <InfoRow label="AADHAAR NUMBER" value={maskAadhaar(profile.business?.aadhaarNumber)} />
 
             <InfoRow label="COMPANY PAN" value={profile.business?.companyPan || "—"} />
-
-            {isDesktop ? (
-                <View style={{ flexDirection: "row", gap: 16 }}>
-                    <View style={{ flex: 1 }}><DocImage label="BUSINESS PROOF" url={docs.businessProof} /></View>
-                    <View style={{ flex: 1 }}><DocImage label="PAN CARD" url={docs.panCard} /></View>
-                </View>
-            ) : (
-                <>
-                    <DocImage label="BUSINESS PROOF" url={docs.businessProof} />
-                    <DocImage label="PAN CARD" url={docs.panCard} />
-                </>
-            )}
 
         </SectionCard>
 
@@ -585,8 +655,6 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
 
             <InfoRow label="ACCOUNT HOLDER NAME" value={profile.banking?.accountHolderName || "—"} />
 
-            <DocImage label="BANK PROOF" url={docs.bankProof || docs.cancelledCheque} />
-
         </SectionCard>
 
     );
@@ -609,22 +677,53 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
 
             <InfoRow label="KYC MESSAGE" value={profile.accountStatus?.message || "—"} />
 
-            {isDesktop ? (
-                <View style={{ flexDirection: "row", gap: 16 }}>
-                    <View style={{ flex: 1 }}><DocImage label="AADHAAR FRONT" url={docs.aadharFront} /></View>
-                    <View style={{ flex: 1 }}><DocImage label="AADHAAR BACK" url={docs.aadharBack} /></View>
-                    <View style={{ flex: 1 }}><DocImage label="LIVE SELFIE" url={profile.documents?.liveSelfieUrl || docs.liveSelfie} /></View>
-                </View>
-            ) : (
-                <>
-                    <DocImage label="AADHAAR FRONT" url={docs.aadharFront} />
-                    <DocImage label="AADHAAR BACK" url={docs.aadharBack} />
-                    <DocImage label="LIVE SELFIE" url={profile.documents?.liveSelfieUrl || docs.liveSelfie} />
-                </>
-            )}
-
         </SectionCard>
 
+    );
+
+    const documentsCard = (
+        <SectionCard headerColor={C.tealHeader} title="Seller Documents" cardStyle={isDesktop ? styles.desktopFullCard : undefined}>
+            <InfoGrid
+                left={{
+                    label: "REGISTRATION PAYMENT",
+                    value: registrationPaid ? "Paid" : "Pending",
+                }}
+                right={{
+                    label: "DOCUMENTS STEP",
+                    value: profile.steps?.documents ? "Completed" : "Incomplete",
+                }}
+            />
+            {registrationPaid && registrationTotal != null ? (
+                <InfoRow label="AMOUNT PAID" value={`₹${registrationTotal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`} />
+            ) : null}
+            {paymentInfo?.paidAt ? (
+                <InfoRow label="PAID ON" value={new Date(paymentInfo.paidAt).toLocaleDateString("en-IN")} />
+            ) : null}
+            {isB2B && profile.business?.companyPan ? (
+                <InfoRow label="COMPANY PAN" value={profile.business.companyPan} />
+            ) : null}
+
+            <View style={styles.divider} />
+            <Text style={styles.subheading}>Uploaded Documents</Text>
+
+            <View style={isDesktop ? styles.docGridDesktop : styles.docGridMobile}>
+                {visibleDocumentItems.map((item) => (
+                    <View
+                        key={item.label}
+                        style={[
+                            isDesktop ? styles.docGridItem : undefined,
+                            item.useLiveSelfieUrl && styles.docGridItemCompact,
+                        ]}
+                    >
+                        <DocPreview
+                            label={item.label.toUpperCase()}
+                            url={resolveDocUrl(docs, item.keys, profile.documents?.liveSelfieUrl, item.useLiveSelfieUrl)}
+                            compact={item.useLiveSelfieUrl}
+                        />
+                    </View>
+                ))}
+            </View>
+        </SectionCard>
     );
 
 
@@ -651,6 +750,8 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
 
                 </View>
 
+                {documentsCard}
+
                 {kycCard}
 
             </View>
@@ -672,6 +773,8 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
             {addressCard}
 
             {bankCard}
+
+            {documentsCard}
 
             {kycCard}
 
@@ -860,7 +963,65 @@ const styles = StyleSheet.create({
 
     docBlock: { gap: 6, marginTop: 6 },
 
+    docBlockCompact: { alignSelf: "flex-start", maxWidth: 132 },
+
     docImage: { width: "100%", height: 140, borderRadius: 10, backgroundColor: C.offWhite },
+
+    docImageCompact: { width: 132, height: 168, borderRadius: 10, backgroundColor: C.offWhite },
+
+    docPlaceholder: {
+        width: "100%",
+        height: 140,
+        borderRadius: 10,
+        backgroundColor: C.offWhite,
+        borderWidth: 1,
+        borderColor: C.border,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+
+    docPlaceholderCompact: {
+        width: 132,
+        height: 168,
+        borderRadius: 10,
+        backgroundColor: C.offWhite,
+        borderWidth: 1,
+        borderColor: C.border,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+
+    docPlaceholderText: { fontSize: 12, color: C.textSecondary, fontWeight: "500" },
+
+    docPdfText: { fontSize: 13, color: C.textPrimary, fontWeight: "600" },
+
+    docOpenHint: { fontSize: 11, color: C.tealHeader, fontWeight: "500" },
+
+    docGridDesktop: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 16,
+        marginTop: 4,
+    },
+
+    docGridMobile: {
+        gap: 4,
+        marginTop: 4,
+    },
+
+    docGridItem: {
+        width: "31%",
+        minWidth: 220,
+        flexGrow: 1,
+    },
+
+    docGridItemCompact: {
+        width: "auto",
+        minWidth: 0,
+        flexGrow: 0,
+    },
 
 });
 

@@ -31,7 +31,7 @@ import {
   Outfit_900Black,
 } from "@expo-google-fonts/outfit";
 
-const CONTENT_MAX = 1200;
+const CONTENT_MAX = 1250;
 
 // ─── Color Palette ─────────────────────────────────────────
 const C = {
@@ -502,7 +502,7 @@ const SellerLanding: React.FC = () => {
     () =>
       isDesktop
         ? StyleSheet.create({
-            page: { width: "100%" as const, alignItems: "stretch" as const, ...(Platform.OS === 'web' ? { gap: 10 } : {}) },
+            page: { width: "100%" as const, alignItems: "stretch" as const, ...(Platform.OS === 'web' ? { gap: 0 } : {}) },
             content: { width: "100%", maxWidth: CONTENT_MAX, alignSelf: "center" as const },
             heroWrap: { width: "100%", alignSelf: "stretch" as const },
             heroGrad: {
@@ -517,7 +517,7 @@ const SellerLanding: React.FC = () => {
               width: "100%",
               maxWidth: CONTENT_MAX,
               alignSelf: "center" as const,
-              paddingHorizontal: 56,
+              paddingHorizontal: 40,
               paddingBottom: 24,
             },
             heroRow: {
@@ -729,7 +729,7 @@ const SellerLanding: React.FC = () => {
               width: "100%",
               maxWidth: CONTENT_MAX,
               alignSelf: "center" as const,
-              paddingHorizontal: 56,
+              paddingHorizontal: 40,
               paddingBottom: 64,
             },
             finalBannerRow: {
@@ -1755,7 +1755,7 @@ const fs = StyleSheet.create({
     maxWidth: CONTENT_MAX,
     width: "100%",
     alignSelf: "center",
-    paddingHorizontal: 56,
+    paddingHorizontal: 40,
     gap: 24,
   },
   col: {
@@ -1867,8 +1867,8 @@ const hs = StyleSheet.create({
     maxWidth: CONTENT_MAX,
     width: "100%",
     alignSelf: "center",
-    paddingHorizontal: 40,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   brand: {
     flexDirection: "row",
@@ -1899,24 +1899,25 @@ const hs = StyleSheet.create({
   navRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 0,
     flexShrink: 0,
   },
   navLink: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   navLinkText: {
-    fontFamily: "Outfit_500Medium",
-    fontSize: 14,
-    color: C.textMid,
+    fontFamily: "Outfit_900Black",
+    fontSize: 15,
+    color: C.textDark,
+    letterSpacing: -0.2,
   },
   headerCta: {
-    marginLeft: 8,
+    marginLeft: 12,
     borderRadius: 50,
     overflow: "hidden",
   },

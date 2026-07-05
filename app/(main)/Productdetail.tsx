@@ -34,6 +34,7 @@ import {
 import { calculateVariantPricingFromStrings, normalizePricingWithoutCommission } from "@/lib/product/variantPricing";
 import { formatBuyerInstructionsForDisplay } from "@/lib/product/customProductFields";
 import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
+import { resolveMinQuantity } from "@/lib/product/resolveMinQuantity";
 import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
 import { useResponsive } from "@/hooks/useResponsive";
 
@@ -84,14 +85,19 @@ interface SizeChartEntry {
 
 type Product = ProductDetail;
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: "overview",        label: "Overview",       icon: "information-outline"    },
-  { id: "variants",        label: "Variants",       icon: "tune-variant"           },
-  { id: "specifications",  label: "Specifications", icon: "clipboard-list-outline" },
-  { id: "delivery",        label: "Delivery",       icon: "truck-outline"          },
-  { id: "return",          label: "Returns",        icon: "refresh"                },
-  { id: "sizechart",       label: "Size Chart",     icon: "ruler"                  },
+const TABS: { id: TabId; label: string; icon: string; compactLabel?: string }[] = [
+  { id: "overview",        label: "Overview",       compactLabel: "Overview", icon: "information-outline"    },
+  { id: "variants",        label: "Variants",       compactLabel: "Variants", icon: "tune-variant"           },
+  { id: "specifications",  label: "Specifications", compactLabel: "Specs",    icon: "clipboard-list-outline" },
+  { id: "delivery",        label: "Delivery",       compactLabel: "Delivery", icon: "truck-outline"          },
+  { id: "return",          label: "Returns",        compactLabel: "Returns",  icon: "refresh"                },
+  { id: "sizechart",       label: "Size Chart",     compactLabel: "Sizes",    icon: "ruler"                  },
 ];
+
+function tabLabel(tab: (typeof TABS)[number], compact: boolean): string {
+  if (compact && tab.compactLabel) return tab.compactLabel;
+  return tab.label;
+}
 
 function getStatusStyle(status: string) {
   if (status === "Active")   return { bg: C.greenPale,  color: C.green  };
@@ -145,11 +151,6 @@ function formatLowestVariantLabel(v: Variant | null): string | null {
   if (!v) return null;
   const parts = [v.color !== "—" ? v.color : null, v.size !== "—" ? v.size : null].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
-}
-
-function resolveMinQuantity(v: Variant | null): number | null {
-  if (v?.minQuantity != null && v.minQuantity > 0) return v.minQuantity;
-  return null;
 }
 
 function resolveMrpInclGst(p: Product, variant: Variant | null): number {
@@ -223,6 +224,7 @@ function prepareProductDetailView(detail: Product): { product: Product; variants
       price: totalMetro,
       color: displayVariant?.color ?? detail.color,
       size: displayVariant?.size ?? detail.size,
+      minQuantity: resolveMinQuantity(detail.variants, displayVariant, detail.minQuantity) ?? undefined,
     },
     variants,
   };
@@ -1476,7 +1478,7 @@ const WebHeroSection: React.FC<{
   const leafSubcategory = resolveLeafSubcategory(p);
   const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
   const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
-  const minQuantity = resolveMinQuantity(displayVariant);
+  const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
   const displayDiscount = displayVariant?.discount ?? p.discount;
   const [variantImage, setVariantImage] = useState<string | null>(null);
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
@@ -1570,6 +1572,9 @@ const WebHeroSection: React.FC<{
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Weight</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>HSN Code</Text><Text style={wh.detailValue}>{p.hsnCode}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Warranty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{p.warranty}</Text></View>
+              {minQuantity != null ? (
+                <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Min Order Qty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{minQuantity} units</Text></View>
+              ) : null}
             </View>
           </View>
 
@@ -1819,7 +1824,7 @@ const ProductDetailScreen: React.FC = () => {
   const leafSubcategory = resolveLeafSubcategory(p);
   const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
   const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
-  const minQuantity = resolveMinQuantity(displayVariant);
+  const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
   const displayDiscount = displayVariant?.discount ?? p.discount;
 
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
@@ -1857,13 +1862,18 @@ const ProductDetailScreen: React.FC = () => {
             <WebHeroSection p={p} activeImg={activeImg} setActiveImg={setActiveImg} variants={variants} />
 
             <View style={sw.tabBar}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sw.tabScrollContent}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                contentContainerStyle={sw.tabScrollContent}
+              >
                 {TABS.map(tab => {
                   const isActive = activeTab === tab.id;
                   return (
                     <TouchableOpacity
                       key={tab.id}
-                      style={[sw.tabBtn, isActive && sw.tabBtnActive]}
+                      style={[sw.tabBtn, isActive && sw.tabBtnActive, { flexShrink: 0 }]}
                       onPress={() => setActiveTab(tab.id)}
                       activeOpacity={0.75}
                     >
@@ -2052,6 +2062,7 @@ const ProductDetailScreen: React.FC = () => {
               { label: "Size",     value: displayVariant?.size ?? p.size },
               { label: "Material", value: p.material },
               { label: "Weight",   value: p.weight   },
+              ...(minQuantity != null ? [{ label: "Min Order", value: `${minQuantity} units` }] : []),
             ]).map(a => (
               <View key={a.label} style={s.attrChip}>
                 <Text style={s.attrLabel}>{a.label}: </Text>
@@ -2062,13 +2073,19 @@ const ProductDetailScreen: React.FC = () => {
         </View>
 
         <View style={s.tabBarRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabScrollContent} style={s.tabScrollWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={compact}
+            nestedScrollEnabled
+            contentContainerStyle={[s.tabScrollContent, compact && s.tabScrollContentCompact]}
+            style={s.tabScrollWrapper}
+          >
             {TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
-                <TouchableOpacity key={tab.id} style={[s.tabBtn, isActive && s.tabBtnActive]} onPress={() => setActiveTab(tab.id)} activeOpacity={0.75}>
+                <TouchableOpacity key={tab.id} style={[s.tabBtn, isActive && s.tabBtnActive, { flexShrink: 0 }]} onPress={() => setActiveTab(tab.id)} activeOpacity={0.75}>
                   <MaterialCommunityIcons name={tab.icon as any} size={13} color={isActive ? C.white : C.textMid} />
-                  <Text style={[s.tabBtnText, isActive && s.tabBtnTextActive]}>{tab.label}</Text>
+                  <Text style={[s.tabBtnText, isActive && s.tabBtnTextActive]} numberOfLines={1}>{tabLabel(tab, compact)}</Text>
                   {tab.id === "variants" && (
                     <View style={[s.tabBadge, { backgroundColor: isActive ? "rgba(255,255,255,0.3)" : "#FFF7ED" }]}>
                       <Text style={[s.tabBadgeTxt, { color: isActive ? C.white : C.orange }]}>{variants.length}</Text>
@@ -2255,8 +2272,9 @@ const s = StyleSheet.create({
   attrValue: { fontFamily: "Outfit_700Bold",   fontSize: 11, color: C.navy     },
   tabBarRow:        { flexDirection: "row", alignItems: "center", marginBottom: 8, width: "100%" },
   tabScrollWrapper: { flex: 1, minWidth: 0 },
-  tabScrollContent: { paddingHorizontal: 14, gap: 8, paddingVertical: 4 },
-  tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card },
+  tabScrollContent: { paddingHorizontal: 14, gap: 8, paddingVertical: 4, paddingRight: 24 },
+  tabScrollContentCompact: { paddingHorizontal: 0, paddingRight: 20 },
+  tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card, flexShrink: 0 },
   tabBtnActive:    { backgroundColor: C.navy, borderColor: C.navy },
   tabBtnText:      { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid },
   tabBtnTextActive:{ color: C.white },
@@ -2359,8 +2377,8 @@ const sw = StyleSheet.create({
   contentWrap: { maxWidth: 1400, alignSelf: "center", width: "100%", minWidth: 0, paddingHorizontal: 32, paddingTop: 24, paddingBottom: 48 } as any,
   tabBar:      { backgroundColor: C.white, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 8, marginBottom: 16, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   tabBarInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tabScrollContent:{ gap: 6, paddingVertical: 2 },
-  tabBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: "transparent", backgroundColor: "transparent" },
+  tabScrollContent:{ gap: 6, paddingVertical: 2, paddingRight: 16 },
+  tabBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: "transparent", backgroundColor: "transparent", flexShrink: 0 },
   tabBtnActive:{ backgroundColor: C.navy, borderColor: C.navy },
   tabBtnText:  { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
   tabBtnTextActive:{ color: C.white },

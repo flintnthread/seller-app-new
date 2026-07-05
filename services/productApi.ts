@@ -108,6 +108,7 @@ export type ProductDetail = {
     status: string;
     rawStatus: string;
     stock: number;
+    minQuantity?: number;
     updated: string;
     category: string;
     categorySub?: string;
@@ -273,6 +274,7 @@ type ApiProductDetail = {
     status?: string;
     rawStatus?: string;
     stock?: number;
+    minQuantity?: number;
     updated?: string;
     category?: string;
     categorySub?: string;
@@ -467,6 +469,7 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         status: row.status ?? "Inactive",
         rawStatus: row.rawStatus ?? row.status ?? "",
         stock: num(row.stock),
+        minQuantity: row.minQuantity != null && row.minQuantity > 0 ? num(row.minQuantity) : undefined,
         updated: row.updated ?? "—",
         category: row.category ?? "Uncategorized",
         categorySub: row.categorySub?.trim() || undefined,

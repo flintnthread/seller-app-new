@@ -102,7 +102,9 @@ export function isOnboardingScreen(pathname: string): boolean {
 
 /** Product flows use mobile-first layout on narrow web — drop outer padding. */
 export function isMobileFirstProductScreen(pathname: string): boolean {
-    return ["Productdetail", "Editproduct", "Addnewproduct"].some((p) => pathname.includes(p));
+    return ["productmanagement", "Productdetail", "Editproduct", "Addnewproduct", "bulkupload"].some((p) =>
+        pathname.includes(p),
+    );
 }
 
 export const NAV_SUBTITLES: Record<string, string> = {
