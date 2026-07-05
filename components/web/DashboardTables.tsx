@@ -124,15 +124,18 @@ export const DashboardTables: React.FC = () => {
     {
       key: "id",
       title: "Order ID",
-      width: "12%",
+      width: 180,
+      nowrap: true,
       render: (item) => (
-        <AppText style={styles.orderIdText}>{item.id}</AppText>
+        <AppText style={styles.orderIdText} numberOfLines={1}>
+          {item.id}
+        </AppText>
       ),
     },
     {
       key: "customer",
       title: "Customer",
-      width: "18%",
+      width: "17%",
       render: (item) => (
         <View style={styles.customerCol}>
           <View style={styles.avatarCircle}>
@@ -147,7 +150,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "productName",
       title: "Product",
-      width: "26%",
+      width: "24%",
       render: (item) => (
         <View style={styles.productCol}>
           <AppText style={styles.productNameText} numberOfLines={1}>{item.productName}</AppText>
@@ -372,6 +375,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     color: C.textDark,
+    flexShrink: 0,
+    ...Platform.select({
+      web: {
+        whiteSpace: "nowrap" as any,
+      },
+    }),
   },
   customerCol: {
     flexDirection: "row",

@@ -26,6 +26,7 @@ import { useRouter } from "expo-router";
 import { SellerAccountReviewDashboard } from "@/components/SellerAccountReviewDashboard";
 import { CompleteProfileDashboardCard } from "@/components/CompleteProfileDashboardCard";
 import type { SellerProfileSummary } from "@/hooks/useSellerProfileSummary";
+import { useResponsive } from "@/hooks/useResponsive";
 
 import {
   SmartWelcomeHeader,
@@ -78,6 +79,7 @@ export function DesktopDashboard({
 }: DesktopDashboardProps) {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { isMobile } = useResponsive();
   const isDesktop = width >= 1200;
   const {
     data,
@@ -166,9 +168,9 @@ export function DesktopDashboard({
     (approvalState === "pending_review" || approvalState === "rejected");
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, isMobile && styles.containerMobile]}>
             {loadError && !dashboardLoading ? (
-              <View style={styles.errorBanner}>
+              <View style={[styles.errorBanner, isMobile && styles.errorBannerMobile]}>
                 <AppText style={styles.errorBannerText}>{loadError}</AppText>
                 <TouchableOpacity onPress={() => void reloadDashboard()} style={styles.errorRetry}>
                   <AppText style={styles.errorRetryText}>Retry</AppText>
@@ -335,6 +337,13 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  containerMobile: {
+    paddingBottom: 8,
+  },
+  errorBannerMobile: {
+    marginHorizontal: 12,
+    marginTop: 8,
   },
   incompleteWelcome: {
     width: "100%",

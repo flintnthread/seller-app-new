@@ -138,7 +138,7 @@ export function SellerTopNav({ compact = false }: Props) {
                         <Text style={s.navName} numberOfLines={1}>
                             {activeItem?.label ?? "Dashboard"}
                         </Text>
-                        <Text style={s.navGreeting} numberOfLines={1}>
+                        <Text style={s.navGreeting} numberOfLines={2}>
                             {subtitle}
                         </Text>
                     </View>
@@ -189,7 +189,7 @@ const s = StyleSheet.create({
     logoImg: { width: 24, height: 24 },
     navTitleContainer: { flex: 1, marginHorizontal: 12 },
     navName: { fontFamily: "Poppins_700Bold", fontSize: 16, color: C.white },
-    navGreeting: { fontFamily: "Poppins_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+    navGreeting: { fontFamily: "Poppins_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 16 },
     navRight: { flexDirection: "row", gap: 8 },
     menuCardsContainer: { backgroundColor: "#F7F8FC", paddingTop: 4, position: "relative" },
     tabBorderBottomLine: {

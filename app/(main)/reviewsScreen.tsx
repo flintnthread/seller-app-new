@@ -9,10 +9,13 @@ import {
   TextInput,
   Animated,
   Alert,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useResponsive } from "@/hooks/useResponsive";
 import { fetchProductReviews, replyToReview } from "@/services/reviewApi";
 
 const initialReviews: {
@@ -26,7 +29,9 @@ const initialReviews: {
 }[] = [];
 
 const ReviewsScreen = () => {
-  const router = useRouter();
+  const { isWeb, isMobile } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
   const [reviews, setReviews] = useState(initialReviews);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +55,6 @@ const ReviewsScreen = () => {
   const [selectedReview, setSelectedReview] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
 
-  // 🔥 Toast
   const [showToast, setShowToast] = useState(false);
   const toastAnim = useRef(new Animated.Value(-100)).current;
 
@@ -103,14 +107,15 @@ const ReviewsScreen = () => {
   };
 
   const renderItem = ({ item }: any) => (
-    <View style={styles.card}>
-      <Text style={styles.product}>{item.product}</Text>
+    <View style={[styles.card, isWebMobile && styles.cardWebMobile]}>
+      <Text style={[styles.product, isWebMobile && styles.productWebMobile]} numberOfLines={2}>
+        {item.product}
+      </Text>
 
       <View style={styles.row}>{renderStars(item.rating)}</View>
 
-      <Text style={styles.comment}>{item.comment}</Text>
+      <Text style={[styles.comment, isWebMobile && styles.commentWebMobile]}>{item.comment}</Text>
 
-      {/* Reply */}
       {item.reply ? (
         <View style={styles.replyBox}>
           <Text style={styles.replyLabel}>Your Reply</Text>
@@ -118,14 +123,14 @@ const ReviewsScreen = () => {
         </View>
       ) : null}
 
-      <View style={styles.footer}>
-        <View>
-          <Text style={styles.customer}>{item.customer}</Text>
+      <View style={[styles.footer, isWebMobile && styles.footerWebMobile]}>
+        <View style={isWebMobile && styles.footerMetaWebMobile}>
+          <Text style={styles.customer} numberOfLines={1}>{item.customer}</Text>
           <Text style={styles.date}>{item.date}</Text>
         </View>
 
         <TouchableOpacity
-          style={styles.replyBtn}
+          style={[styles.replyBtn, isWebMobile && styles.replyBtnWebMobile]}
           onPress={() => {
             setSelectedReview(item);
             setReplyText(item.reply || "");
@@ -141,12 +146,12 @@ const ReviewsScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      {/* 🔥 Toast */}
+    <ScreenRoot style={[styles.container, isWeb && styles.containerWeb]}>
       {showToast && (
         <Animated.View
           style={[
             styles.toast,
+            isWebMobile && styles.toastWebMobile,
             { transform: [{ translateY: toastAnim }] },
           ]}
         >
@@ -155,20 +160,45 @@ const ReviewsScreen = () => {
         </Animated.View>
       )}
 
-      <AppHeader title="Customer Reviews" subtitle="See what your customers are saying 💬" showBackButton />
+      {Platform.OS !== "web" && (
+        <AppHeader title="Customer Reviews" subtitle="See what your customers are saying 💬" showBackButton />
+      )}
 
-      <FlatList
-        data={reviews}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
+      {isWebMobile && (
+        <View style={styles.webMobileIntro}>
+          <Text style={styles.webMobileTitle}>Customer Reviews</Text>
+          <Text style={styles.webMobileSubtitle} numberOfLines={2}>
+            See what your customers are saying
+          </Text>
+        </View>
+      )}
 
-      {/* Modal */}
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#ff7a00" />
+        </View>
+      ) : (
+        <FlatList
+          data={reviews}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={isWebMobile}
+          contentContainerStyle={[
+            styles.listContent,
+            isWebMobile && styles.listContentWebMobile,
+          ]}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="chatbubble-ellipses-outline" size={40} color="#ccc" />
+              <Text style={styles.emptyText}>No reviews yet</Text>
+            </View>
+          }
+        />
+      )}
+
       <Modal transparent visible={replyVisible} animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, isWeb && styles.modalContainerWeb]}>
             <Text style={styles.modalTitle}>Reply to Review</Text>
 
             {selectedReview && (
@@ -190,7 +220,7 @@ const ReviewsScreen = () => {
               multiline
             />
 
-            <View style={styles.modalActions}>
+            <View style={[styles.modalActions, isWebMobile && styles.modalActionsWebMobile]}>
               <TouchableOpacity
                 onPress={() => {
                   setReplyVisible(false);
@@ -210,7 +240,7 @@ const ReviewsScreen = () => {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScreenRoot>
   );
 };
 
@@ -222,20 +252,44 @@ const styles = StyleSheet.create({
     backgroundColor: "#f4f6fb",
     paddingHorizontal: 16,
   },
-
-  header: {
-    marginTop: 60,
-    marginBottom: 20,
+  containerWeb: {
+    width: "100%",
+    minWidth: 0,
   },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
+  webMobileIntro: {
+    marginBottom: 12,
+    paddingTop: 4,
   },
-
-  subtitle: {
-    color: "#666",
-    marginTop: 5,
+  webMobileTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  webMobileSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  listContentWebMobile: {
+    paddingHorizontal: 0,
+    paddingBottom: 24,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyWrap: {
+    alignItems: "center",
+    paddingTop: 48,
+    gap: 8,
+  },
+  emptyText: {
+    color: "#9CA3AF",
+    fontSize: 14,
   },
 
   card: {
@@ -244,11 +298,24 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 15,
     elevation: 4,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      },
+    }),
+  },
+  cardWebMobile: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
   },
 
   product: {
     fontSize: 16,
     fontWeight: "bold",
+  },
+  productWebMobile: {
+    fontSize: 14,
   },
 
   row: {
@@ -259,6 +326,10 @@ const styles = StyleSheet.create({
   comment: {
     color: "#444",
     marginBottom: 10,
+  },
+  commentWebMobile: {
+    fontSize: 13,
+    lineHeight: 19,
   },
 
   replyBox: {
@@ -283,6 +354,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  footerWebMobile: {
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  footerMetaWebMobile: {
+    flex: 1,
+    minWidth: 0,
+  },
 
   customer: {
     fontWeight: "600",
@@ -299,6 +379,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
+  replyBtnWebMobile: {
+    alignSelf: "flex-end",
+  },
 
   replyText: {
     color: "#fff",
@@ -309,6 +392,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
+    ...Platform.select({
+      web: { alignItems: "center" },
+    }),
   },
 
   modalContainer: {
@@ -316,6 +402,18 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    width: "100%",
+  },
+  modalContainerWeb: {
+    maxWidth: 480,
+    borderRadius: 16,
+    marginBottom: 16,
+    ...Platform.select({
+      web: {
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+      },
+    }),
   },
 
   modalTitle: {
@@ -346,6 +444,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 15,
+    alignItems: "center",
+  },
+  modalActionsWebMobile: {
+    gap: 12,
   },
 
   cancel: {
@@ -364,7 +466,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // 🔥 Toast styles
   toast: {
     position: "absolute",
     top: 50,
@@ -377,6 +478,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 6,
     zIndex: 999,
+  },
+  toastWebMobile: {
+    top: 8,
+    left: 0,
+    right: 0,
   },
 
   toastText: {

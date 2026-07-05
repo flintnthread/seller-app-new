@@ -25,6 +25,7 @@ import {
   MaterialIcons,
 } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useResponsive } from "@/hooks/useResponsive";
 import { lookupOrderPayoutAmount } from "@/services/earningsApi";
 import {
   fetchPayoutSummary,
@@ -137,18 +138,29 @@ const StatCard = ({
   label,
   value,
   icon,
+  compact,
 }: {
   label: string;
   value: string;
   icon: string;
+  compact?: boolean;
 }) => (
-  <View style={styles.statCard}>
-    <View style={styles.statIconWrap}>
-      <MaterialCommunityIcons name={icon as any} size={20} color="#f97316" />
+  <View style={[styles.statCard, compact && styles.statCardWebMobile]}>
+    <View style={[styles.statIconWrap, compact && styles.statIconWrapWebMobile]}>
+      <MaterialCommunityIcons name={icon as any} size={compact ? 18 : 20} color="#f97316" />
     </View>
-    <View>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+    <View style={compact ? styles.statTextWebMobile : undefined}>
+      <Text style={[styles.statLabel, compact && styles.statLabelWebMobile]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text
+        style={[styles.statValue, compact && styles.statValueWebMobile]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {value}
+      </Text>
     </View>
   </View>
 );
@@ -198,7 +210,10 @@ const DesktopStatCard = ({
 export default function EnhancedPayoutRequest() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { isWeb, isMobile } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
   const isDesktop = Platform.OS === "web" && width >= 1024;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
 
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [apiTransactions, setApiTransactions] = useState<Transaction[]>([]);
@@ -479,7 +494,7 @@ export default function EnhancedPayoutRequest() {
 
   const renderTransactionItem = useCallback(
     ({ item }: { item: Transaction }) => (
-      <View style={styles.txnItem}>
+      <View style={[styles.txnItem, isWebMobile && styles.txnItemWebMobile]}>
         <View style={styles.txnIconWrap}>
           <MaterialCommunityIcons
             name={
@@ -528,7 +543,7 @@ export default function EnhancedPayoutRequest() {
         </View>
       </View>
     ),
-    []
+    [isWebMobile, router]
   );
 
   // ─── SHARED MODALS ──────────────────────────────────────────────────────────
@@ -1073,8 +1088,10 @@ export default function EnhancedPayoutRequest() {
 
   // ─── ORIGINAL MOBILE LAYOUT (untouched) ─────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe}>
-      <AppHeader title="Payout Request" subtitle="Manage your earnings & withdrawals" showBackButton />
+    <ScreenRoot style={[styles.safe, isWeb && styles.safeWeb]}>
+      {Platform.OS !== "web" && (
+        <AppHeader title="Payout Request" subtitle="Manage your earnings & withdrawals" showBackButton />
+      )}
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -1084,70 +1101,150 @@ export default function EnhancedPayoutRequest() {
           data={filteredTransactions}
           keyExtractor={(item) => item.id}
           renderItem={renderTransactionItem}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={isWebMobile}
+          contentContainerStyle={[
+            isWeb && styles.listContentWeb,
+            isWebMobile && styles.listContentWebMobile,
+            { paddingBottom: isWebMobile ? 100 : 120 },
+          ]}
           ListHeaderComponent={
-            <View style={{ padding: 20 }}>
+            <View style={[styles.listHeader, isWebMobile && styles.listHeaderWebMobile]}>
+              {isWebMobile && (
+                <View style={styles.webMobileIntro}>
+                  <Text style={styles.webMobileTitle}>Payout Request</Text>
+                  <Text style={styles.webMobileSubtitle} numberOfLines={2}>
+                    Manage your earnings & withdrawals
+                  </Text>
+                </View>
+              )}
               {!!summaryError && (
                 <View style={{ marginBottom: 12, padding: 12, borderRadius: 8, backgroundColor: "#fef2f2" }}>
                   <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
                 </View>
               )}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12 }}
-              >
-                <StatCard label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
-                <StatCard label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
-                <StatCard label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
-              </ScrollView>
+              {isWebMobile ? (
+                <View style={styles.statsGridWebMobile}>
+                  <StatCard compact label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
+                  <StatCard compact label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
+                  <View style={styles.statCardSpanWebMobile}>
+                    <StatCard compact label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
+                  </View>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 12 }}
+                >
+                  <StatCard label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
+                  <StatCard label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
+                  <StatCard label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
+                </ScrollView>
+              )}
 
-              <View style={styles.balanceCard}>
+              <View style={[styles.balanceCard, isWebMobile && styles.balanceCardWebMobile]}>
                 <Text style={styles.balanceLabel}>Available Balance</Text>
-                <Text style={styles.balanceValue}>₹{availableBalance.toLocaleString()}</Text>
+                <Text
+                  style={[styles.balanceValue, isWebMobile && styles.balanceValueWebMobile]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  ₹{availableBalance.toLocaleString()}
+                </Text>
               </View>
 
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isWebMobile && styles.sectionHeaderWebMobile]}>
                 <Text style={styles.sectionTitle}>Select Bank</Text>
               </View>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12 }}
-              >
-                {banks.map((bank) => (
+              {isWebMobile ? (
+                <View style={styles.bankRowWebMobile}>
+                  {banks.map((bank) => (
+                    <TouchableOpacity
+                      key={bank.id}
+                      style={[
+                        styles.bankCard,
+                        styles.bankCardWebMobile,
+                        selectedBank === bank.id && styles.selectedBankCard,
+                      ]}
+                      onPress={() => setSelectedBank(bank.id)}
+                    >
+                      <MaterialCommunityIcons
+                        name="bank"
+                        size={22}
+                        color={selectedBank === bank.id ? "#fff" : "#f97316"}
+                      />
+                      <Text
+                        style={[styles.bankName, styles.bankNameWebMobile, selectedBank === bank.id && { color: "#fff" }]}
+                        numberOfLines={1}
+                      >
+                        {bank.bankName}
+                      </Text>
+                      <Text
+                        style={[styles.bankAcc, styles.bankAccWebMobile, selectedBank === bank.id && { color: "rgba(255,255,255,0.85)" }]}
+                        numberOfLines={1}
+                      >
+                        {bank.accountNumber}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+
                   <TouchableOpacity
-                    key={bank.id}
-                    style={[styles.bankCard, selectedBank === bank.id && styles.selectedBankCard]}
-                    onPress={() => setSelectedBank(bank.id)}
+                    style={[
+                      styles.bankCard,
+                      styles.bankCardWebMobile,
+                      styles.bankEditCardWebMobile,
+                    ]}
+                    onPress={openBankEditModal}
                   >
-                    <MaterialCommunityIcons
-                      name="bank"
-                      size={24}
-                      color={selectedBank === bank.id ? "#fff" : "#f97316"}
-                    />
-                    <Text style={[styles.bankName, selectedBank === bank.id && { color: "#fff" }]}>
-                      {bank.bankName}
+                    <MaterialCommunityIcons name="pencil" size={22} color="#f97316" />
+                    <Text style={[styles.bankName, styles.bankNameWebMobile, { marginTop: 8, color: "#f97316" }]} numberOfLines={1}>
+                      Edit Bank
                     </Text>
-                    <Text style={[styles.bankAcc, selectedBank === bank.id && { color: "#fff" }]}>
-                      {bank.accountNumber}
+                    <Text style={[styles.bankAcc, styles.bankAccWebMobile]} numberOfLines={1}>
+                      Account details
                     </Text>
                   </TouchableOpacity>
-                ))}
-
-                <TouchableOpacity
-                  style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
-                  onPress={openBankEditModal}
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 12 }}
                 >
-                  <MaterialCommunityIcons name="pencil" size={24} color="#f97316" />
-                  <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Edit Bank</Text>
-                  <Text style={styles.bankAcc}>Account details</Text>
-                </TouchableOpacity>
-              </ScrollView>
+                  {banks.map((bank) => (
+                    <TouchableOpacity
+                      key={bank.id}
+                      style={[styles.bankCard, selectedBank === bank.id && styles.selectedBankCard]}
+                      onPress={() => setSelectedBank(bank.id)}
+                    >
+                      <MaterialCommunityIcons
+                        name="bank"
+                        size={24}
+                        color={selectedBank === bank.id ? "#fff" : "#f97316"}
+                      />
+                      <Text style={[styles.bankName, selectedBank === bank.id && { color: "#fff" }]}>
+                        {bank.bankName}
+                      </Text>
+                      <Text style={[styles.bankAcc, selectedBank === bank.id && { color: "#fff" }]}>
+                        {bank.accountNumber}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
 
-              <View style={styles.formContainer}>
+                  <TouchableOpacity
+                    style={[styles.bankCard, { justifyContent: "center", alignItems: "center", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316" }]}
+                    onPress={openBankEditModal}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={24} color="#f97316" />
+                    <Text style={[styles.bankName, { marginTop: 6, color: "#f97316" }]}>Edit Bank</Text>
+                    <Text style={styles.bankAcc}>Account details</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              )}
+
+              <View style={[styles.formContainer, isWebMobile && styles.formContainerWebMobile]}>
                 <Text style={styles.inputLabel}>Enter Order ID</Text>
                 <View
                   style={[
@@ -1189,15 +1286,17 @@ export default function EnhancedPayoutRequest() {
                 )}
               </View>
 
-              <View style={styles.securityCard}>
+              <View style={[styles.securityCard, isWebMobile && styles.securityCardWebMobile]}>
                 <MaterialCommunityIcons name="shield-lock-outline" size={20} color="#f97316" />
                 <Text style={styles.securityText}>Withdrawal requires OTP verification.</Text>
               </View>
 
-              <View style={[styles.sectionHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
-                <Text style={styles.sectionTitle}>Recent Transactions</Text>
+              <View style={[styles.sectionHeader, styles.transactionsHeader, isWebMobile && styles.transactionsHeaderWebMobile]}>
+                <Text style={[styles.sectionTitle, isWebMobile && styles.sectionTitleWebMobile]} numberOfLines={1}>
+                  Recent Transactions
+                </Text>
                 <TouchableOpacity
-                  style={styles.downloadBtn}
+                  style={[styles.downloadBtn, isWebMobile && styles.downloadBtnWebMobile]}
                   onPress={handleDownloadTransactions}
                   activeOpacity={0.8}
                 >
@@ -1206,7 +1305,7 @@ export default function EnhancedPayoutRequest() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.searchContainer}>
+              <View style={[styles.searchContainer, isWebMobile && styles.searchContainerWebMobile]}>
                 <Ionicons
                   name="search"
                   size={18}
@@ -1221,23 +1320,40 @@ export default function EnhancedPayoutRequest() {
                 />
               </View>
 
-              <View style={styles.filterRow}>
-                {["All", "Completed", "Pending", "Failed"].map((f) => (
-                  <FilterChip
-                    key={f}
-                    label={f}
-                    active={statusFilter === f}
-                    onPress={() => setStatusFilter(f)}
-                  />
-                ))}
-              </View>
+              {isWebMobile ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.filterRowWebMobile}
+                >
+                  {["All", "Completed", "Pending", "Failed"].map((f) => (
+                    <FilterChip
+                      key={f}
+                      label={f}
+                      active={statusFilter === f}
+                      onPress={() => setStatusFilter(f)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.filterRow}>
+                  {["All", "Completed", "Pending", "Failed"].map((f) => (
+                    <FilterChip
+                      key={f}
+                      label={f}
+                      active={statusFilter === f}
+                      onPress={() => setStatusFilter(f)}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           }
         />
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, isWebMobile && styles.footerWebMobile]}>
           <TouchableOpacity
-            style={[styles.mainButton, !!errorMsg && styles.disabledButton]}
+            style={[styles.mainButton, isWebMobile && styles.mainButtonWebMobile, !!errorMsg && styles.disabledButton]}
             onPress={handleInitialRequest}
             disabled={!!errorMsg}
           >
@@ -1254,7 +1370,7 @@ export default function EnhancedPayoutRequest() {
 
         {sharedModals}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ScreenRoot>
   );
 }
 
@@ -1813,6 +1929,87 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
+  safeWeb: {
+    width: "100%",
+    minWidth: 0,
+    backgroundColor: "#F7F8FC",
+  },
+  listContentWeb: {
+    paddingHorizontal: 0,
+  },
+  listContentWebMobile: {
+    paddingBottom: 100,
+  },
+  listHeader: {
+    padding: 20,
+  },
+  listHeaderWebMobile: {
+    padding: 0,
+    paddingBottom: 8,
+  },
+  webMobileIntro: {
+    marginBottom: 12,
+    paddingTop: 4,
+  },
+  webMobileTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  webMobileSubtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  statsGridWebMobile: {
+    gap: 8,
+    marginBottom: 4,
+    ...Platform.select({
+      web: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 8,
+      },
+    }),
+  },
+  statCardSpanWebMobile: {
+    width: "100%",
+    ...Platform.select({
+      web: {
+        gridColumn: "1 / -1",
+      },
+    }),
+  },
+  statCardWebMobile: {
+    width: "100%",
+    flex: 1,
+    minWidth: 0,
+    padding: 10,
+    borderRadius: 12,
+    alignSelf: "stretch",
+    ...Platform.select({
+      web: {
+        width: "100%",
+        maxWidth: "none",
+      },
+    }),
+  },
+  statIconWrapWebMobile: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  statTextWebMobile: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statLabelWebMobile: {
+    fontSize: 11,
+  },
+  statValueWebMobile: {
+    fontSize: 13,
+  },
 
   header: {
     backgroundColor: THEME_COLOR,
@@ -1895,16 +2092,69 @@ const styles = StyleSheet.create({
     color: THEME_COLOR,
     marginTop: 10,
   },
+  balanceCardWebMobile: {
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    marginBottom: 14,
+  },
+  balanceValueWebMobile: {
+    fontSize: 28,
+  },
 
   sectionHeader: {
     marginBottom: 14,
     marginTop: 10,
   },
-
+  sectionHeaderWebMobile: {
+    marginBottom: 10,
+    marginTop: 6,
+  },
+  transactionsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  transactionsHeaderWebMobile: {
+    flexWrap: "wrap",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: "#0f172a",
+  },
+  sectionTitleWebMobile: {
+    fontSize: 16,
+    flex: 1,
+    minWidth: 0,
+  },
+
+  bankRowWebMobile: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "stretch",
+  },
+  bankCardWebMobile: {
+    flex: 1,
+    minWidth: 0,
+    width: "auto",
+    padding: 12,
+    borderRadius: 14,
+  },
+  bankEditCardWebMobile: {
+    justifyContent: "center",
+    alignItems: "center",
+    borderStyle: "dashed",
+    borderWidth: 1.5,
+    borderColor: "#f97316",
+  },
+  bankNameWebMobile: {
+    fontSize: 12,
+    marginTop: 8,
+  },
+  bankAccWebMobile: {
+    fontSize: 11,
   },
 
   bankCard: {
@@ -1936,6 +2186,11 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 24,
     marginTop: 20,
+  },
+  formContainerWebMobile: {
+    padding: 14,
+    borderRadius: 14,
+    marginTop: 14,
   },
 
   inputLabel: {
@@ -2021,6 +2276,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 16,
   },
+  securityCardWebMobile: {
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 12,
+  },
 
   securityText: {
     marginLeft: 10,
@@ -2038,6 +2298,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 10,
   },
+  searchContainerWebMobile: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    marginTop: 6,
+  },
 
   searchInput: {
     flex: 1,
@@ -2050,6 +2316,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginBottom: 20,
+  },
+  filterRowWebMobile: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 4,
+    marginBottom: 16,
   },
 
   filterChip: {
@@ -2081,6 +2353,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 16,
     borderRadius: 20,
+  },
+  txnItemWebMobile: {
+    marginHorizontal: 0,
+    padding: 12,
+    borderRadius: 14,
   },
 
   txnIconWrap: {
@@ -2133,6 +2410,15 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "rgba(248,250,252,0.95)",
   },
+  footerWebMobile: {
+    padding: 12,
+    paddingBottom: 16,
+    ...Platform.select({
+      web: {
+        backgroundColor: "rgba(247,248,252,0.98)",
+      },
+    }),
+  },
 
   mainButton: {
     backgroundColor: THEME_COLOR,
@@ -2141,6 +2427,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+  },
+  mainButtonWebMobile: {
+    height: 52,
+    borderRadius: 14,
   },
 
   disabledButton: {
@@ -2279,6 +2569,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "rgba(249, 115, 22, 0.2)",
+  },
+  downloadBtnWebMobile: {
+    flexShrink: 0,
+    paddingHorizontal: 8,
   },
   downloadBtnText: {
     fontSize: 11,
