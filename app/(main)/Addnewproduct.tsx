@@ -21,6 +21,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { ApiError } from "@/lib/api/client";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { buildCreateProductPayload, buildUpdateProductPayload } from "@/lib/product/buildCreateProductPayload";
+import { enrichVariantsWithCatalogIds } from "@/lib/product/enrichVariantCatalogIds";
 import { mapProductDetailToEditForm } from "@/lib/product/mapProductDetailToEditForm";
 import {
     findCategorySubForProductSub,
@@ -84,6 +85,7 @@ import {
     mergeChartIntoCache,
 } from "@/lib/product/sizeChartForm";
 import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
+import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
 import {
     ensureSellerSizesInCatalog,
 } from "@/lib/product/ensureSellerSizesInCatalog";
@@ -859,7 +861,9 @@ const validateBasicInfo = (data: any): string[] => {
     const e: string[] = [];
     if (!data.name?.trim()) e.push("Product Name is required");
     if (!data.category) e.push("Category is required");
-    if (!data.categorySubName) e.push("Category (middle level) is required");
+    if (!data.categorySubName?.trim() && data.categorySubId == null) {
+        e.push("Category (middle level) is required");
+    }
     if (!data.subcategory) e.push("Subcategory is required");
     if (!data.materialType) e.push("Material Type is required");
     if (!data.hsnCode?.trim()) e.push("HSN Code is required");
@@ -2476,6 +2480,7 @@ type Variant = {
     sizeId?: number;
     sku: string;
     stock: string;
+    minQuantity?: string;
     mrp: string;
     sellingPrice: string;
     discount: string;
@@ -2483,7 +2488,7 @@ type Variant = {
     videoUrl: string;
 };
 
-const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", basicData, isDesktop = false, scrollRef, validationTrigger = 0, onValidationFail }: any) => {
+const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, productName = "", basicData, isDesktop = false, scrollRef, validationTrigger = 0, onValidationFail, isB2B = false }: any) => {
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
     const variantCardRefs = useRef<Record<number, View | null>>({});
@@ -2512,7 +2517,6 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         },
         catalog?.deliverySlabs,
     );
-    const catalogCommission = catalog?.commissionPercent ?? 15;
     const materialGst = parseFloat(String(basicData?.gstPercentage ?? "").trim());
     const productGstPercent = Number.isFinite(materialGst) && materialGst >= 0
         ? materialGst
@@ -2603,7 +2607,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         const id = Date.now().toString();
         setVariants((p: Variant[]) => [
             ...p,
-            { id, color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" },
+            { id, color: "", size: "", sku: "", stock: "", minQuantity: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" },
         ]);
     };
 
@@ -2775,6 +2779,19 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                             <Field placeholder="0" value={v.stock} onChangeText={(val: string) => upVariant(v.id, "stock", val)} keyboardType="numeric" hasError={hasErr(v.id, "stock")} />
                         </View>
                     </View>
+                    {isB2B ? (
+                        <View style={{ width: "50%", marginBottom: 8 }}>
+                            <Lbl text="Min Quantity" compact />
+                            <Field
+                                placeholder="1"
+                                value={v.minQuantity ?? ""}
+                                onChangeText={(val: string) => upVariant(v.id, "minQuantity", val)}
+                                keyboardType="numeric"
+                                hasError={hasErr(v.id, "min quantity")}
+                            />
+                            <Hint text="Minimum units per B2B order" />
+                        </View>
+                    ) : null}
                     <View style={at.row2}>
                         <View style={{ flex: 1 }}>
                             <Lbl text="MRP (excl. GST)" required />
@@ -2814,11 +2831,11 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                         metroMetroCharge: fallbackDelivery.metroMetro,
                                     }),
                                 discountOverride: parseFloat(v.discount) || null,
-                                commissionPercent: catalogCommission,
+                                commissionPercent: 0,
                             })
                         }
                         delivery={variantPricingMap[v.id]?.delivery ?? fallbackDelivery}
-                        commissionPercent={variantPricingMap[v.id]?.commissionPercent ?? catalogCommission}
+                        commissionPercent={0}
                         hasWeight={hasWeight}
                     />
 
@@ -4058,7 +4075,7 @@ const initBasicData = () => {
 
 const initVariants = (): Variant[] => {
     if (!PREFILL_WITH_DUMMY) {
-        return [{ id: "1", color: "", size: "", sku: "", stock: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" }];
+        return [{ id: "1", color: "", size: "", sku: "", stock: "", minQuantity: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" }];
     }
     return [
         { id: "1", color: "Blue", colorId: 14, size: "Medium", sizeId: 4, sku: "FNT-TEE-BLU-M-001", stock: "120", mrp: "1299", sellingPrice: "899", discount: "31", images: [], videoUrl: "" },
@@ -4153,10 +4170,26 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     const [isSaving, setIsSaving] = useState(false);
     const [savedProductId, setSavedProductId] = useState<string | null>(null);
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
+    const [isB2B, setIsB2B] = useState(false);
     const [validationTrigger, setValidationTrigger] = useState(0);
     const stepScrollRef = useRef<ScrollView>(null);
 
     const { toasts, showErrors, showToast, removeToast } = useToast();
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                await hydrateSellerSession();
+                const profile = await fetchSellerProfile();
+                if (!active) return;
+                setIsB2B(toUiBusinessCategory(profile.business?.businessCategory) === "B2B");
+            } catch {
+                if (active) setIsB2B(false);
+            }
+        })();
+        return () => { active = false; };
+    }, []);
 
     const reloadCatalog = useCallback(() => {
         fetchProductFormCatalog()
@@ -4265,7 +4298,7 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     useEffect(() => {
         if (!isEditMode || loadingProduct || !pendingHydrationRef.current) return;
         if (!catalog) return;
-        if (basicData.category && !basicData.categorySubName) return;
+        if (basicData.category && !basicData.categorySubName?.trim() && basicData.categorySubId == null) return;
 
         initialSnapshotRef.current = serializeEditFormState(
             basicData,
@@ -4494,9 +4527,10 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
         if (isSaving) return;
         setIsSaving(true);
         try {
+            const enrichedVariants = enrichVariantsWithCatalogIds(variants, catalog);
             const payload = await buildCreateProductPayload({
                 basic: basicData,
-                variants,
+                variants: enrichedVariants,
                 images: imagesData,
                 details: detailsData,
             });
@@ -4562,9 +4596,13 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
 
         setSavingUpdate(true);
         try {
+            const enrichedVariants = enrichVariantsWithCatalogIds(
+                variants.map((v) => ({ ...v, videoUrl: v.videoUrl ?? "" })),
+                catalog,
+            );
             const payload = await buildUpdateProductPayload({
                 basic: basicData,
-                variants: variants.map((v) => ({ ...v, videoUrl: v.videoUrl ?? "" })),
+                variants: enrichedVariants,
                 images: imagesData,
                 details: detailsData,
             });
@@ -4602,36 +4640,33 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             </TouchableOpacity>
         );
 
-    const rightAction =
-        step === 3 ? (
-            isEditMode ? (
-                <TouchableOpacity
-                    style={[isDesktop ? ds.saveBtn : sc.saveBtn, !isDirty && sc.saveBtnDim]}
-                    onPress={handleUpdate}
-                    activeOpacity={isDirty && !savingUpdate ? 0.85 : 0.5}
-                    disabled={!isDirty || savingUpdate}
-                >
-                    {savingUpdate ? (
-                        <ActivityIndicator color={C.white} size="small" />
-                    ) : (
-                        <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                    )}
-                    <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>
-                        {savingUpdate ? "Saving…" : isDirty ? "Update Product" : "No Changes"}
-                    </AppText>
-                </TouchableOpacity>
+    const rightAction = isEditMode ? (
+        <TouchableOpacity
+            style={[isDesktop ? ds.saveBtn : sc.saveBtn, !isDirty && sc.saveBtnDim]}
+            onPress={handleUpdate}
+            activeOpacity={isDirty && !savingUpdate ? 0.85 : 0.5}
+            disabled={!isDirty || savingUpdate}
+        >
+            {savingUpdate ? (
+                <ActivityIndicator color={C.white} size="small" />
             ) : (
-                <TouchableOpacity style={isDesktop ? ds.saveBtn : sc.saveBtn} onPress={handleSave}>
-                    <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
-                    <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>Save Product</AppText>
-                </TouchableOpacity>
-            )
-        ) : (
-            <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
-                <AppText style={isDesktop ? ds.nextTxt : sc.nextTxt}>Continue</AppText>
-                <Ionicons name="chevron-forward" size={16} color={C.white} />
-            </TouchableOpacity>
-        );
+                <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+            )}
+            <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>
+                {savingUpdate ? "Saving…" : isDirty ? "Update Product" : "No Changes"}
+            </AppText>
+        </TouchableOpacity>
+    ) : step === 3 ? (
+        <TouchableOpacity style={isDesktop ? ds.saveBtn : sc.saveBtn} onPress={handleSave}>
+            <MaterialCommunityIcons name="content-save-check-outline" size={18} color={C.white} />
+            <AppText style={isDesktop ? ds.saveTxt : sc.saveTxt}>Save Product</AppText>
+        </TouchableOpacity>
+    ) : (
+        <TouchableOpacity style={isDesktop ? ds.nextBtn : sc.nextBtn} onPress={handleContinue}>
+            <AppText style={isDesktop ? ds.nextTxt : sc.nextTxt}>Continue</AppText>
+            <Ionicons name="chevron-forward" size={16} color={C.white} />
+        </TouchableOpacity>
+    );
 
     const actionBar = (
         <View style={isDesktop ? ds.bar : sc.bar}>
@@ -4671,6 +4706,7 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
                         showErrors(errors);
                         setValidationTrigger((prev) => prev + 1);
                     }}
+                    isB2B={isB2B}
                 />
             )}
             {step === 2 && (

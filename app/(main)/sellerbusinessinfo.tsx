@@ -18,6 +18,7 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
 import { AppText } from "@/components/AppText";
@@ -239,11 +240,18 @@ const gstDetailStyles = StyleSheet.create({
 });
 
 // ─── Field wrapper with label ────────────────────────────────
-const FieldLabel: React.FC<{ label: string; required?: boolean; note?: string }> = ({ label, required, note }) => (
-  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 6 }}>
-    <AppText style={fl.label}>{label}</AppText>
-    {required && <AppText style={fl.requiredText}>*</AppText>}
-    {note && <AppText style={fl.note}>{note}</AppText>}
+const FieldLabel: React.FC<{ label: string; required?: boolean; note?: string; stackNote?: boolean }> = ({
+  label,
+  required,
+  note,
+  stackNote = false,
+}) => (
+  <View style={{ flexDirection: stackNote ? "column" : "row", alignItems: stackNote ? "flex-start" : "center", marginBottom: 8, gap: 6, flexWrap: "wrap" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+      <AppText style={fl.label}>{label}</AppText>
+      {required && <AppText style={fl.requiredText}>*</AppText>}
+    </View>
+    {note ? <AppText style={[fl.note, stackNote && { marginTop: 2 }]}>{note}</AppText> : null}
   </View>
 );
 const fl = StyleSheet.create({
@@ -373,11 +381,13 @@ const StyledInput: React.FC<{
   multiline = false, numberOfLines = 3, autoCapitalize = "characters",
 }) => {
     const [focused, setFocused] = useState(false);
+    const { width } = useWindowDimensions();
+    const stackNote = width < 480;
     const borderColor = error ? T.error : isValid ? T.success : focused ? T.orange : T.border;
 
     return (
       <View style={{ marginBottom: 18 }} onLayout={onLayout} ref={innerRef} collapsable={false}>
-        <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note })} />
+        <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note, stackNote: stackNote && !!note })} />
         <View style={[
           si.wrap,
           { borderColor },
@@ -424,6 +434,9 @@ const si = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 8,
+  },
+  gstRowStacked: {
+    flexDirection: "column",
   },
   gstInputShell: {
     flex: 1,
@@ -539,6 +552,8 @@ const sc = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBusinessInfo() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollContentRef = useRef<View>(null);
   const fieldViewRefs = useRef<Record<string, View | null>>({});
@@ -999,7 +1014,7 @@ export default function SellerBusinessInfo() {
             accentColor={T.orange}
             icon="archive"
           >
-            <View style={{ flexDirection: "row", gap: 12 }} ref={registerFieldRef("businessCategory")} collapsable={false}>
+            <View style={{ flexDirection: isCompact ? "column" : "row", gap: 12 }} ref={registerFieldRef("businessCategory")} collapsable={false}>
               <CategoryCard
                 title="B2C"
                 desc="Sell directly to customers"
@@ -1130,7 +1145,7 @@ export default function SellerBusinessInfo() {
                       required
                       {...(businessCategory === "B2B" && { note: "mandatory for B2B" })}
                     />
-                    <View style={si.gstRow}>
+                    <View style={[si.gstRow, isCompact && si.gstRowStacked]}>
                       <View style={si.gstInputShell}>
                         <View style={[si.wrap, {
                           borderColor: gstError ? T.error : gstVerified ? T.success : T.border,
@@ -1312,10 +1327,10 @@ export default function SellerBusinessInfo() {
 
 // ─── Root styles ─────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
 
   // Header
-  topHeader:    { paddingHorizontal: 20, height: 200 },
+  topHeader:    { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   // backBtnHeader: {
   //   width: 40,

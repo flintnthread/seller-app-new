@@ -279,6 +279,15 @@ export default function SellerLogin() {
       await setSellerSession(result.sellerId, result.accessToken, result.expiresIn);
       setIsProfileCompleted(result.profileCompleted);
 
+      if (result.paymentPending) {
+        showWarning(
+          "Your annual seller subscription has expired. Please renew Rs 899 subscription to access the dashboard.",
+          "Payment Pending"
+        );
+        router.replace("/(main)/subscriptionRenewal");
+        return;
+      }
+
       showSuccess(
         `Welcome back${result.firstName ? `, ${result.firstName}` : ""}!`,
         "Login successful"

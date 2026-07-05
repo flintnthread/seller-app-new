@@ -1,4 +1,16 @@
-import { resolveApiBaseUrl, resolvePublicMediaBaseUrl } from "@/lib/api/config";
+import {
+    resolveApiBaseUrl,
+    resolvePublicMediaBaseUrl,
+    resolveSellerMediaBaseUrl,
+} from "@/lib/api/config";
+
+function isSellerUploadPath(path: string): boolean {
+    return (
+        path.includes("/uploads/sellers/") ||
+        path.includes("/uploads/seller_documents/") ||
+        path.includes("/uploads/kyc_images/")
+    );
+}
 
 /** Normalize DB path to /uploads/... */
 function normalizeMediaPath(value: string): string {
@@ -13,6 +25,10 @@ function normalizeMediaPath(value: string): string {
     }
     if (p.startsWith("/uploads/")) return p;
     if (p.startsWith("uploads/")) return `/${p}`;
+    // Seller files: {sellerId}_{docType}_{timestamp}.ext
+    if (!p.includes("/") && /^\d+_/.test(p)) {
+        return `/uploads/sellers/${p}`;
+    }
     if (!p.includes("/")) return `/uploads/products/${p}`;
     return p.startsWith("/") ? p : `/${p}`;
 }
@@ -34,6 +50,9 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
         try {
             const parsed = new URL(trimmed);
             if (parsed.pathname.includes("/uploads/")) {
+                if (isSellerUploadPath(parsed.pathname)) {
+                    return `${resolveSellerMediaBaseUrl()}${parsed.pathname}`;
+                }
                 return `${resolvePublicMediaBaseUrl()}${parsed.pathname}`;
             }
         } catch {
@@ -45,7 +64,10 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
     const path = normalizeMediaPath(trimmed);
     if (!path) return null;
 
-    // Relative uploads → CDN (flintnthread.in); API domain as fallback for support uploads
+    if (isSellerUploadPath(path)) {
+        return `${resolveSellerMediaBaseUrl()}${path}`;
+    }
+
     if (path.includes("/uploads/support/")) {
         return `${resolveApiBaseUrl()}${path}`;
     }

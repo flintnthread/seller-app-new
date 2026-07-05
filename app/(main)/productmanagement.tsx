@@ -1901,9 +1901,33 @@ const wst = StyleSheet.create({
     statusPillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11 },
     actionBtn: { width: 30, height: 30, borderRadius: 7, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
 
-    // Grid
-    webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 16 },
-    webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+    // Grid — 3 equal columns on web so cards fill the full row
+    webGridContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 14,
+        padding: 16,
+        ...(Platform.OS === "web"
+            ? ({
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            } as object)
+            : {}),
+    },
+    webGridCard: {
+        width: Platform.OS === "web" ? ("100%" as any) : ("22%" as any),
+        minWidth: Platform.OS === "web" ? undefined : 180,
+        backgroundColor: C.white,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: C.border,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
     webGridImgWrap: { position: "relative" },
     webGridImg: { width: "100%", height: 240, backgroundColor: C.bg },
     webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },

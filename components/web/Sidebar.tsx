@@ -22,7 +22,7 @@ function canShowFullSellerTools(
   );
 }
 
-export function Sidebar({ onClose }: { onClose?: () => void }) {
+export function Sidebar({ onClose, overlay }: { onClose?: () => void; overlay?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const { summary } = useSellerProfileSummary();
@@ -87,6 +87,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           title: 'ACCOUNT',
           items: [
             { name: 'Profile', path: '/Profile', icon: 'person.crop.circle' as const, iconColor: '#EC4899' },
+            { name: 'Settings', path: '/settingsModule', icon: 'gearshape.fill' as const, iconColor: '#64748B' },
             { name: 'Logout', path: 'logout', icon: 'arrow.right.to.line' as const, iconColor: '#EF4444' },
           ],
         },
@@ -108,7 +109,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, overlay && styles.containerOverlay]}>
       <View style={styles.logoContainer}>
         <Image 
           source={require('../../assets/images/logo-removebg-preview.png')} 
@@ -208,6 +209,18 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     flexShrink: 0,
     overflow: 'hidden',
+  },
+  containerOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 4, height: 0 },
+    elevation: 12,
   },
   scrollContainer: {
     flex: 1,

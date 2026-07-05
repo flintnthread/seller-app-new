@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { fontFamilies } from "@/constants/fonts";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   type AddressLocationValue,
   type LocationItem,
@@ -189,7 +190,7 @@ export function AddressLocationFields({
   searchCountry,
   defaultCountryForAdd = "",
 }: Props) {
-  const isWeb = Platform.OS === "web";
+  const { isWebWide } = useResponsive();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDisplay, setSearchDisplay] = useState("");
   const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([]);
@@ -1095,8 +1096,8 @@ export function AddressLocationFields({
         </View>
       ) : null}
 
-      <View style={[isWeb ? s.row : undefined, isWeb && elevatedRows.has(0) && s.rowElevated]}>
-        <View style={isWeb ? s.half : undefined}>
+      <View style={[isWebWide ? s.row : undefined, isWebWide && elevatedRows.has(0) && s.rowElevated]}>
+        <View style={isWebWide ? s.half : undefined}>
           <LocationDropdown
             label="Country"
             value={value.country}
@@ -1115,7 +1116,7 @@ export function AddressLocationFields({
             onLayout={onLayout ? (e) => onLayout("country", e) : undefined}
           />
         </View>
-        <View style={isWeb ? s.half : undefined}>
+        <View style={isWebWide ? s.half : undefined}>
           <LocationDropdown
             label="State"
             value={value.state}
@@ -1137,8 +1138,8 @@ export function AddressLocationFields({
         </View>
       </View>
 
-      <View style={[isWeb ? s.row : undefined, isWeb && elevatedRows.has(1) && s.rowElevated]}>
-        <View style={isWeb ? s.half : undefined}>
+      <View style={[isWebWide ? s.row : undefined, isWebWide && elevatedRows.has(1) && s.rowElevated]}>
+        <View style={isWebWide ? s.half : undefined}>
           <LocationDropdown
             label="City"
             value={value.city}
@@ -1158,7 +1159,7 @@ export function AddressLocationFields({
             onLayout={onLayout ? (e) => onLayout("city", e) : undefined}
           />
         </View>
-        <View style={isWeb ? s.half : undefined}>
+        <View style={isWebWide ? s.half : undefined}>
           <LocationDropdown
             label="Area"
             value={value.area}
@@ -1180,8 +1181,8 @@ export function AddressLocationFields({
         </View>
       </View>
 
-      <View style={[isWeb ? s.row : undefined, isWeb && elevatedRows.has(2) && s.rowElevated]}>
-        <View style={isWeb ? s.half : undefined}>
+      <View style={[isWebWide ? s.row : undefined, isWebWide && elevatedRows.has(2) && s.rowElevated]}>
+        <View style={isWebWide ? s.half : undefined}>
           <LocationDropdown
             label="Pincode"
             value={value.pincode}

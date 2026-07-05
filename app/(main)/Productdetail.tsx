@@ -31,8 +31,9 @@ import {
     type VariantFormContext,
     type VariantFormState,
 } from "@/lib/product/ProductVariantFormCard";
-import { calculateVariantPricingFromStrings } from "@/lib/product/variantPricing";
+import { calculateVariantPricingFromStrings, normalizePricingWithoutCommission } from "@/lib/product/variantPricing";
 import { formatBuyerInstructionsForDisplay } from "@/lib/product/customProductFields";
+import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -143,21 +144,69 @@ function resolveMrpInclGst(p: Product, variant: Variant | null): number {
   return Math.round(mrpExcl * (1 + gstPct / 100) * 100) / 100;
 }
 
+function resolveVariantDisplayPricing(p: Product, variant: Variant) {
+  const pricing = calculateVariantPricingFromStrings({
+    mrp: String(variant.mrpExclGst || variant.mrp || 0),
+    sellingPrice: String(variant.sellingPriceExGst || variant.sellingPrice || 0),
+    gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
+    intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
+    metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
+    discountOverride: variant.discount,
+    commissionPercent: 0,
+  });
+  if (pricing) return pricing;
+  return normalizePricingWithoutCommission({
+    mrpExcl: variant.mrpExclGst || variant.mrp || 0,
+    sellingExcl: variant.sellingPriceExGst || variant.sellingPrice || 0,
+    gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
+    discountPercentage: variant.discountPercentage ?? variant.discount ?? 0,
+    discountAmount: variant.discountAmount ?? 0,
+    taxAmount: variant.gstAmount ?? variant.taxAmount ?? 0,
+    finalPrice: variant.sellingPriceWithGst || variant.finalPrice || 0,
+    mrpInclGst: variant.mrpInclGst || 0,
+    commissionAmount: 0,
+    intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge ?? 0,
+    metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge ?? 0,
+    totalIntraCity: variant.totalIntraCity ?? variant.totalPriceIntraCity ?? 0,
+    totalMetroMetro: variant.totalMetroMetro ?? variant.totalPriceMetroMetro ?? 0,
+  });
+}
+
 function resolveTotalMetroPrice(p: Product, variant: Variant | null): number {
-  if (variant?.totalMetroMetro && variant.totalMetroMetro > 0) return variant.totalMetroMetro;
-  if (p.price > 0) return p.price;
-  if (variant) {
-    const pricing = calculateVariantPricingFromStrings({
-      mrp: String(variant.mrpExclGst || variant.mrp || 0),
-      sellingPrice: String(variant.sellingPriceExGst || variant.sellingPrice || 0),
-      gstPercent: variant.gstPercent,
-      intraCityCharge: variant.intraCityDelivery,
-      metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
-      discountOverride: variant.discount,
-    });
-    if (pricing) return pricing.totalMetroMetro;
-  }
-  return 0;
+  if (!variant) return p.price > 0 ? p.price : 0;
+  return resolveVariantDisplayPricing(p, variant).totalMetroMetro;
+}
+
+function resolveDisplaySku(p: Product, variants: Variant[]): string {
+  const primary = pickPrimaryVariant(variants);
+  if (primary?.sku && primary.sku !== "—") return primary.sku;
+  return p.sku && p.sku !== "—" ? p.sku : "—";
+}
+
+function normalizeVariantsForDisplay(product: Product, items: Variant[]): Variant[] {
+  return items.map((v) => {
+    const pricing = resolveVariantDisplayPricing(product, v);
+    return {
+      ...v,
+      commissionAmount: 0,
+      commissionPercent: 0,
+      totalIntraCity: pricing.totalIntraCity,
+      totalMetroMetro: pricing.totalMetroMetro,
+    };
+  });
+}
+
+function prepareProductDetailView(detail: Product): { product: Product; variants: Variant[] } {
+  const variants = normalizeVariantsForDisplay(detail, detail.variants);
+  const { totalMetro } = getHeroPricing(detail, variants);
+  return {
+    product: {
+      ...detail,
+      sku: resolveDisplaySku(detail, detail.variants),
+      price: totalMetro,
+    },
+    variants,
+  };
 }
 
 function getHeroPricing(p: Product, variants: Variant[]) {
@@ -466,7 +515,8 @@ const EditVariantModal: React.FC<{
   variantIndex: number;
   onClose: () => void;
   onSave: (form: VariantFormState) => Promise<void>;
-}> = ({ visible, variant, product, variantIndex, onClose, onSave }) => {
+  isB2B?: boolean;
+}> = ({ visible, variant, product, variantIndex, onClose, onSave, isB2B = false }) => {
   const [form, setForm] = useState<VariantFormState>(createEmptyVariantFormState());
   const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -541,6 +591,7 @@ const EditVariantModal: React.FC<{
               catalogLoading={catalogLoading}
               context={formContext}
               showHeader
+              isB2B={isB2B}
             />
           </ScrollView>
 
@@ -570,7 +621,8 @@ const AddVariantModal: React.FC<{
   onSubmit: (form: VariantFormState) => Promise<void>;
   product: Product;
   variantIndex: number;
-}> = ({ visible, onClose, onSubmit, product, variantIndex }) => {
+  isB2B?: boolean;
+}> = ({ visible, onClose, onSubmit, product, variantIndex, isB2B = false }) => {
   const [form, setForm] = useState<VariantFormState>(createEmptyVariantFormState());
   const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -648,6 +700,7 @@ const AddVariantModal: React.FC<{
               catalogLoading={catalogLoading}
               context={formContext}
               showHeader
+              isB2B={isB2B}
             />
           </ScrollView>
 
@@ -753,7 +806,9 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label
         <View style={vr.gridDivider} />
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Stock</Text><Text style={vr.gridRowVal}>{v.stock} units</Text></View>
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>GST</Text><Text style={[vr.gridRowVal, { color: C.orange }]}>₹{v.gstAmount.toFixed(2)} ({v.gstPercent}%)</Text></View>
-        <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Commission</Text><Text style={[vr.gridRowVal, { color: C.red }]}>₹{v.commissionAmount.toFixed(2)}</Text></View>
+        {v.commissionAmount > 0 ? (
+          <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Commission</Text><Text style={[vr.gridRowVal, { color: C.red }]}>₹{v.commissionAmount.toFixed(2)}</Text></View>
+        ) : null}
         <View style={vr.gridDivider} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
           <View style={vr.sizePill}><Text style={vr.sizePillTxt}>{v.size}</Text></View>
@@ -1552,12 +1607,28 @@ const ProductDetailScreen: React.FC = () => {
   const [addAlertSubtitle, setAddAlertSubtitle] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [deletingVariant, setDeletingVariant] = useState(false);
+  const [isB2B, setIsB2B] = useState(false);
 
   const [fontsLoaded] = useFonts({ Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold });
 
   const goToProductManagement = () => {
     router.push("/(main)/productmanagement" as any);
   };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        setIsB2B(toUiBusinessCategory(profile.business?.businessCategory) === "B2B");
+      } catch {
+        if (active) setIsB2B(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1580,8 +1651,9 @@ const ProductDetailScreen: React.FC = () => {
       try {
         const detail = await fetchProductDetail(String(id));
         if (!cancelled) {
-          setP(detail);
-          setVariants(detail.variants);
+          const view = prepareProductDetailView(detail);
+          setP(view.product);
+          setVariants(view.variants);
           setActiveImg(0);
         }
       } catch (e) {
@@ -1600,8 +1672,9 @@ const ProductDetailScreen: React.FC = () => {
     const payload = await buildVariantMutationPayload(form);
     await createProductVariant(String(id), payload);
     const detail = await fetchProductDetail(String(id));
-    setP(detail);
-    setVariants(detail.variants);
+    const view = prepareProductDetailView(detail);
+    setP(view.product);
+    setVariants(view.variants);
     setAddAlertTitle("Variant Added");
     setAddAlertSubtitle(`${form.color} · Size ${form.size} variant added successfully.`);
     setShowAddAlert(true);
@@ -1621,8 +1694,9 @@ const ProductDetailScreen: React.FC = () => {
     try {
       await deleteProductVariant(String(id), variantId);
       const detail = await fetchProductDetail(String(id));
-      setP(detail);
-      setVariants(detail.variants);
+      const view = prepareProductDetailView(detail);
+      setP(view.product);
+      setVariants(view.variants);
       setDeleteAlertSubtitle("Variant removed successfully.");
       setShowDeleteAlert(true);
       setTimeout(() => setShowDeleteAlert(false), 1700);
@@ -1652,8 +1726,9 @@ const ProductDetailScreen: React.FC = () => {
     const payload = await buildVariantMutationPayload(form);
     await updateProductVariant(String(id), editingVariant.id, payload);
     const detail = await fetchProductDetail(String(id));
-    setP(detail);
-    setVariants(detail.variants);
+    const view = prepareProductDetailView(detail);
+    setP(view.product);
+    setVariants(view.variants);
     setAddAlertTitle("Variant Updated");
     setAddAlertSubtitle(`${form.color} · Size ${form.size} variant updated successfully.`);
     setShowAddAlert(true);
@@ -1779,6 +1854,7 @@ const ProductDetailScreen: React.FC = () => {
           onSubmit={handleAddVariant}
           product={p}
           variantIndex={variants.length + 1}
+          isB2B={isB2B}
         />
         <EditVariantModal
           visible={!!editingVariant}
@@ -1787,6 +1863,7 @@ const ProductDetailScreen: React.FC = () => {
           variantIndex={Math.max(1, variants.findIndex((v) => v.id === editingVariant?.id) + 1)}
           onClose={() => setEditingVariant(null)}
           onSave={handleSaveVariant}
+          isB2B={isB2B}
         />
         <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
         <DeleteConfirmModal
@@ -1975,6 +2052,7 @@ const ProductDetailScreen: React.FC = () => {
         onSubmit={handleAddVariant}
         product={p}
         variantIndex={variants.length + 1}
+        isB2B={isB2B}
       />
       <EditVariantModal
         visible={!!editingVariant}
@@ -1983,6 +2061,7 @@ const ProductDetailScreen: React.FC = () => {
         variantIndex={Math.max(1, variants.findIndex((v) => v.id === editingVariant?.id) + 1)}
         onClose={() => setEditingVariant(null)}
         onSave={handleSaveVariant}
+        isB2B={isB2B}
       />
       <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
       <DeleteConfirmModal

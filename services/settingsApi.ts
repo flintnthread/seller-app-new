@@ -1,4 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
+import { ensureAccessToken, ensureSellerId } from "@/lib/api/sellerSession";
+import { resolveApiBaseUrl } from "@/lib/api/config";
 
 export type SellerSettings = {
     pushNotifications: boolean;
@@ -53,4 +55,56 @@ export async function deactivateSellerAccount(): Promise<{ message: string }> {
     return apiRequest<{ message: string }>("/api/seller/settings/account/deactivate", {
         method: "POST",
     });
+}
+
+export type SellerRegistrationInvoice = {
+    id: number;
+    invoiceNumber: string;
+    displayOrderNumber?: string | null;
+    paymentId?: string | null;
+    amount: number;
+    registrationFee?: number;
+    gstAmount?: number;
+    totalAmount?: number;
+    currency: string;
+    paidAt?: string | null;
+};
+
+export async function fetchRegistrationInvoices(): Promise<SellerRegistrationInvoice[]> {
+    return apiRequest<SellerRegistrationInvoice[]>("/api/seller/settings/invoices");
+}
+
+export async function downloadRegistrationInvoice(
+    invoiceId: number,
+    fileName: string
+): Promise<void> {
+    const sellerId = ensureSellerId();
+    const accessToken = ensureAccessToken();
+    if (!sellerId || !accessToken) {
+        throw new Error("Seller not logged in.");
+    }
+    const url = `${resolveApiBaseUrl()}/api/seller/settings/invoices/${invoiceId}/download`;
+    const res = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "X-Seller-Id": String(sellerId),
+            Accept: "application/pdf",
+        },
+    });
+    if (!res.ok) {
+        throw new Error("Could not download invoice.");
+    }
+    const blob = await res.blob();
+    if (typeof window !== "undefined" && window.document) {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+        return;
+    }
+    throw new Error("Invoice download is supported on web.");
 }

@@ -100,6 +100,7 @@ function MobileMainLayout() {
       <Tabs.Screen name="sizes" options={{ href: null }} />
       <Tabs.Screen name="categoryrequest" options={{ href: null }} />
       <Tabs.Screen name="settingsModule" options={{ href: null }} />
+      <Tabs.Screen name="subscriptionRenewal" options={{ href: null }} />
       <Tabs.Screen name="viewsellerprofile" options={{ href: null }} />
     </Tabs>
       </View>

@@ -107,14 +107,23 @@ export type RegistrationPaymentOrderResponse = {
     currency: string;
     receipt: string;
     paid: boolean;
+    registrationFee?: number;
+    gstAmount?: number;
+    totalAmount?: number;
 };
 
 export type RegistrationPaymentStatusResponse = {
     paid: boolean;
+    subscriptionActive?: boolean;
+    paymentPending?: boolean;
     orderId?: string | null;
     paymentId?: string | null;
     paidAt?: string | null;
+    subscriptionExpiresAt?: string | null;
     amount: number;
+    registrationFee?: number;
+    gstAmount?: number;
+    totalAmount?: number;
     currency: string;
 };
 

@@ -39,7 +39,7 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             name: detail.name,
             category: detail.category,
             categoryId: detail.categoryId,
-            categorySubName: "",
+            categorySubName: detail.categorySub?.trim() ?? "",
             categorySubId: undefined as number | undefined,
             subcategory: detail.subcategory,
             subcategoryId: detail.subcategoryId,
@@ -71,18 +71,27 @@ export function mapProductDetailToEditForm(detail: ProductDetail) {
             custAllowText: detail.customAllowText === true,
             custTextLabel: detail.customTextLabel ?? "",
         },
-        variants: (detail.variants ?? []).map((v) => ({
-            id: v.id,
-            color: v.color === "—" ? "" : v.color,
-            size: v.size === "—" ? "" : v.size,
-            sku: v.sku === "—" ? "" : v.sku,
-            stock: String(v.stock),
-            mrp: String(v.mrpExclGst || v.mrp),
-            sellingPrice: String(v.sellingPriceExGst || v.sellingPrice),
-            discount: String(v.discount || v.discountPercentage),
-            images: v.imageUri ? [v.imageUri] : [],
-            videoUrl: v.videoUri || v.videoPath || "",
-        })),
+        variants: (detail.variants ?? []).map((v) => {
+            const sizeLabel = v.size === "—" ? "" : v.size;
+            const inferredSizeId =
+                v.sizeId ??
+                (/^\d+$/.test(sizeLabel.trim()) ? Number(sizeLabel.trim()) : undefined);
+            return {
+                id: v.id,
+                color: v.color === "—" ? "" : v.color,
+                ...(v.colorId != null ? { colorId: v.colorId } : {}),
+                size: sizeLabel,
+                ...(inferredSizeId != null ? { sizeId: inferredSizeId } : {}),
+                sku: v.sku === "—" ? "" : v.sku,
+                stock: String(v.stock),
+                minQuantity: v.minQuantity != null ? String(v.minQuantity) : "",
+                mrp: String(v.mrpExclGst || v.mrp),
+                sellingPrice: String(v.sellingPriceExGst || v.sellingPrice),
+                discount: String(v.discount || v.discountPercentage),
+                images: v.imageUri ? [v.imageUri] : [],
+                videoUrl: v.videoUri || v.videoPath || "",
+            };
+        }),
         images: {
             primaryImage: images[0] ?? null,
             additionalImages: images.slice(1),

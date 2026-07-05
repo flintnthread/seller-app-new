@@ -36,6 +36,7 @@ type VariantRow = {
     sizeId?: number;
     sku: string;
     stock: string;
+    minQuantity?: string;
     mrp: string;
     sellingPrice: string;
     discount: string;
@@ -170,6 +171,10 @@ export async function buildCreateProductPayload(input: {
         if (sku) row.sku = sku;
         const videoUrl = images.video?.trim() || variant.videoUrl?.trim();
         if (videoUrl) row.videoUrl = videoUrl;
+        if (variant.minQuantity?.trim()) {
+            const minQty = parseIntSafe(variant.minQuantity);
+            if (minQty > 0) row.minQuantity = minQty;
+        }
         variantPayloads.push(row);
     }
 
