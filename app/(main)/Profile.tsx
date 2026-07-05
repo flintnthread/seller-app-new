@@ -187,6 +187,7 @@ export default function SellerProfileScreen() {
 
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
+  const isWeb = Platform.OS === "web";
 
   const applyProfile = useCallback(
     (profile: SellerProfileResponse) => {
@@ -660,11 +661,14 @@ export default function SellerProfileScreen() {
 
   // ─── ORIGINAL MOBILE LAYOUT (untouched) ───────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWeb && styles.containerWeb]}>
 
-      <AppHeader title="My Seller Profile" showBackButton />
+      {!isWeb && <AppHeader title="My Seller Profile" showBackButton />}
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={isWeb && styles.scrollContentWeb}
+      >
 
         {/* PROFILE CARD */}
         <View style={styles.profileCard}>
@@ -1465,6 +1469,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f8f8",
     paddingTop: 0,
+  },
+  containerWeb: {
+    backgroundColor: "#F7F8FC",
+  },
+  scrollContentWeb: {
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: "row",

@@ -1319,8 +1319,10 @@ const StarRating = ({ rating, onRate }: { rating: number; onRate: (n: number) =>
 
 const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const router = useRouter();
-  const { isWeb, isDesktop } = useResponsive();
+  const { isWeb, isDesktop, isMobile } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
   const { width: windowWidth } = useWindowDimensions();
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -1804,7 +1806,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe}>
+    <ScreenRoot style={[s.safe, isWeb && s.safeWeb]}>
       <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
 
       {/* ── Live Chat Modal ── */}
@@ -1872,7 +1874,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
       <ScrollView
         style={s.scroll}
-        contentContainerStyle={[s.scrollContent, isWeb && s.scrollContentWeb]}
+        contentContainerStyle={[s.scrollContent, isWeb && s.scrollContentWeb, isWebMobile && s.scrollContentWebMobile]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -1892,15 +1894,15 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         )}
 
         {/* Navy Banner */}
-        <View style={s.navyBanner}>
+        <View style={[s.navyBanner, isWebMobile && s.navyBannerWebMobile]}>
           <View style={s.bannerIconWrap}>
             <Ionicons name="headset-outline" size={24} color={C.white} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
-            <Text style={[s.bannerSub, { fontFamily: F.regular }]}>Raise a ticket · we typically respond within 24 hours</Text>
+            <Text style={[s.bannerSub, { fontFamily: F.regular }]} numberOfLines={2}>Raise a ticket · we typically respond within 24 hours</Text>
           </View>
-          <TouchableOpacity style={s.bannerBtn} onPress={openTicketModal} activeOpacity={0.85}>
+          <TouchableOpacity style={[s.bannerBtn, isWebMobile && s.bannerBtnWebMobile]} onPress={openTicketModal} activeOpacity={0.85}>
             <Text style={[s.bannerBtnTxt, { fontFamily: F.semiBold }]}>Raise a ticket</Text>
           </TouchableOpacity>
         </View>
@@ -1948,7 +1950,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
               <Text style={[s.sectionLabel, { fontFamily: F.bold, color: "#7C3AED" }]}>Help Topics</Text>
             </View>
           </View>
-          <View style={[s.topicsGrid, isWeb && s.topicsGridWeb, isDesktop && s.topicsGridDesktop]}>
+          <View style={[s.topicsGrid, isWeb && s.topicsGridWeb, isWebMobile && s.topicsGridWebMobile, isDesktop && s.topicsGridDesktop]}>
             {!isLoadingFaqs && helpTopics.length === 0 ? (
               <View style={[s.card, { width: "100%", padding: 16 }]}>
                 <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, textAlign: "center" }]}>
@@ -1964,6 +1966,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
                   style={[
                     s.topicPill,
                     isDesktop && s.topicPillDesktop,
+                    isWebMobile && s.topicPillWebMobile,
                     isActive && s.topicPillActive,
                     isActive && { borderColor: t.color },
                   ]}
@@ -2090,7 +2093,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenRoot>
   );
 };
 
@@ -2102,9 +2105,11 @@ export default HelpSupportScreen;
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.lightGray },
+  safeWeb: { width: "100%", minWidth: 0, backgroundColor: "#F7F8FC" },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 48 },
   scrollContentWeb: { paddingHorizontal: 8 },
+  scrollContentWebMobile: { paddingHorizontal: 0 },
   pageInner: { width: "100%" },
   sectionWeb: { marginTop: 16 },
 
@@ -2145,6 +2150,18 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: C.navy, borderRadius: 16,
     margin: 16, padding: 16, gap: 12,
+  },
+  navyBannerWebMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    margin: 0,
+    marginBottom: 12,
+    borderRadius: 14,
+    gap: 10,
+  },
+  bannerBtnWebMobile: {
+    alignSelf: "stretch",
+    alignItems: "center",
   },
   bannerIconWrap: {
     width: 44, height: 44, borderRadius: 12,
@@ -2239,9 +2256,25 @@ const s = StyleSheet.create({
 
   topicsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   topicsGridWeb: { gap: 10 },
+  topicsGridWebMobile: {
+    ...Platform.select({
+      web: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 8,
+      },
+    }),
+  },
   topicsGridDesktop: { gap: 12 },
   topicPillDesktop: { flexBasis: "31%", flexGrow: 1, maxWidth: "48%" },
   topicPill: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2, paddingHorizontal: 12, paddingVertical: 11, width: "48%", borderWidth: 1.5, borderColor: "transparent" },
+  topicPillWebMobile: {
+    width: "auto",
+    minWidth: 0,
+    ...Platform.select({
+      web: { width: "auto", maxWidth: "none" },
+    }),
+  },
   topicPillFull: { width: "100%" },
   topicPillActive: { backgroundColor: C.softBlue },
   topicIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },

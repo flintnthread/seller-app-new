@@ -10,6 +10,7 @@ import {
 } from "@expo-google-fonts/outfit";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { fetchReviewsForProduct } from "@/services/reviewApi";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -142,8 +143,9 @@ const ReviewCard: React.FC<{ review: Review; isWeb?: boolean }> = ({ review, isW
 // ─── Main Screen ───────────────────────────────────────────────
 const ReviewsScreen: React.FC = () => {
     const [fontsLoaded] = useFonts({ Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold });
+    const { isMobile } = useResponsive();
     if (!fontsLoaded) return null;
-    return isWeb ? <WebReviewsScreen /> : <MobileReviewsScreen />;
+    return isWeb && !isMobile ? <WebReviewsScreen /> : <MobileReviewsScreen />;
 };
 
 // ─── Shared logic hook ─────────────────────────────────────────
@@ -491,7 +493,7 @@ const WebReviewsScreen: React.FC = () => {
 // ─── Shared Styles ─────────────────────────────────────────────
 const rs = StyleSheet.create({
     safeArea:           { flex: 1, backgroundColor: C.bg },
-    header:             { flexDirection: "row", alignItems: "center", backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14, gap: 12, marginTop: 35},
+    header:             { flexDirection: "row", alignItems: "center", backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14, gap: 12, marginTop: Platform.OS === "web" ? 0 : 35},
     backBtn:            { width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
     headerCenter:       { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
     headerThumb:        { width: 36, height: 36, borderRadius: 9, backgroundColor: "rgba(255,255,255,0.15)" },

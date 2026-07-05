@@ -14,7 +14,8 @@ import {
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { AppHeader } from "@/components/common/AppHeader";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
+import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
 import {
     useFonts,
     Outfit_400Regular,
@@ -58,7 +59,10 @@ export function CatalogAttributeScreen({
     initialSizes = INITIAL_SIZES,
 }: CatalogAttributeScreenProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const { isWeb, isDesktop, isMobile, width } = useResponsive();
+    const showTopNav = shouldShowSellerTopNav(pathname);
+    const hidePageHeader = !isWeb && showTopNav;
     const { showSuccess, showError, showInfo, confirmDelete, SweetAlertHost } = useSweetAlert();
     const useCatalogCards = !isWeb || isMobile;
     const tableMinWidth = Math.max(640, Math.min(900, width - 24));
@@ -302,15 +306,10 @@ export function CatalogAttributeScreen({
     if (!fontsLoaded) return null;
 
     const pageBody = (
-        <View style={[pg.wrap, isWeb && pg.wrapWeb, { zIndex: 1 }]}>
-            {isWeb && (
-                <View style={{ position: 'absolute', top: -10, left: 0, right: 0, bottom: 0, zIndex: 99999 }} pointerEvents="box-none">
-                    <SweetAlertHost />
-                </View>
-            )}
+        <View style={[pg.wrap, isWeb && pg.wrapWeb, isWeb && isMobile && pg.wrapWebMobile, { zIndex: 1 }]}>
             {isWeb ? (
-                <View style={pg.pageHeaderWeb}>
-                    <View style={pg.titleContainerWeb}>
+                <View style={[pg.pageHeaderWeb, isMobile && pg.pageHeaderWebMobile]}>
+                    <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile]}>
                         <View style={pg.breadcrumbWeb}>
                             <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
                                 <Text style={pg.breadcrumbDimWeb}>Dashboard</Text>
@@ -318,16 +317,31 @@ export function CatalogAttributeScreen({
                             <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
                             <Text style={pg.breadcrumbActiveWeb}>{config.pageTitle}</Text>
                         </View>
-                        <Text style={pg.pageTitleWeb}>{config.pageTitle}</Text>
+                        <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>{config.pageTitle}</Text>
+                        {isMobile && (
+                            <Text style={pg.pageSubWebMobile}>{config.pageSubtitle}</Text>
+                        )}
                     </View>
-                    <TouchableOpacity style={pg.addBtnWeb} onPress={openAddModal} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={[pg.addBtnWeb, isMobile && pg.addBtnWebMobile]}
+                        onPress={openAddModal}
+                        activeOpacity={0.85}
+                    >
                         <Ionicons name="add" size={18} color="#151D4F" />
                         <Text style={pg.addBtnTxtWeb}>Add New {config.kind === "color" ? "Color" : "Size"}</Text>
                     </TouchableOpacity>
                 </View>
+            ) : hidePageHeader ? (
+                <View style={pg.mobileTopBlock}>
+                    <Text style={pg.mobileIntro}>{config.pageSubtitle}</Text>
+                    <TouchableOpacity style={[pg.addBtn, pg.addBtnNative]} onPress={openAddModal} activeOpacity={0.85}>
+                        <Ionicons name="add" size={20} color="#FFFFFF" />
+                        <Text style={pg.addBtnTxt}>Add New {config.kind === "color" ? "Color" : "Size"}</Text>
+                    </TouchableOpacity>
+                </View>
             ) : (
                 <View style={pg.pageHeader}>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={pg.pageTitle}>{config.pageTitle}</Text>
                         <Text style={pg.pageSub}>{config.pageSubtitle}</Text>
                     </View>
@@ -338,18 +352,20 @@ export function CatalogAttributeScreen({
                 </View>
             )}
 
-            <View style={pg.statsRow}>
-                <View style={pg.statCard}>
-                    <Text style={pg.statVal}>{items.length}</Text>
-                    <Text style={pg.statLbl}>Total {config.pageTitle}</Text>
+            <View style={[pg.statsRow, isWeb && isMobile && pg.statsRowMobile, !isWeb && pg.statsRowNative]}>
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                    <Text style={[pg.statVal, !isWeb && pg.statValNative]}>{items.length}</Text>
+                    <Text style={[pg.statLbl, !isWeb && pg.statLblNative]} numberOfLines={2}>
+                        Total {config.pageTitle}
+                    </Text>
                 </View>
-                <View style={pg.statCard}>
-                    <Text style={[pg.statVal, { color: "#16A34A" }]}>{activeCount}</Text>
-                    <Text style={pg.statLbl}>Active</Text>
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                    <Text style={[pg.statVal, { color: "#16A34A" }, !isWeb && pg.statValNative]}>{activeCount}</Text>
+                    <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Active</Text>
                 </View>
-                <View style={pg.statCard}>
-                    <Text style={[pg.statVal, { color: "#DC2626" }]}>{items.length - activeCount}</Text>
-                    <Text style={pg.statLbl}>Inactive</Text>
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                    <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{items.length - activeCount}</Text>
+                    <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Inactive</Text>
                 </View>
             </View>
 
@@ -411,14 +427,16 @@ export function CatalogAttributeScreen({
                         (filtered as ColorRecord[]).map((c) => {
                             const isActive = c.status === "Active";
                             return (
-                                <View key={c.id} style={pg.sizeCard}>
+                                <View key={c.id} style={[pg.sizeCard, !isWeb && pg.sizeCardNative]}>
                                     <View style={pg.sizeCardTop}>
                                         <View style={[pg.colorDot, { backgroundColor: c.hex }]} />
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={pg.sizeCardTitle} numberOfLines={2}>
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
                                                 {c.name}
                                             </Text>
-                                            <Text style={pg.sizeCardMeta}>{c.hex}</Text>
+                                            <Text style={[pg.sizeCardMeta, !isWeb && pg.sizeCardMetaNative]} numberOfLines={1}>
+                                                {c.hex}
+                                            </Text>
                                         </View>
                                         <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
                                             <Text
@@ -469,9 +487,9 @@ export function CatalogAttributeScreen({
                         (filtered as SizeRecord[]).map((s) => {
                             const isActive = s.status === "Active";
                             return (
-                                <View key={s.id} style={pg.sizeCard}>
+                                <View key={s.id} style={[pg.sizeCard, !isWeb && pg.sizeCardNative]}>
                                     <View style={pg.sizeCardTop}>
-                                        <Text style={pg.sizeCardTitle} numberOfLines={2}>
+                                        <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
                                             {s.name}
                                         </Text>
                                         <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
@@ -485,7 +503,9 @@ export function CatalogAttributeScreen({
                                             </Text>
                                         </View>
                                     </View>
-                                    <Text style={pg.sizeCardMeta}>Code: {s.code}</Text>
+                                    <Text style={[pg.sizeCardMeta, !isWeb && pg.sizeCardMetaNative]} numberOfLines={1}>
+                                        Code: {s.code}
+                                    </Text>
 
                                     {isOwnedCatalogItem(s) ? (
                                         <View style={pg.sizeCardActions}>
@@ -842,13 +862,11 @@ export function CatalogAttributeScreen({
 
     if (isWeb) {
         return (
-            <View style={{ flex: 1, flexDirection: "column", backgroundColor: "#F4F5FA", minHeight: "100%" as any }}>
-                <ScrollView
-                    style={{ flex: 1 }}
-                    showsVerticalScrollIndicator={isDesktop}
-                >
-                    {pageBody}
-                </ScrollView>
+            <View style={pg.webRoot}>
+                {pageBody}
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }} pointerEvents="box-none">
+                    <SweetAlertHost />
+                </View>
             </View>
         );
     }
@@ -925,6 +943,16 @@ const pg = StyleSheet.create({
         width: "100%",
         paddingBottom: 24,
     },
+    wrapWebMobile: {
+        paddingHorizontal: 0,
+        paddingTop: 0,
+        paddingBottom: 16,
+    },
+    webRoot: {
+        width: "100%",
+        minWidth: 0,
+        backgroundColor: "#F4F5FA",
+    },
     pageHeader: {
         flexDirection: "row",
         alignItems: "flex-start",
@@ -935,7 +963,7 @@ const pg = StyleSheet.create({
     },
     pageTitle: {
         fontFamily: "Outfit_700Bold",
-        fontSize: 26,
+        fontSize: 22,
         color: "#111827",
         marginBottom: 6,
     },
@@ -943,9 +971,18 @@ const pg = StyleSheet.create({
         fontFamily: "Outfit_400Regular",
         fontSize: 13,
         color: "#6B7280",
-        lineHeight: 19,
-        maxWidth: 520,
+        lineHeight: 20,
         flexShrink: 1,
+    },
+    mobileTopBlock: {
+        gap: 12,
+        marginBottom: 14,
+    },
+    mobileIntro: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 13,
+        color: "#6B7280",
+        lineHeight: 20,
     },
     pageHeaderWeb: {
         flexDirection: "row",
@@ -1001,6 +1038,35 @@ const pg = StyleSheet.create({
         fontSize: 14,
         color: "#151D4F",
     },
+    pageHeaderWebMobile: {
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 14,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 36,
+        marginTop: 0,
+        marginHorizontal: 0,
+        borderRadius: 16,
+    },
+    titleContainerWebMobile: {
+        width: "100%",
+    },
+    pageTitleWebMobile: {
+        fontSize: 22,
+        lineHeight: 28,
+    },
+    pageSubWebMobile: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 13,
+        color: "rgba(255,255,255,0.78)",
+        lineHeight: 19,
+        marginTop: 6,
+    },
+    addBtnWebMobile: {
+        alignSelf: "stretch",
+        justifyContent: "center",
+    },
     addBtn: {
         flexDirection: "row",
         alignItems: "center",
@@ -1010,6 +1076,10 @@ const pg = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 10,
         flexShrink: 0,
+    },
+    addBtnNative: {
+        width: "100%",
+        justifyContent: "center",
     },
     addBtnTxt: {
         fontFamily: "Outfit_700Bold",
@@ -1025,25 +1095,48 @@ const pg = StyleSheet.create({
         zIndex: 10,
         flexWrap: "wrap",
     },
+    statsRowMobile: {
+        marginTop: -24,
+        marginHorizontal: 0,
+        gap: 8,
+    },
+    statsRowNative: {
+        marginTop: 0,
+        marginHorizontal: 0,
+        gap: 8,
+        marginBottom: 14,
+    },
     statCard: {
         flex: 1,
-        minWidth: 120,
+        minWidth: 0,
         backgroundColor: "#FFFFFF",
         borderRadius: 12,
         padding: 14,
         borderWidth: 1,
         borderColor: "#E5E7EB",
     },
+    statCardNative: {
+        padding: 12,
+        minWidth: 0,
+    },
     statVal: {
         fontFamily: "Outfit_700Bold",
         fontSize: 22,
         color: "#111827",
+    },
+    statValNative: {
+        fontSize: 20,
+        lineHeight: 24,
     },
     statLbl: {
         fontFamily: "Outfit_400Regular",
         fontSize: 12,
         color: "#6B7280",
         marginTop: 2,
+    },
+    statLblNative: {
+        fontSize: 11,
+        lineHeight: 15,
     },
     searchRow: {
         flexDirection: "row",
@@ -1296,6 +1389,9 @@ const pg = StyleSheet.create({
         borderColor: "#E5E7EB",
         padding: 14,
     },
+    sizeCardNative: {
+        padding: 12,
+    },
     sizeCardTop: {
         flexDirection: "row",
         alignItems: "flex-start",
@@ -1309,11 +1405,19 @@ const pg = StyleSheet.create({
         fontSize: 16,
         color: "#111827",
     },
+    sizeCardTitleNative: {
+        fontSize: 15,
+        lineHeight: 20,
+    },
     sizeCardMeta: {
         fontFamily: "Outfit_400Regular",
         fontSize: 13,
         color: "#6B7280",
         marginBottom: 4,
+    },
+    sizeCardMetaNative: {
+        fontSize: 12,
+        lineHeight: 16,
     },
     sizeCardActions: {
         flexDirection: "row",

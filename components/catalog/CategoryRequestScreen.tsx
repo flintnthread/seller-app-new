@@ -12,10 +12,11 @@ import {
     ActivityIndicator,
     Pressable,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
 import {
     useFonts,
     Outfit_400Regular,
@@ -58,7 +59,11 @@ const statusStyle = (status: CategoryRequestStatus) => {
 
 export function CategoryRequestScreen() {
     const router = useRouter();
-    const { isWeb, isDesktop } = useResponsive();
+    const pathname = usePathname();
+    const { isWeb, isDesktop, isMobile } = useResponsive();
+    const useMobileLayout = isMobile || !isWeb;
+    const showTopNav = shouldShowSellerTopNav(pathname);
+    const hidePageHeader = !isWeb && showTopNav;
     const { showSuccess, showError, showWarning, confirmAction, SweetAlertHost } = useSweetAlert();
 
     const [categoryName, setCategoryName] = useState("");
@@ -260,16 +265,16 @@ export function CategoryRequestScreen() {
     if (!fontsLoaded) return null;
 
     const formCard = (
-        <View style={[pg.card, isDesktop && pg.cardDesktop]}>
-            <Text style={pg.cardTitle}>{editingId ? "Edit Category Request" : "Submit Category Request"}</Text>
+        <View style={[pg.card, isDesktop && pg.cardDesktop, useMobileLayout && pg.cardMobile, !isWeb && pg.cardNative]}>
+            <Text style={[pg.cardTitle, !isWeb && pg.cardTitleNative]}>{editingId ? "Edit Category Request" : "Submit Category Request"}</Text>
 
             <View style={pg.field}>
-                <Text style={pg.label}>
+                <Text style={[pg.label, !isWeb && pg.labelNative]}>
                     Category Name <Text style={pg.required}>*</Text>
                 </Text>
                 <TextInput
                     ref={categoryNameRef}
-                    style={[pg.input, nameError ? pg.inputError : null]}
+                    style={[pg.input, !isWeb && pg.inputNative, nameError ? pg.inputError : null]}
                     placeholder="e.g., Smart Home Devices, Organic Foods, etc."
                     placeholderTextColor="#9CA3AF"
                     value={categoryName}
@@ -282,18 +287,18 @@ export function CategoryRequestScreen() {
                 {nameError ? (
                     <Text style={pg.errorTxt}>{nameError}</Text>
                 ) : (
-                    <Text style={pg.helper}>
+                    <Text style={[pg.helper, !isWeb && pg.helperNative]}>
                         Enter the name of the main category you&apos;d like to request
                     </Text>
                 )}
             </View>
 
             <View style={pg.field}>
-                <Text style={pg.label}>
+                <Text style={[pg.label, !isWeb && pg.labelNative]}>
                     Description <Text style={pg.required}>*</Text>
                 </Text>
                 <TextInput
-                    style={[pg.input, pg.textArea, descriptionError ? pg.inputError : null]}
+                    style={[pg.input, pg.textArea, !isWeb && pg.inputNative, descriptionError ? pg.inputError : null]}
                     placeholder="Provide a detailed description of what products would fall under this category"
                     placeholderTextColor="#9CA3AF"
                     value={description}
@@ -310,11 +315,11 @@ export function CategoryRequestScreen() {
             </View>
 
             <View style={pg.field}>
-                <Text style={pg.label}>
+                <Text style={[pg.label, !isWeb && pg.labelNative]}>
                     Reason for Request <Text style={pg.required}>*</Text>
                 </Text>
                 <TextInput
-                    style={[pg.input, pg.textArea, reasonError ? pg.inputError : null]}
+                    style={[pg.input, pg.textArea, !isWeb && pg.inputNative, reasonError ? pg.inputError : null]}
                     placeholder="Why do you need this category? How will it benefit your business?"
                     placeholderTextColor="#9CA3AF"
                     value={reason}
@@ -330,10 +335,10 @@ export function CategoryRequestScreen() {
                 {reasonError ? <Text style={pg.errorTxt}>{reasonError}</Text> : null}
             </View>
 
-            <View style={pg.formActions}>
+            <View style={[pg.formActions, useMobileLayout && pg.formActionsMobile]}>
                 {editingId ? (
                     <TouchableOpacity
-                        style={[pg.resetBtn, submitting && pg.btnDisabled]}
+                        style={[pg.resetBtn, useMobileLayout && pg.formBtnMobile, submitting && pg.btnDisabled]}
                         onPress={() => {
                             setEditingId(null);
                             resetForm();
@@ -345,7 +350,7 @@ export function CategoryRequestScreen() {
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
-                        style={[pg.resetBtn, submitting && pg.btnDisabled]}
+                        style={[pg.resetBtn, useMobileLayout && pg.formBtnMobile, submitting && pg.btnDisabled]}
                         onPress={() => void handleReset()}
                         activeOpacity={0.8}
                         disabled={submitting}
@@ -354,7 +359,7 @@ export function CategoryRequestScreen() {
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                    style={[pg.submitBtn, submitting && pg.btnDisabled]}
+                    style={[pg.submitBtn, useMobileLayout && pg.formBtnMobile, submitting && pg.btnDisabled]}
                     onPress={() => void handleSubmit()}
                     activeOpacity={0.85}
                     disabled={submitting}
@@ -370,7 +375,7 @@ export function CategoryRequestScreen() {
     );
 
     const guidelinesCard = (
-        <View style={[pg.card, pg.guidelinesCard, isDesktop && pg.guidelinesCardDesktop]}>
+        <View style={[pg.card, pg.guidelinesCard, isDesktop && pg.guidelinesCardDesktop, useMobileLayout && pg.cardMobile]}>
             <Text style={pg.guidelinesTitle}>Guidelines</Text>
             {GUIDELINES.map((line) => (
                 <View key={line} style={pg.bulletRow}>
@@ -428,13 +433,54 @@ export function CategoryRequestScreen() {
     const previousSection = (
         <View style={pg.previousSection}>
             <View style={pg.sectionHeadRow}>
-                <Text style={pg.sectionTitle}>Your Previous Requests</Text>
+                <Text style={[pg.sectionTitle, !isWeb && pg.sectionTitleNative]}>Your Previous Requests</Text>
                 {!loading && loadError ? (
                     <TouchableOpacity onPress={() => void loadRequests()} activeOpacity={0.8}>
                         <Text style={pg.retryTxt}>Retry</Text>
                     </TouchableOpacity>
                 ) : null}
             </View>
+
+            {isWeb && isMobile && (
+                <View style={pg.mobileToolbar}>
+                    <View style={pg.mobileSearchWrap}>
+                        <MaterialCommunityIcons name="magnify" size={18} color="#9CA3AF" />
+                        <TextInput
+                            style={pg.mobileSearchInput}
+                            placeholder="Search requests..."
+                            placeholderTextColor="#9CA3AF"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+                                <MaterialCommunityIcons name="close-circle" size={16} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={pg.mobileFilterRow}
+                    >
+                        {(["All", "Pending", "Approved", "Rejected"] as const).map((status) => {
+                            const isActive = statusFilter === status;
+                            return (
+                                <TouchableOpacity
+                                    key={status}
+                                    style={[pg.mobileFilterPill, isActive && pg.mobileFilterPillActive]}
+                                    onPress={() => setStatusFilter(status)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={[pg.mobileFilterTxt, isActive && pg.mobileFilterTxtActive]}>
+                                        {status}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            )}
 
             {isDesktop && (
                 <View style={pg.toolbar}>
@@ -611,7 +657,9 @@ export function CategoryRequestScreen() {
                         )}
                     </>
                 ) : (
-                    <View style={pg.mobileList}>{requests.map(requestCard)}</View>
+                    <View style={[pg.mobileList, isWeb && pg.mobileListWeb]}>
+                        {(isWeb && isMobile ? filteredRequests : requests).map(requestCard)}
+                    </View>
                 )}
             </View>
         </View>
@@ -621,11 +669,12 @@ export function CategoryRequestScreen() {
         <View style={[
             pg.wrap,
             isWeb && pg.wrapWeb,
+            isWeb && isMobile && pg.wrapWebMobile,
             isDesktop && pg.wrapDesktop
         ]}>
             {isWeb ? (
-                <View style={pg.pageHeaderWeb}>
-                    <View style={pg.titleContainerWeb}>
+                <View style={[pg.pageHeaderWeb, isMobile && pg.pageHeaderWebMobile]}>
+                    <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile]}>
                         <View style={pg.breadcrumbWeb}>
                             <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
                                 <Text style={pg.breadcrumbDimWeb}>Dashboard</Text>
@@ -633,13 +682,26 @@ export function CategoryRequestScreen() {
                             <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
                             <Text style={pg.breadcrumbActiveWeb}>Category Request</Text>
                         </View>
-                        <Text style={pg.pageTitleWeb}>Category Request</Text>
+                        <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>Category Request</Text>
+                        {isMobile && (
+                            <Text style={pg.pageSubWebMobile}>
+                                Request a new product category. Review time: 2–3 business days.
+                            </Text>
+                        )}
                     </View>
-                    <TouchableOpacity style={pg.addBtnWeb} onPress={() => categoryNameRef.current?.focus()} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={[pg.addBtnWeb, isMobile && pg.addBtnWebMobile]}
+                        onPress={() => categoryNameRef.current?.focus()}
+                        activeOpacity={0.85}
+                    >
                         <Ionicons name="add" size={18} color="#151D4F" />
                         <Text style={pg.addBtnTxtWeb}>New Request</Text>
                     </TouchableOpacity>
                 </View>
+            ) : hidePageHeader ? (
+                <Text style={pg.mobileIntro}>
+                    Request a new product category for your catalog. Our team will review your submission within 2–3 business days.
+                </Text>
             ) : (
                 <View style={pg.pageHeader}>
                     <Text style={pg.pageTitle}>Category Request</Text>
@@ -650,7 +712,12 @@ export function CategoryRequestScreen() {
                 </View>
             )}
 
-            <View style={[pg.topRow, isDesktop && pg.topRowDesktop]}>
+            <View style={[
+                pg.topRow,
+                isDesktop && pg.topRowDesktop,
+                isWeb && isMobile && pg.topRowMobile,
+                !isWeb && pg.topRowNative,
+            ]}>
                 <View style={pg.formCol}>{formCard}</View>
                 <View style={[pg.sideCol, isDesktop && pg.sideColDesktop]}>{guidelinesCard}</View>
             </View>
@@ -668,13 +735,8 @@ export function CategoryRequestScreen() {
 
     if (isWeb) {
         return (
-            <View style={{ flex: 1, flexDirection: "column", backgroundColor: "#F4F5FA", minHeight: "100%" as any }}>
-                <ScrollView 
-                    style={{ flex: 1 }} 
-                    showsVerticalScrollIndicator={isDesktop}
-                >
-                    {content}
-                </ScrollView>
+            <View style={pg.webRoot}>
+                {content}
             </View>
         );
     }
@@ -699,14 +761,26 @@ const pg = StyleSheet.create({
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
     wrapWeb: { paddingHorizontal: 16, paddingTop: 10, width: "100%" },
+    wrapWebMobile: {
+        paddingHorizontal: 0,
+        paddingTop: 0,
+        paddingBottom: 16,
+    },
     wrapDesktop: {
         width: "100%",
         paddingBottom: 48,
     },
     pageHeader: { marginBottom: 20 },
+    mobileIntro: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 13,
+        color: "#6B7280",
+        lineHeight: 20,
+        marginBottom: 14,
+    },
     pageTitle: {
         fontFamily: "Outfit_700Bold",
-        fontSize: 26,
+        fontSize: 22,
         color: "#111827",
         marginBottom: 6,
     },
@@ -714,8 +788,7 @@ const pg = StyleSheet.create({
         fontFamily: "Outfit_400Regular",
         fontSize: 13,
         color: "#6B7280",
-        lineHeight: 19,
-        maxWidth: 640,
+        lineHeight: 20,
     },
     pageHeaderWeb: {
         flexDirection: "row",
@@ -771,6 +844,35 @@ const pg = StyleSheet.create({
         fontSize: 14,
         color: "#151D4F",
     },
+    pageHeaderWebMobile: {
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 14,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 36,
+        marginTop: 0,
+        marginHorizontal: 0,
+        borderRadius: 16,
+    },
+    titleContainerWebMobile: {
+        width: "100%",
+    },
+    pageTitleWebMobile: {
+        fontSize: 22,
+        lineHeight: 28,
+    },
+    pageSubWebMobile: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 13,
+        color: "rgba(255,255,255,0.78)",
+        lineHeight: 19,
+        marginTop: 6,
+    },
+    addBtnWebMobile: {
+        alignSelf: "stretch",
+        justifyContent: "center",
+    },
     desktopHeader: {
          flexDirection: "row",
         alignItems: "center",
@@ -821,6 +923,18 @@ default: {},
     },
     topRow: { gap: 16, marginBottom: 24, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
     topRowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+    topRowMobile: {
+        marginTop: -24,
+        marginHorizontal: 0,
+        gap: 12,
+        marginBottom: 16,
+    },
+    topRowNative: {
+        marginTop: 0,
+        marginHorizontal: 0,
+        marginBottom: 16,
+        zIndex: 0,
+    },
     formCol: { flex: 1, minWidth: 0 },
     sideCol: { width: "100%" },
     sideColDesktop: { width: 320, flexShrink: 0 },
@@ -834,6 +948,13 @@ default: {},
             web: { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" as unknown as undefined },
             default: {},
         }),
+    },
+    cardMobile: {
+        padding: 16,
+        borderRadius: 14,
+    },
+    cardNative: {
+        padding: 14,
     },
      cardDesktop: {
 borderRadius: 20,
@@ -870,12 +991,22 @@ default: {},
         color: "#111827",
         marginBottom: 20,
     },
+    cardTitleNative: {
+        fontSize: 16,
+        marginBottom: 16,
+        lineHeight: 22,
+    },
     field: { marginBottom: 18 },
     label: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 14,
         color: "#374151",
         marginBottom: 8,
+    },
+    labelNative: {
+        fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 6,
     },
     required: { color: "#DC2626" },
     input: {
@@ -889,6 +1020,11 @@ default: {},
         color: "#111827",
         backgroundColor: "#FFFFFF",
     },
+    inputNative: {
+        fontSize: 15,
+        lineHeight: 20,
+        paddingVertical: 11,
+    },
     inputError: { borderColor: "#DC2626" },
     textArea: {
         minHeight: 100,
@@ -899,6 +1035,10 @@ default: {},
         fontSize: 12,
         color: "#9CA3AF",
         marginTop: 6,
+    },
+    helperNative: {
+        fontSize: 12,
+        lineHeight: 17,
     },
     errorTxt: {
         fontFamily: "Outfit_500Medium",
@@ -912,6 +1052,14 @@ default: {},
         gap: 12,
         marginTop: 8,
         flexWrap: "wrap",
+    },
+    formActionsMobile: {
+        flexDirection: "column-reverse",
+        alignItems: "stretch",
+    },
+    formBtnMobile: {
+        width: "100%",
+        minWidth: 0,
     },
     resetBtn: {
         paddingHorizontal: 20,
@@ -984,6 +1132,54 @@ default: {},
         lineHeight: 19,
     },
     previousSection: { marginTop: 4 },
+    mobileToolbar: {
+        gap: 10,
+        marginBottom: 12,
+    },
+    mobileSearchWrap: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        height: 42,
+        gap: 8,
+    },
+    mobileSearchInput: {
+        flex: 1,
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "#111827",
+        height: "100%",
+        padding: 0,
+    },
+    mobileFilterRow: {
+        gap: 8,
+        paddingRight: 4,
+    },
+    mobileFilterPill: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 20,
+        backgroundColor: "#F3F4F6",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+    },
+    mobileFilterPillActive: {
+        backgroundColor: "#FFF7ED",
+        borderColor: "#FDBA74",
+    },
+    mobileFilterTxt: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 12,
+        color: "#6B7280",
+    },
+    mobileFilterTxtActive: {
+        color: ORANGE_BRAND,
+        fontFamily: "Outfit_600SemiBold",
+    },
     sectionHeadRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -994,6 +1190,10 @@ default: {},
         fontFamily: "Outfit_700Bold",
         fontSize: 18,
         color: "#111827",
+    },
+    sectionTitleNative: {
+        fontSize: 16,
+        lineHeight: 22,
     },
     retryTxt: {
         fontFamily: "Outfit_600SemiBold",
@@ -1209,6 +1409,7 @@ cursor: "pointer" as any,
     },
     badgeTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12 },
     mobileList: { padding: 12, gap: 10 },
+    mobileListWeb: { padding: 0 },
     mobileRequestCard: {
         borderWidth: 1,
         borderColor: "#E5E7EB",
@@ -1255,6 +1456,8 @@ paddingHorizontal: 24,
     },
     webRoot: {
         width: "100%",
+        minWidth: 0,
+        backgroundColor: "#F4F5FA",
     },
     webRootDesktop: {
         backgroundColor: "#F7F9FC",

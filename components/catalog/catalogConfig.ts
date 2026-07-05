@@ -67,7 +67,7 @@ export type CatalogPageConfig = {
 export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
     kind: "color",
     pageTitle: "Colors",
-    pageSubtitle: "Manage your colors. You can edit or delete only colors you added; shared catalog colors are view only.",
+    pageSubtitle: "Manage colours you added. Shared catalog colours are view only.",
     addModalTitle: "Add New Color",
     saveButtonLabel: "Save Color",
     entityLabel: "color",
@@ -81,7 +81,7 @@ export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
 export const SIZE_PAGE_CONFIG: CatalogPageConfig = {
     kind: "size",
     pageTitle: "Sizes",
-    pageSubtitle: "Manage your sizes. You can edit or delete only sizes you added; shared catalog sizes are view only.",
+    pageSubtitle: "Manage sizes you added. Shared catalog sizes are view only.",
     addModalTitle: "Add New Size",
     saveButtonLabel: "Save Size",
     entityLabel: "size",
