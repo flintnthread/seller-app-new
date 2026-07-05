@@ -2781,7 +2781,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     </View>
                     {isB2B ? (
                         <View style={{ width: "50%", marginBottom: 8 }}>
-                            <Lbl text="Min Quantity" compact />
+                            <Lbl text="Minimun Order Quantity" compact />
                             <Field
                                 placeholder="1"
                                 value={v.minQuantity ?? ""}
@@ -2789,7 +2789,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                 keyboardType="numeric"
                                 hasError={hasErr(v.id, "min quantity")}
                             />
-                            <Hint text="Minimum units per B2B order" />
+                            
                         </View>
                     ) : null}
                     <View style={at.row2}>
@@ -4326,13 +4326,14 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
         );
         if (!middle.categorySubName) return;
         setBasicData((prev) => {
-            if (prev.categorySubName === middle.categorySubName && prev.categorySubId === middle.categorySubId) {
+            const nextSubId = middle.categorySubId ?? undefined;
+            if (prev.categorySubName === middle.categorySubName && prev.categorySubId === nextSubId) {
                 return prev;
             }
             return {
                 ...prev,
                 categorySubName: middle.categorySubName,
-                categorySubId: middle.categorySubId,
+                categorySubId: nextSubId,
             };
         });
     }, [catalog, basicData.category, basicData.subcategoryId, basicData.subcategory, isEditMode]);

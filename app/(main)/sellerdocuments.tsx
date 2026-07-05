@@ -50,6 +50,7 @@ import {
   updateCompanyPan,
   uploadSellerDocument,
   verifyRegistrationPayment,
+  resendRegistrationInvoiceEmail,
   type SellerDocumentField,
 } from "@/services/sellerProfileApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
@@ -816,7 +817,14 @@ export default function SellerDocuments() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid">("pending");
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [invoiceResendBusy, setInvoiceResendBusy] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentMessageIsError, setPaymentMessageIsError] = useState(false);
+
+  const showPaymentMessage = useCallback((message: string, isError: boolean) => {
+    setPaymentMessage(message);
+    setPaymentMessageIsError(isError);
+  }, []);
   const [paymentAmountPaise, setPaymentAmountPaise] = useState(106082);
   const [registrationFee, setRegistrationFee] = useState(899);
   const [gstAmount, setGstAmount] = useState(161.82);
@@ -1148,7 +1156,7 @@ export default function SellerDocuments() {
   const handlePayRegistrationFee = useCallback(async () => {
     if (paymentStatus === "paid") return;
     setPaymentBusy(true);
-    setPaymentMessage("");
+    showPaymentMessage("", false);
     try {
       if (Platform.OS !== "web") {
         throw new Error("Registration payment is currently supported on web.");
@@ -1168,7 +1176,7 @@ export default function SellerDocuments() {
       setPaymentAmountPaise(order.amount);
       if (order.paid) {
         setPaymentStatus("paid");
-        setPaymentMessage("Registration payment already completed.");
+        showPaymentMessage("Registration payment already completed.", false);
         return;
       }
       await new Promise<void>((resolve, reject) => {
@@ -1197,11 +1205,19 @@ export default function SellerDocuments() {
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpaySignature: response.razorpay_signature,
+              }).then((result) => {
+                setPaymentStatus("paid");
+                if (result.invoiceEmailSent === false) {
+                  showPaymentMessage(
+                    "Payment successful, but the invoice email could not be sent. Use Resend invoice below.",
+                    true
+                  );
+                } else {
+                  showPaymentMessage("Payment successful. Invoice has been sent to your email.", false);
+                }
+                clearFieldError("registrationPayment");
+                resolve();
               });
-              setPaymentStatus("paid");
-              setPaymentMessage("Payment successful. Invoice has been sent to your email.");
-              clearFieldError("registrationPayment");
-              resolve();
             } catch (e) {
               reject(e);
             }
@@ -1216,11 +1232,31 @@ export default function SellerDocuments() {
       });
     } catch (e) {
       setPaymentStatus("pending");
-      setPaymentMessage(getApiErrorMessage(e, "Could not complete payment."));
+      showPaymentMessage(getApiErrorMessage(e, "Could not complete payment."), true);
     } finally {
       setPaymentBusy(false);
     }
-  }, [clearFieldError, loadRazorpayScript, paymentStatus]);
+  }, [clearFieldError, loadRazorpayScript, paymentStatus, showPaymentMessage]);
+
+  const handleResendInvoice = useCallback(async () => {
+    setInvoiceResendBusy(true);
+    try {
+      await hydrateSellerSession();
+      const result = await resendRegistrationInvoiceEmail();
+      if (result.invoiceEmailSent === false) {
+        showPaymentMessage(
+          "Invoice is ready but email could not be sent. Your server admin must set SENDGRID_API_KEY for seller-service and verify support@flintnthread.in in SendGrid, then try again.",
+          true
+        );
+      } else {
+        showPaymentMessage("Invoice email sent successfully. Please check your inbox and spam folder.", false);
+      }
+    } catch (e) {
+      showPaymentMessage(getApiErrorMessage(e, "Could not resend invoice email."), true);
+    } finally {
+      setInvoiceResendBusy(false);
+    }
+  }, [showPaymentMessage]);
 
   // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
   
@@ -1560,16 +1596,16 @@ export default function SellerDocuments() {
               color={T.orange}
             />
             <View ref={registerFieldRef("registrationPayment")} collapsable={false} style={s.paymentCard}>
-              <View style={s.paymentTopRow}>
+              <View style={s.paymentHeaderRow}>
                 <View style={s.paymentIconWrap}>
                   <Icon name="credit-card" size={16} color={T.orange} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <AppText style={s.paymentTitle}>Annual Registration Fee</AppText>
-                  <AppText style={s.paymentSub}>Rs 899 per annum — pay once to complete seller profile submission.</AppText>
-                </View>
+                <AppText style={s.paymentTitle}>Annual Registration Fee</AppText>
                 <AppText style={s.paymentAmount}>Rs {totalAmount.toFixed(2)}</AppText>
               </View>
+              <AppText style={s.paymentSub}>
+                Rs 899 per annum — pay once to complete seller profile submission.
+              </AppText>
               {paymentStatus === "paid" ? (
                 <View style={s.paymentSuccessBadge}>
                   <Icon name="check-circle" size={12} color={T.success} />
@@ -1585,8 +1621,23 @@ export default function SellerDocuments() {
                   <AppText style={s.payNowBtnText}>{paymentBusy ? "Processing..." : "Pay now"}</AppText>
                 </TouchableOpacity>
               )}
+              {paymentStatus === "paid" ? (
+                <TouchableOpacity
+                  style={[s.resendInvoiceBtn, invoiceResendBusy && { opacity: 0.7 }]}
+                  onPress={handleResendInvoice}
+                  disabled={invoiceResendBusy}
+                  activeOpacity={0.85}
+                >
+                  <AppText style={s.resendInvoiceBtnText}>
+                    {invoiceResendBusy ? "Sending invoice..." : "Resend invoice to email"}
+                  </AppText>
+                </TouchableOpacity>
+              ) : null}
               {!!paymentMessage && (
-                <AppText style={[s.paymentMessage, paymentStatus === "paid" ? { color: T.success } : { color: T.error }]}>
+                <AppText style={[
+                  s.paymentMessage,
+                  paymentMessageIsError ? { color: T.error } : { color: T.success },
+                ]}>
                   {paymentMessage}
                 </AppText>
               )}
@@ -1606,6 +1657,7 @@ export default function SellerDocuments() {
               <View style={[s.checkbox, termsAccepted && { backgroundColor: T.orange, borderColor: T.orange }]}>
                 {termsAccepted && <Icon name="check" size={11} color={T.white} />}
               </View>
+              <View style={s.termsTextWrap}>
               <AppText style={s.termsText}>
                 I agree to the{" "}
                 <AppText
@@ -1632,6 +1684,7 @@ export default function SellerDocuments() {
                   Privacy Policy
                 </AppText>
               </AppText>
+              </View>
             </TouchableOpacity>
             {!!getError("termsAccepted") && (
               <View style={s.termsErrorRow}>
@@ -1903,21 +1956,33 @@ const s = StyleSheet.create({
   scroll: { flex: 1, width: "100%" },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20, width: "100%" },
   scrollContentWeb: { width: "100%", maxWidth: "100%", alignSelf: "stretch" },
-  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight, flexWrap: "wrap" },
+  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight },
   checkboxRowChecked: { borderColor: T.orangeSoft },
   paymentCard: { borderWidth: 1, borderColor: T.orangeSoft, borderRadius: 12, backgroundColor: T.orangePale, padding: 12, marginBottom: 12 },
-  paymentTopRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, flexWrap: "wrap" },
-  paymentIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
-  paymentTitle: { fontSize: 13, fontWeight: "800", color: T.textDark },
-  paymentSub: { fontSize: 11, color: T.textSoft, marginTop: 1 },
-  paymentAmount: { fontSize: 15, fontWeight: "800", color: T.orangeDeep, flexShrink: 0 },
+  paymentHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  paymentIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: T.white, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  paymentTitle: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "800", color: T.textDark, lineHeight: 18 },
+  paymentSub: { fontSize: 11, color: T.textSoft, marginTop: 8, lineHeight: 17, width: "100%" },
+  paymentAmount: { fontSize: 15, fontWeight: "800", color: T.orangeDeep, flexShrink: 0, marginLeft: 4 },
   payNowBtn: { marginTop: 10, alignSelf: "flex-start", borderRadius: 10, backgroundColor: T.orange, paddingHorizontal: 12, paddingVertical: 9 },
   payNowBtnText: { fontSize: 12, fontWeight: "800", color: T.white },
   paymentSuccessBadge: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
   paymentSuccessText: { fontSize: 12, fontWeight: "700", color: T.success },
+  resendInvoiceBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: T.navy,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: T.white,
+  },
+  resendInvoiceBtnText: { fontSize: 11, fontWeight: "700", color: T.navy },
   paymentMessage: { marginTop: 8, fontSize: 11, lineHeight: 16, fontWeight: "600" },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  termsText: { flex: 1, fontSize: 12, color: T.textMid, lineHeight: 17, fontWeight: "500" },
+  termsTextWrap: { flex: 1, minWidth: 0 },
+  termsText: { fontSize: 12, color: T.textMid, lineHeight: 18, fontWeight: "500" },
   termsLink: { color: T.orange, fontWeight: "700" },
   termsErrorRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8, marginLeft: 2 },
   termsErrorText: { fontSize: 11, color: T.error, fontWeight: "400", flex: 1, lineHeight: 16 },

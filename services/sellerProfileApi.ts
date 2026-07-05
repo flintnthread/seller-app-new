@@ -125,6 +125,7 @@ export type RegistrationPaymentStatusResponse = {
     gstAmount?: number;
     totalAmount?: number;
     currency: string;
+    invoiceEmailSent?: boolean;
 };
 
 export type GstVerifyResponse = {
@@ -435,6 +436,17 @@ export async function verifyRegistrationPayment(payload: {
     return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/verify", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+export async function resendRegistrationInvoiceEmail(): Promise<RegistrationPaymentStatusResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
+    }
+    return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/resend-invoice", {
+        method: "POST",
+        body: JSON.stringify({}),
     });
 }
 
