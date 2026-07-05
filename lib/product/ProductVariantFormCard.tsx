@@ -517,7 +517,7 @@ export function ProductVariantFormCard({
                                 metroMetro: preview.metroMetroCharge,
                                 custom: false,
                             },
-                        commissionPercent: 0,
+                        commissionPercent: preview.commissionPercent,
                     });
                 })
                 .catch(() => setPricingPreview(null));
@@ -546,7 +546,6 @@ export function ProductVariantFormCard({
                     metroMetroCharge: fallbackDelivery.metroMetro,
                 }),
             discountOverride: parseFloat(state.discount) || null,
-            commissionPercent: 0,
         });
 
     if (catalogLoading) {
@@ -677,7 +676,7 @@ export function ProductVariantFormCard({
             <VariantPriceBreakdown
                 pricing={pricingPreview?.pricing ?? localPricing}
                 delivery={pricingPreview?.delivery ?? fallbackDelivery}
-                commissionPercent={0}
+                commissionPercent={pricingPreview?.commissionPercent}
                 hasWeight={hasWeight}
             />
 
@@ -793,7 +792,6 @@ export function variantFormStateToPricing(
                 metroMetroCharge: fallbackDelivery.metroMetro,
             }),
         discountOverride: parseFloat(state.discount) || null,
-        commissionPercent: 0,
     });
 }
 

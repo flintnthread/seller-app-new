@@ -181,6 +181,9 @@ type ApiProductListVariant = {
     finalPrice?: number;
     sellingPrice?: number;
     metroMetroDeliveryCharge?: number;
+    commissionAmount?: number;
+    commissionPercent?: number;
+    totalPriceMetroMetro?: number;
 };
 
 type ApiProductListItem = {
@@ -335,20 +338,7 @@ function resolveListItemPrice(row: ApiProductListItem): number {
     if (!display) return apiPrice;
 
     const metroTotal = resolveVariantMetroTotal(display);
-    if (metroTotal <= 0) return apiPrice;
-
-    const finalPrice = num(display.finalPrice);
-    const metro = num(display.metroMetroDeliveryCharge);
-    if (metro > 0) return metroTotal;
-
-    // Legacy API rows: list price still includes removed commission.
-    const legacyCommission = Math.round(finalPrice * 0.15 * 100) / 100;
-    if (legacyCommission > 0 && apiPrice > metroTotal) {
-        const adjusted = Math.round((apiPrice - legacyCommission) * 100) / 100;
-        if (adjusted >= finalPrice) return adjusted;
-    }
-
-    return apiPrice > finalPrice ? apiPrice : metroTotal;
+    return metroTotal > 0 ? metroTotal : apiPrice;
 }
 
 function resolveListItemSku(row: ApiProductListItem): string {

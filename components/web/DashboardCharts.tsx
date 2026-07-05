@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, useWindowDimensions, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, TextInput } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import Svg, { Path, Circle, Rect, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from "react-native-svg";
+import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from "react-native-svg";
+import type { SalesPeriod } from "./DashboardAnalytics";
 
 const C = {
   navy: "#1E2B6B",
@@ -26,25 +28,15 @@ const C = {
   textLight: "#9CA3AF",
 };
 
-export type SalesPeriod = "Day" | "Week" | "Month" | "Year";
-export type ChartMetric =
-  | "Revenue"
-  | "Expenses"
-  | "OrdersReturns"
-  | "ProductPerf"
-  | "Geographic";
-
-export type CategoryPerformanceRow = {
-  category: string;
-  value: number;
-};
+export type { SalesPeriod };
 
 interface DashboardChartsProps {
   salesPeriod: SalesPeriod;
   onSalesPeriodChange: (period: SalesPeriod) => void;
-  ordersTrend?: number[];
-  returnsTrend?: number[];
-  categoryPerformance?: CategoryPerformanceRow[];
+  customFrom: Date;
+  customTo: Date;
+  onCustomFromChange: (date: Date) => void;
+  onCustomToChange: (date: Date) => void;
   salesData: Record<SalesPeriod, {
     points: number[];
     labels: string[];
@@ -66,21 +58,41 @@ interface DashboardChartsProps {
   reviewCount?: number;
 }
 
+const PERIOD_OPTIONS: SalesPeriod[] = ["Day", "Week", "Month", "Custom"];
+
+function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function toIsoDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function periodRevenueLabel(period: SalesPeriod): string {
+  if (period === "Day") return "Today's Revenue";
+  if (period === "Week") return "Week Revenue";
+  if (period === "Month") return "Month Revenue";
+  return "Custom Range Revenue";
+}
+
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   salesPeriod,
   onSalesPeriodChange,
-  ordersTrend = [],
-  returnsTrend = [],
-  categoryPerformance = [],
+  customFrom,
+  customTo,
+  onCustomFromChange,
+  onCustomToChange,
   salesData,
   allStatsData,
   reviewCount = 0,
 }) => {
   const { width } = useWindowDimensions();
   const [chartWidth, setChartWidth] = useState(0);
+  const [datePickerTarget, setDatePickerTarget] = useState<"from" | "to" | null>(null);
   const isDesktop = width >= 1024;
-
-  const [activeMetric, setActiveMetric] = useState<ChartMetric>("Revenue");
 
   const currentSales = salesData[salesPeriod];
   const currentStats = allStatsData[salesPeriod];
@@ -91,191 +103,57 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   const mainChartWidth = isDesktop ? availableWidth * 0.65 - 40 : availableWidth - 40;
   const mainChartHeight = 220;
 
-  // Chart options configuration
-  const chartOptions: { key: ChartMetric; label: string; icon: string }[] = [
-    { key: "Revenue", label: "Revenue Overview", icon: "cash-multiple" },
-    { key: "Expenses", label: "Revenue vs Expenses", icon: "arrow-decision" },
-    { key: "OrdersReturns", label: "Orders vs Returns", icon: "swap-horizontal" },
-    { key: "ProductPerf", label: "Product Category Perf.", icon: "chart-bar" },
-    { key: "Geographic", label: "Geographic Sales", icon: "map-marker-radius" },
-  ];
-
-  // Render SVG Area Chart
   const renderSVGChart = () => {
     const W = Math.max(chartWidth || mainChartWidth, 1);
     const H = mainChartHeight;
-    // Enough padding so 2.5px stroke + round linecap never bleeds outside
     const padding = 24;
     const chartW = Math.max(W - padding * 2, 1);
     const chartH = Math.max(H - padding * 2, 1);
 
     if (W <= 0 || H <= 0) return null;
 
-    if (activeMetric === "Revenue" || activeMetric === "Expenses") {
-      const points = currentSales.points;
-      const expensePoints = points.map((p) => Math.round(p * 0.45 + 10));
-      if (points.length === 0) return null;
-      if (points.length === 1) return null;
+    const points = currentSales.points;
+    if (points.length === 0) return null;
+    if (points.length === 1) return null;
 
-      const max = Math.max(...points, ...expensePoints);
-      const min = Math.min(...points, ...expensePoints);
-      const range = max - min || 1;
+    const max = Math.max(...points);
+    const min = Math.min(...points);
+    const range = max - min || 1;
 
-      const xs = points.map((_, i) => padding + (i / (points.length - 1)) * chartW);
-      const ys = points.map((v) => padding + chartH - ((v - min) / range) * chartH);
-      const eys = expensePoints.map((v) => padding + chartH - ((v - min) / range) * chartH);
+    const xs = points.map((_, i) => padding + (i / (points.length - 1)) * chartW);
+    const ys = points.map((v) => padding + chartH - ((v - min) / range) * chartH);
 
-      // Smooth bezier curve paths for Revenue
-      let linePath = `M ${xs[0]} ${ys[0]}`;
-      for (let i = 1; i < points.length; i++) {
-        const prevX = xs[i - 1] ?? 0;
-        const prevY = ys[i - 1] ?? 0;
-        const x = xs[i] ?? 0;
-        const y = ys[i] ?? 0;
-        const cx = (prevX + x) / 2;
-        linePath += ` Q ${cx} ${prevY}, ${x} ${y}`;
-      }
-      const fillPath = `${linePath} L ${xs[xs.length - 1]} ${H - padding} L ${xs[0]} ${H - padding} Z`;
-
-      // Smooth bezier curve paths for Expenses
-      let expLinePath = `M ${xs[0]} ${eys[0]}`;
-      for (let i = 1; i < expensePoints.length; i++) {
-        const prevX = xs[i - 1] ?? 0;
-        const prevY = eys[i - 1] ?? 0;
-        const x = xs[i] ?? 0;
-        const y = eys[i] ?? 0;
-        const cx = (prevX + x) / 2;
-        expLinePath += ` Q ${cx} ${prevY}, ${x} ${y}`;
-      }
-
-      return (
-        <View style={{ width: W, height: H, overflow: "hidden" }}>
-          <Svg width={W} height={H}>
-            <Defs>
-              <SvgLinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor={C.purple} stopOpacity={0.25} />
-                <Stop offset="100%" stopColor={C.purple} stopOpacity={0.0} />
-              </SvgLinearGradient>
-              <SvgLinearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor={C.orange} stopOpacity={0.15} />
-                <Stop offset="100%" stopColor={C.orange} stopOpacity={0.0} />
-              </SvgLinearGradient>
-              <ClipPath id="chartClip">
-                <Rect x={0} y={0} width={W} height={H} />
-              </ClipPath>
-            </Defs>
-
-            {/* Revenue Area Fill */}
-            <Path d={fillPath} fill="url(#revenueGrad)" clipPath="url(#chartClip)" />
-
-            {/* Revenue Line */}
-            <Path d={linePath} stroke={C.purple} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" clipPath="url(#chartClip)" />
-
-            {/* Revenue Dots */}
-            {xs.map((x, i) => (
-              <Circle key={`rev-${i}`} cx={x} cy={ys[i]} r={3} fill={C.white} stroke={C.purple} strokeWidth={1.5} clipPath="url(#chartClip)" />
-            ))}
-
-            {/* Expenses Line */}
-            {activeMetric === "Expenses" && (
-              <>
-                <Path d={expLinePath} stroke={C.orange} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" clipPath="url(#chartClip)" />
-                {xs.map((x, i) => (
-                  <Circle key={`exp-${i}`} cx={x} cy={eys[i]} r={3} fill={C.white} stroke={C.orange} strokeWidth={1.5} clipPath="url(#chartClip)" />
-                ))}
-              </>
-            )}
-          </Svg>
-        </View>
-      );
+    let linePath = `M ${xs[0]} ${ys[0]}`;
+    for (let i = 1; i < points.length; i++) {
+      const prevX = xs[i - 1] ?? 0;
+      const prevY = ys[i - 1] ?? 0;
+      const x = xs[i] ?? 0;
+      const y = ys[i] ?? 0;
+      const cx = (prevX + x) / 2;
+      linePath += ` Q ${cx} ${prevY}, ${x} ${y}`;
     }
+    const fillPath = `${linePath} L ${xs[xs.length - 1]} ${H - padding} L ${xs[0]} ${H - padding} Z`;
 
-    if (activeMetric === "OrdersReturns") {
-      const orders = ordersTrend.length > 0 ? ordersTrend : [0];
-      const returns = returnsTrend.length > 0
-        ? returnsTrend
-        : orders.map(() => 0);
-      const max = Math.max(...orders, ...returns, 1);
-
-      const barW = Math.round(chartW / 14);
-      const gap = Math.round(chartW / 7);
-
-      return (
-        <View style={{ width: W, height: H }}>
-          <Svg width={W} height={H}>
-            {orders.map((val, idx) => {
-              const xOrders = padding + idx * gap + barW;
-              const xReturns = xOrders + barW + 2;
-              const hOrders = (val / max) * chartH;
-              const hReturns = (returns[idx]! / max) * chartH;
-
-              const safeBarW = Math.max(barW, 1);
-              const safeHOrders = Math.max(Number.isFinite(hOrders) ? hOrders : 0, 0);
-              const safeHReturns = Math.max(Number.isFinite(hReturns) ? hReturns : 0, 0);
-
-              return (
-                <React.Fragment key={idx}>
-                  {/* Orders Bar */}
-                  <Rect
-                    x={xOrders}
-                    y={padding + chartH - safeHOrders}
-                    width={safeBarW}
-                    height={safeHOrders}
-                    fill={C.purple}
-                    rx={4}
-                  />
-                  {/* Returns Bar */}
-                  <Rect
-                    x={xReturns}
-                    y={padding + chartH - safeHReturns}
-                    width={safeBarW}
-                    height={safeHReturns}
-                    fill={C.pink}
-                    rx={2}
-                  />
-                </React.Fragment>
-              );
-            })}
-          </Svg>
-        </View>
-      );
-    }
-
-    if (activeMetric === "ProductPerf") {
-      const rows = categoryPerformance.length > 0
-        ? categoryPerformance
-        : [{ category: "No sales yet", value: 0 }];
-      const max = Math.max(...rows.map((r) => r.value), 1);
-
-      return (
-        <View style={{ width: W, height: H, paddingHorizontal: padding }}>
-          {rows.map((row, idx) => {
-            const widthPct = `${(row.value / max) * 75}%`;
-            return (
-              <View key={`${row.category}-${idx}`} style={styles.catBarRow}>
-                <AppText style={styles.catLabel} numberOfLines={1}>{row.category}</AppText>
-                <View style={styles.catBarBg}>
-                  <View style={[styles.catBarFill, { width: widthPct as any, backgroundColor: C.purple }]} />
-                </View>
-                <AppText style={styles.catValText}>{row.value}%</AppText>
-              </View>
-            );
-          })}
-        </View>
-      );
-    }
-
-    if (activeMetric === "Geographic") {
-      return (
-        <View style={[styles.emptyChartState, { width: W, height: H }]}>
-          <MaterialCommunityIcons name="map-marker-radius-outline" size={28} color={C.textLight} />
-          <AppText style={styles.emptyChartTitle}>Geographic breakdown</AppText>
-          <AppText style={styles.emptyChartSub}>City-level sales will appear here once regional analytics are available from the backend.</AppText>
-        </View>
-      );
-    }
-
-    return null;
+    return (
+      <View style={{ width: W, height: H, overflow: "hidden" }}>
+        <Svg width={W} height={H}>
+          <Defs>
+            <SvgLinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={C.purple} stopOpacity={0.25} />
+              <Stop offset="100%" stopColor={C.purple} stopOpacity={0.0} />
+            </SvgLinearGradient>
+            <ClipPath id="chartClip">
+              <Rect x={0} y={0} width={W} height={H} />
+            </ClipPath>
+          </Defs>
+          <Path d={fillPath} fill="url(#revenueGrad)" clipPath="url(#chartClip)" />
+          <Path d={linePath} stroke={C.purple} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" clipPath="url(#chartClip)" />
+          {xs.map((x, i) => (
+            <Circle key={`rev-${i}`} cx={x} cy={ys[i]} r={3} fill={C.white} stroke={C.purple} strokeWidth={1.5} clipPath="url(#chartClip)" />
+          ))}
+        </Svg>
+      </View>
+    );
   };
 
   return (
@@ -290,7 +168,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
           
           {/* Segmented Period Selector */}
           <View style={styles.periodTabs}>
-            {(["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => (
+            {PERIOD_OPTIONS.map((p) => (
               <TouchableOpacity
                 key={p}
                 onPress={() => onSalesPeriodChange(p)}
@@ -298,38 +176,77 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
                 activeOpacity={0.8}
               >
                 <AppText style={[styles.periodTabText, salesPeriod === p && styles.periodTabTextActive]}>
-                  {p}
+                  {p === "Custom" ? "Custom Time" : p}
                 </AppText>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Dynamic Metric Selection Tab list */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricsSelector}>
-          {chartOptions.map((opt) => (
-            <TouchableOpacity
-              key={opt.key}
-              style={[styles.metricTabBtn, activeMetric === opt.key && styles.metricTabBtnActive]}
-              onPress={() => setActiveMetric(opt.key)}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons
-                name={opt.icon as any}
-                size={14}
-                color={activeMetric === opt.key ? C.purple : C.textLight}
-                style={{ marginRight: 6 }}
-              />
-              <AppText style={[styles.metricTabLabel, activeMetric === opt.key && styles.metricTabLabelActive]}>
-                {opt.label}
-              </AppText>
+        {salesPeriod === "Custom" ? (
+          <View style={styles.customRangeRow}>
+            <TouchableOpacity style={styles.customDateBtn} onPress={() => setDatePickerTarget("from")} activeOpacity={0.85}>
+              <AppText style={styles.customDateLabel}>From</AppText>
+              {Platform.OS === "web" ? (
+                <input
+                  type="date"
+                  value={toIsoDate(customFrom)}
+                  max={toIsoDate(customTo)}
+                  onChange={(e) => {
+                    const next = new Date(e.target.value);
+                    if (!Number.isNaN(next.getTime())) onCustomFromChange(next);
+                  }}
+                  style={{ border: "none", background: "transparent", fontFamily: "Poppins, sans-serif", fontSize: 13, color: C.textDark, outline: "none" } as any}
+                />
+              ) : (
+                <AppText style={styles.customDateValue}>{formatDisplayDate(customFrom)}</AppText>
+              )}
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            <AppText style={styles.customDateSep}>–</AppText>
+            <TouchableOpacity style={styles.customDateBtn} onPress={() => setDatePickerTarget("to")} activeOpacity={0.85}>
+              <AppText style={styles.customDateLabel}>To</AppText>
+              {Platform.OS === "web" ? (
+                <input
+                  type="date"
+                  value={toIsoDate(customTo)}
+                  min={toIsoDate(customFrom)}
+                  onChange={(e) => {
+                    const next = new Date(e.target.value);
+                    if (!Number.isNaN(next.getTime())) onCustomToChange(next);
+                  }}
+                  style={{ border: "none", background: "transparent", fontFamily: "Poppins, sans-serif", fontSize: 13, color: C.textDark, outline: "none" } as any}
+                />
+              ) : (
+                <AppText style={styles.customDateValue}>{formatDisplayDate(customTo)}</AppText>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {datePickerTarget && Platform.OS !== "web" ? (
+          <DateTimePicker
+            value={datePickerTarget === "from" ? customFrom : customTo}
+            mode="date"
+            display="default"
+            maximumDate={datePickerTarget === "from" ? customTo : new Date()}
+            minimumDate={datePickerTarget === "to" ? customFrom : undefined}
+            onChange={(_, selectedDate) => {
+              setDatePickerTarget(null);
+              if (!selectedDate) return;
+              if (datePickerTarget === "from") onCustomFromChange(selectedDate);
+              else onCustomToChange(selectedDate);
+            }}
+          />
+        ) : null}
+
+        <View style={styles.revenueTabRow}>
+          <MaterialCommunityIcons name="cash-multiple" size={14} color={C.purple} />
+          <AppText style={styles.revenueTabLabel}>Revenue Overview</AppText>
+        </View>
 
         <View style={styles.chartDetailsRow}>
           <View style={styles.detailItem}>
-            <AppText style={styles.detailLabel}>{salesPeriod} Revenue</AppText>
+            <AppText style={styles.detailLabel}>{periodRevenueLabel(salesPeriod)}</AppText>
             <View style={styles.detailValRow}>
               <AppText style={styles.detailValue}>{currentStats.sales || currentSales.totalSales}</AppText>
               <View style={styles.changeBadge}>
@@ -361,15 +278,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
           }}
         >
           {renderSVGChart()}
-          {activeMetric !== "ProductPerf" && activeMetric !== "Geographic" && (
-            <View style={styles.xAxisRow}>
-              {currentSales.labels.map((label, idx) => (
-                <AppText key={idx} style={styles.xAxisLabel}>
-                  {label}
-                </AppText>
-              ))}
-            </View>
-          )}
+          <View style={styles.xAxisRow}>
+            {currentSales.labels.map((label, idx) => (
+              <AppText key={idx} style={styles.xAxisLabel}>
+                {label}
+              </AppText>
+            ))}
+          </View>
         </View>
       </View>
 
@@ -452,9 +367,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   );
 };
 
-// Standard React Native ScrollView to fix typing
-const ScrollView = require("react-native").ScrollView;
-
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
@@ -525,36 +437,51 @@ const styles = StyleSheet.create({
     color: C.purple,
     fontFamily: "Poppins_600SemiBold",
   },
-  metricsSelector: {
+  customRangeRow: {
     flexDirection: "row",
-    gap: 8,
-    paddingVertical: 6,
+    alignItems: "center",
+    gap: 10,
     marginBottom: 10,
+    flexWrap: "wrap",
+  },
+  customDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  customDateLabel: {
+    fontSize: 11,
+    fontFamily: "Poppins_500Medium",
+    color: C.textLight,
+  },
+  customDateValue: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textDark,
+  },
+  customDateSep: {
+    fontSize: 14,
+    color: C.textLight,
+  },
+  revenueTabRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  metricTabBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.white,
-  },
-  metricTabBtnActive: {
-    borderColor: C.purple,
-    backgroundColor: C.purplePale,
-  },
-  metricTabLabel: {
-    fontSize: 11,
-    fontFamily: "Poppins_500Medium",
-    color: C.textMid,
-  },
-  metricTabLabelActive: {
-    color: C.purple,
+  revenueTabLabel: {
+    fontSize: 12,
     fontFamily: "Poppins_600SemiBold",
+    color: C.purple,
   },
   chartDetailsRow: {
     flexDirection: "row",

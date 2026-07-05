@@ -31,7 +31,7 @@ import {
     type VariantFormContext,
     type VariantFormState,
 } from "@/lib/product/ProductVariantFormCard";
-import { calculateVariantPricingFromStrings, normalizePricingWithoutCommission } from "@/lib/product/variantPricing";
+import { calculateVariantPricing, calculateVariantPricingFromStrings, COMMISSION_PERCENT } from "@/lib/product/variantPricing";
 import { formatBuyerInstructionsForDisplay } from "@/lib/product/customProductFields";
 import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
 import { resolveMinQuantity } from "@/lib/product/resolveMinQuantity";
@@ -170,29 +170,38 @@ function resolveVariantDisplayPricing(p: Product, variant: Variant) {
     intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
     metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
     discountOverride: variant.discount,
-    commissionPercent: 0,
+    ...(variant.commissionPercent > 0 ? { commissionPercent: variant.commissionPercent } : {}),
   });
   if (pricing) return pricing;
-  return normalizePricingWithoutCommission({
-    mrpExcl: variant.mrpExclGst || variant.mrp || 0,
-    sellingExcl: variant.sellingPriceExGst || variant.sellingPrice || 0,
-    gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
-    discountPercentage: variant.discountPercentage ?? variant.discount ?? 0,
-    discountAmount: variant.discountAmount ?? 0,
-    taxAmount: variant.gstAmount ?? variant.taxAmount ?? 0,
-    finalPrice: variant.sellingPriceWithGst || variant.finalPrice || 0,
-    mrpInclGst: variant.mrpInclGst || 0,
-    commissionAmount: 0,
-    intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge ?? 0,
-    metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge ?? 0,
-    totalIntraCity: variant.totalIntraCity ?? variant.totalPriceIntraCity ?? 0,
-    totalMetroMetro: variant.totalMetroMetro ?? variant.totalPriceMetroMetro ?? 0,
-  });
+
+  const mrpExcl = variant.mrpExclGst || variant.mrp || 0;
+  const sellingExcl = variant.sellingPriceExGst || variant.sellingPrice || 0;
+  if (mrpExcl > 0 && sellingExcl > 0) {
+    return calculateVariantPricing({
+      mrpExcl,
+      sellingExcl,
+      gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
+      intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
+      metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
+      discountOverride: variant.discountPercentage ?? variant.discount ?? null,
+      commissionPercent: variant.commissionPercent > 0 ? variant.commissionPercent : COMMISSION_PERCENT,
+    });
+  }
+
+  return null;
 }
 
 function resolveTotalMetroPrice(p: Product, variant: Variant | null): number {
   if (!variant) return p.price > 0 ? p.price : 0;
-  return resolveVariantDisplayPricing(p, variant).totalMetroMetro;
+  const pricing = resolveVariantDisplayPricing(p, variant);
+  if (pricing) return pricing.totalMetroMetro;
+  return resolveVariantMetroTotal({
+    finalPrice: variant.sellingPriceWithGst || variant.finalPrice,
+    metroMetroDelivery: variant.metroMetroDelivery ?? p.metroMetroCharge,
+    commissionAmount: variant.commissionAmount,
+    commissionPercent: variant.commissionPercent,
+    totalMetroMetro: variant.totalMetroMetro ?? variant.totalPriceMetroMetro,
+  });
 }
 
 function resolveDisplaySku(p: Product, variants: Variant[]): string {
@@ -204,10 +213,11 @@ function resolveDisplaySku(p: Product, variants: Variant[]): string {
 function normalizeVariantsForDisplay(product: Product, items: Variant[]): Variant[] {
   return items.map((v) => {
     const pricing = resolveVariantDisplayPricing(product, v);
+    if (!pricing) return v;
     return {
       ...v,
-      commissionAmount: 0,
-      commissionPercent: 0,
+      commissionAmount: pricing.commissionAmount,
+      commissionPercent: v.commissionPercent > 0 ? v.commissionPercent : COMMISSION_PERCENT,
       totalIntraCity: pricing.totalIntraCity,
       totalMetroMetro: pricing.totalMetroMetro,
     };

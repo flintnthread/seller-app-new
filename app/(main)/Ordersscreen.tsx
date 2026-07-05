@@ -162,7 +162,7 @@ const STATUS_CONFIG: Record<
   Shipped: { bg: C.purplePale, text: "Shipped", color: C.purple },
   Delivered: { bg: C.greenPale, text: "Delivered", color: C.green },
   Returned: { bg: C.redPale, text: "Returned", color: C.red },
-  Cancelled: { bg: C.bg, text: "Cancelled", color: C.textLight },
+  Cancelled: { bg: C.redPale, text: "Cancelled", color: C.red },
 };
 
 type IconLib = "Ionicons" | "MCIcons";
@@ -213,8 +213,8 @@ const STAT_ICONS: Partial<Record<string, StatIconCfg>> = {
   Cancelled: {
     lib: "Ionicons",
     name: "close-circle-outline",
-    color: C.textLight,
-    bg: C.bg,
+    color: C.red,
+    bg: C.redPale,
   },
 };
 

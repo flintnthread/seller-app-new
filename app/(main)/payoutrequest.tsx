@@ -27,19 +27,20 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { lookupOrderPayoutAmount } from "@/services/earningsApi";
+import { fetchSellerOrderDetail, fetchSellerOrderDetails } from "@/services/orderApi";
+import { ensureSellerId } from "@/lib/api/sellerSession";
+import type { OrderDetail } from "@/lib/orders/ordersData";
 import {
   fetchPayoutSummary,
-  fetchMyPayoutRequests,
   fetchSellerBankDetails,
   updateSellerBankDetails,
   submitPayoutRequest,
   exportPayoutTransactionsCsv,
   type PayoutSummary,
   type SellerBankDetails,
-  type SellerPayoutRequestRow,
 } from "@/services/payoutApi";
-import { lookupIfscCode, fetchSellerProfile } from "@/services/sellerProfileApi";
-import { sendRegistrationOtp } from "@/services/authApi";
+import { lookupIfscCode } from "@/services/sellerProfileApi";
+import { confirmAction } from "@/lib/confirmDialog";
 import { submitBankEditRequest } from "@/services/bankEditApi";
 
 interface BankAccount {
@@ -53,40 +54,168 @@ interface BankAccount {
 interface Transaction {
   id: string;
   orderId: string;
+  productName?: string;
   amount: number;
   date: string;
-  status: "Completed" | "Pending" | "Failed";
+  status: "Completed" | "Pending" | "Cancelled";
   type: "Payout" | "Revenue";
+}
+
+const TXN_STATUS_FILTERS = [
+  { value: "All", label: "All" },
+  { value: "Completed", label: "Completed" },
+  { value: "Pending", label: "Pending Payment" },
+  { value: "Cancelled", label: "Cancelled" },
+] as const;
+
+function sellerPaymentStatusRaw(order: OrderDetail): string {
+  return (order.payment.sellerPaymentStatus ?? "Pending").trim().toLowerCase();
+}
+
+function isCustomerPaymentCompleted(order: OrderDetail): boolean {
+  const payment = order.payment;
+  if (payment.paymentCompleted === true) return true;
+  if (payment.status === "Paid") return true;
+  const status = payment.status?.toLowerCase() ?? "";
+  return status.includes("paid") || status.includes("success") || status.includes("completed");
+}
+
+function isOrderCancelled(order: OrderDetail): boolean {
+  if (order.status === "Cancelled") return true;
+  if (order.dbStatus?.toLowerCase().includes("cancel")) return true;
+  const sellerPay = sellerPaymentStatusRaw(order);
+  return sellerPay === "cancelled" || sellerPay === "canceled";
+}
+
+/** Seller payout status from DB — not order fulfilment status (Shipped/Pending/etc.). */
+function resolveSellerPaymentTxnStatus(order: OrderDetail): Transaction["status"] | null {
+  if (isOrderCancelled(order)) return "Cancelled";
+
+  const sellerPay = sellerPaymentStatusRaw(order);
+  if (sellerPay === "paid") return "Completed";
+
+  // Pending payment TO SELLER (seller_payment_status = pending)
+  if (sellerPay === "pending" || sellerPay === "" || !sellerPay.includes("paid")) {
+    if (isCustomerPaymentCompleted(order)) return "Pending";
+  }
+
+  return null;
+}
+
+function isPendingPayoutOrder(order: OrderDetail): boolean {
+  return resolveSellerPaymentTxnStatus(order) === "Pending";
+}
+
+function normalizeOrderKey(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+function orderLookupKeys(order: OrderDetail): string[] {
+  const keys = new Set<string>();
+  const add = (raw?: string | number | null) => {
+    if (raw == null) return;
+    const normalized = normalizeOrderKey(String(raw));
+    if (normalized) keys.add(normalized);
+  };
+  add(order.id);
+  add(order.orderNumber);
+  add(order.orderId);
+  for (const key of [...keys]) {
+    if (key.startsWith("FNT")) add(key.slice(3));
+    if (key.startsWith("ORD")) add(key.slice(3));
+  }
+  return [...keys];
+}
+
+function findOrderByKey(orders: OrderDetail[], rawKey: string): OrderDetail | undefined {
+  const cleaned = normalizeOrderKey(rawKey);
+  if (!cleaned) return undefined;
+  return orders.find((order) => {
+    const keys = orderLookupKeys(order);
+    return keys.some((key) => key === cleaned || cleaned.endsWith(key) || key.endsWith(cleaned));
+  });
+}
+
+function formatTxnStatusLabel(status: Transaction["status"]): string {
+  return status === "Pending" ? "Pending Payment" : status;
+}
+
+function txnStatusVisuals(status: Transaction["status"]) {
+  if (status === "Completed") {
+    return { icon: "check-circle" as const, color: "#22c55e", bg: "#22c55e18" };
+  }
+  if (status === "Cancelled") {
+    return { icon: "close-circle-outline" as const, color: "#ef4444", bg: "#ef444418" };
+  }
+  return { icon: "clock-outline" as const, color: "#f59e0b", bg: "#f59e0b18" };
 }
 
 const THEME_COLOR = "#1a2b5edc";
 
+function parseDisplayAmount(value?: string | number | null): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const n = parseFloat(value.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function resolveSellerItems(order: OrderDetail, sellerId: number | null) {
+  if (!sellerId) return order.items;
+  return order.items.filter((item) => item.sellerId == null || item.sellerId === sellerId);
+}
+
+function resolveSellerOrderAmount(order: OrderDetail, sellerId: number | null): number {
+  const sellerItems = resolveSellerItems(order, sellerId);
+  if (sellerItems.length === 0) return 0;
+  const fromItems = sellerItems.reduce(
+    (sum, item) => sum + (item.subtotalAmount ?? item.priceAmount ?? parseDisplayAmount(item.price) * item.qty),
+    0,
+  );
+  if (fromItems > 0) return fromItems;
+  return order.pricing.totalAmount ?? parseDisplayAmount(order.pricing.total);
+}
+
+function mapOrderDetailToTransaction(order: OrderDetail, sellerId: number | null): Transaction | null {
+  const sellerItems = resolveSellerItems(order, sellerId);
+  if (sellerId && sellerItems.length === 0) return null;
+
+  const status = resolveSellerPaymentTxnStatus(order);
+  if (!status) return null;
+
+  const amount = resolveSellerOrderAmount(order, sellerId);
+  const productName =
+    sellerItems.map((item) => item.name).filter(Boolean).join(", ") ||
+    order.items[0]?.name ||
+    "Product";
+
+  return {
+    id: `order-${order.orderId ?? order.id}`,
+    orderId: order.orderNumber ?? order.id,
+    productName,
+    amount,
+    date: order.payment.paidOn || order.date,
+    status,
+    type: "Revenue",
+  };
+}
+
+function buildTransactionsFromOrders(orders: OrderDetail[], sellerId: number | null): Transaction[] {
+  const seen = new Set<string>();
+  return orders
+    .map((order) => mapOrderDetailToTransaction(order, sellerId))
+    .filter((row): row is Transaction => {
+      if (row == null || seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    })
+    .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+}
+
 function maskAccountNumber(account?: string | null): string {
   if (!account || account.length < 4) return "••••";
   return `•••• ${account.slice(-4)}`;
-}
-
-function mapPayoutStatus(status: string): Transaction["status"] {
-  const s = status.toLowerCase();
-  if (s === "pending" || s === "approved") return "Pending";
-  if (s === "rejected" || s === "cancelled") return "Failed";
-  return "Completed";
-}
-
-function formatOrderId(orderId?: number | null): string {
-  if (!orderId) return "—";
-  return `ORD${orderId}`;
-}
-
-function mapPayoutRequestToTransaction(row: SellerPayoutRequestRow): Transaction {
-  return {
-    id: String(row.id),
-    orderId: formatOrderId(row.orderId),
-    amount: Number(row.requestedAmount ?? 0),
-    date: row.requestedAt ?? row.updatedAt ?? "",
-    status: mapPayoutStatus(row.status),
-    type: "Payout",
-  };
 }
 
 function bankDetailsToAccount(details: SellerBankDetails): BankAccount {
@@ -222,15 +351,15 @@ export default function EnhancedPayoutRequest() {
   const [amount, setAmount] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [otp, setOtp] = useState("");
   const [isRequesting, setIsRequesting] = useState(false);
 
-  const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
   const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [sellerOrders, setSellerOrders] = useState<OrderDetail[]>([]);
   const [orderLookupValid, setOrderLookupValid] = useState(false);
+  const [orderLookupMessage, setOrderLookupMessage] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [storedBankDetails, setStoredBankDetails] = useState<SellerBankDetails | null>(null);
 
@@ -254,10 +383,11 @@ export default function EnhancedPayoutRequest() {
     setSummaryError(null);
     setIsLoadingData(true);
     try {
-      const [summary, bankDetails, payoutRequests] = await Promise.all([
+      const sellerId = ensureSellerId();
+      const [summary, bankDetails, orderDetails] = await Promise.all([
         fetchPayoutSummary(),
         fetchSellerBankDetails(),
-        fetchMyPayoutRequests(),
+        fetchSellerOrderDetails(),
       ]);
       setPayoutSummary(summary);
       setAvailableBalance(Number(summary.pendingAmount ?? 0));
@@ -267,7 +397,9 @@ export default function EnhancedPayoutRequest() {
       } else {
         setBanks([]);
       }
-      setApiTransactions(payoutRequests.map(mapPayoutRequestToTransaction));
+      const orderTransactions = buildTransactionsFromOrders(orderDetails, sellerId);
+      setSellerOrders(orderDetails);
+      setApiTransactions(orderTransactions);
     } catch (e) {
       setSummaryError(e instanceof Error ? e.message : "Failed to load payout data.");
     } finally {
@@ -400,28 +532,75 @@ export default function EnhancedPayoutRequest() {
     }
   };
 
+  const applyOrderLookup = useCallback((order: OrderDetail) => {
+    const sellerId = ensureSellerId();
+    const status = resolveSellerPaymentTxnStatus(order);
+    if (status === "Cancelled") {
+      setOrderLookupMessage("This order is cancelled.");
+      setOrderLookupValid(false);
+      setAmount("");
+      return;
+    }
+    if (status === "Completed") {
+      setOrderLookupMessage("Seller payment already completed for this order.");
+      setOrderLookupValid(false);
+      setAmount("");
+      return;
+    }
+    if (!isPendingPayoutOrder(order)) {
+      setOrderLookupMessage("This order does not have pending seller payment.");
+      setOrderLookupValid(false);
+      setAmount("");
+      return;
+    }
+    const payoutAmount = resolveSellerOrderAmount(order, sellerId);
+    if (payoutAmount <= 0) {
+      setOrderLookupMessage("No payout amount available for this order.");
+      setOrderLookupValid(false);
+      setAmount("");
+      return;
+    }
+    setAmount(String(Math.round(payoutAmount)));
+    setOrderLookupValid(true);
+    setOrderLookupMessage("");
+  }, []);
+
   const handleOrderIdChange = (text: string) => {
     const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     setOrderId(cleaned);
     setOrderLookupValid(false);
     setAmount("");
+    setOrderLookupMessage("");
     if (!cleaned) return;
-    lookupOrderPayoutAmount(cleaned)
-      .then((res) => {
-        if (res.found && res.amount > 0) {
-          setAmount(String(res.amount));
-          setOrderLookupValid(true);
+
+    const localMatch = findOrderByKey(sellerOrders, cleaned);
+    if (localMatch) {
+      applyOrderLookup(localMatch);
+      return;
+    }
+
+    void lookupOrderPayoutAmount(cleaned)
+      .then(async (res) => {
+        if (!res.found || res.amount <= 0) {
+          setOrderLookupMessage("Order not found or not eligible for payout.");
+          return;
+        }
+        try {
+          const detail = await fetchSellerOrderDetail(cleaned);
+          applyOrderLookup(detail);
+        } catch {
+          setOrderLookupMessage("Order not found for your seller account.");
         }
       })
-      .catch(() => undefined);
+      .catch(() => setOrderLookupMessage("Could not look up this order ID."));
   };
 
   const validateAmount = () => {
     if (!orderId) return "Enter Order ID";
-    if (!orderLookupValid) return "Invalid Order ID";
+    if (orderLookupMessage) return orderLookupMessage;
+    if (!orderLookupValid) return "Enter an order ID with pending seller payment";
     const num = parseFloat(amount);
-    if (isNaN(num)) return "Invalid Amount";
-    if (num > availableBalance) return "Insufficient balance";
+    if (isNaN(num) || num <= 0) return "Invalid Amount";
     return "";
   };
 
@@ -429,50 +608,18 @@ export default function EnhancedPayoutRequest() {
 
   const filteredTransactions = useMemo(() => {
     const source = apiTransactions;
+    const query = searchQuery.trim().toLowerCase();
     return source.filter((t) => {
-      const matchesSearch = t.orderId.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch =
+        !query ||
+        t.orderId.toLowerCase().includes(query) ||
+        (t.productName?.toLowerCase().includes(query) ?? false);
       const matchesStatus = statusFilter === "All" || t.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [searchQuery, statusFilter, apiTransactions]);
 
-  const handleInitialRequest = async () => {
-    if (errorMsg) {
-      Alert.alert("Error", errorMsg);
-      return;
-    }
-    if (banks.length === 0) {
-      Alert.alert("Bank account required", "Please add your bank account details before requesting a payout.");
-      return;
-    }
-    try {
-      const profile = await fetchSellerProfile();
-      const mobile = profile.mobile?.trim();
-      if (!mobile) {
-        Alert.alert("Mobile required", "Add your registered mobile number in profile before requesting a payout.");
-        return;
-      }
-      const otpResult = await sendRegistrationOtp(mobile);
-      if (otpResult.devOtp) {
-        Alert.alert("Verification code", `Dev mode OTP: ${otpResult.devOtp}`);
-      }
-      setShowOtpModal(true);
-    } catch (e) {
-      Alert.alert("OTP failed", e instanceof Error ? e.message : "Could not send verification code.");
-    }
-  };
-
-  const verifyOtpAndRequest = async () => {
-    if (otp.length < 4) {
-      Alert.alert("Invalid OTP", "Please enter valid 4 digit OTP");
-      return;
-    }
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
-      Alert.alert("Error", "Enter a valid payout amount.");
-      return;
-    }
-    setShowOtpModal(false);
+  const submitPayoutRequestFlow = async () => {
     setIsRequesting(true);
     try {
       await submitPayoutRequest({
@@ -483,8 +630,8 @@ export default function EnhancedPayoutRequest() {
       setShowSuccessModal(true);
       setOrderId("");
       setAmount("");
-      setOtp("");
       setOrderLookupValid(false);
+      setOrderLookupMessage("");
     } catch (e) {
       Alert.alert("Payout failed", e instanceof Error ? e.message : "Could not submit payout request.");
     } finally {
@@ -492,26 +639,42 @@ export default function EnhancedPayoutRequest() {
     }
   };
 
+  const handleInitialRequest = async () => {
+    if (errorMsg) {
+      Alert.alert("Error", errorMsg);
+      return;
+    }
+    if (banks.length === 0) {
+      Alert.alert("Bank account required", "Please add your bank account details before requesting a payout.");
+      return;
+    }
+    const confirmed = await confirmAction(
+      "Request Payout",
+      `Submit payout request for order ${orderId}?\n\nAmount: ₹${Number(amount).toLocaleString("en-IN")}\n\nThis will be sent to admin for review.`
+    );
+    if (!confirmed) return;
+    await submitPayoutRequestFlow();
+  };
+
   const renderTransactionItem = useCallback(
-    ({ item }: { item: Transaction }) => (
+    ({ item }: { item: Transaction }) => {
+      const visuals = txnStatusVisuals(item.status);
+      return (
       <View style={[styles.txnItem, isWebMobile && styles.txnItemWebMobile]}>
         <View style={styles.txnIconWrap}>
           <MaterialCommunityIcons
-            name={
-              item.status === "Completed"
-                ? "check-circle"
-                : item.status === "Pending"
-                ? "clock-outline"
-                : "alert-circle"
-            }
+            name={visuals.icon}
             size={24}
-            color="#f97316"
+            color={visuals.color}
           />
         </View>
         <View style={styles.txnInfo}>
-          <Text style={styles.txnTitle}>{item.orderId}</Text>
+          <Text style={styles.txnTitle} numberOfLines={2}>
+            {item.productName ?? item.orderId}
+          </Text>
           <Text style={styles.txnDate}>
-            {item.date ? new Date(item.date).toLocaleDateString() : "—"}
+            {item.orderId}
+            {item.date ? ` · ${new Date(item.date).toLocaleDateString()}` : ""}
           </Text>
         </View>
         <View style={styles.txnRight}>
@@ -519,19 +682,12 @@ export default function EnhancedPayoutRequest() {
           <Text
             style={[
               styles.txnStatus,
-              {
-                color:
-                  item.status === "Completed"
-                    ? "#22c55e"
-                    : item.status === "Pending"
-                    ? "#f59e0b"
-                    : "#ef4444",
-              },
+              { color: visuals.color },
             ]}
           >
-            {item.status}
+            {formatTxnStatusLabel(item.status)}
           </Text>
-          {(item.status === "Pending" || item.status === "Failed") && (
+          {item.status === "Pending" && (
             <TouchableOpacity
               style={styles.raiseTicketBtn}
               onPress={() => router.push("/(main)/helpsupport")}
@@ -542,43 +698,22 @@ export default function EnhancedPayoutRequest() {
           )}
         </View>
       </View>
-    ),
+    );
+    },
     [isWebMobile, router]
   );
 
   // ─── SHARED MODALS ──────────────────────────────────────────────────────────
   const sharedModals = (
     <>
-      <Modal visible={showOtpModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>OTP Verification</Text>
-            <Text style={styles.modalSub}>Enter OTP sent to your registered mobile number</Text>
-            <TextInput
-              style={styles.otpInput}
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-            <TouchableOpacity style={styles.verifyBtn} onPress={verifyOtpAndRequest}>
-              <Text style={styles.verifyBtnText}>Verify & Continue</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowOtpModal(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       <Modal visible={showSuccessModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.successContent}>
             <View style={styles.successIconWrap}>
               <MaterialCommunityIcons name="check-bold" size={40} color="#f97316" />
             </View>
-            <Text style={styles.modalTitle}>Withdrawal Successful</Text>
-            <Text style={styles.modalSub}>Your payout request has been submitted successfully.</Text>
+            <Text style={styles.modalTitle}>Payout Request Submitted</Text>
+            <Text style={styles.modalSub}>Your payout request has been sent to admin for review.</Text>
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowSuccessModal(false)}>
               <Text style={styles.doneBtnText}>Great, Thanks!</Text>
             </TouchableOpacity>
@@ -883,10 +1018,10 @@ export default function EnhancedPayoutRequest() {
               </View>
 
               {/* Verified Amount Card */}
-              {!!amount && (
+              {orderLookupValid && !!amount && (
                 <View style={desktopStyles.verifiedCard}>
                   <View>
-                    <Text style={desktopStyles.verifiedLabel}>Order Amount</Text>
+                    <Text style={desktopStyles.verifiedLabel}>Pending Payout Amount</Text>
                     <Text style={desktopStyles.verifiedValue}>
                       ₹{Number(amount).toLocaleString()}
                     </Text>
@@ -902,7 +1037,7 @@ export default function EnhancedPayoutRequest() {
               <View style={desktopStyles.securityRow}>
                 <MaterialCommunityIcons name="shield-lock-outline" size={18} color="#f97316" />
                 <Text style={desktopStyles.securityText}>
-                  Withdrawal requires OTP verification via registered mobile number.
+                  Your payout request will be sent to admin for review and processing.
                 </Text>
               </View>
 
@@ -957,19 +1092,19 @@ export default function EnhancedPayoutRequest() {
                 </View>
               </View>
               <View style={desktopStyles.filterRow}>
-                {["All", "Completed", "Pending", "Failed"].map((f) => (
+                {TXN_STATUS_FILTERS.map((f) => (
                   <TouchableOpacity
-                    key={f}
-                    style={[desktopStyles.filterChip, statusFilter === f && desktopStyles.filterChipActive]}
-                    onPress={() => setStatusFilter(f)}
+                    key={f.value}
+                    style={[desktopStyles.filterChip, statusFilter === f.value && desktopStyles.filterChipActive]}
+                    onPress={() => setStatusFilter(f.value)}
                   >
                     <Text
                       style={[
                         desktopStyles.filterChipText,
-                        statusFilter === f && desktopStyles.filterChipTextActive,
+                        statusFilter === f.value && desktopStyles.filterChipTextActive,
                       ]}
                     >
-                      {f}
+                      {f.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -983,49 +1118,35 @@ export default function EnhancedPayoutRequest() {
                     <Text style={desktopStyles.emptyText}>No transactions found</Text>
                   </View>
                 ) : (
-                  filteredTransactions.map((item) => (
+                  filteredTransactions.map((item) => {
+                    const visuals = txnStatusVisuals(item.status);
+                    return (
                     <View key={item.id} style={desktopStyles.txnRow}>
                       <View
                         style={[
                           desktopStyles.txnStatusDot,
-                          {
-                            backgroundColor:
-                              item.status === "Completed"
-                                ? "#22c55e18"
-                                : item.status === "Pending"
-                                ? "#f59e0b18"
-                                : "#ef444418",
-                          },
+                          { backgroundColor: visuals.bg },
                         ]}
                       >
                         <MaterialCommunityIcons
-                          name={
-                            item.status === "Completed"
-                              ? "check-circle"
-                              : item.status === "Pending"
-                              ? "clock-outline"
-                              : "alert-circle"
-                          }
+                          name={visuals.icon}
                           size={20}
-                          color={
-                            item.status === "Completed"
-                              ? "#22c55e"
-                              : item.status === "Pending"
-                              ? "#f59e0b"
-                              : "#ef4444"
-                          }
+                          color={visuals.color}
                         />
                       </View>
                       <View style={desktopStyles.txnRowInfo}>
-                        <Text style={desktopStyles.txnOrderId}>{item.orderId}</Text>
+                        <Text style={desktopStyles.txnOrderId} numberOfLines={2}>
+                          {item.productName ?? item.orderId}
+                        </Text>
                         <Text style={desktopStyles.txnDate}>
+                          {item.orderId}
                           {item.date
-                            ? new Date(item.date).toLocaleDateString("en-IN", {
+                            ? ` · ${new Date(item.date).toLocaleDateString("en-IN", {
                                 day: "numeric",
                                 month: "short",
                                 year: "numeric",
-                              })
-                            : "—"}
+                              })}`
+                            : ""}
                         </Text>
                       </View>
                       <View style={desktopStyles.txnRowRight}>
@@ -1035,33 +1156,19 @@ export default function EnhancedPayoutRequest() {
                         <View
                           style={[
                             desktopStyles.txnStatusBadge,
-                            {
-                              backgroundColor:
-                                item.status === "Completed"
-                                  ? "#22c55e18"
-                                  : item.status === "Pending"
-                                  ? "#f59e0b18"
-                                  : "#ef444418",
-                            },
+                            { backgroundColor: visuals.bg },
                           ]}
                         >
                           <Text
                             style={[
                               desktopStyles.txnStatusText,
-                              {
-                                color:
-                                  item.status === "Completed"
-                                    ? "#16a34a"
-                                    : item.status === "Pending"
-                                    ? "#d97706"
-                                    : "#dc2626",
-                              },
+                              { color: visuals.color },
                             ]}
                           >
-                            {item.status}
+                            {formatTxnStatusLabel(item.status)}
                           </Text>
                         </View>
-                        {(item.status === "Pending" || item.status === "Failed") && (
+                        {item.status === "Pending" && (
                           <TouchableOpacity
                             style={desktopStyles.helpBtn}
                             onPress={() => router.push("/(main)/helpsupport")}
@@ -1072,7 +1179,8 @@ export default function EnhancedPayoutRequest() {
                         )}
                       </View>
                     </View>
-                  ))
+                  );
+                  })
                 )}
               </View>
             </View>
@@ -1268,10 +1376,10 @@ export default function EnhancedPayoutRequest() {
                   />
                 </View>
 
-                {!!amount && (
+                {orderLookupValid && !!amount && (
                   <View style={styles.orderAmountCard}>
                     <View>
-                      <Text style={styles.orderAmountLabel}>Order Amount</Text>
+                      <Text style={styles.orderAmountLabel}>Pending Payout Amount</Text>
                       <Text style={styles.orderAmountValue}>₹{Number(amount).toLocaleString()}</Text>
                     </View>
                     <View style={styles.orderVerifiedBadge}>
@@ -1288,7 +1396,7 @@ export default function EnhancedPayoutRequest() {
 
               <View style={[styles.securityCard, isWebMobile && styles.securityCardWebMobile]}>
                 <MaterialCommunityIcons name="shield-lock-outline" size={20} color="#f97316" />
-                <Text style={styles.securityText}>Withdrawal requires OTP verification.</Text>
+                <Text style={styles.securityText}>Your request will be sent to admin for review.</Text>
               </View>
 
               <View style={[styles.sectionHeader, styles.transactionsHeader, isWebMobile && styles.transactionsHeaderWebMobile]}>
@@ -1326,23 +1434,23 @@ export default function EnhancedPayoutRequest() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.filterRowWebMobile}
                 >
-                  {["All", "Completed", "Pending", "Failed"].map((f) => (
+                  {TXN_STATUS_FILTERS.map((f) => (
                     <FilterChip
-                      key={f}
-                      label={f}
-                      active={statusFilter === f}
-                      onPress={() => setStatusFilter(f)}
+                      key={f.value}
+                      label={f.label}
+                      active={statusFilter === f.value}
+                      onPress={() => setStatusFilter(f.value)}
                     />
                   ))}
                 </ScrollView>
               ) : (
                 <View style={styles.filterRow}>
-                  {["All", "Completed", "Pending", "Failed"].map((f) => (
+                  {TXN_STATUS_FILTERS.map((f) => (
                     <FilterChip
-                      key={f}
-                      label={f}
-                      active={statusFilter === f}
-                      onPress={() => setStatusFilter(f)}
+                      key={f.value}
+                      label={f.label}
+                      active={statusFilter === f.value}
+                      onPress={() => setStatusFilter(f.value)}
                     />
                   ))}
                 </View>

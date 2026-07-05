@@ -115,13 +115,13 @@ const C = {
 };
 
 // ─── Types ───────────────────────────────────────────────────
-type SalesPeriod = "Day" | "Week" | "Month" | "Year";
+type SalesPeriod = "Day" | "Week" | "Month" | "Custom";
 
 interface ChartPoint {
     value: number;
 }
 
-const PERIOD_OPTIONS: SalesPeriod[] = ["Day", "Week", "Month", "Year"];
+const PERIOD_OPTIONS: SalesPeriod[] = ["Day", "Week", "Month", "Custom"];
 
 const QUICK_ACTIONS = [
     { icon: "shopping-outline", label: "Products", sub: "Add & manage products", iconColor: C.purple, bgColor: C.purplePale },
@@ -236,7 +236,7 @@ const AllStatsModal: React.FC<{
                     <View style={{ width: 38 }} />
                 </View>
                 <View style={stm.tabsWrap}>
-                    {(["Day", "Week", "Month", "Year"] as SalesPeriod[]).map(p => (
+                    {(["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map(p => (
                         <TouchableOpacity
                             key={p}
                             style={[stm.tab, period === p && stm.tabActive]}
@@ -256,7 +256,7 @@ const AllStatsModal: React.FC<{
                         >
                             <View style={stm.heroLeft}>
                                 <AppText style={stm.heroLabel}>
-                                    {period === "Day" ? "Today's" : period === "Week" ? "This Week's" : period === "Month" ? "This Month's" : "This Year's"} Revenue
+                                    {period === "Day" ? "Today's" : period === "Week" ? "This Week's" : period === "Month" ? "This Month's" : "Custom Range"} Revenue
                                 </AppText>
                                 <AppText style={stm.heroValue}>{data.sales}</AppText>
                                 <View style={stm.heroChange}>
@@ -311,15 +311,15 @@ const AllStatsModal: React.FC<{
                     <View style={stm.tableCard}>
                         <View style={[stm.tableRow, stm.tableHeader]}>
                             <AppText style={[stm.tableCell, stm.tableCellHeader, { flex: 1.4 }]}>Metric</AppText>
-                            {(["Day", "Week", "Month", "Year"] as SalesPeriod[]).map(p => (
+                            {(["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map(p => (
                                 <AppText key={p} style={[stm.tableCell, stm.tableCellHeader, p === period && stm.tableCellHighlight]}>{p}</AppText>
                             ))}
                         </View>
                         {[
-                            { label: "Sales", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].sales) },
-                            { label: "Orders", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].orders) },
-                            { label: "Views", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].views) },
-                            { label: "Rating", values: (["Day", "Week", "Month", "Year"] as SalesPeriod[]).map((p) => allStatsData[p].rating) },
+                            { label: "Sales", values: (["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map((p) => allStatsData[p].sales) },
+                            { label: "Orders", values: (["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map((p) => allStatsData[p].orders) },
+                            { label: "Views", values: (["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map((p) => allStatsData[p].views) },
+                            { label: "Rating", values: (["Day", "Week", "Month", "Custom"] as SalesPeriod[]).map((p) => allStatsData[p].rating) },
                         ].map((row, ri) => (
                             <View key={ri} style={[stm.tableRow, ri % 2 === 0 && stm.tableRowAlt]}>
                                 <AppText style={[stm.tableCell, stm.tableCellLabel, { flex: 1.4 }]}>{row.label}</AppText>
@@ -329,7 +329,7 @@ const AllStatsModal: React.FC<{
                                         style={[
                                             stm.tableCell,
                                             stm.tableCellVal,
-                                            (["Day", "Week", "Month", "Year"] as SalesPeriod[])[vi] === period && stm.tableCellHighlight,
+                                            (["Day", "Week", "Month", "Custom"] as SalesPeriod[])[vi] === period && stm.tableCellHighlight,
                                         ]}
                                     >
                                         {v}

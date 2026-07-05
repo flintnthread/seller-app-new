@@ -2,7 +2,7 @@ import type { ProductFormCatalog } from "@/services/productApi";
 import { resolveWeightSlab, type DeliveryWeightSlab } from "@/lib/product/weightSlab";
 
 export const DEFAULT_GST_PERCENT = 5;
-export const COMMISSION_PERCENT = 0;
+export const COMMISSION_PERCENT = 15;
 export const DEFAULT_INTRA_CITY = 175;
 export const DEFAULT_METRO_METRO = 205;
 
@@ -211,7 +211,7 @@ export function calculateVariantPricingFromStrings(input: {
         ...(input.intraCityCharge != null ? { intraCityCharge: input.intraCityCharge } : {}),
         ...(input.metroMetroCharge != null ? { metroMetroCharge: input.metroMetroCharge } : {}),
         ...(input.discountOverride != null ? { discountOverride: input.discountOverride } : {}),
-        commissionPercent: 0,
+        ...(input.commissionPercent != null ? { commissionPercent: input.commissionPercent } : {}),
     });
 }
 
@@ -241,7 +241,7 @@ export function mapPricingPreviewToResult(preview: {
     totalIntraCity: number;
     totalMetroMetro: number;
 }): VariantPricingResult {
-    return normalizePricingWithoutCommission({
+    return {
         mrpExcl: preview.mrpExcl,
         sellingExcl: preview.sellingExcl,
         gstPercent: preview.gstPercent,
@@ -255,7 +255,7 @@ export function mapPricingPreviewToResult(preview: {
         metroMetroCharge: preview.metroMetroCharge,
         totalIntraCity: preview.totalIntraCity,
         totalMetroMetro: preview.totalMetroMetro,
-    });
+    };
 }
 
 export function formatInr(amount: number): string {

@@ -66,6 +66,8 @@ export interface PaymentInfo {
   paidOn: string;
   bankOrUpiId: string;
   refNo: string;
+  paymentCompleted?: boolean;
+  sellerPaymentStatus?: string;
 }
 
 export interface OrderItem {
