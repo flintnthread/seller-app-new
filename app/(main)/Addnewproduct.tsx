@@ -44,6 +44,7 @@ import {
 } from "@/lib/product/variantPricing";
 import { VariantPriceBreakdown } from "@/lib/product/VariantPriceBreakdown";
 import { generateVariantSku } from "@/lib/product/generateVariantSku";
+import { parseVariantValidationError, scrollToFieldTarget } from "@/lib/product/scrollToField";
 import { scrollViewsToTop } from "@/lib/product/scrollToTop";
 import {
     getWebDropActiveKey,
@@ -103,6 +104,33 @@ const AnimatedView = Animated.View as React.ComponentType<
 
 const { width: SW } = Dimensions.get("window");
 const CONTENT_MAX = 1120;
+
+const HIDE_SCROLLBAR_WEB =
+    Platform.OS === "web"
+        ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as object)
+        : {};
+
+if (Platform.OS === "web" && typeof document !== "undefined") {
+    const styleId = "__anp_scrollbar_hide__";
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement("style");
+        style.id = styleId;
+        style.textContent = `
+            .anp-hide-scrollbar,
+            .anp-hide-scrollbar * {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .anp-hide-scrollbar::-webkit-scrollbar,
+            .anp-hide-scrollbar *::-webkit-scrollbar {
+                display: none;
+                width: 0;
+                height: 0;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
 
 /** Set false before production to start with empty forms */
 const PREFILL_WITH_DUMMY = false;
@@ -1048,15 +1076,24 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
                             zIndex: 201,
                             maxHeight: 280,
                             overflow: "hidden",
-                            ...(Platform.OS === "web"
-                                ? ({ overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" } as object)
-                                : {}),
                         }}
                         {...(Platform.OS === "web"
-                            ? { onWheel: (e: { stopPropagation: () => void }) => e.stopPropagation() }
+                            ? { className: "anp-hide-scrollbar" as any }
                             : {})}
                     >
-                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator bounces={false} style={{ maxHeight: 280 }}>
+                        <ScrollView
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                            bounces={false}
+                            style={[{ maxHeight: 280 }, HIDE_SCROLLBAR_WEB]}
+                            {...(Platform.OS === "web"
+                                ? {
+                                    className: "anp-hide-scrollbar" as any,
+                                    onWheel: (e: { stopPropagation: () => void }) => e.stopPropagation(),
+                                }
+                                : {})}
+                        >
                             {menuContent}
                         </ScrollView>
                     </View>
@@ -1086,7 +1123,12 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
                         <Ionicons name="close" size={18} color={C.textMid} />
                     </TouchableOpacity>
                 </View>
-                <ScrollView showsVerticalScrollIndicator={isDesktop} bounces={false} style={isDesktop ? pm.listDesktop : undefined}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                    style={[isDesktop ? pm.listDesktop : undefined, HIDE_SCROLLBAR_WEB]}
+                    {...(Platform.OS === "web" ? { className: "anp-hide-scrollbar" as any } : {})}
+                >
                     {items.map((opt: string, index: number) => (
                         <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, isDesktop && pm.itemDesktop, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
                             <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
@@ -1125,6 +1167,7 @@ const pm = StyleSheet.create({
     },
     listDesktop: {
         maxHeight: 280,
+        ...HIDE_SCROLLBAR_WEB,
     },
     drag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 6 },
     hdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
@@ -1172,16 +1215,19 @@ const InlinePicker = ({
                 <ScrollView
                     style={[
                         fp.inlinePickerList,
-                        Platform.OS === "web"
-                            ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as object)
-                            : null,
+                        HIDE_SCROLLBAR_WEB,
                     ]}
                     contentContainerStyle={fp.inlinePickerListContent}
                     bounces={false}
                     nestedScrollEnabled
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
-                    {...(Platform.OS === "web" ? { onWheel: (e: any) => e.stopPropagation() } : {})}
+                    {...(Platform.OS === "web"
+                        ? {
+                            className: "anp-hide-scrollbar" as any,
+                            onWheel: (e: any) => e.stopPropagation(),
+                        }
+                        : {})}
                 >
                     {items.map((opt, index) => (
                         <TouchableOpacity
@@ -1809,79 +1855,55 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
     const fieldRefs = useRef<Record<string, any>>({});
 
     useEffect(() => {
-        if (errors && errors.length > 0) {
-            const getFieldKeyFromError = (error: string): string | null => {
-                const err = error.toLowerCase();
-                if (err.includes("product name") || err.includes("name is required")) return "name";
-                if (err.includes("subcategory")) return "subcategory";
-                if (err.includes("category")) return "category";
-                if (err.includes("material")) return "materialType";
-                if (err.includes("hsn")) return "hsnCode";
-                if (err.includes("short description")) return "shortDesc";
-                if (err.includes("full description")) return "fullDesc";
-                if (err.includes("length")) return "length";
-                if (err.includes("width")) return "width";
-                if (err.includes("height")) return "height";
-                if (err.includes("weight")) return "weight";
-                if (err.includes("customization field") || err.includes("customer field")) return "custCustomFields";
-                return null;
-            };
+        if (validationTrigger <= 0 || !errors?.length) return;
 
-            const firstErr = errors[0];
-            const fieldKey = getFieldKeyFromError(firstErr);
-            if (fieldKey) {
-                const targetRef = fieldRefs.current[fieldKey];
-                const containerRef = scrollRef.current;
+        const getFieldKeyFromError = (error: string): string | null => {
+            const err = error.toLowerCase();
+            if (err.includes("product name") || err.includes("name is required")) return "name";
+            if (err.includes("subcategory")) return "subcategory";
+            if (err.includes("category")) return "category";
+            if (err.includes("material")) return "materialType";
+            if (err.includes("hsn")) return "hsnCode";
+            if (err.includes("short description")) return "shortDesc";
+            if (err.includes("full description")) return "fullDesc";
+            if (err.includes("length")) return "length";
+            if (err.includes("width")) return "width";
+            if (err.includes("height")) return "height";
+            if (err.includes("weight")) return "weight";
+            if (err.includes("customization field") || err.includes("customer field")) return "custCustomFields";
+            return null;
+        };
 
-                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
-                    try {
-                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        return;
-                    } catch (e) {
-                        // ignore and fallback
-                    }
-                }
+        const timer = setTimeout(() => {
+            const fieldKey = getFieldKeyFromError(errors[0]);
+            if (!fieldKey) return;
 
-                const fallbackScroll = () => {
-                    let cardKey = '';
-                    if (['name', 'category', 'subcategory', 'materialType', 'hsnCode'].includes(fieldKey)) {
-                        cardKey = 'identity';
-                    } else if (['shortDesc', 'fullDesc'].includes(fieldKey)) {
-                        cardKey = 'desc';
-                    } else if (['length', 'width', 'height'].includes(fieldKey)) {
-                        cardKey = 'dimensions';
-                    } else if (['weight'].includes(fieldKey)) {
-                        cardKey = 'weight';
-                    } else if (fieldKey === "custCustomFields") {
-                        cardKey = "custom";
-                    }
-
-                    const cardY = cardLayouts.current[cardKey] || 0;
-                    const fieldY = fieldLayouts.current[fieldKey] || 0;
-                    const targetY = Math.max(0, cardY + fieldY - 15);
-                    containerRef?.scrollTo({ y: targetY, animated: true });
-                };
-
-                if (targetRef && containerRef) {
-                    try {
-                        targetRef.measureLayout(
-                            containerRef,
-                            (x: number, y: number) => {
-                                const targetY = Math.max(0, y - 15);
-                                containerRef.scrollTo({ y: targetY, animated: true });
-                            },
-                            () => {
-                                fallbackScroll();
-                            }
-                        );
-                    } catch (e) {
-                        fallbackScroll();
-                    }
-                } else {
-                    fallbackScroll();
-                }
+            const targetRef = fieldRefs.current[fieldKey];
+            const containerRef = scrollRef.current;
+            if (targetRef) {
+                scrollToFieldTarget(targetRef, containerRef, 15);
+                return;
             }
-        }
+
+            let cardKey = "";
+            if (["name", "category", "subcategory", "materialType", "hsnCode"].includes(fieldKey)) {
+                cardKey = "identity";
+            } else if (["shortDesc", "fullDesc"].includes(fieldKey)) {
+                cardKey = "desc";
+            } else if (["length", "width", "height"].includes(fieldKey)) {
+                cardKey = "dimensions";
+            } else if (fieldKey === "weight") {
+                cardKey = "weight";
+            } else if (fieldKey === "custCustomFields") {
+                cardKey = "custom";
+            }
+
+            const cardY = cardLayouts.current[cardKey] || 0;
+            const fieldY = fieldLayouts.current[fieldKey] || 0;
+            containerRef?.scrollTo({ y: Math.max(0, cardY + fieldY - 15), animated: true });
+        }, 120);
+
+        return () => clearTimeout(timer);
     }, [errors, validationTrigger]);
 
     const categoryPathOptions = buildCategoryPathOptions(catalog, CATEGORY_TREE_FALLBACK);
@@ -2492,6 +2514,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
     const [clrPick, setClrPick] = useState<string | null>(null);
     const [szPick, setSzPick] = useState<string | null>(null);
     const variantCardRefs = useRef<Record<number, View | null>>({});
+    const variantFieldRefs = useRef<Record<string, View | null>>({});
     const [variantPricingMap, setVariantPricingMap] = useState<Record<string, {
         pricing: VariantPricingResult;
         delivery: DeliveryChargeInfo;
@@ -2625,31 +2648,24 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         }));
     };
 
+    const setVariantFieldRef = (index: number, fieldKey: string) => (el: View | null) => {
+        variantFieldRefs.current[`${index}-${fieldKey}`] = el;
+    };
+
     useEffect(() => {
         if (validationTrigger <= 0 || !errors?.length) return;
-        const match = errors[0]?.match(/Variant #(\d+)/);
-        const variantIdx = match ? Math.max(0, parseInt(match[1], 10) - 1) : 0;
+        const parsed = parseVariantValidationError(errors[0]);
         const timer = setTimeout(() => {
-            const card = variantCardRefs.current[variantIdx];
             const container = scrollRef?.current;
-            if (!card || !container) {
+            if (!parsed) {
                 scrollViewsToTop(container);
                 return;
             }
-            if (Platform.OS === "web") {
-                scrollViewsToTop(container);
-                return;
-            }
-            try {
-                card.measureLayout(
-                    container as any,
-                    (_x, y) => container.scrollTo({ y: Math.max(0, y - 16), animated: true }),
-                    () => scrollViewsToTop(container),
-                );
-            } catch {
-                scrollViewsToTop(container);
-            }
-        }, 180);
+
+            const fieldTarget = variantFieldRefs.current[`${parsed.index}-${parsed.fieldKey}`];
+            const cardTarget = variantCardRefs.current[parsed.index];
+            scrollToFieldTarget(fieldTarget ?? cardTarget, container, 16);
+        }, 120);
         return () => clearTimeout(timer);
     }, [errors, validationTrigger, scrollRef]);
 
@@ -2740,7 +2756,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     </View>
                     <Divider />
                     <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "color")}>
                             <Lbl text="Color" required />
                             <ColorSelectField
                                 placeholder="Select color"
@@ -2753,7 +2769,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                 onPress={() => openColorPicker(v.id)}
                             />
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "size")}>
                             <Lbl text="Size" required />
                             <Drop dropKey={`variant-${v.id}-size`} placeholder="Select size" value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
                                 const size = resolveSizeFromLabel(val);
@@ -2772,7 +2788,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                             </View>
                             <Field placeholder="Auto-generated" value={v.sku} editable={false} />
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "stock")}>
                             <View style={vt.lblRow}>
                                 <Lbl text="Stock Qty" required compact />
                             </View>
@@ -2793,12 +2809,12 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                         </View>
                     ) : null}
                     <View style={at.row2}>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "mrp")}>
                             <Lbl text="MRP (excl. GST)" required />
                             <Field placeholder="0.00" value={v.mrp} onChangeText={(val: string) => upVariant(v.id, "mrp", val)} keyboardType="decimal-pad" prefix="₹" hasError={hasErr(v.id, "mrp")} />
                             <Hint text="Maximum Retail Price" />
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "sellingPrice")}>
                             <Lbl text="Selling Price" required />
                             <Field placeholder="0.00" value={v.sellingPrice} onChangeText={(val: string) => upVariant(v.id, "sellingPrice", val)} keyboardType="decimal-pad" prefix="₹" hasError={hasErr(v.id, "selling")} />
                             <Hint text="Your price excl. GST" />
@@ -2841,7 +2857,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
 
                     <Divider />
                     {!reuseColorImages ? (
-                        <>
+                        <View ref={setVariantFieldRef(idx, "images")}>
                             <Lbl text="Variant Images" required />
                             <Hint text="Add as many images as you need · first image is used as primary" />
                             <ImagePickerGrid
@@ -2852,7 +2868,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                 hasError={hasErr(v.id, "image")}
                                 label="Add Photo"
                             />
-                        </>
+                        </View>
                     ) : (
                         <View style={vt.reuseNote}>
                             <MaterialCommunityIcons name="image-multiple" size={16} color={C.navyLight} />
@@ -2917,26 +2933,8 @@ const StepImages = ({ data, onChange, errors, isDesktop = false, scrollRef, vali
     useEffect(() => {
         if (validationTrigger <= 0 || !errors?.length) return;
         const timer = setTimeout(() => {
-            const block = primaryBlockRef.current;
-            const container = scrollRef?.current;
-            if (!block || !container) {
-                scrollViewsToTop(container);
-                return;
-            }
-            if (Platform.OS === "web") {
-                scrollViewsToTop(container);
-                return;
-            }
-            try {
-                block.measureLayout(
-                    container as any,
-                    (_x, y) => container.scrollTo({ y: Math.max(0, y - 16), animated: true }),
-                    () => scrollViewsToTop(container),
-                );
-            } catch {
-                scrollViewsToTop(container);
-            }
-        }, 180);
+            scrollToFieldTarget(primaryBlockRef.current, scrollRef?.current, 16);
+        }, 120);
         return () => clearTimeout(timer);
     }, [errors, validationTrigger, scrollRef]);
 
@@ -3101,41 +3099,23 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const fieldRefs = useRef<Record<string, any>>({});
 
     useEffect(() => {
-        if (validationTrigger > 0 && errors && errors.length > 0) {
-            const getFieldKeyFromError = (error: string): string | null => {
-                const err = error.toLowerCase();
-                if (err.includes("return policy")) return "returnPolicy";
-                if (err.includes("delivery option")) return "deliveryOption";
-                return null;
-            };
+        if (validationTrigger <= 0 || !errors?.length) return;
 
-            const firstErr = errors[0];
-            const fieldKey = getFieldKeyFromError(firstErr);
-            if (fieldKey) {
-                const targetRef = fieldRefs.current[fieldKey];
+        const getFieldKeyFromError = (error: string): string | null => {
+            const err = error.toLowerCase();
+            if (err.includes("return policy")) return "returnPolicy";
+            if (err.includes("delivery option")) return "deliveryOption";
+            if (err.includes("payment option")) return "paymentOption";
+            return null;
+        };
 
-                if (Platform.OS === 'web' && targetRef && typeof targetRef.scrollIntoView === 'function') {
-                    try {
-                        targetRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        return;
-                    } catch (e) {
-                        // ignore and fallback
-                    }
-                }
+        const timer = setTimeout(() => {
+            const fieldKey = getFieldKeyFromError(errors[0]);
+            if (!fieldKey) return;
+            scrollToFieldTarget(fieldRefs.current[fieldKey], scrollRef.current, 15);
+        }, 120);
 
-                if (targetRef && scrollRef.current) {
-                    try {
-                        targetRef.measureLayout(
-                            scrollRef.current as any,
-                            (x: number, y: number) => {
-                                scrollRef.current?.scrollTo({ y: Math.max(0, y - 15), animated: true });
-                            },
-                            () => {}
-                        );
-                    } catch (e) {}
-                }
-            }
-        }
+        return () => clearTimeout(timer);
     }, [errors, validationTrigger]);
     const [sizePick, setSizePick] = useState(false);
     const [retPick, setRetPick] = useState(false);
@@ -3547,6 +3527,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 <Field placeholder="Extra delivery notes…" value={data.deliveryInfo} onChangeText={(v: string) => onChange("deliveryInfo", v)} multiline lines={3} maxLength={1000} />
             </Card>
 
+            <View ref={el => { fieldRefs.current['paymentOption'] = el; }}>
             <Card zIndex={70} style={{ marginTop: 12 }}>
                 <SecHead icon="credit-card-outline" title="Payment Options" accent={C.accent5} />
                 <Divider />
@@ -3587,6 +3568,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                     })}
                 </View>
             </Card>
+            </View>
 
             <Card zIndex={60} style={{ marginTop: 12 }}>
                 <SecHead icon="shield-check-outline" title="Warranty & Care" accent={C.accent2} />
@@ -4464,8 +4446,11 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
         if (step === 0) {
             const errors = validateBasicInfo(basicData);
             setBasicErrors(errors);
-            setValidationTrigger(prev => prev + 1);
-            if (errors.length > 0) { showErrors(errors); return; }
+            if (errors.length > 0) {
+                showErrors(errors);
+                setValidationTrigger((prev) => prev + 1);
+                return;
+            }
             setBasicErrors([]);
         }
         if (step === 1) {

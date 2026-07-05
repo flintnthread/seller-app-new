@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
+import { useSellerProfileSummary } from "@/hooks/useSellerProfileSummary";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
 
 interface AppHeaderProps {
   title: string;
@@ -20,6 +22,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { summary } = useSellerProfileSummary();
+  const { isProfileCompleted } = useProfileStatus();
+  const profileDone = summary?.profileCompleted === true || isProfileCompleted;
+  const approval = summary?.accountStatus?.approvalState;
+  const showSellerTools = profileDone && approval === "approved";
 
   // On Web/Desktop, the header is handled globally by DesktopHeader in WebLayout.
   if (Platform.OS === "web") {
@@ -62,7 +69,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <View style={styles.navRight}>
           {rightActions ? (
             rightActions
-          ) : (
+          ) : showSellerTools ? (
             <>
               <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push("/(main)/notifications")}>
                 <Ionicons name="notifications-outline" size={22} color="#ffffff" />
@@ -74,7 +81,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 <Ionicons name="settings-outline" size={22} color="#ffffff" />
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
         </View>
       </View>
     </SafeAreaView>
