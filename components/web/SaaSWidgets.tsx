@@ -1207,17 +1207,25 @@ const trackingStyles = StyleSheet.create({
 });
 
 // ─── 9. TOP PRODUCTS PERFORMANCE ───
-type TopProductRow = { id: string; name: string; sold: number; price: string };
+type TopProductRow = { id: string; name: string; sold: number; price: string; image?: string };
 
 export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ items = [] }) => {
+  const router = useRouter();
+
+  const openProduct = (id: string) => {
+    if (!id) return;
+    router.push({ pathname: "/(main)/Productdetail", params: { id } } as any);
+  };
+
   return (
     <View style={panelStyles.card}>
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Top Selling Products Performance</AppText>
       
       <View style={tableStyles.headerRow}>
-        <AppText style={[tableStyles.headerText, { flex: 2 }]}>Product</AppText>
-        <AppText style={tableStyles.headerText}>Sold</AppText>
-        <AppText style={tableStyles.headerText}>Price</AppText>
+        <View style={tableStyles.imageCol} />
+        <AppText style={[tableStyles.headerText, tableStyles.nameCol]}>Product</AppText>
+        <AppText style={[tableStyles.headerText, tableStyles.soldCol]}>Sold</AppText>
+        <AppText style={[tableStyles.headerText, tableStyles.priceCol]}>Price</AppText>
       </View>
 
       {items.length === 0 ? (
@@ -1225,9 +1233,20 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
       ) : (
         items.map((it) => (
           <View key={it.id} style={tableStyles.row}>
-            <AppText style={[tableStyles.cell, { flex: 2, fontFamily: "Poppins_700Bold" }]} numberOfLines={1}>{it.name}</AppText>
-            <AppText style={tableStyles.cell}>{it.sold}</AppText>
-            <AppText style={tableStyles.cell}>{it.price}</AppText>
+            <TouchableOpacity onPress={() => openProduct(it.id)} activeOpacity={0.7}>
+              {it.image ? (
+                <Image source={{ uri: it.image }} style={tableStyles.thumb} resizeMode="cover" />
+              ) : (
+                <View style={[tableStyles.thumb, tableStyles.thumbPlaceholder]}>
+                  <MaterialCommunityIcons name="image-outline" size={18} color={C.textLight} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={tableStyles.nameCol} onPress={() => openProduct(it.id)} activeOpacity={0.7}>
+              <AppText style={[tableStyles.cell, tableStyles.nameCell]} numberOfLines={1}>{it.name}</AppText>
+            </TouchableOpacity>
+            <AppText style={[tableStyles.cell, tableStyles.soldCol]}>{it.sold}</AppText>
+            <AppText style={[tableStyles.cell, tableStyles.priceCol]}>{it.price}</AppText>
           </View>
         ))
       )}
@@ -1238,30 +1257,63 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
 const tableStyles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
-    backgroundColor: C.bg,
-    paddingVertical: 8,
+    alignItems: "center",
+    gap: 16,
+    backgroundColor: C.purplePale,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 6,
-    marginBottom: 6,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   headerText: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: "Poppins_700Bold",
-    color: C.textLight,
-    flex: 1,
+    color: C.navy,
+    letterSpacing: 0.3,
   },
   row: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
+  imageCol: {
+    width: 48,
+    flexShrink: 0,
+  },
+  thumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: C.purplePale,
+    flexShrink: 0,
+  },
+  thumbPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameCol: {
+    flex: 2,
+    minWidth: 0,
+  },
+  nameCell: {
+    fontFamily: "Poppins_600SemiBold",
+  },
+  soldCol: {
+    flex: 0.7,
+    textAlign: "center",
+  },
+  priceCol: {
+    flex: 1,
+    textAlign: "right",
+  },
   cell: {
     fontSize: 11,
     fontFamily: "Poppins_500Medium",
     color: C.textDark,
-    flex: 1,
   },
 });
 

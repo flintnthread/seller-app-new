@@ -1696,6 +1696,14 @@ const MobileDashboard: React.FC<{
                                 <Ionicons name="chevron-forward" size={15} color={C.purple} />
                             </TouchableOpacity>
                         </View>
+                        {topProductsView.length > 0 ? (
+                            <View style={s.topProductHeaderRow}>
+                                <View style={s.topProductImageCol} />
+                                <AppText style={[s.topProductHeaderText, s.topProductNameCol]}>Product</AppText>
+                                <AppText style={[s.topProductHeaderText, s.topProductSoldCol]}>Sold</AppText>
+                                <AppText style={[s.topProductHeaderText, s.topProductPriceCol]}>Price</AppText>
+                            </View>
+                        ) : null}
                         {topProductsView.length === 0 && !dashboardLoading ? (
                             <AppText style={{ color: C.textLight, fontFamily: "Poppins_400Regular", fontSize: 13, paddingVertical: 8 }}>
                                 No sales data yet. Top products will appear here after your first orders.
@@ -1703,16 +1711,15 @@ const MobileDashboard: React.FC<{
                         ) : null}
                         {topProductsView.map((p, i) => (
                             <View key={p.id || i} style={s.topProductRow}>
-                                <Image source={{ uri: p.image }} style={s.topProductThumb} resizeMode="cover" />
-                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                <TouchableOpacity onPress={() => p.id && router.push({ pathname: "/(main)/Productdetail", params: { id: p.id } } as any)} activeOpacity={0.7}>
+                                    <Image source={{ uri: p.image }} style={s.topProductThumb} resizeMode="cover" />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={s.topProductNameCol} onPress={() => p.id && router.push({ pathname: "/(main)/Productdetail", params: { id: p.id } } as any)} activeOpacity={0.7}>
                                     <AppText style={s.topProductName} numberOfLines={1}>{p.name}</AppText>
                                     <AppText style={s.topProductCat}>{p.category}</AppText>
-                                    <AppText style={s.topProductPrice}>{p.price}</AppText>
-                                </View>
-                                <View style={{ alignItems: "flex-end" }}>
-                                    <AppText style={s.topProductSold}>{p.sold}</AppText>
-                                    <AppText style={s.topProductSoldLabel}>Sold</AppText>
-                                </View>
+                                </TouchableOpacity>
+                                <AppText style={[s.topProductSold, s.topProductSoldCol]}>{p.sold}</AppText>
+                                <AppText style={[s.topProductPrice, s.topProductPriceCol]}>{p.price}</AppText>
                             </View>
                         ))}
                     </View>
@@ -1915,13 +1922,36 @@ const s = StyleSheet.create({
     chartAxisLabel: { fontFamily: fontFamilies.regular, fontSize: 9, color: C.textLight },
     chartXAxis: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
     chartXLabel: { fontFamily: fontFamilies.regular, fontSize: 8, color: C.textLight },
-    topProductRow: { flexDirection: "row", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    topProductThumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: C.purplePale },
+    topProductHeaderRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        backgroundColor: C.purplePale,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    topProductHeaderText: { fontFamily: fontFamilies.bold, fontSize: 12, color: C.navy, letterSpacing: 0.3 },
+    topProductRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        marginBottom: 12,
+        paddingBottom: 12,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+    },
+    topProductImageCol: { width: 52, flexShrink: 0 },
+    topProductNameCol: { flex: 2, minWidth: 0 },
+    topProductSoldCol: { flex: 0.7, textAlign: "center" },
+    topProductPriceCol: { flex: 1, textAlign: "right" },
+    topProductThumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: C.purplePale, flexShrink: 0 },
     topProductName: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.textDark },
     topProductCat: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight, marginTop: 1 },
-    topProductPrice: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purple, marginTop: 2 },
+    topProductPrice: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purple },
     topProductSold: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark },
-    topProductSoldLabel: { fontFamily: fontFamilies.regular, fontSize: 11, color: C.textLight },
     taskRow: { flexDirection: "row", alignItems: "center", marginBottom: 13 },
     checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: C.border, marginRight: 9, alignItems: "center", justifyContent: "center" },
     checkboxChecked: { backgroundColor: C.purple, borderColor: C.purple },
