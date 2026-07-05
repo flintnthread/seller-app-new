@@ -1,16 +1,16 @@
 import React, { useMemo, useEffect } from "react";
 import {
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
   useWindowDimensions,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "@/components/AppText";
 import type { LegalDocument, LegalSection } from "@/constants/sellerLegalContent";
@@ -21,6 +21,7 @@ const CONTAINER_MAX_WIDTH = 920;
 
 type Props = {
   document: LegalDocument;
+  returnTo?: string;
 };
 
 function isPartTitle(title: string) {
@@ -96,10 +97,31 @@ function SectionBlock({ section, index }: { section: LegalSection; index: number
   );
 }
 
-export function LegalDocumentView({ document }: Props) {
+export function LegalDocumentView({ document, returnTo }: Props) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const isCompact = width < 480;
+
+  const handleBack = () => {
+    if (returnTo) {
+      router.replace(returnTo as Href);
+      return;
+    }
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      router.replace("/(auth)/login");
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/(auth)/login");
+  };
 
   const docKind = useMemo(
     () => (document.title.toLowerCase().includes("privacy") ? "privacy" : "terms"),
@@ -127,12 +149,12 @@ export function LegalDocumentView({ document }: Props) {
         <View style={styles.container}>
           <View style={styles.heroInner}>
             <View style={styles.heroTopRow}>
-              <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+              <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7}>
                 <Ionicons name="arrow-back" size={22} color="#fff" />
                 <AppText weight="semiBold" size="sm" color="#fff" style={{ marginLeft: 4 }}>
                   Back
                 </AppText>
-              </Pressable>
+              </TouchableOpacity>
               <View style={styles.docTypePill}>
                 <Ionicons
                   name={docKind === "privacy" ? "shield-checkmark-outline" : "document-text-outline"}
@@ -145,24 +167,35 @@ export function LegalDocumentView({ document }: Props) {
               </View>
             </View>
 
-            <View style={styles.heroBrandRow}>
+            <View style={[styles.heroBrandRow, isCompact && styles.heroBrandRowStacked]}>
               <LinearGradient
                 colors={["#EF7B1A", "#F97316"]}
-                style={styles.logoRing}
+                style={[styles.logoRing, isCompact && styles.logoRingCompact]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
                 <Image
                   source={require("../../assets/images/logo.jpg")}
-                  style={styles.logoImage}
+                  style={[styles.logoImage, isCompact && styles.logoImageCompact]}
                   resizeMode="contain"
                 />
               </LinearGradient>
               <View style={styles.heroBrandText}>
-                <AppText weight="bold" size="xl" color="#fff" style={styles.heroTitle}>
+                <AppText
+                  weight="bold"
+                  size={isCompact ? "lg" : "xl"}
+                  color="#fff"
+                  style={styles.heroTitle}
+                  numberOfLines={isCompact ? 3 : 2}
+                >
                   {document.title}
                 </AppText>
-                <AppText size="sm" color="rgba(255,255,255,0.85)" style={styles.heroSub}>
+                <AppText
+                  size="sm"
+                  color="rgba(255,255,255,0.85)"
+                  style={styles.heroSub}
+                  numberOfLines={isCompact ? 4 : 3}
+                >
                   {document.subtitle}
                 </AppText>
               </View>
@@ -242,14 +275,18 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "web" ? ({ marginHorizontal: "auto" } as object) : {}),
   },
   hero: { paddingBottom: 20, width: "100%" },
-  heroInner: { paddingHorizontal: 20, paddingTop: 8, width: "100%" },
+  heroInner: { paddingHorizontal: 16, paddingTop: 8, width: "100%" },
   heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  backBtn: { flexDirection: "row", alignItems: "center" },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
+  },
   docTypePill: {
     flexDirection: "row",
     alignItems: "center",
@@ -264,6 +301,11 @@ const styles = StyleSheet.create({
     gap: 14,
     marginBottom: 14,
   },
+  heroBrandRowStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   logoRing: {
     width: 173,
     height: 55,
@@ -273,11 +315,19 @@ const styles = StyleSheet.create({
     padding: 3,
     flexShrink: 0,
   },
+  logoRingCompact: {
+    width: 150,
+    height: 48,
+  },
   logoImage: {
     width: 170,
     height: 50,
     borderRadius: 5,
     backgroundColor: "#ffffff",
+  },
+  logoImageCompact: {
+    width: 146,
+    height: 44,
   },
   heroBrandText: { flex: 1, minWidth: 0 },
   heroTitle: { marginBottom: 4 },

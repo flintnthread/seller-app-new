@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -44,6 +44,8 @@ type Props = {
 
 export function CompleteProfileDashboardCard({ profile, loading, embedded = false }: Props) {
     const router = useRouter();
+    const { width } = useWindowDimensions();
+    const isCompact = width < 400;
     const [greeting, setGreeting] = useState("Hello");
 
     useEffect(() => {
@@ -128,10 +130,14 @@ export function CompleteProfileDashboardCard({ profile, loading, embedded = fals
                         <View style={styles.progressTrack}>
                             <View style={styles.progressFill} />
                         </View>
-                        <View style={styles.progressFooter}>
+                        <View style={[styles.progressFooter, isCompact && styles.progressFooterStacked]}>
                             <AppText style={styles.progressLabel}>0 of 5 steps completed</AppText>
                             <Pressable
-                                style={({ pressed }) => [styles.ctaWrap, pressed && { opacity: 0.92 }]}
+                                style={({ pressed }) => [
+                                    styles.ctaWrap,
+                                    isCompact && styles.ctaWrapFull,
+                                    pressed && { opacity: 0.92 },
+                                ]}
                                 onPress={handleComplete}
                             >
                                 <LinearGradient
@@ -232,7 +238,7 @@ const styles = StyleSheet.create({
         elevation: 8,
     },
     heroWrap: {
-        marginHorizontal: 16,
+        marginHorizontal: 12,
         marginBottom: 16,
         borderRadius: 16,
         overflow: "hidden",
@@ -329,7 +335,7 @@ const styles = StyleSheet.create({
         color: C.amber,
     },
     alertBanner: {
-        marginHorizontal: 16,
+        marginHorizontal: 12,
         marginBottom: 14,
         backgroundColor: C.orangePale,
         borderWidth: 1,
@@ -390,9 +396,14 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         gap: 10,
         marginTop: 2,
+        flexWrap: "wrap",
+    },
+    progressFooterStacked: {
+        flexDirection: "column",
+        alignItems: "stretch",
     },
     stepsCard: {
-        marginHorizontal: 16,
+        marginHorizontal: 12,
         marginBottom: 16,
         backgroundColor: C.white,
         borderRadius: 12,
@@ -476,6 +487,9 @@ const styles = StyleSheet.create({
         overflow: "hidden",
         flexShrink: 0,
     },
+    ctaWrapFull: {
+        width: "100%",
+    },
     cta: {
         flexDirection: "row",
         alignItems: "center",
@@ -490,7 +504,7 @@ const styles = StyleSheet.create({
         color: C.white,
     },
     helpRow: {
-        marginHorizontal: 16,
+        marginHorizontal: 12,
         marginTop: 14,
         flexDirection: "row",
         alignItems: "center",

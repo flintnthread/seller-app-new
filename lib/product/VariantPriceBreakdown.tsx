@@ -64,8 +64,8 @@ export function VariantPriceBreakdown({ pricing, delivery, hasWeight = true, com
     const gstLabel = `GST (${pricing.gstPercent.toFixed(2)}%)`;
     const discountLabel = `Discount (${pricing.discountPercentage.toFixed(2)}%)`;
     const commissionPct = commissionPercent ?? COMMISSION_PERCENT;
-    const commissionLabel = `Commission (${commissionPct.toFixed(2)}% of SP w/ GST)`;
-    const subtotalWithGstAndCommission = round2(pricing.finalPrice + pricing.commissionAmount);
+    const showCommission = commissionPct > 0 && pricing.commissionAmount > 0;
+    const subtotalWithGstAndCommission = round2(pricing.finalPrice + (showCommission ? pricing.commissionAmount : 0));
     const intraCharge = delivery.custom ? 0 : (pricing.intraCityCharge ?? delivery.intraCity);
     const metroCharge = delivery.custom ? 0 : (pricing.metroMetroCharge ?? delivery.metroMetro);
     const totalIntraCity = delivery.custom
@@ -104,19 +104,23 @@ export function VariantPriceBreakdown({ pricing, delivery, hasWeight = true, com
                     valueColor={C.green}
                     bold
                 />
-                <BreakdownRow
-                    label={commissionLabel}
-                    value={formatInr(pricing.commissionAmount)}
-                    valueColor={C.orange}
-                    prefix="+ "
-                />
-                <View style={pb.divider} />
-                <BreakdownRow
-                    label="Selling Price (With GST) + Commission = Total"
-                    value={formatInr(subtotalWithGstAndCommission)}
-                    valueColor={C.navyLight}
-                    bold
-                />
+                {showCommission ? (
+                    <>
+                        <BreakdownRow
+                            label={`Commission (${commissionPct.toFixed(2)}% of SP w/ GST)`}
+                            value={formatInr(pricing.commissionAmount)}
+                            valueColor={C.orange}
+                            prefix="+ "
+                        />
+                        <View style={pb.divider} />
+                        <BreakdownRow
+                            label="Selling Price (With GST) + Commission = Total"
+                            value={formatInr(subtotalWithGstAndCommission)}
+                            valueColor={C.navyLight}
+                            bold
+                        />
+                    </>
+                ) : null}
                 <View style={pb.dividerDashed} />
                 <BreakdownRow
                     label="MRP (With GST)"

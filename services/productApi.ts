@@ -36,9 +36,12 @@ export type ProductDetailVariant = {
     productId: string;
     color: string;
     colorHex: string;
+    colorId?: number;
     size: string;
+    sizeId?: number;
     sku: string;
     stock: number;
+    minQuantity?: number;
     basePrice: number;
     mrpExclGst: number;
     mrpPrice: number;
@@ -164,6 +167,15 @@ export type ProductDetail = {
     sizeChart: ProductDetailSizeChartRow[];
 };
 
+type ApiProductListVariant = {
+    id?: number;
+    sku?: string;
+    stock?: number;
+    finalPrice?: number;
+    sellingPrice?: number;
+    metroMetroDeliveryCharge?: number;
+};
+
 type ApiProductListItem = {
     id: number;
     name: string;
@@ -185,6 +197,7 @@ type ApiProductListItem = {
     dimensions?: string;
     returnPolicy?: string;
     warranty?: string;
+    variants?: ApiProductListVariant[];
 };
 
 type ApiProductVariant = {
@@ -192,9 +205,12 @@ type ApiProductVariant = {
     productId?: number;
     color?: string;
     colorHex?: string;
+    colorId?: number;
     size?: string;
+    sizeId?: number;
     sku?: string;
     stock?: number;
+    minQuantity?: number;
     basePrice?: number;
     mrpExclGst?: number;
     mrpPrice?: number;
@@ -294,6 +310,44 @@ type ApiProductDetail = {
     sizeChart?: ProductDetailSizeChartRow[];
 };
 
+function pickPrimaryListVariant(variants: ApiProductListVariant[]): ApiProductListVariant | null {
+    if (!variants.length) return null;
+    const inStock = variants.filter((v) => (v.stock ?? 0) > 0);
+    const pool = inStock.length > 0 ? inStock : variants;
+    return pool.reduce((best, v) => ((v.stock ?? 0) >= (best.stock ?? 0) ? v : best), pool[0]);
+}
+
+function resolveListItemPrice(row: ApiProductListItem): number {
+    const apiPrice = num(row.price);
+    const variants = row.variants ?? [];
+    const primary = pickPrimaryListVariant(variants);
+    if (!primary) return apiPrice;
+
+    const finalPrice = num(primary.finalPrice);
+    if (finalPrice <= 0) return apiPrice;
+
+    const metro = num(primary.metroMetroDeliveryCharge);
+    const withoutCommission = Math.round((finalPrice + metro) * 100) / 100;
+
+    if (metro > 0) return withoutCommission;
+
+    // Legacy API rows: list price still includes removed commission.
+    const legacyCommission = Math.round(finalPrice * 0.15 * 100) / 100;
+    if (legacyCommission > 0 && apiPrice > withoutCommission) {
+        const adjusted = Math.round((apiPrice - legacyCommission) * 100) / 100;
+        if (adjusted >= finalPrice) return adjusted;
+    }
+
+    return apiPrice > finalPrice ? apiPrice : finalPrice;
+}
+
+function resolveListItemSku(row: ApiProductListItem): string {
+    const variants = row.variants ?? [];
+    const primary = pickPrimaryListVariant(variants);
+    if (primary?.sku?.trim()) return primary.sku.trim();
+    return row.sku?.trim() ?? "";
+}
+
 function toListItem(row: ApiProductListItem): ProductListItem {
     const categorySub = row.categorySub?.trim() || undefined;
     const subcategory = row.subcategory ?? "";
@@ -302,8 +356,8 @@ function toListItem(row: ApiProductListItem): ProductListItem {
     return {
         id: String(row.id),
         name: row.name ?? "",
-        sku: row.sku ?? "",
-        price: Number(row.price ?? 0),
+        sku: resolveListItemSku(row),
+        price: resolveListItemPrice(row),
         mrpInclGst: row.mrpInclGst != null ? Number(row.mrpInclGst) : undefined,
         image: resolveMediaUrl(row.image ?? "") ?? "",
         status: row.status ?? "Inactive",
@@ -335,9 +389,12 @@ function toVariant(v: ApiProductVariant): ProductDetailVariant {
         productId: String(v.productId ?? ""),
         color: v.color ?? "—",
         colorHex: v.colorHex ?? "#9CA3AF",
+        ...(v.colorId != null ? { colorId: num(v.colorId) } : {}),
         size: v.size ?? "—",
+        ...(v.sizeId != null ? { sizeId: num(v.sizeId) } : {}),
         sku: v.sku ?? "—",
         stock: num(v.stock),
+        minQuantity: v.minQuantity != null ? num(v.minQuantity) : undefined,
         basePrice: num(v.basePrice),
         mrpExclGst: num(v.mrpExclGst),
         mrpPrice: num(v.mrpPrice),
@@ -541,6 +598,7 @@ export type CreateProductVariantPayload = {
     size: string;
     sku?: string;
     stock: number;
+    minQuantity?: number;
     mrp: number;
     sellingPrice: number;
     discount?: number;
@@ -714,6 +772,7 @@ export type VariantMutationPayload = {
     size: string;
     sku?: string;
     stock: number;
+    minQuantity?: number;
     mrp: number;
     sellingPrice: number;
     discount?: number;

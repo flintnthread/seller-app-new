@@ -1378,24 +1378,24 @@ const SellerSignUpScreen: React.FC = () => {
               I agree to{" "}
               <AppText
                 style={[styles.link, isDesktop && styles.linkDesktop]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/legal-document",
-                    params: { type: "terms" },
-                  })
-                }
+                  onPress={() =>
+                    router.push({
+                      pathname: "/legal-document",
+                      params: { type: "terms", returnTo: "/(auth)/signup" },
+                    })
+                  }
               >
                 Terms and Conditions
               </AppText>
               {" & "}
               <AppText
                 style={[styles.link, isDesktop && styles.linkDesktop]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/legal-document",
-                    params: { type: "privacy" },
-                  })
-                }
+                  onPress={() =>
+                    router.push({
+                      pathname: "/legal-document",
+                      params: { type: "privacy", returnTo: "/(auth)/signup" },
+                    })
+                  }
               >
                 Privacy Policy
               </AppText>

@@ -4,7 +4,8 @@ import { LegalDocumentView } from "@/components/legal/LegalDocumentView";
 import { getSellerLegalDocument } from "@/constants/sellerLegalContent";
 
 export default function LegalDocumentScreen() {
-  const { type } = useLocalSearchParams<{ type?: string }>();
+  const { type, returnTo } = useLocalSearchParams<{ type?: string; returnTo?: string }>();
   const document = getSellerLegalDocument(type === "terms" ? "terms" : "privacy");
-  return <LegalDocumentView document={document} />;
+  const backRoute = typeof returnTo === "string" && returnTo.trim() ? returnTo.trim() : undefined;
+  return <LegalDocumentView document={document} returnTo={backRoute} />;
 }

@@ -19,6 +19,7 @@ import {
     Animated,
     TouchableWithoutFeedback,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -64,6 +65,7 @@ import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import {
     EMPTY_ORDERS_CHART,
     EMPTY_PRODUCTS_CHART,
@@ -2046,7 +2048,29 @@ const s = StyleSheet.create({
 });
 
 const SellerDashboard: React.FC = () => {
+  const router = useRouter();
   const { summary, loading, reload } = useSellerProfileSummary();
+  const { loading: subscriptionLoading, paymentPending } = useSubscriptionStatus(
+    summary?.profileCompleted === true
+  );
+
+  useEffect(() => {
+    if (!subscriptionLoading && paymentPending) {
+      router.replace("/(main)/subscriptionRenewal");
+    }
+  }, [subscriptionLoading, paymentPending, router]);
+
+  if (subscriptionLoading && summary?.profileCompleted) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#1E3A6E" />
+      </View>
+    );
+  }
+
+  if (paymentPending && summary?.profileCompleted) {
+    return null;
+  }
 
   const desktopProps: DesktopDashboardProps = {
     profile: summary,

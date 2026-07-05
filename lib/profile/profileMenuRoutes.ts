@@ -16,8 +16,14 @@ export const PROFILE_MENU_ROUTES: Record<string, Href> = {
     "Transactions History": "/earningsScreen",
     "Payout Settings": "/settingsModule",
     "Help & Support": "/helpsupport",
-    "Privacy & Policy": "/legal-document?type=privacy",
-    "Privacy & Support": "/legal-document?type=privacy",
+    "Privacy & Policy": {
+        pathname: "/legal-document",
+        params: { type: "privacy", returnTo: "/(main)/Profile" },
+    },
+    "Privacy & Support": {
+        pathname: "/legal-document",
+        params: { type: "privacy", returnTo: "/(main)/Profile" },
+    },
     FAQs: "/helpsupport",
 };
 

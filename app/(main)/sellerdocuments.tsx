@@ -18,12 +18,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Image,
   Alert,
   Dimensions,
   TextInput,
   useWindowDimensions,
 } from "react-native";
+import { Image } from "expo-image";
 
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
@@ -36,6 +36,7 @@ import * as DocumentPicker from "expo-document-picker";
 import Animated, { useSharedValue, withTiming, withSpring } from "react-native-reanimated";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { ensureApiReachable } from "@/lib/api/config";
 import { useProfileStatus } from "@/hooks/useProfileStatus";
 import {
   fetchSellerProfile,
@@ -52,6 +53,7 @@ import {
   type SellerDocumentField,
 } from "@/services/sellerProfileApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
+import { ResponsiveTwoColGrid } from "@/components/common/ResponsivePairRow";
 
 declare global {
   interface Window {
@@ -579,7 +581,7 @@ const UploadBox: React.FC<{
               </View>
             ) : (
               <View style={ub.imagePreviewWrap}>
-                <Image source={{ uri: value }} style={ub.preview} resizeMode="contain" />
+                <Image source={{ uri: value }} style={ub.preview} contentFit="contain" cachePolicy="memory-disk" />
                 <View style={ub.imageOverlay} />
               </View>
             )}
@@ -752,6 +754,18 @@ const inp = StyleSheet.create({
 });
 
 // ─── Main screen ─────────────────────────────────────────────
+const DOCUMENT_API_FILE_KEYS: Partial<Record<SellerDocumentField, string>> = {
+  bankAccountProof: "bankProof",
+  companyPanDocument: "companyPanDoc",
+  certificateOfIncorporation: "incorporationCertificate",
+  msmeUdyamCertificate: "msmeCertificate",
+};
+
+function inferDocumentFileType(url: string): "image" | "pdf" {
+  const lower = url.split("?")[0].toLowerCase();
+  return lower.endsWith(".pdf") ? "pdf" : "image";
+}
+
 export default function SellerDocuments() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -768,9 +782,6 @@ export default function SellerDocuments() {
     },
     []
   );
-
-  // True when running on web AND viewport is wide enough for 2-col layout
-  const isWebWide = Platform.OS === "web" && width >= WEB_BREAKPOINT;
 
   useEffect(() => {
     setTimeout(() => { scrollViewRef.current?.scrollTo({ y: 0, animated: false }); }, 100);
@@ -806,7 +817,10 @@ export default function SellerDocuments() {
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid">("pending");
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
-  const [paymentAmountPaise, setPaymentAmountPaise] = useState(199.00);
+  const [paymentAmountPaise, setPaymentAmountPaise] = useState(106082);
+  const [registrationFee, setRegistrationFee] = useState(899);
+  const [gstAmount, setGstAmount] = useState(161.82);
+  const [totalAmount, setTotalAmount] = useState(1060.82);
   const [showPaymentSummary, setShowPaymentSummary] = useState(false);
 
   const setFileType = (field: string, type: "image" | "pdf") =>
@@ -887,6 +901,7 @@ export default function SellerDocuments() {
     (async () => {
       try {
         await hydrateSellerSession();
+        await ensureApiReachable();
         const profile = await fetchSellerProfile();
         if (!active) return;
 
@@ -896,8 +911,13 @@ export default function SellerDocuments() {
 
         const files = profile.documents?.files ?? {};
         const setIf = (key: SellerDocumentField, setter: (v: string) => void) => {
-          const url = files[key];
-          if (url) setter(resolveDocumentDisplayUrl(url) || url);
+          const apiKey = DOCUMENT_API_FILE_KEYS[key] ?? key;
+          const url = files[apiKey] ?? files[key];
+          if (url) {
+            const resolved = resolveDocumentDisplayUrl(url) || url;
+            setter(resolved);
+            setFileType(key, inferDocumentFileType(resolved));
+          }
         };
         setIf("aadharFront", (u) => setAadharFront(u));
         setIf("aadharBack", (u) => setAadharBack(u));
@@ -917,8 +937,14 @@ export default function SellerDocuments() {
         try {
           const payment = await getRegistrationPaymentStatus();
           if (!active) return;
-          setPaymentStatus(payment.paid ? "paid" : "pending");
-          setPaymentAmountPaise(payment.amount || 199.00);
+          const fee = payment.registrationFee ?? 899;
+          const gst = payment.gstAmount ?? fee * 0.18;
+          const total = payment.totalAmount ?? fee + gst;
+          setRegistrationFee(fee);
+          setGstAmount(gst);
+          setTotalAmount(total);
+          setPaymentStatus(payment.subscriptionActive ?? payment.paid ? "paid" : "pending");
+          setPaymentAmountPaise(payment.amount > 0 ? payment.amount : Math.round(total * 100));
         } catch {
           // keep payment state as pending
         }
@@ -1039,7 +1065,7 @@ export default function SellerDocuments() {
     if (!bankAccountProof) errors.push({ field: "bankAccountProof", message: "Bank Account Proof is required" });
     if (!cancelledCheque) errors.push({ field: "cancelledCheque", message: "Cancelled Cheque is required" });
     if ((liveSelfies ?? []).length === 0) errors.push({ field: "liveSelfie", message: "Live Selfie is required" });
-    if (paymentStatus !== "paid") errors.push({ field: "registrationPayment", message: "Please complete Rs 199 registration payment to continue." });
+    if (paymentStatus !== "paid") errors.push({ field: "registrationPayment", message: "Please complete Rs 899 annual registration payment to continue." });
     if (!termsAccepted) errors.push({ field: "termsAccepted", message: "You must accept the Terms and Conditions" });
     if (businessCategory === "B2B") {
       if (!companyPanNumber.trim()) {
@@ -1133,6 +1159,12 @@ export default function SellerDocuments() {
       }
       await hydrateSellerSession();
       const order = await createRegistrationPaymentOrder();
+      const fee = order.registrationFee ?? 899;
+      const gst = order.gstAmount ?? fee * 0.18;
+      const total = order.totalAmount ?? fee + gst;
+      setRegistrationFee(fee);
+      setGstAmount(gst);
+      setTotalAmount(total);
       setPaymentAmountPaise(order.amount);
       if (order.paid) {
         setPaymentStatus("paid");
@@ -1150,7 +1182,7 @@ export default function SellerDocuments() {
           amount: order.amount,
           currency: order.currency,
           name: "Flint & Thread",
-          description: "Seller registration fee",
+          description: "Annual seller registration fee (Rs 899/year)",
           order_id: order.orderId,
           handler: async (response: {
             razorpay_order_id?: string;
@@ -1191,27 +1223,7 @@ export default function SellerDocuments() {
   }, [clearFieldError, loadRazorpayScript, paymentStatus]);
 
   // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
-  const TwoColRow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const childArray = React.Children.toArray(children);
-    if (!isWebWide) return <>{childArray}</>;
-    const rows: React.ReactNode[][] = [];
-    for (let i = 0; i < childArray.length; i += 2) rows.push(childArray.slice(i, i + 2));
-    return (
-      <>
-        {rows.map((pair, rowIdx) => (
-          <View key={rowIdx} style={ws.fieldRow}>
-            <View style={ws.fieldCol}>{pair[0]}</View>
-            {pair[1] ? <View style={ws.fieldCol}>{pair[1]}</View> : <View style={ws.fieldCol} />}
-          </View>
-        ))}
-      </>
-    );
-  };
-  const registrationFee = 199;
-  const gstAmount = registrationFee * 0.18;
-  const totalAmount = registrationFee + gstAmount;
   
- 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={T.navy} />
@@ -1292,7 +1304,7 @@ export default function SellerDocuments() {
                 Web: B2B upload boxes 2-per-row.
                 Mobile: unchanged — stacked.
               */}
-              <TwoColRow>
+              <ResponsiveTwoColGrid>
                 <UploadBox label="Company PAN Document" value={companyPanDocument}
                   fileType={fileTypes["companyPanDocument"] ?? null}
                   onPress={() => pickDocument("companyPanDocument")}
@@ -1336,7 +1348,7 @@ export default function SellerDocuments() {
                   onWebFileDrop={makeWebFileDrop("iecCertificate")}
                   error={getError("iecCertificate")} accentColor={T.orange}
                   innerRef={registerFieldRef("iecCertificate")} />
-              </TwoColRow>
+              </ResponsiveTwoColGrid>
             </SectionCard>
           )}
 
@@ -1357,7 +1369,7 @@ export default function SellerDocuments() {
               Web: identity upload boxes 2-per-row.
               Mobile: unchanged — stacked.
             */}
-            <TwoColRow>
+            <ResponsiveTwoColGrid>
               
 
               <UploadBox label="Aadhaar Card (Front)" value={aadharFront}
@@ -1410,7 +1422,7 @@ export default function SellerDocuments() {
                 onWebFileDrop={makeWebFileDrop("cancelledCheque")}
                 error={getError("cancelledCheque")} accentColor={T.navy}
                 innerRef={registerFieldRef("cancelledCheque")} />
-            </TwoColRow>
+            </ResponsiveTwoColGrid>
 
             {/* Important note — full width on both platforms */}
             <View style={s.selfieNote}>
@@ -1447,7 +1459,7 @@ export default function SellerDocuments() {
                 >
                   {(liveSelfies ?? []).map((uri, index) => (
                     <View key={index} style={s.selfieThumbWrap}>
-                      <Image source={{ uri }} style={s.selfieThumb} resizeMode="cover" />
+                      <Image source={{ uri }} style={s.selfieThumb} contentFit="cover" cachePolicy="memory-disk" />
                       <View style={s.selfieIndexBadge}>
                         <AppText style={s.selfieIndexText}>{index + 1}</AppText>
                       </View>
@@ -1553,10 +1565,10 @@ export default function SellerDocuments() {
                   <Icon name="credit-card" size={16} color={T.orange} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText style={s.paymentTitle}>Registration Fee</AppText>
-                  <AppText style={s.paymentSub}>Pay once to complete seller profile submission.</AppText>
+                  <AppText style={s.paymentTitle}>Annual Registration Fee</AppText>
+                  <AppText style={s.paymentSub}>Rs 899 per annum — pay once to complete seller profile submission.</AppText>
                 </View>
-                <AppText style={s.paymentAmount}>Rs {(paymentAmountPaise / 100).toFixed(2)}</AppText>
+                <AppText style={s.paymentAmount}>Rs {totalAmount.toFixed(2)}</AppText>
               </View>
               {paymentStatus === "paid" ? (
                 <View style={s.paymentSuccessBadge}>
@@ -1601,7 +1613,7 @@ export default function SellerDocuments() {
                   onPress={() =>
                     router.push({
                       pathname: "/legal-document",
-                      params: { type: "terms" },
+                      params: { type: "terms", returnTo: "/(main)/sellerdocuments" },
                     })
                   }
                 >
@@ -1613,7 +1625,7 @@ export default function SellerDocuments() {
                   onPress={() =>
                     router.push({
                       pathname: "/legal-document",
-                      params: { type: "privacy" },
+                      params: { type: "privacy", returnTo: "/(main)/sellerdocuments" },
                     })
                   }
                 >
@@ -1739,7 +1751,8 @@ export default function SellerDocuments() {
   >
     <View
       style={{
-        width: 400,
+        width: Math.min(400, width - 32),
+        maxWidth: "92%",
         backgroundColor: "#fff",
         borderRadius: 12,
         padding: 20,
@@ -1752,7 +1765,7 @@ export default function SellerDocuments() {
           marginBottom: 20,
         }}
       >
-        Registration Fee Summary
+        Registration Fee Summary (Per Annum)
       </AppText>
 
       <View
@@ -1854,17 +1867,6 @@ export default function SellerDocuments() {
   );
 }
 
-// ─── Web-only layout styles (2-col grid) ─────────────────────
-const ws = StyleSheet.create({
-  fieldRow: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  fieldCol: {
-    flex: 1,
-  },
-});
-
 // ─── Source Picker Modal styles ───────────────────────────────
 const sm = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(10,21,51,0.52)", justifyContent: "flex-end" },
@@ -1888,7 +1890,7 @@ const sm = StyleSheet.create({
 // ─── Styles — mirrors Screen 1 exactly ───────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg, width: "100%" },
-  topHeader: { paddingHorizontal: 20, height: 200 },
+  topHeader: { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
   headerTitle: { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },
@@ -1901,14 +1903,14 @@ const s = StyleSheet.create({
   scroll: { flex: 1, width: "100%" },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20, width: "100%" },
   scrollContentWeb: { width: "100%", maxWidth: "100%", alignSelf: "stretch" },
-  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight },
+  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.borderLight, flexWrap: "wrap" },
   checkboxRowChecked: { borderColor: T.orangeSoft },
   paymentCard: { borderWidth: 1, borderColor: T.orangeSoft, borderRadius: 12, backgroundColor: T.orangePale, padding: 12, marginBottom: 12 },
-  paymentTopRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  paymentTopRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, flexWrap: "wrap" },
   paymentIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: T.white, alignItems: "center", justifyContent: "center" },
   paymentTitle: { fontSize: 13, fontWeight: "800", color: T.textDark },
   paymentSub: { fontSize: 11, color: T.textSoft, marginTop: 1 },
-  paymentAmount: { fontSize: 15, fontWeight: "800", color: T.orangeDeep },
+  paymentAmount: { fontSize: 15, fontWeight: "800", color: T.orangeDeep, flexShrink: 0 },
   payNowBtn: { marginTop: 10, alignSelf: "flex-start", borderRadius: 10, backgroundColor: T.orange, paddingHorizontal: 12, paddingVertical: 9 },
   payNowBtnText: { fontSize: 12, fontWeight: "800", color: T.white },
   paymentSuccessBadge: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
