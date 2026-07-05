@@ -61,14 +61,24 @@ export function dashboardPeriodFromUi(period: string): string {
             return "week";
         case "Month":
             return "month";
-        case "Year":
-            return "year";
+        case "Custom":
+            return "custom";
         default:
             return "week";
     }
 }
 
-export async function fetchDashboardCharts(period = "week"): Promise<DashboardCharts> {
+export async function fetchDashboardCharts(
+    period = "week",
+    customRange?: { from: string; to: string },
+): Promise<DashboardCharts> {
+    if (customRange?.from && customRange?.to) {
+        const params = new URLSearchParams({
+            from: customRange.from,
+            to: customRange.to,
+        });
+        return apiRequest<DashboardCharts>(`/api/seller/dashboard/charts?${params.toString()}`);
+    }
     return apiRequest<DashboardCharts>(
         `/api/seller/dashboard/charts?period=${encodeURIComponent(period)}`
     );

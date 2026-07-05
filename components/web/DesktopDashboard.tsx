@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { fetchTopSellingProducts } from "@/services/earningsApi";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
@@ -42,6 +41,13 @@ import {
   FinancialCenter,
   SmartNotificationCenter,
 } from "./SaaSWidgets";
+
+function toIsoDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 const C = {
   navy: "#1E2B6B",
@@ -92,56 +98,59 @@ export function DesktopDashboard({
   const widgets = useDashboardWidgets();
 
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("Week");
-  const { salesChart, ordersChart, error: chartsError } = useDashboardCharts(salesPeriod);
-  const [categoryPerformance, setCategoryPerformance] = useState<{ category: string; value: number }[]>([]);
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d;
+  });
+  const [customTo, setCustomTo] = useState(() => new Date());
 
-  useEffect(() => {
-    fetchTopSellingProducts(20)
-      .then((products) => {
-        const totals = new Map<string, number>();
-        products.forEach((p) => {
-          const cat = p.category?.trim() || "Other";
-          totals.set(cat, (totals.get(cat) ?? 0) + (p.sold ?? 0));
-        });
-        const sum = [...totals.values()].reduce((a, b) => a + b, 0) || 1;
-        const rows = [...totals.entries()]
-          .map(([category, sold]) => ({
-            category,
-            value: Math.round((sold / sum) * 100),
-          }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 6);
-        setCategoryPerformance(rows);
-      })
-      .catch(() => setCategoryPerformance([]));
-  }, []);
+  const customRange = useMemo(
+    () => ({
+      from: toIsoDate(customFrom),
+      to: toIsoDate(customTo),
+    }),
+    [customFrom, customTo],
+  );
+
+  const { salesChart, error: chartsError } = useDashboardCharts(
+    salesPeriod,
+    salesPeriod === "Custom" ? customRange : null,
+  );
+  const { allStatsData } = useDashboardStatsByPeriod(true);
   const welcomeName = profile?.fullName ?? (profileLoading ? "…" : "Seller");
   const loadError = dashboardError || chartsError || widgets.dashboard.error;
 
   const salesDataMerged = useMemo(() => {
-    if (!salesChart) {
-      return {
-        Day: EMPTY_SALES_CHART,
-        Week: EMPTY_SALES_CHART,
-        Month: EMPTY_SALES_CHART,
-        Year: EMPTY_SALES_CHART,
-      };
-    }
+    const empty = {
+      Day: EMPTY_SALES_CHART,
+      Week: EMPTY_SALES_CHART,
+      Month: EMPTY_SALES_CHART,
+      Custom: EMPTY_SALES_CHART,
+    };
+    if (!salesChart) return empty;
     const chart = salesChart;
     return {
       Day: chart,
       Week: chart,
       Month: chart,
-      Year: chart,
+      Custom: chart,
     };
   }, [salesChart]);
 
-  const { allStatsData } = useDashboardStatsByPeriod(true);
-
-  const ordersTrend = ordersChart?.points ?? [];
-  const returnsTotal = Number.parseInt(allStatsData[salesPeriod]?.returns ?? "0", 10) || 0;
-  const ordersSum = ordersTrend.reduce((a, b) => a + b, 0) || 1;
-  const returnsTrend = ordersTrend.map((v) => Math.max(0, Math.round((returnsTotal * v) / ordersSum)));
+  const mergedAllStats = useMemo(() => {
+    if (salesPeriod !== "Custom" || !salesChart) return allStatsData;
+    return {
+      ...allStatsData,
+      Custom: {
+        ...allStatsData.Custom,
+        sales: salesChart.totalSales,
+        orders: salesChart.totalOrders,
+        salesChange: "—",
+        ordersChange: "—",
+      },
+    };
+  }, [allStatsData, salesPeriod, salesChart]);
 
   const activeTrackingOrder = useMemo(() => {
     const o = widgets.recentOrders[0];
@@ -214,20 +223,26 @@ export function DesktopDashboard({
           {/* Advanced KPI Cards Row */}
           <DashboardAnalytics
             period={salesPeriod}
-            allStatsData={allStatsData}
+            allStatsData={mergedAllStats}
             orderSummary={data?.orderSummary ?? null}
           />
 
-          {/* Interactive Multi-Chart Visuals */}
           <DashboardCharts
             salesPeriod={salesPeriod}
             onSalesPeriodChange={setSalesPeriod}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFromChange={(d) => {
+              setCustomFrom(d);
+              if (d > customTo) setCustomTo(d);
+            }}
+            onCustomToChange={(d) => {
+              setCustomTo(d);
+              if (d < customFrom) setCustomFrom(d);
+            }}
             salesData={salesDataMerged}
-            allStatsData={allStatsData}
+            allStatsData={mergedAllStats}
             reviewCount={reviewCount}
-            ordersTrend={ordersTrend}
-            returnsTrend={returnsTrend}
-            categoryPerformance={categoryPerformance}
           />
 
           {/* Sales Heatmap & Live Tracking */}

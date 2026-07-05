@@ -7,7 +7,10 @@ import {
     type DashboardCharts,
 } from "@/services/dashboardApi";
 
-export function useDashboardCharts(uiPeriod: string) {
+export function useDashboardCharts(
+    uiPeriod: string,
+    customRange?: { from: string; to: string } | null,
+) {
     const [charts, setCharts] = useState<DashboardCharts | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -23,7 +26,12 @@ export function useDashboardCharts(uiPeriod: string) {
                 return;
             }
             const data = await withSellerAuthRetry(() =>
-                fetchDashboardCharts(dashboardPeriodFromUi(uiPeriod))
+                fetchDashboardCharts(
+                    dashboardPeriodFromUi(uiPeriod),
+                    uiPeriod === "Custom" && customRange?.from && customRange?.to
+                        ? customRange
+                        : undefined,
+                )
             );
             setCharts(data);
         } catch (e) {
@@ -32,7 +40,7 @@ export function useDashboardCharts(uiPeriod: string) {
         } finally {
             setLoading(false);
         }
-    }, [uiPeriod]);
+    }, [uiPeriod, customRange?.from, customRange?.to]);
 
     useEffect(() => {
         reload();

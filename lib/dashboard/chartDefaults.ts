@@ -143,7 +143,7 @@ export function mapStatsByPeriodToUi(
         Day: buildAllStatsFromPeriodStats(row.day),
         Week: buildAllStatsFromPeriodStats(row.week),
         Month: buildAllStatsFromPeriodStats(row.month),
-        Year: buildAllStatsFromPeriodStats(row.year),
+        Custom: buildAllStatsFromPeriodStats(row.year),
     };
 }
 
@@ -153,6 +153,6 @@ export function emptyAllStatsByPeriod(): Record<SalesPeriod, AllStatsPeriodData>
         Day: empty,
         Week: empty,
         Month: empty,
-        Year: empty,
+        Custom: empty,
     };
 }

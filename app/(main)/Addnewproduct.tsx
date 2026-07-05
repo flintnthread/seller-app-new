@@ -2847,11 +2847,10 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                                         metroMetroCharge: fallbackDelivery.metroMetro,
                                     }),
                                 discountOverride: parseFloat(v.discount) || null,
-                                commissionPercent: 0,
                             })
                         }
                         delivery={variantPricingMap[v.id]?.delivery ?? fallbackDelivery}
-                        commissionPercent={0}
+                        commissionPercent={variantPricingMap[v.id]?.commissionPercent}
                         hasWeight={hasWeight}
                     />
 

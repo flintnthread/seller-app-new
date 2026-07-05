@@ -365,6 +365,7 @@ function toCustomer(customer: ApiCustomer): CustomerInfo {
 }
 
 function toPayment(payment: ApiPayment): PaymentInfo {
+    const sellerPaymentStatus = payment.sellerPaymentStatus?.trim() || "Pending";
     return {
         method: payment.method,
         status: toPaymentStatus(payment.status),
@@ -372,6 +373,8 @@ function toPayment(payment: ApiPayment): PaymentInfo {
         paidOn: payment.paidOn ?? "",
         bankOrUpiId: payment.bankOrUpiId ?? "",
         refNo: payment.refNo ?? "",
+        ...(payment.paymentCompleted != null ? { paymentCompleted: payment.paymentCompleted } : {}),
+        sellerPaymentStatus,
     };
 }
 

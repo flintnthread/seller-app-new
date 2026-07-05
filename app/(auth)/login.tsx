@@ -34,6 +34,17 @@ const C = {
   orangeLight: "#FB923C",
 };
 
+function resolvePostLoginPath(redirect: unknown): string {
+  if (typeof redirect !== "string" || !redirect.trim()) {
+    return "/(main)/dashboard";
+  }
+  const path = redirect.trim();
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    return "/(main)/dashboard";
+  }
+  return path;
+}
+
 const FloatingBubble: React.FC<{
   size: number;
   color: string;
@@ -99,6 +110,7 @@ export default function SellerLogin() {
     verified?: string;
     email?: string;
     message?: string;
+    redirect?: string;
   }>();
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
@@ -293,7 +305,7 @@ export default function SellerLogin() {
         "Login successful"
       );
 
-      router.replace("/(main)/dashboard");
+      router.replace(resolvePostLoginPath(params.redirect));
     } catch (e) {
       const message =
         e instanceof ApiError

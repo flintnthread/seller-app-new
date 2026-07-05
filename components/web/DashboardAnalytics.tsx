@@ -25,7 +25,7 @@ const C = {
   textLight: "#9CA3AF",
 };
 
-export type SalesPeriod = "Day" | "Week" | "Month" | "Year";
+export type SalesPeriod = "Day" | "Week" | "Month" | "Custom";
 
 interface DashboardAnalyticsProps {
   period: SalesPeriod;
