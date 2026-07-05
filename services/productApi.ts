@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { apiRequest } from "@/lib/api/client";
 import { resolveMediaUrl, resolveMediaUrls } from "@/lib/media/resolveMediaUrl";
+import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
 
 export type ProductListItem = {
     id: string;
@@ -19,6 +20,8 @@ export type ProductListItem = {
     subSubcategory?: string;
     color: string;
     size: string;
+    /** Minimum order quantity from the lowest-price variant. */
+    minQuantity?: number;
     description?: string;
     material?: string;
     weight?: string;
@@ -170,7 +173,10 @@ export type ProductDetail = {
 type ApiProductListVariant = {
     id?: number;
     sku?: string;
+    color?: string;
+    size?: string;
     stock?: number;
+    minQuantity?: number;
     finalPrice?: number;
     sellingPrice?: number;
     metroMetroDeliveryCharge?: number;
@@ -191,6 +197,7 @@ type ApiProductListItem = {
     subcategory?: string;
     color?: string;
     size?: string;
+    minQuantity?: number;
     description?: string;
     material?: string;
     weight?: string;
@@ -310,41 +317,41 @@ type ApiProductDetail = {
     sizeChart?: ProductDetailSizeChartRow[];
 };
 
-function pickPrimaryListVariant(variants: ApiProductListVariant[]): ApiProductListVariant | null {
-    if (!variants.length) return null;
-    const inStock = variants.filter((v) => (v.stock ?? 0) > 0);
-    const pool = inStock.length > 0 ? inStock : variants;
-    return pool.reduce((best, v) => ((v.stock ?? 0) >= (best.stock ?? 0) ? v : best), pool[0]);
+function pickMinimumPriceListVariant(variants: ApiProductListVariant[]): ApiProductListVariant | null {
+    return pickMinimumPriceVariant(variants, resolveVariantMetroTotal);
+}
+
+function resolveListItemDisplayVariant(row: ApiProductListItem): ApiProductListVariant | null {
+    const variants = row.variants ?? [];
+    if (variants.length) return pickMinimumPriceListVariant(variants);
+    return null;
 }
 
 function resolveListItemPrice(row: ApiProductListItem): number {
     const apiPrice = num(row.price);
-    const variants = row.variants ?? [];
-    const primary = pickPrimaryListVariant(variants);
-    if (!primary) return apiPrice;
+    const display = resolveListItemDisplayVariant(row);
+    if (!display) return apiPrice;
 
-    const finalPrice = num(primary.finalPrice);
-    if (finalPrice <= 0) return apiPrice;
+    const metroTotal = resolveVariantMetroTotal(display);
+    if (metroTotal <= 0) return apiPrice;
 
-    const metro = num(primary.metroMetroDeliveryCharge);
-    const withoutCommission = Math.round((finalPrice + metro) * 100) / 100;
-
-    if (metro > 0) return withoutCommission;
+    const finalPrice = num(display.finalPrice);
+    const metro = num(display.metroMetroDeliveryCharge);
+    if (metro > 0) return metroTotal;
 
     // Legacy API rows: list price still includes removed commission.
     const legacyCommission = Math.round(finalPrice * 0.15 * 100) / 100;
-    if (legacyCommission > 0 && apiPrice > withoutCommission) {
+    if (legacyCommission > 0 && apiPrice > metroTotal) {
         const adjusted = Math.round((apiPrice - legacyCommission) * 100) / 100;
         if (adjusted >= finalPrice) return adjusted;
     }
 
-    return apiPrice > finalPrice ? apiPrice : finalPrice;
+    return apiPrice > finalPrice ? apiPrice : metroTotal;
 }
 
 function resolveListItemSku(row: ApiProductListItem): string {
-    const variants = row.variants ?? [];
-    const primary = pickPrimaryListVariant(variants);
-    if (primary?.sku?.trim()) return primary.sku.trim();
+    const display = resolveListItemDisplayVariant(row);
+    if (display?.sku?.trim()) return display.sku.trim();
     return row.sku?.trim() ?? "";
 }
 
@@ -353,6 +360,13 @@ function toListItem(row: ApiProductListItem): ProductListItem {
     const subcategory = row.subcategory ?? "";
     const leaf =
         categorySub && subcategory && categorySub !== subcategory ? subcategory : undefined;
+    const display = resolveListItemDisplayVariant(row);
+    const minQuantity =
+        display?.minQuantity != null && display.minQuantity > 0
+            ? display.minQuantity
+            : row.minQuantity != null && row.minQuantity > 0
+              ? row.minQuantity
+              : undefined;
     return {
         id: String(row.id),
         name: row.name ?? "",
@@ -367,8 +381,9 @@ function toListItem(row: ApiProductListItem): ProductListItem {
         categorySub,
         subcategory,
         subSubcategory: leaf,
-        color: row.color ?? "",
-        size: row.size ?? "",
+        color: display?.color?.trim() || row.color || "",
+        size: display?.size?.trim() || row.size || "",
+        ...(minQuantity != null ? { minQuantity } : {}),
         description: row.description,
         material: row.material,
         weight: row.weight,

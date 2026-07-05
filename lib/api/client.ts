@@ -99,6 +99,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
         try {
             const body = await res.json();
             if (body?.message) message = body.message;
+            if (body?.detail && body.detail !== body.message) {
+                message = `${message} (${body.detail})`;
+            }
         } catch {
             // ignore
         }

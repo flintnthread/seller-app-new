@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar';
 import { DesktopHeader } from './DesktopHeader';
 import { ActiveHeaderProvider } from './HeaderContext';
 import { useResponsive } from '@/hooks/useResponsive';
-import { isOnboardingScreen } from '@/lib/navigation/sellerNavConfig';
+import { isOnboardingScreen, isMobileFirstProductScreen } from '@/lib/navigation/sellerNavConfig';
 
 function WebMainContent({
   children,
@@ -41,6 +41,7 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isNarrowWeb, width } = useResponsive();
   const onboarding = isOnboardingScreen(pathname);
+  const mobileFirstProduct = isMobileFirstProductScreen(pathname);
   const [isSidebarOpen, setIsSidebarOpen] = useState(!isNarrowWeb);
 
   useEffect(() => {
@@ -50,7 +51,14 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
   }, [isNarrowWeb]);
 
   const sidebarOverlay = isNarrowWeb;
-  const contentPadding = onboarding ? 0 : width < 480 ? 12 : isNarrowWeb ? 16 : 24;
+  const contentPadding =
+    onboarding || (isNarrowWeb && mobileFirstProduct)
+      ? 0
+      : width < 480
+        ? 12
+        : isNarrowWeb
+          ? 16
+          : 24;
 
   return (
     <ActiveHeaderProvider>
