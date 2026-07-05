@@ -44,6 +44,7 @@ import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityI
 import type { OrderDetail, OrderItem, OrderStep } from "@/lib/orders/ordersData";
 import { fetchSellerOrderDetail, syncShiprocketTracking } from "@/services/orderApi";
 import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/orders/ordersStore";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
 const BP_TABLET  = 768;   // >= tablet: 2-col layout
@@ -1118,6 +1119,7 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
 const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ order, onOpenLabel }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= BP_DESKTOP;
+  const isMobileWeb = width < BP_TABLET;
   const cfg       = PAYMENT_STATUS_CONFIG[order.payment.status];
 
   return (
@@ -1180,7 +1182,11 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
       {/* ── Main Content ────────────────────────────────────── */}
       <ScrollView
         style={{flex:1}}
-        contentContainerStyle={[wl.content, isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 }]}
+        contentContainerStyle={[
+          wl.content,
+          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 },
+          isMobileWeb && wl.contentMobile,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Left / Main column */}
@@ -1218,9 +1224,12 @@ const MobileLayout: React.FC<{
   onPrintLabel: () => void;
 }> = ({ order, trackingVisible, labelVisible, setTrackingVisible, setLabelVisible, onPrintLabel }) => {
   const [amountExpanded, setAmountExpanded] = useState(false);
+  const { isMobile, isWeb } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
   const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment.status];
   const shippingAddress = order.customer.address;
   const billingAddress = order.billing?.address ?? shippingAddress;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
 
   // Mobile tracking modal (identical to original)
   const MobileTrackingModal = () => {
@@ -1352,30 +1361,30 @@ const MobileLayout: React.FC<{
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={C.navy} />
-      <View style={styles.blueSection}>
-        <View style={styles.header}>
+    <ScreenRoot style={[styles.safeArea, Platform.OS === "web" && styles.safeAreaWeb]}>
+      {Platform.OS !== "web" && <StatusBar barStyle="light-content" backgroundColor={C.navy} />}
+      <View style={[styles.blueSection, isWebMobile && styles.blueSectionWeb]}>
+        <View style={[styles.header, Platform.OS === "web" && styles.headerWeb, isWebMobile && styles.headerWebMobile]}>
           <TouchableOpacity style={styles.backBtn} onPress={()=>router.push("/(main)/Ordersscreen")} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-            <Ionicons name="arrow-back" size={22} color={C.white}/>
+            <Ionicons name="arrow-back" size={isWebMobile ? 20 : 22} color={C.white}/>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Order Details</Text>
+          <Text style={[styles.headerTitle, isWebMobile && styles.headerTitleWeb]}>Order Details</Text>
         </View>
-        <View style={styles.floatingTrackerCard}>
+        <View style={[styles.floatingTrackerCard, isWebMobile && styles.floatingTrackerCardWeb]}>
           <View style={styles.trackerTopRow}>
-            <View style={{flexDirection:"row",alignItems:"center",gap:6}}>
-              <Text style={styles.trackerOrderId}>{order.id}</Text>
+            <View style={[styles.trackerIdWrap, isWebMobile && styles.trackerIdWrapWeb]}>
+              <Text style={styles.trackerOrderId} numberOfLines={1} ellipsizeMode="middle">{order.id}</Text>
               <TouchableOpacity onPress={()=>{Clipboard.setString(order.id);Alert.alert("Copied",`${order.id} copied to clipboard.`);}} hitSlop={{top:6,bottom:6,left:6,right:6}}>
                 <Ionicons name="copy-outline" size={14} color={C.textLight}/>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.viewMoreBtn} onPress={()=>setTrackingVisible(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.viewMoreBtn, isWebMobile && styles.viewMoreBtnWeb]} onPress={()=>setTrackingVisible(true)} activeOpacity={0.8}>
               <MaterialCommunityIcons name="truck-fast-outline" size={13} color={C.purple} style={{marginRight:4}}/>
-              <Text style={styles.viewMoreText}>View More</Text>
+              <Text style={styles.viewMoreText}>{isWebMobile ? "Track" : "View More"}</Text>
               <Ionicons name="chevron-forward" size={12} color={C.purple} style={{marginLeft:2}}/>
             </TouchableOpacity>
           </View>
-          <View style={styles.stepperContainer}>
+          <View style={[styles.stepperContainer, isWebMobile && styles.stepperContainerWeb]}>
             {order.steps.map((step,idx) => {
               const isActive=step.status==="active"; const isDone=step.status==="done"; const isLast=idx===order.steps.length-1;
               const iconBg=isActive?C.orange:isDone?C.navy:C.white;
@@ -1383,15 +1392,16 @@ const MobileLayout: React.FC<{
               const iconBorder=isActive?C.orange:isDone?C.navy:C.border;
               const labelColor=isActive?C.orange:isDone?C.textMid:C.textLight;
               const labelWeight:"700"|"600"|"400"=isActive?"700":isDone?"600":"400";
+              const iconSize = isWebMobile ? 11 : 13;
               return (
                 <React.Fragment key={step.key}>
-                  <View style={styles.stepItem}>
-                    <View style={[styles.stepCircle,{backgroundColor:iconBg,borderColor:iconBorder}]}>
-                      {step.iconLib==="Ionicons"?<Ionicons name={step.iconName} size={13} color={iconColor}/>:<MaterialCommunityIcons name={step.iconName} size={13} color={iconColor}/>}
+                  <View style={[styles.stepItem, isWebMobile && styles.stepItemWeb]}>
+                    <View style={[styles.stepCircle,{backgroundColor:iconBg,borderColor:iconBorder}, isWebMobile && styles.stepCircleWeb]}>
+                      {step.iconLib==="Ionicons"?<Ionicons name={step.iconName} size={iconSize} color={iconColor}/>:<MaterialCommunityIcons name={step.iconName} size={iconSize} color={iconColor}/>}
                     </View>
-                    <Text numberOfLines={1} style={[styles.stepLabel,{color:labelColor,fontWeight:labelWeight}]}>{step.label}</Text>
+                    <Text numberOfLines={isWebMobile ? 2 : 1} style={[styles.stepLabel,{color:labelColor,fontWeight:labelWeight}, isWebMobile && styles.stepLabelWeb]}>{step.label}</Text>
                   </View>
-                  {!isLast&&<View style={styles.stepConnectorWrap}><View style={[styles.stepConnectorLine,isDone&&{backgroundColor:C.navy}]}/></View>}
+                  {!isLast&&<View style={[styles.stepConnectorWrap, isWebMobile && styles.stepConnectorWrapWeb]}><View style={[styles.stepConnectorLine,isDone&&{backgroundColor:C.navy}]}/></View>}
                 </React.Fragment>
               );
             })}
@@ -1404,24 +1414,35 @@ const MobileLayout: React.FC<{
           )}
         </View>
       </View>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={isWebMobile}
+        contentContainerStyle={[styles.scrollContent, Platform.OS === "web" && styles.scrollContentWeb, isWebMobile && styles.scrollContentWebMobile]}
+      >
         {/* Order Summary */}
-        <View style={styles.card}>
-          <View style={styles.orderSummaryGrid}>
-            <View style={styles.orderSummaryLeft}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
+          <View style={[styles.orderSummaryGrid, isWebMobile && styles.orderSummaryGridWeb]}>
+            <View style={[styles.orderSummaryLeft, isWebMobile && styles.orderSummaryBlockWeb]}>
               <Text style={styles.labelSmall}>Order ID</Text>
-              <View style={styles.orderIdRow}><Text style={styles.orderId}>{order.id}</Text></View>
-              <View style={styles.metaRow}><MaterialCommunityIcons name="calendar-outline" size={14} color={C.textLight} style={{marginRight:5}}/><Text style={styles.metaText}>{order.date}</Text></View>
+              <View style={styles.orderIdRow}>
+                <Text style={[styles.orderId, isWebMobile && styles.orderIdWeb]} numberOfLines={1} ellipsizeMode="middle">{order.id}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <MaterialCommunityIcons name="calendar-outline" size={14} color={C.textLight} style={{marginRight:5}}/>
+                <Text style={[styles.metaText, isWebMobile && styles.metaTextWeb]} numberOfLines={2}>{order.date}</Text>
+              </View>
             </View>
-            <View style={styles.orderSummaryRight}>
+            <View style={[styles.orderSummaryRight, isWebMobile && styles.orderSummaryBlockWeb]}>
               <Text style={styles.labelSmall}>Payment Method</Text>
               <View style={styles.paymentMethodRow}>
-                <Text style={styles.paymentMethodText}>{order.payment.method}</Text>
-                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg}]}><Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text></View>
+                <Text style={[styles.paymentMethodText, isWebMobile && styles.paymentMethodTextWeb]} numberOfLines={2}>{order.payment.method}</Text>
+                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg}]}>
+                  <Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text>
+                </View>
               </View>
-              <Text style={[styles.labelSmall,{marginTop:16}]}>Order Amount</Text>
+              <Text style={[styles.labelSmall,{marginTop: isWebMobile ? 12 : 16}]}>Order Amount</Text>
               <TouchableOpacity style={styles.amountRow} onPress={()=>setAmountExpanded(!amountExpanded)}>
-                <Text style={styles.amountText}>{order.pricing.total}</Text>
+                <Text style={[styles.amountText, isWebMobile && styles.amountTextWeb]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{order.pricing.total}</Text>
                 <Ionicons name={amountExpanded?"chevron-up":"chevron-down"} size={18} color={C.navy} style={{marginLeft:4}}/>
               </TouchableOpacity>
               {amountExpanded&&(
@@ -1438,14 +1459,14 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Customer & Addresses */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="Ionicons" iconName="person-circle-outline" title="Customer & Addresses"/>
           <View style={styles.customerNameRow}>
             <View style={styles.avatarRing}><Text style={styles.initialsText}>{order.customer.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</Text></View>
-            <View style={{ flex:1 }}>
-              <Text style={styles.customerName}>{order.customer.name}</Text>
-              {!!order.customer.phone && <Text style={styles.itemSku}>{order.customer.phone}</Text>}
-              {!!order.customer.email && <Text style={styles.itemSku}>{order.customer.email}</Text>}
+            <View style={{ flex:1, minWidth: 0 }}>
+              <Text style={styles.customerName} numberOfLines={2}>{order.customer.name}</Text>
+              {!!order.customer.phone && <Text style={styles.itemSku} numberOfLines={1}>{order.customer.phone}</Text>}
+              {!!order.customer.email && <Text style={[styles.itemSku, isWebMobile && styles.emailWeb]} numberOfLines={2}>{order.customer.email}</Text>}
             </View>
           </View>
           <View style={styles.addressStack}>
@@ -1467,16 +1488,19 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Order Items */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`}/>
           {order.items.map((item,idx) => (
             <View key={idx}>
-              <View style={[styles.itemRow,idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
+              <View style={[styles.itemRow, isWebMobile && styles.itemRowWeb, idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
                 <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
-                  <Image source={{uri:item.image}} style={styles.itemImage}/>
+                  <Image source={{uri:item.image}} style={[styles.itemImage, isWebMobile && styles.itemImageWeb]}/>
                 </TouchableOpacity>
                 <View style={styles.itemInfo}>
-                  <View style={styles.itemTopRow}><Text style={styles.itemName}>{item.name}</Text><Text style={styles.itemPrice}>{item.price}</Text></View>
+                  <View style={styles.itemTopRow}>
+                    <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                    <Text style={[styles.itemPrice, isWebMobile && styles.itemPriceWeb]} numberOfLines={1}>{item.price}</Text>
+                  </View>
                   <Text style={styles.itemVariant}>{item.variant}</Text>
                   <Text style={styles.itemSku}>SKU: {item.sku}</Text>
                   {!!item.hsnCode && <Text style={styles.itemSku}>HSN: {item.hsnCode}</Text>}
@@ -1500,26 +1524,33 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Payment Information */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="credit-card-outline" title="Payment Information"/>
-          <View style={styles.paymentGrid}>
-            <View style={styles.paymentCol}>
-              <Text style={styles.payFieldLabel}>Payment Method</Text><Text style={styles.payFieldValue}>{order.payment.method}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Transaction ID</Text><Text style={styles.payFieldValue}>{order.payment.transactionId}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Paid On</Text><Text style={styles.payFieldValue}>{order.payment.paidOn}</Text>
+          <View style={[styles.paymentGrid, isWebMobile && styles.paymentGridWeb]}>
+            <View style={[styles.paymentCol, isWebMobile && styles.paymentColWeb]}>
+              <Text style={styles.payFieldLabel}>Payment Method</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.method}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Transaction ID</Text>
+              <Text style={styles.payFieldValue} numberOfLines={1} ellipsizeMode="middle">{order.payment.transactionId}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Paid On</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.paidOn}</Text>
             </View>
-            <View style={styles.paymentCol}>
+            <View style={[styles.paymentCol, isWebMobile && styles.paymentColWeb]}>
               <View style={styles.payStatusRow}>
                 <Text style={styles.payFieldLabel}>Payment Status</Text>
-                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg,marginLeft:8}]}><Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text></View>
+                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg,marginLeft:8}]}>
+                  <Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text>
+                </View>
               </View>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Bank / UPI ID</Text><Text style={styles.payFieldValue}>{order.payment.bankOrUpiId}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Payment Ref No.</Text><Text style={styles.payFieldValue}>{order.payment.refNo}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Bank / UPI ID</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.bankOrUpiId}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Payment Ref No.</Text>
+              <Text style={styles.payFieldValue} numberOfLines={1} ellipsizeMode="middle">{order.payment.refNo}</Text>
             </View>
           </View>
         </View>
         {/* Order Notes */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="text-box-outline" title="Order Notes"/>
           {order.customerNote?(<><Text style={styles.notesLabel}>Customer Note</Text><Text style={styles.notesValue}>{order.customerNote}</Text></>):(<Text style={styles.notesEmpty}>No customer note provided.</Text>)}
           {order.sellerNote&&(<><Text style={[styles.notesLabel,{marginTop:10}]}>Seller Note</Text><Text style={styles.notesValue}>{order.sellerNote}</Text></>)}
@@ -1530,7 +1561,7 @@ const MobileLayout: React.FC<{
         {!!order.statusHistory?.length && <WebStatusHistoryCard order={order} />}
         {!!order.emailLogs?.length && <WebEmailLogsCard order={order} />}
         {/* Documents */}
-        <View style={styles.docsCard}>
+        <View style={[styles.docsCard, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="file-document-multiple-outline" title="Documents"/>
           <TouchableOpacity style={styles.docBtnFull} onPress={()=>setLabelVisible(true)} activeOpacity={0.85}>
             <View style={[styles.docBtnIcon,{backgroundColor:C.purplePale}]}><MaterialCommunityIcons name="tag-outline" size={24} color={C.purple}/></View>
@@ -1541,7 +1572,7 @@ const MobileLayout: React.FC<{
       </ScrollView>
       <MobileTrackingModal />
       <ShippingLabelModal visible={labelVisible} order={order} onClose={()=>setLabelVisible(false)} onPrint={onPrintLabel} />
-    </SafeAreaView>
+    </ScreenRoot>
   );
 };
 
@@ -1712,47 +1743,71 @@ titleBarInner:{ flexDirection:"column", alignItems:"flex-start", gap:14, alignSe
   stepperRow:   { flexDirection:"row", alignItems:"flex-start", gap:0, width:"100%", flex: 1,  },
   stepCircle:   { width:34, height:34, borderRadius:17, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4,},
   content:      { padding:20, gap:0, paddingBottom:40 , paddingTop: 24},
+  contentMobile: { padding: 12, paddingTop: 16, paddingBottom: 24 },
 });
 
 // ── Mobile styles (100% identical to original v6) ─────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex:1, backgroundColor:C.bg },
+  safeAreaWeb: { width: "100%", minWidth: 0 },
   blueSection: { backgroundColor:C.navy, paddingBottom:14, borderBottomLeftRadius:16, borderBottomRightRadius:16 },
+  blueSectionWeb: { paddingBottom: 10, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 },
   header: { flexDirection:"row", alignItems:"center", paddingHorizontal:18, paddingVertical:14, marginTop:28 },
+  headerWeb: { marginTop: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  headerWebMobile: { marginTop: 0, paddingHorizontal: 0, paddingVertical: 8 },
   backBtn: { marginRight:12, padding:2 },
   headerTitle: { flex:1, color:C.white, fontSize:23, fontWeight:"800" },
+  headerTitleWeb: { fontSize: 18, fontWeight: "700" },
   headerActions: { flexDirection:"row", gap:8 },
   headerIconBtn: { padding:6 },
   floatingTrackerCard: { marginHorizontal:14, backgroundColor:C.white, borderRadius:16, paddingHorizontal:14, paddingVertical:10, elevation:8, shadowColor:"#000", shadowOpacity:0.12, shadowOffset:{width:0,height:4}, shadowRadius:14, marginBottom:-28, zIndex:100 },
-  trackerTopRow: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10 },
-  trackerOrderId: { fontSize:13, fontWeight:"800", color:C.textDark },
-  viewMoreBtn: { flexDirection:"row", alignItems:"center", backgroundColor:C.purplePale, paddingHorizontal:10, paddingVertical:5, borderRadius:20 },
+  floatingTrackerCardWeb: { marginHorizontal: 0, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, marginBottom: -24 },
+  trackerTopRow: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10, gap: 8 },
+  trackerIdWrap: { flexDirection:"row", alignItems:"center", gap:6, flex: 1, minWidth: 0 },
+  trackerIdWrapWeb: { marginRight: 4 },
+  trackerOrderId: { fontSize:13, fontWeight:"800", color:C.textDark, flexShrink: 1 },
+  viewMoreBtn: { flexDirection:"row", alignItems:"center", backgroundColor:C.purplePale, paddingHorizontal:10, paddingVertical:5, borderRadius:20, flexShrink: 0 },
+  viewMoreBtnWeb: { paddingHorizontal: 8, paddingVertical: 5 },
   viewMoreText: { fontSize:11, fontWeight:"700", color:C.purple },
   stepperContainer: { flexDirection:"row", alignItems:"flex-start", justifyContent:"space-between" },
+  stepperContainerWeb: { width: "100%" },
   stepItem: { alignItems:"center", width:44 },
+  stepItemWeb: { flex: 1, minWidth: 0, width: undefined, paddingHorizontal: 1 },
   stepCircle: { width:28, height:28, borderRadius:14, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4 },
+  stepCircleWeb: { width: 24, height: 24, borderRadius: 12, marginBottom: 3 },
   stepLabel: { fontSize:9, textAlign:"center", lineHeight:11 },
+  stepLabelWeb: { fontSize: 8, lineHeight: 10, width: "100%" },
   stepConnectorWrap: { flex:1, alignItems:"center", marginTop:13, paddingHorizontal:2 },
+  stepConnectorWrapWeb: { flex: 0.6, marginTop: 11, paddingHorizontal: 1, minWidth: 4 },
   stepConnectorLine: { height:2, width:"100%", borderRadius:2, backgroundColor:C.border },
   extraNoteRow: { flexDirection:"row", alignItems:"center", marginTop:12, backgroundColor:C.bg, borderRadius:8, padding:8 },
   extraNoteText: { fontSize:11, color:C.textMid, flex:1 },
   scrollView: { flex:1, backgroundColor:C.bg },
   scrollContent: { padding:14, paddingTop:42, gap:12, paddingBottom:32 },
+  scrollContentWeb: { paddingHorizontal: 0, paddingTop: 36, paddingBottom: 24 },
+  scrollContentWebMobile: { paddingTop: 32, gap: 10, paddingBottom: 32 },
   card: { backgroundColor:C.white, borderRadius:16, padding:16, shadowColor:"#000", shadowOpacity:0.05, shadowOffset:{width:0,height:2}, shadowRadius:8, elevation:2 },
+  cardWeb: { borderRadius: 12, padding: 12 },
   orderSummaryGrid: { flexDirection:"row", gap:12 },
+  orderSummaryGridWeb: { flexDirection: "column", gap: 14 },
   orderSummaryLeft: { flex:1 },
   orderSummaryRight: { flex:1, alignItems:"flex-start" },
+  orderSummaryBlockWeb: { width: "100%", flex: undefined },
   labelSmall: { fontSize:11, color:C.textLight, fontWeight:"500", marginBottom:4, letterSpacing:0.2 },
   orderIdRow: { flexDirection:"row", alignItems:"center", marginBottom:8 },
-  orderId: { fontSize:14, fontWeight:"800", color:C.textDark, letterSpacing:0.2 },
-  metaRow: { flexDirection:"row", alignItems:"center", marginBottom:6 },
-  metaText: { fontSize:10, color:C.textMid },
+  orderId: { fontSize:14, fontWeight:"800", color:C.textDark, letterSpacing:0.2, flex: 1 },
+  orderIdWeb: { fontSize: 13 },
+  metaRow: { flexDirection:"row", alignItems:"flex-start", marginBottom:6 },
+  metaText: { fontSize:10, color:C.textMid, flex: 1 },
+  metaTextWeb: { fontSize: 11, lineHeight: 15 },
   paymentMethodRow: { flexDirection:"row", alignItems:"center", flexWrap:"wrap", gap:6 },
-  paymentMethodText: { fontSize:11, fontWeight:"700", color:C.textDark },
-  payStatusPill: { paddingHorizontal:8, paddingVertical:2, borderRadius:12 },
+  paymentMethodText: { fontSize:11, fontWeight:"700", color:C.textDark, flexShrink: 1 },
+  paymentMethodTextWeb: { fontSize: 12, lineHeight: 16 },
+  payStatusPill: { paddingHorizontal:8, paddingVertical:2, borderRadius:12, flexShrink: 0 },
   payStatusPillText: { fontSize:9, fontWeight:"700" },
-  amountRow: { flexDirection:"row", alignItems:"center" },
-  amountText: { fontSize:16, fontWeight:"800", color:C.navy },
+  amountRow: { flexDirection:"row", alignItems:"center", minWidth: 0 },
+  amountText: { fontSize:16, fontWeight:"800", color:C.navy, flexShrink: 1 },
+  amountTextWeb: { fontSize: 15 },
   amountBreakdown: { marginTop:6, gap:2 },
   amountBreakdownRow: { flexDirection:"row", justifyContent:"space-between", gap:16 },
   amountBreakdownLabel: { fontSize:11, color:C.textLight },
@@ -1765,6 +1820,7 @@ const styles = StyleSheet.create({
   avatarRing: { width:32, height:32, borderRadius:16, backgroundColor:"#EEF0FA", borderWidth:1.5, borderColor:C.navy, alignItems:"center", justifyContent:"center" },
   initialsText: { fontSize:11, fontWeight:"700", color:C.navy },
   customerName: { fontSize:15, fontWeight:"700", color:C.textDark },
+  emailWeb: { fontSize: 11, lineHeight: 15 },
   addressStack: { flexDirection:"column", gap:0 },
   addressBlockFull: { paddingVertical:4 },
   addressBlockHeader: { flexDirection:"row", alignItems:"center", gap:6, marginBottom:6 },
@@ -1773,11 +1829,14 @@ const styles = StyleSheet.create({
   addressRowDivider: { height:1, backgroundColor:C.border, marginVertical:10 },
   addressText: { fontSize:12, color:C.textMid, lineHeight:20 },
   itemRow: { flexDirection:"row", gap:12, marginBottom:16 },
+  itemRowWeb: { gap: 10 },
   itemImage: { width:88, height:88, borderRadius:12, backgroundColor:C.border },
-  itemInfo: { flex:1 },
-  itemTopRow: { flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 },
-  itemName: { fontSize:15, fontWeight:"700", color:C.textDark, flex:1 },
-  itemPrice: { fontSize:15, fontWeight:"800", color:C.textDark, marginLeft:8 },
+  itemImageWeb: { width: 72, height: 72, borderRadius: 10 },
+  itemInfo: { flex:1, minWidth: 0 },
+  itemTopRow: { flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4, gap: 8 },
+  itemName: { fontSize:15, fontWeight:"700", color:C.textDark, flex:1, minWidth: 0 },
+  itemPrice: { fontSize:15, fontWeight:"800", color:C.textDark, marginLeft:8, flexShrink: 0 },
+  itemPriceWeb: { fontSize: 14, marginLeft: 4 },
   itemVariant: { fontSize:12, color:C.textLight, marginBottom:3 },
   itemSku: { fontSize:12, color:C.textLight, marginBottom:8 },
   qtyBadge: { alignSelf:"flex-start", backgroundColor:C.bluePale, paddingHorizontal:10, paddingVertical:3, borderRadius:12 },
@@ -1790,7 +1849,9 @@ const styles = StyleSheet.create({
   pricingTotalLabel: { fontSize:14, fontWeight:"700", color:C.textDark },
   pricingTotalValue: { fontSize:16, fontWeight:"800", color:C.navy },
   paymentGrid: { flexDirection:"row", gap:16 },
+  paymentGridWeb: { flexDirection: "column", gap: 14 },
   paymentCol: { flex:1 },
+  paymentColWeb: { width: "100%", flex: undefined },
   payFieldLabel: { fontSize:11, color:C.textLight, fontWeight:"500", marginBottom:2 },
   payFieldValue: { fontSize:13, fontWeight:"600", color:C.textDark },
   payStatusRow: { flexDirection:"row", alignItems:"center" },

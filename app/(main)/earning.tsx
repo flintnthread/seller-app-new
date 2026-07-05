@@ -23,6 +23,7 @@ import {
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useEarningsData } from "@/hooks/useEarningsData";
 import { fetchAnalyticsOverview, fetchAnalyticsSales, requestPayout } from "@/services/earningsApi";
 import { fetchPayoutSummary, exportPayoutTransactionsCsv, type PayoutSummary } from "@/services/payoutApi";
@@ -39,6 +40,9 @@ const transactionsFallback: Transaction[] = [];
 
 export default function EarningsScreen() {
   const router = useRouter();
+  const { isWeb, isMobile } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
   const { data: earningsData, reload } = useEarningsData();
   const transactions: Transaction[] = (earningsData?.transactions ?? transactionsFallback).map((t) => ({
     id: String(t.id),
@@ -207,15 +211,15 @@ export default function EarningsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <ScreenRoot style={[styles.safe, isWeb && styles.safeWeb]}>
       <AppHeader title="Earnings" subtitle="Your monetization analytics overview" showBackButton />
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={isWebMobile}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}
       >
         {/* FILTERS */}
         <ScrollView
@@ -284,12 +288,17 @@ export default function EarningsScreen() {
         )}
 
         {/* TOTAL REVENUE */}
-        <View style={styles.revenueCard}>
+        <View style={[styles.revenueCard, isWebMobile && styles.cardWebMobile]}>
           <View style={styles.revenueTop}>
-            <View>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.revenueLabel}>Total Revenue</Text>
 
-              <Text style={styles.revenueValue}>
+              <Text
+                style={[styles.revenueValue, isWebMobile && styles.revenueValueWebMobile]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 {showBalance ? formatInr(totalRevenueAmount) : "XXXXXX"}
               </Text>
             </View>
@@ -323,8 +332,8 @@ export default function EarningsScreen() {
         </View>
 
         {/* PAYOUT CARDS */}
-        <View style={styles.payoutContainer}>
-          <View style={styles.payoutCard}>
+        <View style={[styles.payoutContainer, isWebMobile && styles.payoutContainerWebMobile]}>
+          <View style={[styles.payoutCard, isWebMobile && styles.payoutCardWebMobile]}>
             <View style={styles.payoutIconPending}>
               <Ionicons name="time-outline" size={20} color="#f97316" />
             </View>
@@ -336,7 +345,7 @@ export default function EarningsScreen() {
             <Text style={styles.payoutDate}>Awaiting settlement</Text>
           </View>
 
-          <View style={styles.payoutCard}>
+          <View style={[styles.payoutCard, isWebMobile && styles.payoutCardWebMobile]}>
             <View style={styles.payoutIconCompleted}>
               <Ionicons
                 name="checkmark-done-outline"
@@ -389,24 +398,24 @@ export default function EarningsScreen() {
           <Text style={styles.sectionTitle}>Insights</Text>
         </View>
 
-        <View style={styles.insightsGrid}>
-          <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>{filterRevenue}</Text>
+        <View style={[styles.insightsGrid, isWebMobile && styles.insightsGridWebMobile]}>
+          <View style={[styles.insightCard, isWebMobile && styles.insightCardWebMobile]}>
+            <Text style={[styles.insightValue, isWebMobile && styles.insightValueWebMobile]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{filterRevenue}</Text>
             <Text style={styles.insightLabel}>Period Sales</Text>
           </View>
 
-          <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>₹{Math.round(payoutSummary?.thisMonthEarnings ?? 0).toLocaleString("en-IN")}</Text>
+          <View style={[styles.insightCard, isWebMobile && styles.insightCardWebMobile]}>
+            <Text style={[styles.insightValue, isWebMobile && styles.insightValueWebMobile]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>₹{Math.round(payoutSummary?.thisMonthEarnings ?? 0).toLocaleString("en-IN")}</Text>
             <Text style={styles.insightLabel}>This Month</Text>
           </View>
 
-          <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>—</Text>
+          <View style={[styles.insightCard, isWebMobile && styles.insightCardWebMobile]}>
+            <Text style={[styles.insightValue, isWebMobile && styles.insightValueWebMobile]}>—</Text>
             <Text style={styles.insightLabel}>Conversion</Text>
           </View>
 
-          <View style={styles.insightCard}>
-            <Text style={styles.insightValue}>
+          <View style={[styles.insightCard, isWebMobile && styles.insightCardWebMobile]}>
+            <Text style={[styles.insightValue, isWebMobile && styles.insightValueWebMobile]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {avgOrderValue != null ? `₹${Math.round(avgOrderValue).toLocaleString("en-IN")}` : "—"}
             </Text>
             <Text style={styles.insightLabel}>Avg Order</Text>
@@ -744,7 +753,7 @@ export default function EarningsScreen() {
           }}
         />
       )}
-    </SafeAreaView>
+    </ScreenRoot>
   );
 }
 
@@ -752,6 +761,11 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#E4EBFA",
+  },
+  safeWeb: {
+    width: "100%",
+    minWidth: 0,
+    backgroundColor: "#F7F8FC",
   },
   container: {
     flex: 1,
@@ -761,6 +775,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 40,
+  },
+  scrollContentWeb: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 32,
+  },
+  cardWebMobile: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  revenueValueWebMobile: {
+    fontSize: 24,
   },
   header: {
     flexDirection: "row",
@@ -900,13 +926,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 24,
+    gap: 12,
   },
-
+  payoutContainerWebMobile: {
+    flexWrap: "wrap",
+  },
   payoutCard: {
     width: "48%",
     backgroundColor: "#fff",
     borderRadius: 24,
     padding: 18,
+    flexGrow: 1,
+    minWidth: 0,
+  },
+  payoutCardWebMobile: {
+    width: "48%",
+    borderRadius: 14,
+    padding: 14,
   },
 
   payoutIconPending: {
@@ -1030,8 +1066,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 10,
   },
-
+  insightsGridWebMobile: {
+    ...Platform.select({
+      web: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 10,
+      },
+    }),
+  },
   insightCard: {
     width: "48%",
     backgroundColor: "#fff",
@@ -1039,11 +1084,26 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 14,
   },
-
+  insightCardWebMobile: {
+    width: "auto",
+    marginBottom: 0,
+    borderRadius: 14,
+    padding: 12,
+    minWidth: 0,
+    ...Platform.select({
+      web: {
+        width: "auto",
+        maxWidth: "none",
+      },
+    }),
+  },
   insightValue: {
     fontSize: 22,
     fontWeight: "800",
     color: "#0f172a",
+  },
+  insightValueWebMobile: {
+    fontSize: 18,
   },
 
   insightLabel: {

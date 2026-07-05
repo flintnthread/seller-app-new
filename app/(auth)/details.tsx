@@ -10,10 +10,10 @@ import {
   Platform,
   Linking,
   StatusBar,
-  SafeAreaView,
   Animated,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -417,6 +417,7 @@ const AnimatedSellerCard: React.FC<{
 const SellerLanding: React.FC = () => {
   const router = useRouter();
   const { isDesktop, isTablet, width: winWidth } = useResponsive();
+  const insets = useSafeAreaInsets();
   const { isMobileAuthFlow, welcomeRoute, loginRoute, preLoginWelcomeParams } =
     useAuthFlow();
   const goToSelling = () => {
@@ -879,7 +880,11 @@ const SellerLanding: React.FC = () => {
   const scrollToSteps = () =>
     scrollRef.current?.scrollTo({ y: isDesktop ? 700 : 820, animated: true });
 
-  const HeroContainer = isDesktop ? View : SafeAreaView;
+  const heroPad = 44;
+  const navLogoWidth = Math.min(Math.max((winWidth - heroPad - 24) * 0.72, 160), 220);
+  const navLogoHeight = Math.round(navLogoWidth / 3.764);
+
+  const HeroContainer = View;
 
   // ── Helper: build web className prop safely ──────────────
   const webClass = (cls: string): object =>
@@ -923,7 +928,11 @@ const SellerLanding: React.FC = () => {
         <LinearGradient
           colors={[C.navyDeep, "#1d3258", "#241566"]}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[s.heroGrad, ds?.heroGrad]}
+          style={[
+            s.heroGrad,
+            ds?.heroGrad,
+            !isDesktop && Platform.OS !== "web" && { paddingTop: 0 },
+          ]}
         >
           {/*
             ── FLOATING ORBS ──────────────────────────────────────────────────
@@ -972,13 +981,20 @@ const SellerLanding: React.FC = () => {
             {...(Platform.OS === "web" ? webClass("fnt-orb-3") : {})}
           />
 
-          <HeroContainer style={isDesktop ? ds?.heroInner : undefined}>
+          <HeroContainer style={isDesktop ? ds?.heroInner : s.heroInnerMobile}>
             {!isDesktop && (
-              <View style={s.nav}>
-                <View style={s.logoContainer}>
+              <View
+                style={[
+                  s.nav,
+                  Platform.OS === "web"
+                    ? s.navWeb
+                    : { paddingTop: insets.top + 10 },
+                ]}
+              >
+                <View style={[s.logoContainer, { width: navLogoWidth + 20, height: navLogoHeight + 12 }]}>
                   <Image
                     source={require("../../assets/images/logo-removebg-preview.png")}
-                    style={s.navLogo}
+                    style={{ width: navLogoWidth, height: navLogoHeight }}
                     resizeMode="contain"
                   />
                 </View>
@@ -1350,7 +1366,7 @@ const SellerLanding: React.FC = () => {
                 <Text style={[s.regH, isDesktop && { fontSize: 34 }]}>Create Your{"\n"}Seller Account</Text>
                 <Text style={s.regSub}>Join thousands of sellers reaching customers across India — B2B and B2C from day one.</Text>
 
-                <View style={{ marginTop: 22, marginBottom: isDesktop ? 0 : 24 }}>
+                <View style={{ marginTop: 14, marginBottom: isDesktop ? 0 : 18 }}>
                   {[
                     { icon: "account-check-outline", text: "Sign up & verify your identity"       },
                     { icon: "store-check-outline",   text: "Add business details & bank account"  },
@@ -1453,57 +1469,63 @@ const s = StyleSheet.create({
 
   // Hero
   heroGrad: {
+    width: "100%",
     paddingHorizontal: 22,
-    paddingBottom: 52,
-    paddingTop: 20,
+    paddingBottom: 40,
+    paddingTop: 10,
     overflow: "hidden",
     // FIX 4: position relative on web so absolute orbs are scoped to this container
     ...(Platform.OS === "web" ? ({ position: "relative" } as object) : {}),
   },
+  heroInnerMobile: {
+    width: "100%",
+    alignSelf: "stretch",
+    ...(Platform.OS === "web" ? ({ maxWidth: "100%" } as object) : {}),
+  },
   orb:       { position: "absolute", borderRadius: 999, backgroundColor: "#fff" },
   orbOrange: { position: "absolute", borderRadius: 999, backgroundColor: "#F97316" },
 
-  // ── Navbar: full-width centered logo with frosted background ──
+  // ── Navbar: left-aligned company logo (mobile / tablet) ──
   nav: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "flex-start",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    marginTop: 10,
-    marginBottom: 4,
+    paddingBottom: 6,
+    marginBottom: 14,
+  },
+  navWeb: {
+    paddingTop: 6,
+    marginTop: 2,
   },
   logoContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    alignSelf: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
-    shadowColor: "#ffffff",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-  },
-  navLogo: {
-    width: Dimensions.get("window").width - 120,
-    height: 56,
+    borderColor: "rgba(0, 0, 0, 0.12)",
+    overflow: "hidden",
+    flexShrink: 0,
   },
 
   livePill: {
     flexDirection: "row", alignItems: "center", alignSelf: "flex-start",
     backgroundColor: "rgba(249,115,22,0.18)", borderWidth: 1, borderColor: "rgba(249,115,22,0.42)",
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 50, marginBottom: 24, gap: 8,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 50, marginBottom: 14, gap: 8,
   },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4ade80" },
   livePillText: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: "rgba(255,255,255,0.92)" },
 
-  heroH1: { fontFamily: "Outfit_900Black", fontSize: 43, color: "#fff", lineHeight: 51, marginBottom: 16 },
-  heroSub: { fontFamily: "Outfit_400Regular", fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 25, marginBottom: 26 },
+  heroH1: { fontFamily: "Outfit_900Black", fontSize: 43, color: "#fff", lineHeight: 51, marginBottom: 10 },
+  heroSub: { fontFamily: "Outfit_400Regular", fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 25, marginBottom: 16 },
 
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 30 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
   chip: { backgroundColor: "rgba(255,255,255,0.10)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 50 },
   chipText: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "#fff" },
 
-  heroCtas: { flexDirection: "row", gap: 12, marginBottom: 26 },
+  heroCtas: { flexDirection: "row", gap: 12, marginBottom: 16 },
   ctaPrimary: { flex: 1, borderRadius: 50, overflow: "hidden" },
   ctaPrimaryGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 15, borderRadius: 50 },
   ctaPrimaryText: { fontFamily: "Outfit_700Bold", fontSize: 15, color: "#fff" },
@@ -1517,25 +1539,25 @@ const s = StyleSheet.create({
   // Stats strip
   statsStrip: {
     flexDirection: "row", backgroundColor: "#fff",
-    marginHorizontal: 20, marginTop: -26, borderRadius: 18,
+    marginHorizontal: 20, marginTop: -18, borderRadius: 18,
     shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 10,
     borderWidth: 1, borderColor: "rgba(0,0,0,0.05)",
   },
-  statBox: { flex: 1, paddingVertical: 18, alignItems: "center" },
+  statBox: { flex: 1, paddingVertical: 12, alignItems: "center" },
   statBorder: { borderRightWidth: 1, borderRightColor: "#F0F0F0" },
   statVal: { fontFamily: "Outfit_900Black", fontSize: 19, color: "#111827" },
   statLbl: { fontFamily: "Outfit_400Regular", fontSize: 11, color: "#6B7280", textAlign: "center", marginTop: 2 },
 
   // Section
-  section: { paddingHorizontal: 20, paddingTop: 52, paddingBottom: 52 },
+  section: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 32 },
   eyebrowPill: {
     alignSelf: "flex-start", backgroundColor: "rgba(249,115,22,0.13)",
     borderWidth: 1, borderColor: "rgba(249,115,22,0.25)",
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 50, marginBottom: 16,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 50, marginBottom: 10,
   },
   eyebrowText: { fontFamily: "Outfit_700Bold", fontSize: 11, color: "#F97316", letterSpacing: 2 },
-  sectionH: { fontFamily: "Outfit_900Black", fontSize: 30, color: "#111827", lineHeight: 38, marginBottom: 12 },
-  sectionSub: { fontFamily: "Outfit_400Regular", fontSize: 15, color: "#6B7280", lineHeight: 23, marginBottom: 32 },
+  sectionH: { fontFamily: "Outfit_900Black", fontSize: 30, color: "#111827", lineHeight: 38, marginBottom: 8 },
+  sectionSub: { fontFamily: "Outfit_400Regular", fontSize: 15, color: "#6B7280", lineHeight: 23, marginBottom: 18 },
 
   // Seller grid
   sellerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
@@ -1567,7 +1589,7 @@ const s = StyleSheet.create({
   tlLine: { width: 2, flex: 1, backgroundColor: "#E8ECF4", marginTop: 4, minHeight: 48 },
 
   tlCard: {
-    flex: 1, backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 14,
+    flex: 1, backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
   },
   tlCardLeft:  { marginRight: 8 },
@@ -1578,13 +1600,13 @@ const s = StyleSheet.create({
   tlTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: "#111827", marginBottom: 4 },
   tlDesc: { fontFamily: "Outfit_400Regular", fontSize: 12, color: "#6B7280", lineHeight: 17 },
 
-  stepsCtaWrap: { borderRadius: 50, overflow: "hidden", marginTop: 24 },
+  stepsCtaWrap: { borderRadius: 50, overflow: "hidden", marginTop: 14 },
   stepsCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 17, borderRadius: 50 },
   stepsCtaText: { fontFamily: "Outfit_700Bold", fontSize: 16, color: "#fff" },
 
   // Why cards
-  whyCard: { backgroundColor: "#fff", borderRadius: 16, padding: 18, marginBottom: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  whySectionCard: { backgroundColor: "#F4F6FB", borderRadius: 22, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: "#F0F0F0", width: "100%" },
+  whyCard: { backgroundColor: "#fff", borderRadius: 16, padding: 18, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  whySectionCard: { backgroundColor: "#F4F6FB", borderRadius: 22, padding: 18, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: "#F0F0F0", width: "100%" },
   whyTag: { alignSelf: "flex-start", backgroundColor: "rgba(249,115,22,0.12)", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 50, marginBottom: 12, borderWidth: 1, borderColor: "rgba(249,115,22,0.20)" },
   whyTagText: { fontFamily: "Outfit_700Bold", fontSize: 10, color: "#F97316", letterSpacing: 1.5 },
   whyBody: { flexDirection: "row", alignItems: "flex-start" },
@@ -1595,7 +1617,7 @@ const s = StyleSheet.create({
   // Register card
   regCard: { backgroundColor: "#fff", borderRadius: 22, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: "#F0F0F0" },
   regTopBar: { height: 6 },
-  regBody: { padding: 26 },
+  regBody: { padding: 20 },
   regEyebrow: { fontFamily: "Outfit_700Bold", fontSize: 11, color: "#F97316", letterSpacing: 2, marginBottom: 10 },
   regH: { fontFamily: "Outfit_900Black", fontSize: 30, color: "#111827", lineHeight: 38, marginBottom: 10 },
   regSub: { fontFamily: "Outfit_400Regular", fontSize: 15, color: "#6B7280", lineHeight: 23 },
@@ -1608,11 +1630,11 @@ const s = StyleSheet.create({
   regBtnText: { fontFamily: "Outfit_700Bold", fontSize: 16, color: "#fff" },
 
   // Final banner
-  finalBanner: { paddingHorizontal: 22, paddingBottom: 50, alignItems: "center" },
-  bannerStrip: { width: "100%", height: 5, marginBottom: 38 },
-  bannerH: { fontFamily: "Outfit_900Black", fontSize: 30, color: "#fff", textAlign: "center", lineHeight: 38, marginBottom: 14 },
-  bannerSub: { fontFamily: "Outfit_400Regular", fontSize: 15, color: "rgba(255,255,255,0.70)", textAlign: "center", lineHeight: 23, marginBottom: 32 },
-  bannerStats: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 16, padding: 16, width: "100%", marginBottom: 32, borderWidth: 1, borderColor: "rgba(255,255,255,0.10)" },
+  finalBanner: { paddingHorizontal: 22, paddingBottom: 32, alignItems: "center" },
+  bannerStrip: { width: "100%", height: 5, marginBottom: 22 },
+  bannerH: { fontFamily: "Outfit_900Black", fontSize: 30, color: "#fff", textAlign: "center", lineHeight: 38, marginBottom: 10 },
+  bannerSub: { fontFamily: "Outfit_400Regular", fontSize: 15, color: "rgba(255,255,255,0.70)", textAlign: "center", lineHeight: 23, marginBottom: 18 },
+  bannerStats: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 16, padding: 16, width: "100%", marginBottom: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.10)" },
   bannerStat: { flex: 1, alignItems: "center", paddingVertical: 4 },
   bannerStatVal: { fontFamily: "Outfit_900Black", fontSize: 28, color: "#F97316" },
   bannerStatLabel: { fontFamily: "Outfit_500Medium", fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 },
@@ -1712,7 +1734,7 @@ const fs = StyleSheet.create({
   wrap: {
     backgroundColor: C.navyDeep,
     width: "100%",
-    paddingTop: 48,
+    paddingTop: 28,
     paddingBottom: 0,
   },
   wrapDesktop: {

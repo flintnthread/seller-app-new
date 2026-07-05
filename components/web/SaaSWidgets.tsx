@@ -4,6 +4,7 @@ import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
+import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Circle } from "react-native-svg";
 
 const C = {
@@ -58,6 +59,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   referralTotalReferred = 0,
 }) => {
   const router = useRouter();
+  const { isTablet } = useResponsive();
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
   const displayReferralCode = formatReferralCodeDisplay(referralCode);
@@ -125,9 +127,9 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const progressPct = referralGoal > 0 ? Math.min((referralTotalReferred / referralGoal) * 100, 100) : 0;
 
   return (
-    <View style={welcomeStyles.container}>
+    <View style={[welcomeStyles.container, isTablet && welcomeStyles.containerTablet]}>
       {/* ── LEFT: Greeting + Quick Actions ── */}
-      <View style={welcomeStyles.leftCol}>
+      <View style={[welcomeStyles.leftCol, isTablet && welcomeStyles.leftColTablet]}>
         <View style={welcomeStyles.heroText}>
           <AppText style={welcomeStyles.title}>
             {greeting},{" "}
@@ -164,7 +166,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         </View>
 
         {/* ── Today's Live Overview Strip ── */}
-        <View style={welcomeStyles.statsStrip}>
+        <View style={[welcomeStyles.statsStrip, isTablet && welcomeStyles.statsStripTablet]}>
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.orange }]} />
             <AppText style={welcomeStyles.statText}>
@@ -203,10 +205,10 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       </View>
 
       {/* ── DIVIDER ── */}
-      <View style={welcomeStyles.divider} />
+      <View style={[welcomeStyles.divider, isTablet && welcomeStyles.dividerTablet]} />
 
       {/* ── RIGHT: Referral Reward Program ── */}
-      <View style={welcomeStyles.referralCol}>
+      <View style={[welcomeStyles.referralCol, isTablet && welcomeStyles.referralColTablet]}>
         {/* Header */}
         <View style={welcomeStyles.refHeader}>
           <View style={welcomeStyles.refIconBox}>
@@ -296,11 +298,18 @@ const welcomeStyles = StyleSheet.create({
       },
     }),
   },
+  containerTablet: {
+    flexDirection: "column",
+  },
   // ── Left column ──
   leftCol: {
     flex: 1,
     paddingRight: 20,
     justifyContent: "space-between",
+    minWidth: 0,
+  },
+  leftColTablet: {
+    paddingRight: 0,
   },
   heroText: {
     marginBottom: 10,
@@ -383,6 +392,9 @@ const welcomeStyles = StyleSheet.create({
     gap: 8,
     rowGap: 10,
   },
+  statsStripTablet: {
+    justifyContent: "flex-start",
+  },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -452,6 +464,12 @@ const welcomeStyles = StyleSheet.create({
     marginVertical: -18,
     alignSelf: "stretch",
   },
+  dividerTablet: {
+    width: "100%",
+    height: 1,
+    marginVertical: 14,
+    alignSelf: "auto",
+  },
   // ── Right column — Referral ──
   referralCol: {
     width: 300,
@@ -470,6 +488,14 @@ const welcomeStyles = StyleSheet.create({
         boxShadow: "0 8px 24px rgba(249, 115, 22, 0.12)",
       },
     }),
+  },
+  referralColTablet: {
+    width: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+    marginLeft: 0,
+    paddingLeft: 0,
+    marginTop: 0,
   },
   refHeader: {
     flexDirection: "row",
