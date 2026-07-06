@@ -33,7 +33,7 @@ const androidEmulatorApi = readEnvFile("EXPO_PUBLIC_API_ANDROID_EMULATOR") === "
 const webBasePath =
     process.env.EXPO_PUBLIC_WEB_BASE_PATH !== undefined
         ? process.env.EXPO_PUBLIC_WEB_BASE_PATH
-        : readEnvFile("EXPO_PUBLIC_WEB_BASE_PATH") || "/Seller";
+        : readEnvFile("EXPO_PUBLIC_WEB_BASE_PATH") || "/";
 
 module.exports = {
     expo: {
