@@ -131,6 +131,7 @@ export type RegistrationPaymentStatusResponse = {
 export type GstVerifyResponse = {
     verified?: boolean;
     isVerified?: boolean;
+    alreadyExists?: boolean;
     gstNumber: string;
     message: string;
     businessName?: string | null;
@@ -358,6 +359,11 @@ export async function verifyGstNumber(gstNumber: string): Promise<GstVerifyRespo
 
 export function isGstVerifySuccessful(result: GstVerifyResponse): boolean {
     return result.verified === true || result.isVerified === true;
+}
+
+export function isGstAlreadyExists(result: GstVerifyResponse): boolean {
+    return result.alreadyExists === true
+        || /already registered with another seller/i.test(result.message ?? "");
 }
 
 export async function lookupIfscCode(ifscCode: string): Promise<IfscLookupResponse> {
