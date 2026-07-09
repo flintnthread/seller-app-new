@@ -36,6 +36,7 @@ import {
   updateBusinessProfile,
   verifyGstNumber,
   isGstVerifySuccessful,
+  isGstAlreadyExists,
   type GstVerifyResponse,
 } from "@/services/sellerProfileApi";
 import {
@@ -126,7 +127,7 @@ const GstDetailRow: React.FC<{ label: string; value?: string | null | undefined 
   );
 };
 
-const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: boolean }> = ({ details, verified }) => {
+const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: boolean; alreadyExists?: boolean }> = ({ details, verified, alreadyExists }) => {
   const hasRegistryDetails = !!(
     details.businessName?.trim() ||
     details.tradeName?.trim() ||
@@ -140,7 +141,11 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
   let headerColor = T.textMid;
   let iconName: "check-circle" | "exclamation-circle" | "info-circle" = "info-circle";
 
-  if (verified && isActive) {
+  if (alreadyExists) {
+    title = "GSTIN already registered";
+    headerColor = T.error;
+    iconName = "exclamation-circle";
+  } else if (verified && isActive) {
     title = "GSTIN verified";
     headerColor = T.success;
     iconName = "check-circle";
@@ -163,7 +168,11 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
   }
 
   return (
-    <View style={[gstDetailStyles.card, !verified && gstDetailStyles.cardWarning]}>
+    <View style={[
+      gstDetailStyles.card,
+      alreadyExists && gstDetailStyles.cardError,
+      !verified && !alreadyExists && gstDetailStyles.cardWarning,
+    ]}>
       <View style={gstDetailStyles.header}>
         <Icon name={iconName} size={16} color={headerColor} />
         <AppText style={[gstDetailStyles.title, { color: headerColor }]}>{title}</AppText>
@@ -202,6 +211,10 @@ const gstDetailStyles = StyleSheet.create({
   cardWarning: {
     borderColor: T.orange + "66",
     backgroundColor: T.orangePale,
+  },
+  cardError: {
+    borderColor: T.error + "66",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     flexDirection: "row",
@@ -588,6 +601,7 @@ export default function SellerBusinessInfo() {
   const [aadhaarOnFile, setAadhaarOnFile] = useState(false);
   const [isVerifyingGst, setIsVerifyingGst] = useState(false);
   const [gstDetails, setGstDetails] = useState<GstVerifyResponse | null>(null);
+  const [gstAlreadyExists, setGstAlreadyExists] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
 
   const businessTypes = ["Sole Proprietorship", "Partnership", "Private Limited", "Public Limited", "LLP"];
@@ -795,8 +809,7 @@ export default function SellerBusinessInfo() {
       await hydrateSellerSession();
       const result = await verifyGstNumber(normalizedGst);
       const verified = isGstVerifySuccessful(result);
-      const isDuplicateGst =
-        /already registered with another seller/i.test(result.message ?? "");
+      const alreadyExists = isGstAlreadyExists(result);
       const hasRegistryDetails =
         !!result.businessName?.trim() ||
         !!result.tradeName?.trim() ||
@@ -804,16 +817,18 @@ export default function SellerBusinessInfo() {
         !!result.status?.trim();
 
       setGstNumber(normalizedGst);
+      setGstAlreadyExists(alreadyExists);
 
-      if (isDuplicateGst) {
+      if (alreadyExists) {
         setGstVerified(false);
-        setGstDetails(null);
-        const duplicateMessage =
-          result.message ||
-          "This GSTIN is already registered with another seller account.";
-        setGstError(duplicateMessage);
+        setGstDetails(result);
+        applyGstDetailsFromResponse(result);
+        clearFieldError("gstNumber");
         clearFieldError("gstVerification");
-        showError(duplicateMessage);
+        showWarning(
+          "GSTIN already registered",
+          result.message || "This GST number is already registered with another seller account."
+        );
         return;
       }
 
@@ -847,6 +862,7 @@ export default function SellerBusinessInfo() {
     } catch (e) {
       setGstVerified(false);
       setGstDetails(null);
+      setGstAlreadyExists(false);
       showError(getApiErrorMessage(e, "GST verification failed."));
     } finally {
       setIsVerifyingGst(false);
@@ -905,6 +921,10 @@ export default function SellerBusinessInfo() {
       errors.push({ field: "businessAddress", message: "Enter a complete business address" });
     }
     if (businessCategory && hasGST && gstErr) errors.push({ field: "gstNumber", message: gstErr });
+    if (businessCategory && hasGST && gstAlreadyExists) {
+      showWarning("Already existed GST number", "Cannot continue");
+      return;
+    }
     if (businessCategory && hasGST && !gstVerified) errors.push({ field: "gstVerification", message: "Please verify your GST number" });
     if (panErr) errors.push({ field: "panNumber", message: panErr });
     if (aadErr) errors.push({ field: "aadharNumber", message: aadErr });
@@ -1160,6 +1180,7 @@ export default function SellerBusinessInfo() {
                               setGstError(error);
                               setGstVerified(false);
                               setGstDetails(null);
+                              setGstAlreadyExists(false);
                               clearFieldError("gstNumber");
                               clearFieldError("gstVerification");
                             }}
@@ -1218,7 +1239,11 @@ export default function SellerBusinessInfo() {
                       </View>
                     ) : null}
                     {gstDetails ? (
-                      <GstVerifiedDetailsCard details={gstDetails} verified={gstVerified} />
+                      <GstVerifiedDetailsCard
+                        details={gstDetails}
+                        verified={gstVerified}
+                        alreadyExists={gstAlreadyExists}
+                      />
                     ) : null}
                   </View>
                 </>
