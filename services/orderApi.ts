@@ -392,26 +392,68 @@ function toPricing(pricing: ApiPricing): PricingBreakdown {
 }
 
 function toShiprocket(detail: ApiOrderDetail): ShiprocketInfo | undefined {
+    const nestedShiprocket = (detail as Record<string, unknown>).shiprocket;
+    const nestedShipment = (detail as Record<string, unknown>).shipment;
+    const nestedTracking = (detail as Record<string, unknown>).trackingData;
+
+    const resolveString = (value: unknown): string | undefined => {
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            return trimmed || undefined;
+        }
+        return undefined;
+    };
+
+    const shiprocketOrderId = resolveString(detail.shiprocketOrderId)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.orderId)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.orderId)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.orderId);
+    const shiprocketShipmentId = resolveString(detail.shiprocketShipmentId)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.shipmentId)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.shipmentId)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.shipmentId);
+    const shiprocketAwbCode = resolveString(detail.shiprocketAwbCode)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.awb)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.awb)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.awb);
+    const shiprocketCourierName = resolveString(detail.shiprocketCourierName)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.courier)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.courierName)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.courier)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.courier);
+    const shiprocketStatus = resolveString(detail.shiprocketStatus)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.status)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.status)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.status);
+    const shiprocketTrackingUrl = resolveString(detail.shiprocketTrackingUrl)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.trackingUrl)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.trackingUrl)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.trackingUrl);
+    const shiprocketSyncedAt = resolveString(detail.shiprocketSyncedAt)
+        ?? resolveString((nestedShiprocket as Record<string, unknown> | undefined)?.syncedAt)
+        ?? resolveString((nestedShipment as Record<string, unknown> | undefined)?.syncedAt)
+        ?? resolveString((nestedTracking as Record<string, unknown> | undefined)?.updatedAt);
+
     const hasData =
-        detail.shiprocketOrderId ||
-        detail.shiprocketShipmentId ||
-        detail.shiprocketAwbCode ||
-        detail.shiprocketCourierName ||
-        detail.shiprocketStatus ||
-        detail.shiprocketTrackingUrl;
+        shiprocketOrderId ||
+        shiprocketShipmentId ||
+        shiprocketAwbCode ||
+        shiprocketCourierName ||
+        shiprocketStatus ||
+        shiprocketTrackingUrl;
 
     if (!hasData) {
         return undefined;
     }
 
     return {
-        ...(detail.shiprocketOrderId ? { orderId: detail.shiprocketOrderId } : {}),
-        ...(detail.shiprocketShipmentId ? { shipmentId: detail.shiprocketShipmentId } : {}),
-        ...(detail.shiprocketAwbCode ? { awb: detail.shiprocketAwbCode } : {}),
-        ...(detail.shiprocketCourierName ? { courier: detail.shiprocketCourierName } : {}),
-        ...(detail.shiprocketStatus ? { status: detail.shiprocketStatus } : {}),
-        ...(detail.shiprocketTrackingUrl ? { trackingUrl: detail.shiprocketTrackingUrl } : {}),
-        ...(detail.shiprocketSyncedAt ? { syncedAt: detail.shiprocketSyncedAt } : {}),
+        ...(shiprocketOrderId ? { orderId: shiprocketOrderId } : {}),
+        ...(shiprocketShipmentId ? { shipmentId: shiprocketShipmentId } : {}),
+        ...(shiprocketAwbCode ? { awb: shiprocketAwbCode } : {}),
+        ...(shiprocketCourierName ? { courier: shiprocketCourierName } : {}),
+        ...(shiprocketStatus ? { status: shiprocketStatus } : {}),
+        ...(shiprocketTrackingUrl ? { trackingUrl: shiprocketTrackingUrl } : {}),
+        ...(shiprocketSyncedAt ? { syncedAt: shiprocketSyncedAt } : {}),
     };
 }
 

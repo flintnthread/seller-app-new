@@ -929,7 +929,7 @@ const WebTrackingCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
           </View>
         </View>
         <View style={{ backgroundColor:C.purplePale, paddingHorizontal:10, paddingVertical:4, borderRadius:12 }}>
-          <Text style={{ fontSize:10, fontWeight:"700", color:C.purple }}>AWB: {srData.awb}</Text>
+          <Text style={{ fontSize:10, fontWeight:"700", color:C.purple }}>{srData.awb !== "—" ? `AWB: ${srData.awb}` : "Shiprocket pending"}</Text>
         </View>
       </View>
       {/* Meta rows */}
