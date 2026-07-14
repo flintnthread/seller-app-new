@@ -17,7 +17,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   ActivityIndicator,
-  useWindowDimensions,
 } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -330,6 +329,108 @@ function mapCategoryToHelpTopic(cat: FaqCategoryResponse, index: number): HelpTo
     faqs: cat.faqs.map((f, i) => mapApiFaqToUi(f, i)),
   };
 }
+
+const DEFAULT_SELLER_HELP_TOPICS: HelpTopic[] = [
+  {
+    label: "Getting Started",
+    color: C.navyLight,
+    bgColor: C.softBlue,
+    iconLib: "Ionicons",
+    iconName: "information-circle-outline",
+    faqs: [
+      {
+        id: -1,
+        question: "How do I complete my seller profile?",
+        answer:
+          "Open Complete Profile from the sidebar and finish all steps: business details, bank information, documents, and registration payment. Your account is reviewed after submission.",
+        iconName: "help-circle-outline",
+        iconColor: "#854F0B",
+        iconBg: "#FAEEDA",
+      },
+      {
+        id: -2,
+        question: "When will my seller account be approved?",
+        answer:
+          "After you submit your profile, our team verifies your documents. You will see the status on your dashboard. If anything is missing, we notify you by email.",
+        iconName: "time-outline",
+        iconColor: C.navyLight,
+        iconBg: C.softBlue,
+      },
+    ],
+  },
+  {
+    label: "Orders & Shipping",
+    color: "#A32D2D",
+    bgColor: "#FCEBEB",
+    iconLib: "Ionicons",
+    iconName: "bag-handle-outline",
+    faqs: [
+      {
+        id: -3,
+        question: "How do I process a new order?",
+        answer:
+          "Go to Orders, open the order, and update the status from Processing to Shipped, then Delivered. Print the shipping label from the order details page when ready to dispatch.",
+        iconName: "bag-handle-outline",
+        iconColor: "#A32D2D",
+        iconBg: "#FCEBEB",
+      },
+      {
+        id: -4,
+        question: "How does Cash on Delivery (COD) payment work?",
+        answer:
+          "For COD orders, payment shows as Pending until you mark the order as Delivered. Payment is collected from the customer on delivery.",
+        iconName: "cash-outline",
+        iconColor: "#0F6E56",
+        iconBg: "#E1F5EE",
+      },
+    ],
+  },
+  {
+    label: "Payments & Payouts",
+    color: "#0F6E56",
+    bgColor: "#E1F5EE",
+    iconLib: "Ionicons",
+    iconName: "card-outline",
+    faqs: [
+      {
+        id: -5,
+        question: "When will I receive my payout?",
+        answer:
+          "Payouts are processed after order delivery and the return window. Check Payments in the sidebar for pending and completed payout status.",
+        iconName: "wallet-outline",
+        iconColor: "#0F6E56",
+        iconBg: "#E1F5EE",
+      },
+      {
+        id: -6,
+        question: "How do I update my bank details?",
+        answer:
+          "Open Payments or Profile settings and submit a bank detail change request. Changes are verified before payouts are sent to the new account.",
+        iconName: "card-outline",
+        iconColor: C.navyLight,
+        iconBg: C.softBlue,
+      },
+    ],
+  },
+  {
+    label: "Products & Listings",
+    color: "#D97706",
+    bgColor: "#FFFBEB",
+    iconLib: "Ionicons",
+    iconName: "shirt-outline",
+    faqs: [
+      {
+        id: -7,
+        question: "How do I add a new product?",
+        answer:
+          "Go to Products → Add Product, fill in title, images, price, sizes, colors, and stock. Products may require admin approval before they appear on the marketplace.",
+        iconName: "cube-outline",
+        iconColor: "#D97706",
+        iconBg: "#FFFBEB",
+      },
+    ],
+  },
+];
 
 /** Opens Gmail compose on web, or the default mail app on mobile */
 async function openSupportEmail(address: string) {
@@ -1319,9 +1420,9 @@ const StarRating = ({ rating, onRate }: { rating: number; onRate: (n: number) =>
 
 const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const router = useRouter();
-  const { isWeb, isDesktop, isMobile } = useResponsive();
+  const { isWeb, isDesktop, isMobile, isNarrowWeb, isTablet } = useResponsive();
   const isWebMobile = isWeb && isMobile;
-  const { width: windowWidth } = useWindowDimensions();
+  const isBannerStacked = isWebMobile || isNarrowWeb;
   const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
@@ -1427,21 +1528,22 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         apiGetGroupedFaqs(true),
       ]);
       const sellerFaqsOnly = flat.filter(isSellerFaq);
-      setGeneralFaqs(sellerFaqsOnly.map((f, i) => mapApiFaqToUi(f, i)));
-      setHelpTopics(
-        grouped
-          .map((c) => ({
-            ...c,
-            faqs: c.faqs.filter(isSellerFaq),
-          }))
-          .filter((c) => c.faqs.length > 0)
-          .map((c, i) => mapCategoryToHelpTopic(c, i))
-      );
+      const mappedGeneral = sellerFaqsOnly.map((f, i) => mapApiFaqToUi(f, i));
+      const mappedTopics = grouped
+        .map((c) => ({
+          ...c,
+          faqs: c.faqs.filter(isSellerFaq),
+        }))
+        .filter((c) => c.faqs.length > 0)
+        .map((c, i) => mapCategoryToHelpTopic(c, i));
+
+      setGeneralFaqs(mappedGeneral.length > 0 ? mappedGeneral : DEFAULT_SELLER_HELP_TOPICS.flatMap((t) => t.faqs));
+      setHelpTopics(mappedTopics.length > 0 ? mappedTopics : DEFAULT_SELLER_HELP_TOPICS);
       setServerOffline(false);
     } catch (err) {
       console.warn("Failed to load FAQs:", err);
-      setGeneralFaqs([]);
-      setHelpTopics([]);
+      setGeneralFaqs(DEFAULT_SELLER_HELP_TOPICS.flatMap((t) => t.faqs));
+      setHelpTopics(DEFAULT_SELLER_HELP_TOPICS);
     } finally {
       setIsLoadingFaqs(false);
     }
@@ -1805,6 +1907,254 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
+
+  const renderContactSection = () => (
+    <View style={[s.section, isWeb && s.sectionWeb, isDesktop && s.sectionDesktopCol]}>
+      <View style={s.sectionLabelRow}>
+        <View style={[s.sectionLabelPill, { backgroundColor: C.softBlue }]}>
+          <MaterialCommunityIcons name="headset" size={14} color={C.navy} />
+          <Text style={[s.sectionLabel, { fontFamily: F.bold, color: C.navy }]}>Contact Support</Text>
+        </View>
+      </View>
+      <View style={s.card}>
+        {contactOptions.map((opt, i) => (
+          <ContactRow key={i} option={opt} isLast={i === contactOptions.length - 1} />
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderHelpTopicsSection = () => (
+    <View style={[s.section, isWeb && s.sectionWeb, isDesktop && s.sectionDesktopCol]}>
+      <View style={s.sectionLabelRow}>
+        <View style={[s.sectionLabelPill, { backgroundColor: "#F5F3FF" }]}>
+          <Ionicons name="grid-outline" size={14} color="#7C3AED" />
+          <Text style={[s.sectionLabel, { fontFamily: F.bold, color: "#7C3AED" }]}>Help Topics</Text>
+        </View>
+      </View>
+      <View
+        style={[
+          s.topicsGrid,
+          isWeb && s.topicsGridWeb,
+          isWebMobile && s.topicsGridWebMobile,
+          isTablet && s.topicsGridTablet,
+          isDesktop && s.topicsGridDesktop,
+        ]}
+      >
+        {!isLoadingFaqs && helpTopics.length === 0 ? (
+          <View style={[s.card, s.topicsEmptyCard]}>
+            <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, textAlign: "center" }]}>
+              No help topics available at the moment.
+            </Text>
+          </View>
+        ) : null}
+        {helpTopics.map((t, i) => {
+          const isActive = typeof activeTopic !== "string" && activeTopic?.label === t.label;
+          return (
+            <TouchableOpacity
+              key={i}
+              style={[
+                s.topicPill,
+                isWeb && s.topicPillWeb,
+                isDesktop && s.topicPillDesktop,
+                isWebMobile && s.topicPillWebMobile,
+                isActive && s.topicPillActive,
+                isActive && { borderColor: t.color },
+              ]}
+              activeOpacity={0.7}
+              onPress={() => setActiveTopic(prev => (typeof prev !== "string" && prev?.label === t.label) ? null : t)}
+            >
+              <View style={[s.topicIconWrap, { backgroundColor: t.bgColor }]}>
+                <VIcon lib={t.iconLib} name={t.iconName} size={17} color={t.color} />
+              </View>
+              <Text style={[s.topicLabel, { fontFamily: isActive ? F.bold : F.medium }, isActive && { color: C.navy }]} numberOfLines={2}>
+                {t.label}
+              </Text>
+              <Ionicons name={isActive ? "chevron-up" : "chevron-down"} size={14} color={isActive ? t.color : C.textLight} />
+            </TouchableOpacity>
+          );
+        })}
+
+        {(() => {
+          const isActive = activeTopic === "tickets";
+          return (
+            <TouchableOpacity
+              style={[
+                s.topicPill,
+                s.topicPillFull,
+                isWeb && s.topicPillWeb,
+                isActive && s.topicPillActive,
+                isActive && { borderColor: C.navy },
+              ]}
+              activeOpacity={0.7}
+              onPress={() => setActiveTopic(prev => prev === "tickets" ? null : "tickets")}
+            >
+              <View style={[s.topicIconWrap, { backgroundColor: "#F0F4FF" }]}>
+                <Ionicons name="ticket-outline" size={17} color={C.navy} />
+              </View>
+              <Text style={[s.topicLabel, { fontFamily: isActive ? F.bold : F.medium }, isActive && { color: C.navy }]}>
+                My Ticket Status
+              </Text>
+              {tickets.length > 0 && (
+                <View style={s.ticketCountBadge}>
+                  <Text style={[s.ticketCountTxt, { fontFamily: F.bold }]}>{tickets.length}</Text>
+                </View>
+              )}
+              <Ionicons name={isActive ? "chevron-up" : "chevron-down"} size={14} color={isActive ? C.navy : C.textLight} />
+            </TouchableOpacity>
+          );
+        })()}
+      </View>
+
+      {activeTopic && typeof activeTopic !== "string" && (
+        <TopicFAQPanel topic={activeTopic} onClose={() => setActiveTopic(null)} />
+      )}
+
+      {activeTopic === "tickets" && (
+        <TicketStatusPanel
+          tickets={tickets}
+          onClose={() => {
+            setActiveTopic(null);
+            setExpandedTicketId(null);
+          }}
+          isLoadingTickets={isLoadingTickets}
+          expandedTicketId={expandedTicketId}
+          onExpandedChange={setExpandedTicketId}
+          onTicketUpdated={handleTicketUpdated}
+          onRefresh={loadTickets}
+        />
+      )}
+    </View>
+  );
+
+  const pageBody = (
+    <View style={[s.pageInner, isWeb && s.pageInnerWeb]}>
+      {serverOffline && (
+        <View style={[s.offlineBanner, isWeb && s.offlineBannerWeb]}>
+          <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
+          <Text style={[s.offlineBannerText, { fontFamily: F.medium }]}>
+            Cannot reach https://flintnthread.online. Check your connection and reload.
+          </Text>
+        </View>
+      )}
+
+      <View style={[s.navyBanner, isBannerStacked && s.navyBannerStacked, isWeb && s.navyBannerWeb]}>
+        <View style={s.bannerIconWrap}>
+          <Ionicons name="headset-outline" size={24} color={C.white} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
+          <Text style={[s.bannerSub, { fontFamily: F.regular }]} numberOfLines={2}>
+            Raise a ticket · we typically respond within 24 hours
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[s.bannerBtn, isBannerStacked && s.bannerBtnStacked]}
+          onPress={openTicketModal}
+          activeOpacity={0.85}
+        >
+          <Text style={[s.bannerBtnTxt, { fontFamily: F.semiBold }]}>Raise a ticket</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[s.section, isWeb && s.sectionWeb]}>
+        <View style={s.searchWrap}>
+          <Ionicons name="search-outline" size={17} color={C.textLight} style={s.searchIcon} />
+          <TextInput
+            style={[s.searchInput, { fontFamily: F.regular }]}
+            placeholder="Search your issue..."
+            placeholderTextColor={C.textLight}
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={17} color={C.textLight} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {searchLower && filteredFaqs.length > 0 ? (
+        <View style={[s.section, isWeb && s.sectionWeb]}>
+          <View style={s.card}>
+            {filteredFaqs.map((faq, idx) => (
+              <FAQItem key={faq.id} faq={faq} isLast={idx === filteredFaqs.length - 1} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {isDesktop ? (
+        <View style={s.desktopTwoCol}>
+          {renderContactSection()}
+          {renderHelpTopicsSection()}
+        </View>
+      ) : (
+        <>
+          {renderContactSection()}
+          {renderHelpTopicsSection()}
+        </>
+      )}
+
+      <View style={[s.section, isWeb && s.sectionWeb, isDesktop && s.feedbackSectionDesktop]}>
+        <View style={s.sectionLabelRow}>
+          <View style={[s.sectionLabelPill, { backgroundColor: "#FFF3E8" }]}>
+            <Ionicons name="heart-outline" size={14} color={C.orange} />
+            <Text style={[s.sectionLabel, { fontFamily: F.bold, color: C.orange }]}>Feedback</Text>
+          </View>
+        </View>
+        <View style={s.card}>
+          <View style={s.cardInner}>
+            {feedbackSubmitted ? (
+              <View style={s.successBox}>
+                <Ionicons name="happy" size={48} color={C.orange} />
+                <Text style={[s.successTitle, { fontFamily: F.bold }]}>Thanks for your feedback!</Text>
+                <Text style={[s.successSub, { fontFamily: F.regular }]}>We really appreciate your time.</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.feedbackPromptRow}>
+                  <Ionicons name="star-outline" size={14} color={C.textMid} />
+                  <Text style={[s.feedbackPrompt, { fontFamily: F.medium }]}>Rate your experience</Text>
+                </View>
+                <StarRating rating={rating} onRate={setRating} />
+                <TextInput
+                  style={[s.fieldTextarea, { fontFamily: F.regular }]}
+                  placeholder="Write your feedback here..."
+                  placeholderTextColor={C.textLight}
+                  value={feedback}
+                  onChangeText={setFeedback}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+                <TouchableOpacity
+                  style={[s.outlineBtn, (!rating || isSubmittingFeedback) && s.submitBtnDisabled]}
+                  onPress={handleFeedbackSubmit}
+                  disabled={!rating || isSubmittingFeedback}
+                  activeOpacity={0.8}
+                >
+                  <View style={s.btnInner}>
+                    {isSubmittingFeedback ? (
+                      <ActivityIndicator size="small" color={C.navy} style={{ marginRight: 7 }} />
+                    ) : (
+                      <Ionicons name="checkmark-done-outline" size={16} color={C.navy} style={{ marginRight: 7 }} />
+                    )}
+                    <Text style={[s.outlineBtnText, { fontFamily: F.medium }]}>
+                      {isSubmittingFeedback ? "Submitting..." : "Submit Feedback"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <ScreenRoot style={[s.safe, isWeb && s.safeWeb]}>
       <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
@@ -1872,227 +2222,20 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         }
       />
 
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={[s.scrollContent, isWeb && s.scrollContentWeb, isWebMobile && s.scrollContentWebMobile]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View
-          style={[
-            s.pageInner,
-            isWeb && { maxWidth: isDesktop ? 1100 : Math.min(720, windowWidth - 32), alignSelf: "center" as const },
-          ]}
+      {isWeb ? (
+        <View style={[s.scrollContent, s.scrollContentWeb, isWebMobile && s.scrollContentWebMobile]}>
+          {pageBody}
+        </View>
+      ) : (
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-        {serverOffline && (
-          <View style={s.offlineBanner}>
-            <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
-            <Text style={[s.offlineBannerText, { fontFamily: F.medium }]}>
-              Cannot reach https://flintnthread.online. Check your connection and reload.
-            </Text>
-          </View>
-        )}
-
-        {/* Navy Banner */}
-        <View style={[s.navyBanner, isWebMobile && s.navyBannerWebMobile]}>
-          <View style={s.bannerIconWrap}>
-            <Ionicons name="headset-outline" size={24} color={C.white} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
-            <Text style={[s.bannerSub, { fontFamily: F.regular }]} numberOfLines={2}>Raise a ticket · we typically respond within 24 hours</Text>
-          </View>
-          <TouchableOpacity style={[s.bannerBtn, isWebMobile && s.bannerBtnWebMobile]} onPress={openTicketModal} activeOpacity={0.85}>
-            <Text style={[s.bannerBtnTxt, { fontFamily: F.semiBold }]}>Raise a ticket</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search */}
-        <View style={s.section}>
-          <View style={s.searchWrap}>
-            <Ionicons name="search-outline" size={17} color={C.textLight} style={s.searchIcon} />
-            <TextInput
-              style={[s.searchInput, { fontFamily: F.regular }]}
-              placeholder="Search your issue..."
-              placeholderTextColor={C.textLight}
-              value={search}
-              onChangeText={setSearch}
-              returnKeyType="search"
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={17} color={C.textLight} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Contact Support */}
-        <View style={s.section}>
-          <View style={s.sectionLabelRow}>
-            <View style={[s.sectionLabelPill, { backgroundColor: C.softBlue }]}>
-              <MaterialCommunityIcons name="headset" size={14} color={C.navy} />
-              <Text style={[s.sectionLabel, { fontFamily: F.bold, color: C.navy }]}>Contact Support</Text>
-            </View>
-          </View>
-          <View style={s.card}>
-            {contactOptions.map((opt, i) => (
-              <ContactRow key={i} option={opt} isLast={i === contactOptions.length - 1} />
-            ))}
-          </View>
-        </View>
-
-        {/* Help Topics */}
-        <View style={s.section}>
-          <View style={s.sectionLabelRow}>
-            <View style={[s.sectionLabelPill, { backgroundColor: "#F5F3FF" }]}>
-              <Ionicons name="grid-outline" size={14} color="#7C3AED" />
-              <Text style={[s.sectionLabel, { fontFamily: F.bold, color: "#7C3AED" }]}>Help Topics</Text>
-            </View>
-          </View>
-          <View style={[s.topicsGrid, isWeb && s.topicsGridWeb, isWebMobile && s.topicsGridWebMobile, isDesktop && s.topicsGridDesktop]}>
-            {!isLoadingFaqs && helpTopics.length === 0 ? (
-              <View style={[s.card, { width: "100%", padding: 16 }]}>
-                <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, textAlign: "center" }]}>
-                  No help topics available at the moment.
-                </Text>
-              </View>
-            ) : null}
-            {helpTopics.map((t, i) => {
-              const isActive = typeof activeTopic !== "string" && activeTopic?.label === t.label;
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={[
-                    s.topicPill,
-                    isDesktop && s.topicPillDesktop,
-                    isWebMobile && s.topicPillWebMobile,
-                    isActive && s.topicPillActive,
-                    isActive && { borderColor: t.color },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setActiveTopic(prev => (typeof prev !== "string" && prev?.label === t.label) ? null : t)}
-                >
-                  <View style={[s.topicIconWrap, { backgroundColor: t.bgColor }]}>
-                    <VIcon lib={t.iconLib} name={t.iconName} size={17} color={t.color} />
-                  </View>
-                  <Text style={[s.topicLabel, { fontFamily: isActive ? F.bold : F.medium }, isActive && { color: C.navy }]}>
-                    {t.label}
-                  </Text>
-                  <Ionicons name={isActive ? "chevron-up" : "chevron-down"} size={14} color={isActive ? t.color : C.textLight} />
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* My Tickets pill */}
-            {(() => {
-              const isActive = activeTopic === "tickets";
-              return (
-                <TouchableOpacity
-                  style={[
-                    s.topicPill,
-                    s.topicPillFull,
-                    isActive && s.topicPillActive,
-                    isActive && { borderColor: C.navy },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setActiveTopic(prev => prev === "tickets" ? null : "tickets")}
-                >
-                  <View style={[s.topicIconWrap, { backgroundColor: "#F0F4FF" }]}>
-                    <Ionicons name="ticket-outline" size={17} color={C.navy} />
-                  </View>
-                  <Text style={[s.topicLabel, { fontFamily: isActive ? F.bold : F.medium }, isActive && { color: C.navy }]}>
-                    My Ticket Status
-                  </Text>
-                  {tickets.length > 0 && (
-                    <View style={s.ticketCountBadge}>
-                      <Text style={[s.ticketCountTxt, { fontFamily: F.bold }]}>{tickets.length}</Text>
-                    </View>
-                  )}
-                  <Ionicons name={isActive ? "chevron-up" : "chevron-down"} size={14} color={isActive ? C.navy : C.textLight} />
-                </TouchableOpacity>
-              );
-            })()}
-          </View>
-
-          {activeTopic && typeof activeTopic !== "string" && (
-            <TopicFAQPanel topic={activeTopic} onClose={() => setActiveTopic(null)} />
-          )}
-
-          {activeTopic === "tickets" && (
-            <TicketStatusPanel
-              tickets={tickets}
-              onClose={() => {
-                setActiveTopic(null);
-                setExpandedTicketId(null);
-              }}
-              isLoadingTickets={isLoadingTickets}
-              expandedTicketId={expandedTicketId}
-              onExpandedChange={setExpandedTicketId}
-              onTicketUpdated={handleTicketUpdated}
-              onRefresh={loadTickets}
-            />
-          )}
-        </View>
-
-        {/* Feedback */}
-        <View style={s.section}>
-          <View style={s.sectionLabelRow}>
-            <View style={[s.sectionLabelPill, { backgroundColor: "#FFF3E8" }]}>
-              <Ionicons name="heart-outline" size={14} color={C.orange} />
-              <Text style={[s.sectionLabel, { fontFamily: F.bold, color: C.orange }]}>Feedback</Text>
-            </View>
-          </View>
-          <View style={s.card}>
-            <View style={s.cardInner}>
-              {feedbackSubmitted ? (
-                <View style={s.successBox}>
-                  <Ionicons name="happy" size={48} color={C.orange} />
-                  <Text style={[s.successTitle, { fontFamily: F.bold }]}>Thanks for your feedback!</Text>
-                  <Text style={[s.successSub, { fontFamily: F.regular }]}>We really appreciate your time.</Text>
-                </View>
-              ) : (
-                <>
-                  <View style={s.feedbackPromptRow}>
-                    <Ionicons name="star-outline" size={14} color={C.textMid} />
-                    <Text style={[s.feedbackPrompt, { fontFamily: F.medium }]}>Rate your experience</Text>
-                  </View>
-                  <StarRating rating={rating} onRate={setRating} />
-                  <TextInput
-                    style={[s.fieldTextarea, { fontFamily: F.regular }]}
-                    placeholder="Write your feedback here..."
-                    placeholderTextColor={C.textLight}
-                    value={feedback}
-                    onChangeText={setFeedback}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                  <TouchableOpacity
-                    style={[s.outlineBtn, (!rating || isSubmittingFeedback) && s.submitBtnDisabled]}
-                    onPress={handleFeedbackSubmit}
-                    disabled={!rating || isSubmittingFeedback}
-                    activeOpacity={0.8}
-                  >
-                    <View style={s.btnInner}>
-                      {isSubmittingFeedback ? (
-                        <ActivityIndicator size="small" color={C.navy} style={{ marginRight: 7 }} />
-                      ) : (
-                        <Ionicons name="checkmark-done-outline" size={16} color={C.navy} style={{ marginRight: 7 }} />
-                      )}
-                      <Text style={[s.outlineBtnText, { fontFamily: F.medium }]}>
-                        {isSubmittingFeedback ? "Submitting..." : "Submit Feedback"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </View>
-
-        </View>
-      </ScrollView>
+          {pageBody}
+        </ScrollView>
+      )}
     </ScreenRoot>
   );
 };
@@ -2108,10 +2251,20 @@ const s = StyleSheet.create({
   safeWeb: { width: "100%", minWidth: 0, backgroundColor: "#F7F8FC" },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 48 },
-  scrollContentWeb: { paddingHorizontal: 8 },
-  scrollContentWebMobile: { paddingHorizontal: 0 },
-  pageInner: { width: "100%" },
-  sectionWeb: { marginTop: 16 },
+  scrollContentWeb: { paddingBottom: 32, width: "100%", minWidth: 0 },
+  scrollContentWebMobile: { paddingBottom: 24 },
+  pageInner: { width: "100%", minWidth: 0 },
+  pageInnerWeb: { width: "100%", maxWidth: "100%", alignSelf: "stretch" },
+  sectionWeb: { paddingHorizontal: 0, marginTop: 16 },
+  sectionDesktopCol: { flex: 1, minWidth: 0, marginTop: 0 },
+  desktopTwoCol: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 20,
+    marginTop: 16,
+    width: "100%",
+  },
+  feedbackSectionDesktop: { marginTop: 20 },
 
   header: {
     flexDirection: "row", alignItems: "center",
@@ -2145,21 +2298,20 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FCD34D",
   },
+  offlineBannerWeb: { marginHorizontal: 0 },
   offlineBannerText: { flex: 1, fontSize: 13, color: "#92400E" },
   navyBanner: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: C.navy, borderRadius: 16,
     margin: 16, padding: 16, gap: 12,
   },
-  navyBannerWebMobile: {
+  navyBannerWeb: { marginHorizontal: 0, marginTop: 0 },
+  navyBannerStacked: {
     flexDirection: "column",
     alignItems: "stretch",
-    margin: 0,
-    marginBottom: 12,
-    borderRadius: 14,
     gap: 10,
   },
-  bannerBtnWebMobile: {
+  bannerBtnStacked: {
     alignSelf: "stretch",
     alignItems: "center",
   },
@@ -2255,27 +2407,79 @@ const s = StyleSheet.create({
   outlineBtnText: { fontSize: 15, color: C.navy },
 
   topicsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  topicsGridWeb: { gap: 10 },
-  topicsGridWebMobile: {
+  topicsGridWeb: {
     ...Platform.select({
       web: {
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 10,
+      },
+    }),
+  },
+  topicsGridWebMobile: {
+    ...Platform.select({
+      web: {
+        gridTemplateColumns: "1fr",
         gap: 8,
       },
     }),
   },
-  topicsGridDesktop: { gap: 12 },
-  topicPillDesktop: { flexBasis: "31%", flexGrow: 1, maxWidth: "48%" },
-  topicPill: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.white, borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2, paddingHorizontal: 12, paddingVertical: 11, width: "48%", borderWidth: 1.5, borderColor: "transparent" },
-  topicPillWebMobile: {
+  topicsGridTablet: {
+    ...Platform.select({
+      web: {
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 10,
+      },
+    }),
+  },
+  topicsGridDesktop: {
+    ...Platform.select({
+      web: {
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 12,
+      },
+    }),
+  },
+  topicsEmptyCard: { width: "100%", padding: 16, gridColumn: "1 / -1" as any },
+  topicPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    width: "48%",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  topicPillWeb: {
+    ...Platform.select({
+      web: { width: "auto", maxWidth: "none", flexBasis: "auto" },
+    }),
+  },
+  topicPillDesktop: {
     width: "auto",
-    minWidth: 0,
+    maxWidth: "none",
+    flexBasis: "auto",
+  },
+  topicPillWebMobile: {
+    width: "100%",
     ...Platform.select({
       web: { width: "auto", maxWidth: "none" },
     }),
   },
-  topicPillFull: { width: "100%" },
+  topicPillFull: {
+    width: "100%",
+    ...Platform.select({
+      web: { gridColumn: "1 / -1" },
+    }),
+  },
   topicPillActive: { backgroundColor: C.softBlue },
   topicIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   topicLabel: { flex: 1, fontSize: 14, color: C.textDark },

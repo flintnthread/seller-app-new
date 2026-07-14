@@ -143,7 +143,7 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
 
   if (alreadyExists) {
     title = "GSTIN already registered";
-    headerColor = T.error;
+    headerColor = T.orange;
     iconName = "exclamation-circle";
   } else if (verified && isActive) {
     title = "GSTIN verified";

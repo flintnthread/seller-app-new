@@ -378,6 +378,36 @@ function toPayment(payment: ApiPayment): PaymentInfo {
     };
 }
 
+export function isCodPaymentMethod(method?: string | null): boolean {
+    const normalized = (method ?? "").trim().toLowerCase();
+    return normalized.includes("cod") || normalized.includes("cash");
+}
+
+export function isCustomerPaymentCollected(
+    payment: PaymentInfo,
+    orderStatus: OrderStatus,
+): boolean {
+    if (isCodPaymentMethod(payment.method)) {
+        return orderStatus === "Delivered" || orderStatus === "Returned";
+    }
+    if (payment.paymentCompleted === true) return true;
+    const status = payment.status?.toLowerCase() ?? "";
+    return status.includes("paid") || status.includes("success") || status.includes("completed");
+}
+
+function resolveDisplayPayment(payment: PaymentInfo, orderStatus: OrderStatus): PaymentInfo {
+    if (!isCodPaymentMethod(payment.method)) {
+        return payment;
+    }
+    const collected = isCustomerPaymentCollected(payment, orderStatus);
+    return {
+        ...payment,
+        status: collected ? "Paid" : "Pending",
+        paymentCompleted: collected,
+        paidOn: collected ? payment.paidOn : "",
+    };
+}
+
 function toPricing(pricing: ApiPricing): PricingBreakdown {
     return {
         subtotal: pricing.subtotal,
@@ -420,19 +450,21 @@ function toShiprocket(detail: ApiOrderDetail): ShiprocketInfo | undefined {
 
 export function mapDetail(detail: ApiOrderDetail): OrderDetail {
     const shiprocket = toShiprocket(detail);
+    const orderStatus = toOrderStatus(detail.status);
+    const payment = resolveDisplayPayment(toPayment(detail.payment), orderStatus);
 
     return {
         id: detail.id,
         ...(detail.orderId != null ? { orderId: detail.orderId } : {}),
         ...(detail.orderNumber ? { orderNumber: detail.orderNumber } : {}),
         date: detail.date,
-        status: toOrderStatus(detail.status),
+        status: orderStatus,
         ...(detail.dbStatus ? { dbStatus: detail.dbStatus } : {}),
         customer: toCustomer(detail.customer),
         ...(detail.billing ? { billing: toCustomer(detail.billing) } : {}),
         items: detail.items.map(toOrderItem),
         pricing: toPricing(detail.pricing),
-        payment: toPayment(detail.payment),
+        payment,
         steps: detail.steps.map(toStep),
         ...(detail.statusHistory?.length
             ? {
