@@ -38,6 +38,7 @@ import {
 } from "@/components/seller/AddressLocationFields";
 import type { AddressLocationValue } from "@/services/locationApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
+import { ResponsivePairRow, useWebWideColumnStyle } from "@/components/common/ResponsivePairRow";
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
 const T = {
@@ -221,23 +222,11 @@ function hasSavedAddressStep(a: SellerProfileResponse["address"]): boolean {
   );
 }
 
-// ─── Web-only: InputPairRow renders 2 inputs side-by-side on web, stacked on mobile ──
-const isWeb = Platform.OS === "web";
-
-const InputPairRow: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-  isWeb ? (
-    <View style={pair.row}>{children}</View>
-  ) : (
-    <>{children}</>
-  );
-
-const pair = StyleSheet.create({
-  row: { flexDirection: "row", gap: 10 },
-});
 
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerAddressInfo() {
   const router = useRouter();
+  const webWideCol = useWebWideColumnStyle();
   const { businessCategory: businessCategoryParam } = useLocalSearchParams();
   const businessCategory = typeof businessCategoryParam === "string" ? businessCategoryParam : "";
   const scrollViewRef = useRef<ScrollView>(null);
@@ -544,8 +533,8 @@ export default function SellerAddressInfo() {
             />
 
             {/* Street Address + Landmark: side-by-side on web, stacked on mobile */}
-            <InputPairRow>
-              <View style={isWeb ? { flex: 1 } : {}}>
+            <ResponsivePairRow>
+              <View style={webWideCol}>
                 <InputRow
                   label="Street Address"
                   value={streetAddress}
@@ -559,7 +548,7 @@ export default function SellerAddressInfo() {
                   accentColor={T.orange}
                 />
               </View>
-              <View style={isWeb ? { flex: 1 } : {}}>
+              <View style={webWideCol}>
                 <InputRow
                   label="Landmark"
                   value={landmark}
@@ -573,7 +562,7 @@ export default function SellerAddressInfo() {
                   accentColor={T.orange}
                 />
               </View>
-            </InputPairRow>
+            </ResponsivePairRow>
 
             <AddressLocationFields
               value={location}
@@ -616,8 +605,8 @@ export default function SellerAddressInfo() {
               />
 
               {/* Warehouse Street Address + Landmark: side-by-side on web, stacked on mobile */}
-              <InputPairRow>
-                <View style={isWeb ? { flex: 1 } : {}}>
+              <ResponsivePairRow>
+                <View style={webWideCol}>
                   <InputRow
                     label="Street Address"
                     value={warehouseAddress}
@@ -631,7 +620,7 @@ export default function SellerAddressInfo() {
                     accentColor={T.navy}
                   />
                 </View>
-                <View style={isWeb ? { flex: 1 } : {}}>
+                <View style={webWideCol}>
                   <InputRow
                     label="Landmark"
                     value={warehouseLandmark}
@@ -645,7 +634,7 @@ export default function SellerAddressInfo() {
                     accentColor={T.navy}
                   />
                 </View>
-              </InputPairRow>
+              </ResponsivePairRow>
 
               <AddressLocationFields
                 value={warehouseLocation}
@@ -713,10 +702,10 @@ export default function SellerAddressInfo() {
 
 // ─── Styles — mirrors Screen 1 exactly ───────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
 
   // ── Header — exact Screen 1 ──
-  topHeader:    { paddingHorizontal: 20, height: 200 },
+  topHeader:    { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   // backBtnHeader: {
   //   width: 40,

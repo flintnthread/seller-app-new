@@ -41,9 +41,15 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 
+import { ShippingLabelContent } from "@/components/shipping/ShippingLabelContent";
 import type { OrderDetail, OrderItem, OrderStep } from "@/lib/orders/ordersData";
+import { buildShippingLabelData, type ShippingLabelData } from "@/lib/shipping/shippingLabelData";
+import { openShippingLabelPrint } from "@/lib/shipping/shippingLabelHtml";
 import { fetchSellerOrderDetail, syncShiprocketTracking } from "@/services/orderApi";
+import { fetchSellerProfile } from "@/services/sellerProfileApi";
+import { ensureSellerId } from "@/lib/api/sellerSession";
 import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/orders/ordersStore";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
 const BP_TABLET  = 768;   // >= tablet: 2-col layout
@@ -193,322 +199,20 @@ async function refreshShiprocketFromApi(orderKey: string): Promise<ShiprocketDat
   };
 }
 
-function printWebLabel(order: OrderDetail) {
-  if (Platform.OS !== "web") return;
-  const srData = buildShiprocketData(order);
-  const gstNumber = order.gstNumber || order.gstRecords?.[0]?.gstNumber || "—";
-  const invoiceNo = order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g, "").slice(-5) || "00001"}`;
-  const totalTax = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
-  const weight = totalItemWeight(order);
-  const dimensions = primaryItemDimensions(order);
-
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) return;
-
-  const html = `
-    <html>
-      <head>
-        <title>Shipping Label - Order #${order.id}</title>
-        <style>
-          body {
-            font-family: system-ui, -apple-system, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #fff;
-            display: flex;
-            justify-content: center;
-          }
-          .card {
-            width: 450px;
-            border: 1px solid #111;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 1px solid #111;
-          }
-          .logo {
-            width: 100%;
-            max-height: 80px;
-            object-fit: contain;
-          }
-          .band {
-            background: #F97316;
-            color: #fff;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 6px 0;
-            letter-spacing: 1px;
-            text-align: center;
-          }
-          .courier-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 12px;
-            border-bottom: 1px solid #111;
-          }
-          .courier-name {
-            font-size: 13px;
-            font-weight: 700;
-          }
-          .gst-pill {
-            background: #F97316;
-            color: #fff;
-            font-size: 9px;
-            font-weight: 700;
-            padding: 2px 6px;
-            border-radius: 3px;
-          }
-          .barcode-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 12px;
-            border-bottom: 1px solid #111;
-          }
-          .awb-label {
-            font-size: 8px;
-            font-weight: 600;
-            color: #666;
-            letter-spacing: 0.5px;
-          }
-          .barcode-wrap {
-            display: flex;
-            align-items: flex-end;
-            height: 40px;
-            margin-top: 4px;
-          }
-          .bar {
-            background: #111;
-            margin-right: 1px;
-          }
-          .awb-number {
-            font-size: 10px;
-            font-weight: 600;
-            margin-top: 4px;
-            letter-spacing: 1px;
-          }
-          .qr-box {
-            width: 60px;
-            height: 60px;
-            border: 1px solid #111;
-            padding: 2px;
-          }
-          .qr-inner {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 1px;
-          }
-          .qr-dot {
-            width: 6px;
-            height: 6px;
-          }
-          .divider {
-            border-bottom: 1px solid #111;
-          }
-          .section {
-            padding: 10px 12px;
-          }
-          .section-title {
-            font-size: 8px;
-            font-weight: 800;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-            background: #F0F0F0;
-            padding: 2px 4px;
-            display: inline-block;
-          }
-          .ship-to-name {
-            font-size: 13px;
-            font-weight: 800;
-            margin-bottom: 3px;
-          }
-          .ship-to-address {
-            font-size: 10px;
-            line-height: 15px;
-            color: #333;
-            margin-bottom: 3px;
-          }
-          .ship-to-pin {
-            font-size: 10px;
-            font-weight: 800;
-          }
-          .meta-grid {
-            display: grid;
-            grid-template-columns: 80px 1fr;
-            gap: 4px;
-            font-size: 9px;
-            padding: 10px 12px;
-          }
-          .meta-key {
-            font-weight: 600;
-            color: #666;
-          }
-          .meta-val {
-            font-weight: 500;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-            margin-top: 6px;
-          }
-          th {
-            background: #F5F7FA;
-            font-weight: 700;
-            text-align: left;
-            padding: 4px;
-            border-bottom: 1px solid #111;
-          }
-          td {
-            padding: 4px;
-            border-bottom: 1px solid #eee;
-          }
-          .total-row {
-            font-weight: 700;
-            background: #FAFAFA;
-            border-top: 1px solid #111;
-          }
-          .return-section {
-            padding: 10px 12px;
-            background: #FFF9F5;
-            font-size: 9px;
-          }
-          .return-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 800;
-            margin-bottom: 4px;
-          }
-          .footer {
-            background: #F5F5F5;
-            padding: 8px;
-            text-align: center;
-            font-size: 8px;
-            color: #333;
-            border-top: 1px solid #111;
-          }
-          @media print {
-            body { padding: 0; }
-            .card { border: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="header">
-            <img class="logo" src="https://flintandthread.in/assets/images/logo.jpg" onerror="this.src=''" alt="Logo" />
-            <div class="band">SHIPPING LABEL FOR FLINT & THREAD</div>
-          </div>
-          <div class="courier-row">
-            <div class="courier-name">${srData.courier}</div>
-            <div class="gst-pill">GST: ${gstNumber}</div>
-          </div>
-          <div class="barcode-section">
-            <div>
-              <div class="awb-label">AWB NUMBER</div>
-              <div class="barcode-wrap">
-                ${Array.from({length: 40}).map((_, i) => `
-                  <div class="bar" style="width: ${i % 5 === 0 ? '3px' : '1px'}; height: ${i % 7 === 0 ? '40px' : '34px'};"></div>
-                `).join('')}
-              </div>
-              <div class="awb-number">${srData.awb}</div>
-            </div>
-            <div class="qr-box">
-              <div class="qr-inner">
-                ${Array.from({length: 49}).map((_, i) => {
-                  const r = Math.floor(i / 7);
-                  const c = i % 7;
-                  const corner = (r < 2 && c < 2) || (r < 2 && c > 4) || (r > 4 && c < 2);
-                  const filled = corner || (r === 3 && c % 2 === 0) || (c === 3 && r % 2 === 1) || ((r + c) % 3 === 0);
-                  return `<div class="qr-dot" style="background: ${filled ? '#111' : '#fff'};"></div>`;
-                }).join('')}
-              </div>
-            </div>
-          </div>
-          <div class="section">
-            <div class="section-title">SHIP TO</div>
-            <div class="ship-to-name">${order.customer.name}</div>
-            <div class="ship-to-address">${order.customer.address}</div>
-            <div class="ship-to-pin">PIN: ${order.customer.address.match(/\d{6}/)?.[0] ?? "000000"}</div>
-          </div>
-          <div class="divider"></div>
-          <div class="meta-grid">
-            <div class="meta-key">Order #:</div><div class="meta-val">${order.id}</div>
-            <div class="meta-key">AWB #:</div><div class="meta-val">${srData.awb}</div>
-            <div class="meta-key">Invoice:</div><div class="meta-val">${invoiceNo}</div>
-            <div class="meta-key">Date:</div><div class="meta-val">${order.date}</div>
-            <div class="meta-key">Payment:</div><div class="meta-val">${order.payment.method} ${order.pricing.total}</div>
-            <div class="meta-key">Weight:</div><div class="meta-val">${weight}</div>
-            <div class="meta-key">Dimensions:</div><div class="meta-val">${dimensions}</div>
-          </div>
-          <div class="divider"></div>
-          <div class="section">
-            <div class="section-title">PRODUCT DETAILS</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th style="text-align: center;">HSN</th>
-                  <th style="text-align: center;">Qty</th>
-                  <th style="text-align: right;">Price</th>
-                  <th style="text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${order.items.map(itm => {
-                  const p = Number((itm.price ?? "₹0").replace(/[₹,]/g, ""));
-                  const lineTax = itm.tax ?? Math.round(p * 0.05);
-                  const base = p - lineTax;
-                  return `
-                    <tr>
-                      <td><strong>${itm.name}</strong><br/><span style="color: #666; font-size: 8px;">${itm.variant}</span></td>
-                      <td style="text-align: center;">${itm.hsnCode || '—'}</td>
-                      <td style="text-align: center;">${itm.qty}</td>
-                      <td style="text-align: right;">₹${base}</td>
-                      <td style="text-align: right;"><strong>₹${p}</strong></td>
-                    </tr>
-                  `;
-                }).join('')}
-                <tr class="total-row">
-                  <td colspan="3"><strong>TOTAL:</strong></td>
-                  <td style="text-align: right;">Tax: ${order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</td>
-                  <td style="text-align: right;"><strong>${order.pricing.total}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="return-section">
-            <div class="section-title">RETURN ADDRESS</div>
-            <div class="return-header">
-              <div>PICKCELL</div>
-              <div class="gst-pill">GST: ${gstNumber}</div>
-            </div>
-            <div>B-706, Radha Vallabh, Near Dmart, 150 Feet Road, City Bhayndar West, Thane, Mumbai, Maharashtra, India - 401101</div>
-            <div style="font-weight: 600; margin-top: 4px;">Ph: +91 93215 02225</div>
-          </div>
-          <div class="footer">
-            <div style="font-weight: 700; margin-bottom: 2px;">GST/Tax: ${order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</div>
-            <div style="font-weight: 600;">AUTO-GENERATED LABEL — NO SIGNATURE REQUIRED</div>
-            <div style="color: #F97316; font-weight: 700; margin-top: 2px;">Powered By: Flint & Thread</div>
-          </div>
-        </div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 300);
-          };
-        </script>
-      </body>
-    </html>
-  `;
-
-  printWindow.document.write(html);
-  printWindow.document.close();
+async function buildLabelForOrder(order: OrderDetail): Promise<ShippingLabelData> {
+  let profile = null;
+  try {
+    profile = await fetchSellerProfile();
+  } catch {
+    profile = null;
+  }
+  return buildShippingLabelData({
+    order,
+    profile,
+    sellerId: ensureSellerId(),
+    weight: totalItemWeight(order),
+    dimensions: primaryItemDimensions(order),
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -975,129 +679,44 @@ interface ShippingLabelModalProps {
   visible: boolean; order: OrderDetail; onClose: () => void; onPrint: () => void;
 }
 const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order, onClose, onPrint }) => {
-  const srData    = buildShiprocketData(order);
-  const gstNumber = order.gstNumber || order.gstRecords?.[0]?.gstNumber || "—";
-  const invoiceNo = order.orderNumber || `INV-2026-${order.id.replace(/[^0-9]/g,"").slice(-5) || "00001"}`;
-  const totalTax  = order.items.reduce((sum, item) => sum + (item.tax ?? 0), 0);
+  const [label, setLabel] = useState<ShippingLabelData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setLabel(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    buildLabelForOrder(order)
+      .then((data) => {
+        if (!cancelled) setLabel(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLabel(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [visible, order]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={lStyles.modalOverlay}>
       <SafeAreaView style={lStyles.safeArea}>
         <ScrollView style={lStyles.scroll} contentContainerStyle={lStyles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={lStyles.labelCard}>
-            <View style={lStyles.labelTopHeader}>
-              <Image source={require("../../assets/images/logo.jpg")} style={lStyles.logoImage} resizeMode="contain" />
-              <View style={lStyles.orangeBand}><Text style={lStyles.orangeBandText}>SHIPPING LABEL FOR FLINT &amp; THREAD</Text></View>
+          {loading || !label ? (
+            <View style={{ padding: 40, alignItems: "center" }}>
+              <Text style={{ fontSize: 14, color: C.textMid, fontWeight: "600" }}>Preparing shipping label…</Text>
             </View>
-            <View style={lStyles.courierRow}>
-              <Text style={lStyles.courierName}>{srData.courier}</Text>
-              <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: {gstNumber}</Text></View>
-            </View>
-            <View style={lStyles.barcodeSection}>
-              <View style={lStyles.barcodeLeft}>
-                <Text style={lStyles.awbLabel}>AWB NUMBER</Text>
-                <View style={lStyles.barcodeWrap}>
-                  {Array.from({length:52}).map((_,i) => (
-                    <View key={i} style={[lStyles.bar,{width:i%7===0?3:i%4===0?2:1,height:i%11===0?56:48,backgroundColor:"#111"}]} />
-                  ))}
-                </View>
-                <Text style={lStyles.awbNumber}>{srData.awb}</Text>
-              </View>
-              <View style={lStyles.qrBox}>
-                <View style={lStyles.qrInner}>
-                  {Array.from({length:7}).map((_,row) => (
-                    <View key={row} style={{flexDirection:"row"}}>
-                      {Array.from({length:7}).map((_,col) => {
-                        const corner=(row<2&&col<2)||(row<2&&col>4)||(row>4&&col<2);
-                        const filled=corner||(row===3&&col%2===0)||(col===3&&row%2===1)||((row+col)%3===0);
-                        return <View key={col} style={{width:8,height:8,backgroundColor:filled?"#111":"#fff",margin:0.5}} />;
-                      })}
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </View>
-            <View style={lStyles.divider} />
-            <View style={lStyles.section}>
-              <Text style={lStyles.sectionTitle}>SHIP TO</Text>
-              <Text style={lStyles.shipToName}>{order.customer.name}</Text>
-              <Text style={lStyles.shipToAddress}>{order.customer.address}</Text>
-              <Text style={lStyles.shipToPinLabel}>PIN: <Text style={lStyles.shipToPin}>{order.customer.address.match(/\d{6}/)?.[0] ?? "000000"}</Text></Text>
-            </View>
-            <View style={lStyles.divider} />
-            <View style={lStyles.metaSection}>
-              <View style={lStyles.metaGrid}>
-                {[
-                  {k:"Order #:",v:order.id},{k:"AWB #:",v:srData.awb},{k:"Invoice:",v:invoiceNo},{k:"Date:",v:order.date},
-                  {k:"Payment:",v:`${order.payment.method}  ${order.pricing.total}`},
-                  {k:"Weight:",v:totalItemWeight(order)},{k:"Dimensions:",v:primaryItemDimensions(order)},
-                ].map((r,i) => (
-                  <View key={i} style={lStyles.metaGridRow}>
-                    <Text style={lStyles.metaKey}>{r.k}</Text>
-                    <Text style={lStyles.metaVal}>{r.v}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-            <View style={lStyles.divider} />
-            <View style={lStyles.section}>
-              <Text style={lStyles.sectionTitle}>PRODUCT DETAILS</Text>
-              <View style={lStyles.tableHeader}>
-                <Text style={[lStyles.th,{flex:2.5}]}>Item</Text>
-                <Text style={[lStyles.th,{flex:0.8,textAlign:"center"}]}>HSN</Text>
-                <Text style={[lStyles.th,{flex:0.4,textAlign:"center"}]}>Q.</Text>
-                <Text style={[lStyles.th,{flex:0.9,textAlign:"right"}]}>Price</Text>
-                <Text style={[lStyles.th,{flex:0.6,textAlign:"right"}]}>CGST</Text>
-                <Text style={[lStyles.th,{flex:0.6,textAlign:"right"}]}>SGST</Text>
-                <Text style={[lStyles.th,{flex:0.8,textAlign:"right"}]}>IGST</Text>
-                <Text style={[lStyles.th,{flex:0.8,textAlign:"right"}]}>Total</Text>
-              </View>
-              {order.items.map((itm,i) => {
-                const p=Number((itm.price??"₹0").replace(/[₹,]/g,""));
-                const lineTax = itm.tax ?? Math.round(p * 0.05);
-                const base=p-lineTax;
-                return (
-                  <View key={i} style={lStyles.tableRow}>
-                    <View style={{flex:2.5}}><Text style={lStyles.tdName}>{itm.name}</Text><Text style={lStyles.tdVariant}>{itm.variant}</Text></View>
-                    <Text style={[lStyles.td,{flex:0.8,textAlign:"center"}]}>{itm.hsnCode || "—"}</Text>
-                    <Text style={[lStyles.td,{flex:0.4,textAlign:"center"}]}>{itm.qty}</Text>
-                    <Text style={[lStyles.td,{flex:0.9,textAlign:"right"}]}>₹{base}</Text>
-                    <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>—</Text>
-                    <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>—</Text>
-                    <Text style={[lStyles.tdOrange,{flex:0.8,textAlign:"right"}]}>{lineTax > 0 ? `₹${lineTax}` : "—"}</Text>
-                    <Text style={[lStyles.tdBold,{flex:0.8,textAlign:"right"}]}>₹{p}</Text>
-                  </View>
-                );
-              })}
-              <View style={lStyles.tableTotalsRow}>
-                <Text style={{flex:4.1}} />
-                <Text style={[lStyles.tdBold,{flex:0.9,textAlign:"right"}]}>TOTAL:</Text>
-                <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>₹0.00</Text>
-                <Text style={[lStyles.td,{flex:0.6,textAlign:"right"}]}>₹0.00</Text>
-                <View style={{flex:0.8,alignItems:"flex-end"}}><Text style={lStyles.tdOrange}>{totalTax > 0 ? `₹${totalTax}` : "—"}</Text></View>
-                <Text style={[lStyles.tdBold,{flex:0.8,textAlign:"right"}]}>{order.pricing.total}</Text>
-              </View>
-            </View>
-            <View style={[lStyles.divider,{backgroundColor:C.orange}]} />
-            <View style={lStyles.returnSection}>
-              <Text style={lStyles.sectionTitle}>RETURN ADDRESS</Text>
-              <View style={lStyles.returnInner}>
-                <Text style={lStyles.returnBiz}>PICKCELL</Text>
-                <View style={lStyles.gstPill}><Text style={lStyles.gstText}>GST: {gstNumber}</Text></View>
-              </View>
-              <Text style={lStyles.returnAddr}>B-706, Radha Vallabh, Near Dmart, 150 Feet Road, City Bhayndar West, Thane, Mumbai, Maharashtra, India - 401101</Text>
-              <Text style={lStyles.returnPhone}>Ph: +91 93215 02225</Text>
-            </View>
-            <View style={lStyles.footer}>
-              <Text style={lStyles.footerGst}>GST/Tax: {order.pricing.tax || (totalTax > 0 ? `₹${totalTax}` : "—")}</Text>
-              <Text style={lStyles.footerNote}>AUTO-GENERATED LABEL — NO SIGNATURE REQUIRED</Text>
-              <Text style={lStyles.footerPowered}>Powered By: Flint &amp; Thread</Text>
-            </View>
-          </View>
+          ) : (
+            <ShippingLabelContent label={label} styles={lStyles} />
+          )}
         </ScrollView>
         <View style={lStyles.bottomBtnRow}>
-          <TouchableOpacity style={lStyles.printBtn} onPress={onPrint} activeOpacity={0.85}>
+          <TouchableOpacity style={lStyles.printBtn} onPress={onPrint} activeOpacity={0.85} disabled={!label}>
             <Ionicons name="print-outline" size={16} color={C.white} style={{marginRight:6}} />
             <Text style={lStyles.printBtnText}>Print Label</Text>
           </TouchableOpacity>
@@ -1118,6 +737,7 @@ const ShippingLabelModal: React.FC<ShippingLabelModalProps> = ({ visible, order,
 const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ order, onOpenLabel }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= BP_DESKTOP;
+  const isMobileWeb = width < BP_TABLET;
   const cfg       = PAYMENT_STATUS_CONFIG[order.payment.status];
 
   return (
@@ -1180,7 +800,11 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
       {/* ── Main Content ────────────────────────────────────── */}
       <ScrollView
         style={{flex:1}}
-        contentContainerStyle={[wl.content, isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 }]}
+        contentContainerStyle={[
+          wl.content,
+          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 },
+          isMobileWeb && wl.contentMobile,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Left / Main column */}
@@ -1218,9 +842,12 @@ const MobileLayout: React.FC<{
   onPrintLabel: () => void;
 }> = ({ order, trackingVisible, labelVisible, setTrackingVisible, setLabelVisible, onPrintLabel }) => {
   const [amountExpanded, setAmountExpanded] = useState(false);
+  const { isMobile, isWeb } = useResponsive();
+  const isWebMobile = isWeb && isMobile;
   const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment.status];
   const shippingAddress = order.customer.address;
   const billingAddress = order.billing?.address ?? shippingAddress;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
 
   // Mobile tracking modal (identical to original)
   const MobileTrackingModal = () => {
@@ -1352,30 +979,30 @@ const MobileLayout: React.FC<{
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={C.navy} />
-      <View style={styles.blueSection}>
-        <View style={styles.header}>
+    <ScreenRoot style={[styles.safeArea, Platform.OS === "web" && styles.safeAreaWeb]}>
+      {Platform.OS !== "web" && <StatusBar barStyle="light-content" backgroundColor={C.navy} />}
+      <View style={[styles.blueSection, isWebMobile && styles.blueSectionWeb]}>
+        <View style={[styles.header, Platform.OS === "web" && styles.headerWeb, isWebMobile && styles.headerWebMobile]}>
           <TouchableOpacity style={styles.backBtn} onPress={()=>router.push("/(main)/Ordersscreen")} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-            <Ionicons name="arrow-back" size={22} color={C.white}/>
+            <Ionicons name="arrow-back" size={isWebMobile ? 20 : 22} color={C.white}/>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Order Details</Text>
+          <Text style={[styles.headerTitle, isWebMobile && styles.headerTitleWeb]}>Order Details</Text>
         </View>
-        <View style={styles.floatingTrackerCard}>
+        <View style={[styles.floatingTrackerCard, isWebMobile && styles.floatingTrackerCardWeb]}>
           <View style={styles.trackerTopRow}>
-            <View style={{flexDirection:"row",alignItems:"center",gap:6}}>
-              <Text style={styles.trackerOrderId}>{order.id}</Text>
+            <View style={[styles.trackerIdWrap, isWebMobile && styles.trackerIdWrapWeb]}>
+              <Text style={styles.trackerOrderId} numberOfLines={1} ellipsizeMode="middle">{order.id}</Text>
               <TouchableOpacity onPress={()=>{Clipboard.setString(order.id);Alert.alert("Copied",`${order.id} copied to clipboard.`);}} hitSlop={{top:6,bottom:6,left:6,right:6}}>
                 <Ionicons name="copy-outline" size={14} color={C.textLight}/>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.viewMoreBtn} onPress={()=>setTrackingVisible(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.viewMoreBtn, isWebMobile && styles.viewMoreBtnWeb]} onPress={()=>setTrackingVisible(true)} activeOpacity={0.8}>
               <MaterialCommunityIcons name="truck-fast-outline" size={13} color={C.purple} style={{marginRight:4}}/>
-              <Text style={styles.viewMoreText}>View More</Text>
+              <Text style={styles.viewMoreText}>{isWebMobile ? "Track" : "View More"}</Text>
               <Ionicons name="chevron-forward" size={12} color={C.purple} style={{marginLeft:2}}/>
             </TouchableOpacity>
           </View>
-          <View style={styles.stepperContainer}>
+          <View style={[styles.stepperContainer, isWebMobile && styles.stepperContainerWeb]}>
             {order.steps.map((step,idx) => {
               const isActive=step.status==="active"; const isDone=step.status==="done"; const isLast=idx===order.steps.length-1;
               const iconBg=isActive?C.orange:isDone?C.navy:C.white;
@@ -1383,15 +1010,16 @@ const MobileLayout: React.FC<{
               const iconBorder=isActive?C.orange:isDone?C.navy:C.border;
               const labelColor=isActive?C.orange:isDone?C.textMid:C.textLight;
               const labelWeight:"700"|"600"|"400"=isActive?"700":isDone?"600":"400";
+              const iconSize = isWebMobile ? 11 : 13;
               return (
                 <React.Fragment key={step.key}>
-                  <View style={styles.stepItem}>
-                    <View style={[styles.stepCircle,{backgroundColor:iconBg,borderColor:iconBorder}]}>
-                      {step.iconLib==="Ionicons"?<Ionicons name={step.iconName} size={13} color={iconColor}/>:<MaterialCommunityIcons name={step.iconName} size={13} color={iconColor}/>}
+                  <View style={[styles.stepItem, isWebMobile && styles.stepItemWeb]}>
+                    <View style={[styles.stepCircle,{backgroundColor:iconBg,borderColor:iconBorder}, isWebMobile && styles.stepCircleWeb]}>
+                      {step.iconLib==="Ionicons"?<Ionicons name={step.iconName} size={iconSize} color={iconColor}/>:<MaterialCommunityIcons name={step.iconName} size={iconSize} color={iconColor}/>}
                     </View>
-                    <Text numberOfLines={1} style={[styles.stepLabel,{color:labelColor,fontWeight:labelWeight}]}>{step.label}</Text>
+                    <Text numberOfLines={isWebMobile ? 2 : 1} style={[styles.stepLabel,{color:labelColor,fontWeight:labelWeight}, isWebMobile && styles.stepLabelWeb]}>{step.label}</Text>
                   </View>
-                  {!isLast&&<View style={styles.stepConnectorWrap}><View style={[styles.stepConnectorLine,isDone&&{backgroundColor:C.navy}]}/></View>}
+                  {!isLast&&<View style={[styles.stepConnectorWrap, isWebMobile && styles.stepConnectorWrapWeb]}><View style={[styles.stepConnectorLine,isDone&&{backgroundColor:C.navy}]}/></View>}
                 </React.Fragment>
               );
             })}
@@ -1404,24 +1032,35 @@ const MobileLayout: React.FC<{
           )}
         </View>
       </View>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={isWebMobile}
+        contentContainerStyle={[styles.scrollContent, Platform.OS === "web" && styles.scrollContentWeb, isWebMobile && styles.scrollContentWebMobile]}
+      >
         {/* Order Summary */}
-        <View style={styles.card}>
-          <View style={styles.orderSummaryGrid}>
-            <View style={styles.orderSummaryLeft}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
+          <View style={[styles.orderSummaryGrid, isWebMobile && styles.orderSummaryGridWeb]}>
+            <View style={[styles.orderSummaryLeft, isWebMobile && styles.orderSummaryBlockWeb]}>
               <Text style={styles.labelSmall}>Order ID</Text>
-              <View style={styles.orderIdRow}><Text style={styles.orderId}>{order.id}</Text></View>
-              <View style={styles.metaRow}><MaterialCommunityIcons name="calendar-outline" size={14} color={C.textLight} style={{marginRight:5}}/><Text style={styles.metaText}>{order.date}</Text></View>
+              <View style={styles.orderIdRow}>
+                <Text style={[styles.orderId, isWebMobile && styles.orderIdWeb]} numberOfLines={1} ellipsizeMode="middle">{order.id}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <MaterialCommunityIcons name="calendar-outline" size={14} color={C.textLight} style={{marginRight:5}}/>
+                <Text style={[styles.metaText, isWebMobile && styles.metaTextWeb]} numberOfLines={2}>{order.date}</Text>
+              </View>
             </View>
-            <View style={styles.orderSummaryRight}>
+            <View style={[styles.orderSummaryRight, isWebMobile && styles.orderSummaryBlockWeb]}>
               <Text style={styles.labelSmall}>Payment Method</Text>
               <View style={styles.paymentMethodRow}>
-                <Text style={styles.paymentMethodText}>{order.payment.method}</Text>
-                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg}]}><Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text></View>
+                <Text style={[styles.paymentMethodText, isWebMobile && styles.paymentMethodTextWeb]} numberOfLines={2}>{order.payment.method}</Text>
+                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg}]}>
+                  <Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text>
+                </View>
               </View>
-              <Text style={[styles.labelSmall,{marginTop:16}]}>Order Amount</Text>
+              <Text style={[styles.labelSmall,{marginTop: isWebMobile ? 12 : 16}]}>Order Amount</Text>
               <TouchableOpacity style={styles.amountRow} onPress={()=>setAmountExpanded(!amountExpanded)}>
-                <Text style={styles.amountText}>{order.pricing.total}</Text>
+                <Text style={[styles.amountText, isWebMobile && styles.amountTextWeb]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{order.pricing.total}</Text>
                 <Ionicons name={amountExpanded?"chevron-up":"chevron-down"} size={18} color={C.navy} style={{marginLeft:4}}/>
               </TouchableOpacity>
               {amountExpanded&&(
@@ -1438,14 +1077,14 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Customer & Addresses */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="Ionicons" iconName="person-circle-outline" title="Customer & Addresses"/>
           <View style={styles.customerNameRow}>
             <View style={styles.avatarRing}><Text style={styles.initialsText}>{order.customer.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</Text></View>
-            <View style={{ flex:1 }}>
-              <Text style={styles.customerName}>{order.customer.name}</Text>
-              {!!order.customer.phone && <Text style={styles.itemSku}>{order.customer.phone}</Text>}
-              {!!order.customer.email && <Text style={styles.itemSku}>{order.customer.email}</Text>}
+            <View style={{ flex:1, minWidth: 0 }}>
+              <Text style={styles.customerName} numberOfLines={2}>{order.customer.name}</Text>
+              {!!order.customer.phone && <Text style={styles.itemSku} numberOfLines={1}>{order.customer.phone}</Text>}
+              {!!order.customer.email && <Text style={[styles.itemSku, isWebMobile && styles.emailWeb]} numberOfLines={2}>{order.customer.email}</Text>}
             </View>
           </View>
           <View style={styles.addressStack}>
@@ -1467,16 +1106,19 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Order Items */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`}/>
           {order.items.map((item,idx) => (
             <View key={idx}>
-              <View style={[styles.itemRow,idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
+              <View style={[styles.itemRow, isWebMobile && styles.itemRowWeb, idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
                 <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
-                  <Image source={{uri:item.image}} style={styles.itemImage}/>
+                  <Image source={{uri:item.image}} style={[styles.itemImage, isWebMobile && styles.itemImageWeb]}/>
                 </TouchableOpacity>
                 <View style={styles.itemInfo}>
-                  <View style={styles.itemTopRow}><Text style={styles.itemName}>{item.name}</Text><Text style={styles.itemPrice}>{item.price}</Text></View>
+                  <View style={styles.itemTopRow}>
+                    <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                    <Text style={[styles.itemPrice, isWebMobile && styles.itemPriceWeb]} numberOfLines={1}>{item.price}</Text>
+                  </View>
                   <Text style={styles.itemVariant}>{item.variant}</Text>
                   <Text style={styles.itemSku}>SKU: {item.sku}</Text>
                   {!!item.hsnCode && <Text style={styles.itemSku}>HSN: {item.hsnCode}</Text>}
@@ -1500,26 +1142,33 @@ const MobileLayout: React.FC<{
           </View>
         </View>
         {/* Payment Information */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="credit-card-outline" title="Payment Information"/>
-          <View style={styles.paymentGrid}>
-            <View style={styles.paymentCol}>
-              <Text style={styles.payFieldLabel}>Payment Method</Text><Text style={styles.payFieldValue}>{order.payment.method}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Transaction ID</Text><Text style={styles.payFieldValue}>{order.payment.transactionId}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Paid On</Text><Text style={styles.payFieldValue}>{order.payment.paidOn}</Text>
+          <View style={[styles.paymentGrid, isWebMobile && styles.paymentGridWeb]}>
+            <View style={[styles.paymentCol, isWebMobile && styles.paymentColWeb]}>
+              <Text style={styles.payFieldLabel}>Payment Method</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.method}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Transaction ID</Text>
+              <Text style={styles.payFieldValue} numberOfLines={1} ellipsizeMode="middle">{order.payment.transactionId}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Paid On</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.paidOn}</Text>
             </View>
-            <View style={styles.paymentCol}>
+            <View style={[styles.paymentCol, isWebMobile && styles.paymentColWeb]}>
               <View style={styles.payStatusRow}>
                 <Text style={styles.payFieldLabel}>Payment Status</Text>
-                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg,marginLeft:8}]}><Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text></View>
+                <View style={[styles.payStatusPill,{backgroundColor:paymentStatusCfg.bg,marginLeft:8}]}>
+                  <Text style={[styles.payStatusPillText,{color:paymentStatusCfg.color}]}>{order.payment.status}</Text>
+                </View>
               </View>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Bank / UPI ID</Text><Text style={styles.payFieldValue}>{order.payment.bankOrUpiId}</Text>
-              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Payment Ref No.</Text><Text style={styles.payFieldValue}>{order.payment.refNo}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Bank / UPI ID</Text>
+              <Text style={styles.payFieldValue} numberOfLines={2}>{order.payment.bankOrUpiId}</Text>
+              <Text style={[styles.payFieldLabel,{marginTop:14}]}>Payment Ref No.</Text>
+              <Text style={styles.payFieldValue} numberOfLines={1} ellipsizeMode="middle">{order.payment.refNo}</Text>
             </View>
           </View>
         </View>
         {/* Order Notes */}
-        <View style={styles.card}>
+        <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="text-box-outline" title="Order Notes"/>
           {order.customerNote?(<><Text style={styles.notesLabel}>Customer Note</Text><Text style={styles.notesValue}>{order.customerNote}</Text></>):(<Text style={styles.notesEmpty}>No customer note provided.</Text>)}
           {order.sellerNote&&(<><Text style={[styles.notesLabel,{marginTop:10}]}>Seller Note</Text><Text style={styles.notesValue}>{order.sellerNote}</Text></>)}
@@ -1530,7 +1179,7 @@ const MobileLayout: React.FC<{
         {!!order.statusHistory?.length && <WebStatusHistoryCard order={order} />}
         {!!order.emailLogs?.length && <WebEmailLogsCard order={order} />}
         {/* Documents */}
-        <View style={styles.docsCard}>
+        <View style={[styles.docsCard, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="MCIcons" iconName="file-document-multiple-outline" title="Documents"/>
           <TouchableOpacity style={styles.docBtnFull} onPress={()=>setLabelVisible(true)} activeOpacity={0.85}>
             <View style={[styles.docBtnIcon,{backgroundColor:C.purplePale}]}><MaterialCommunityIcons name="tag-outline" size={24} color={C.purple}/></View>
@@ -1541,7 +1190,7 @@ const MobileLayout: React.FC<{
       </ScrollView>
       <MobileTrackingModal />
       <ShippingLabelModal visible={labelVisible} order={order} onClose={()=>setLabelVisible(false)} onPrint={onPrintLabel} />
-    </SafeAreaView>
+    </ScreenRoot>
   );
 };
 
@@ -1595,10 +1244,15 @@ export default function OrderDetailsScreen() {
     if (openLabel === "1" || openLabel === "true") setLabelModalVisible(true);
   }, [openLabel]);
 
-  const handlePrintLabel = () => {
+  const handlePrintLabel = async () => {
     if (!order) return;
     if (Platform.OS === "web") {
-      printWebLabel(order);
+      try {
+        const label = await buildLabelForOrder(order);
+        openShippingLabelPrint(label);
+      } catch {
+        Alert.alert("Print failed", "Could not generate the shipping label. Please try again.");
+      }
     } else {
       Alert.alert("Label Downloaded", `Shipping label for ${orderId} has been saved.`);
     }
@@ -1712,47 +1366,71 @@ titleBarInner:{ flexDirection:"column", alignItems:"flex-start", gap:14, alignSe
   stepperRow:   { flexDirection:"row", alignItems:"flex-start", gap:0, width:"100%", flex: 1,  },
   stepCircle:   { width:34, height:34, borderRadius:17, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4,},
   content:      { padding:20, gap:0, paddingBottom:40 , paddingTop: 24},
+  contentMobile: { padding: 12, paddingTop: 16, paddingBottom: 24 },
 });
 
 // ── Mobile styles (100% identical to original v6) ─────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex:1, backgroundColor:C.bg },
+  safeAreaWeb: { width: "100%", minWidth: 0 },
   blueSection: { backgroundColor:C.navy, paddingBottom:14, borderBottomLeftRadius:16, borderBottomRightRadius:16 },
+  blueSectionWeb: { paddingBottom: 10, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 },
   header: { flexDirection:"row", alignItems:"center", paddingHorizontal:18, paddingVertical:14, marginTop:28 },
+  headerWeb: { marginTop: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  headerWebMobile: { marginTop: 0, paddingHorizontal: 0, paddingVertical: 8 },
   backBtn: { marginRight:12, padding:2 },
   headerTitle: { flex:1, color:C.white, fontSize:23, fontWeight:"800" },
+  headerTitleWeb: { fontSize: 18, fontWeight: "700" },
   headerActions: { flexDirection:"row", gap:8 },
   headerIconBtn: { padding:6 },
   floatingTrackerCard: { marginHorizontal:14, backgroundColor:C.white, borderRadius:16, paddingHorizontal:14, paddingVertical:10, elevation:8, shadowColor:"#000", shadowOpacity:0.12, shadowOffset:{width:0,height:4}, shadowRadius:14, marginBottom:-28, zIndex:100 },
-  trackerTopRow: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10 },
-  trackerOrderId: { fontSize:13, fontWeight:"800", color:C.textDark },
-  viewMoreBtn: { flexDirection:"row", alignItems:"center", backgroundColor:C.purplePale, paddingHorizontal:10, paddingVertical:5, borderRadius:20 },
+  floatingTrackerCardWeb: { marginHorizontal: 0, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, marginBottom: -24 },
+  trackerTopRow: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10, gap: 8 },
+  trackerIdWrap: { flexDirection:"row", alignItems:"center", gap:6, flex: 1, minWidth: 0 },
+  trackerIdWrapWeb: { marginRight: 4 },
+  trackerOrderId: { fontSize:13, fontWeight:"800", color:C.textDark, flexShrink: 1 },
+  viewMoreBtn: { flexDirection:"row", alignItems:"center", backgroundColor:C.purplePale, paddingHorizontal:10, paddingVertical:5, borderRadius:20, flexShrink: 0 },
+  viewMoreBtnWeb: { paddingHorizontal: 8, paddingVertical: 5 },
   viewMoreText: { fontSize:11, fontWeight:"700", color:C.purple },
   stepperContainer: { flexDirection:"row", alignItems:"flex-start", justifyContent:"space-between" },
+  stepperContainerWeb: { width: "100%" },
   stepItem: { alignItems:"center", width:44 },
+  stepItemWeb: { flex: 1, minWidth: 0, width: undefined, paddingHorizontal: 1 },
   stepCircle: { width:28, height:28, borderRadius:14, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4 },
+  stepCircleWeb: { width: 24, height: 24, borderRadius: 12, marginBottom: 3 },
   stepLabel: { fontSize:9, textAlign:"center", lineHeight:11 },
+  stepLabelWeb: { fontSize: 8, lineHeight: 10, width: "100%" },
   stepConnectorWrap: { flex:1, alignItems:"center", marginTop:13, paddingHorizontal:2 },
+  stepConnectorWrapWeb: { flex: 0.6, marginTop: 11, paddingHorizontal: 1, minWidth: 4 },
   stepConnectorLine: { height:2, width:"100%", borderRadius:2, backgroundColor:C.border },
   extraNoteRow: { flexDirection:"row", alignItems:"center", marginTop:12, backgroundColor:C.bg, borderRadius:8, padding:8 },
   extraNoteText: { fontSize:11, color:C.textMid, flex:1 },
   scrollView: { flex:1, backgroundColor:C.bg },
   scrollContent: { padding:14, paddingTop:42, gap:12, paddingBottom:32 },
+  scrollContentWeb: { paddingHorizontal: 0, paddingTop: 36, paddingBottom: 24 },
+  scrollContentWebMobile: { paddingTop: 32, gap: 10, paddingBottom: 32 },
   card: { backgroundColor:C.white, borderRadius:16, padding:16, shadowColor:"#000", shadowOpacity:0.05, shadowOffset:{width:0,height:2}, shadowRadius:8, elevation:2 },
+  cardWeb: { borderRadius: 12, padding: 12 },
   orderSummaryGrid: { flexDirection:"row", gap:12 },
+  orderSummaryGridWeb: { flexDirection: "column", gap: 14 },
   orderSummaryLeft: { flex:1 },
   orderSummaryRight: { flex:1, alignItems:"flex-start" },
+  orderSummaryBlockWeb: { width: "100%", flex: undefined },
   labelSmall: { fontSize:11, color:C.textLight, fontWeight:"500", marginBottom:4, letterSpacing:0.2 },
   orderIdRow: { flexDirection:"row", alignItems:"center", marginBottom:8 },
-  orderId: { fontSize:14, fontWeight:"800", color:C.textDark, letterSpacing:0.2 },
-  metaRow: { flexDirection:"row", alignItems:"center", marginBottom:6 },
-  metaText: { fontSize:10, color:C.textMid },
+  orderId: { fontSize:14, fontWeight:"800", color:C.textDark, letterSpacing:0.2, flex: 1 },
+  orderIdWeb: { fontSize: 13 },
+  metaRow: { flexDirection:"row", alignItems:"flex-start", marginBottom:6 },
+  metaText: { fontSize:10, color:C.textMid, flex: 1 },
+  metaTextWeb: { fontSize: 11, lineHeight: 15 },
   paymentMethodRow: { flexDirection:"row", alignItems:"center", flexWrap:"wrap", gap:6 },
-  paymentMethodText: { fontSize:11, fontWeight:"700", color:C.textDark },
-  payStatusPill: { paddingHorizontal:8, paddingVertical:2, borderRadius:12 },
+  paymentMethodText: { fontSize:11, fontWeight:"700", color:C.textDark, flexShrink: 1 },
+  paymentMethodTextWeb: { fontSize: 12, lineHeight: 16 },
+  payStatusPill: { paddingHorizontal:8, paddingVertical:2, borderRadius:12, flexShrink: 0 },
   payStatusPillText: { fontSize:9, fontWeight:"700" },
-  amountRow: { flexDirection:"row", alignItems:"center" },
-  amountText: { fontSize:16, fontWeight:"800", color:C.navy },
+  amountRow: { flexDirection:"row", alignItems:"center", minWidth: 0 },
+  amountText: { fontSize:16, fontWeight:"800", color:C.navy, flexShrink: 1 },
+  amountTextWeb: { fontSize: 15 },
   amountBreakdown: { marginTop:6, gap:2 },
   amountBreakdownRow: { flexDirection:"row", justifyContent:"space-between", gap:16 },
   amountBreakdownLabel: { fontSize:11, color:C.textLight },
@@ -1765,6 +1443,7 @@ const styles = StyleSheet.create({
   avatarRing: { width:32, height:32, borderRadius:16, backgroundColor:"#EEF0FA", borderWidth:1.5, borderColor:C.navy, alignItems:"center", justifyContent:"center" },
   initialsText: { fontSize:11, fontWeight:"700", color:C.navy },
   customerName: { fontSize:15, fontWeight:"700", color:C.textDark },
+  emailWeb: { fontSize: 11, lineHeight: 15 },
   addressStack: { flexDirection:"column", gap:0 },
   addressBlockFull: { paddingVertical:4 },
   addressBlockHeader: { flexDirection:"row", alignItems:"center", gap:6, marginBottom:6 },
@@ -1773,11 +1452,14 @@ const styles = StyleSheet.create({
   addressRowDivider: { height:1, backgroundColor:C.border, marginVertical:10 },
   addressText: { fontSize:12, color:C.textMid, lineHeight:20 },
   itemRow: { flexDirection:"row", gap:12, marginBottom:16 },
+  itemRowWeb: { gap: 10 },
   itemImage: { width:88, height:88, borderRadius:12, backgroundColor:C.border },
-  itemInfo: { flex:1 },
-  itemTopRow: { flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 },
-  itemName: { fontSize:15, fontWeight:"700", color:C.textDark, flex:1 },
-  itemPrice: { fontSize:15, fontWeight:"800", color:C.textDark, marginLeft:8 },
+  itemImageWeb: { width: 72, height: 72, borderRadius: 10 },
+  itemInfo: { flex:1, minWidth: 0 },
+  itemTopRow: { flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4, gap: 8 },
+  itemName: { fontSize:15, fontWeight:"700", color:C.textDark, flex:1, minWidth: 0 },
+  itemPrice: { fontSize:15, fontWeight:"800", color:C.textDark, marginLeft:8, flexShrink: 0 },
+  itemPriceWeb: { fontSize: 14, marginLeft: 4 },
   itemVariant: { fontSize:12, color:C.textLight, marginBottom:3 },
   itemSku: { fontSize:12, color:C.textLight, marginBottom:8 },
   qtyBadge: { alignSelf:"flex-start", backgroundColor:C.bluePale, paddingHorizontal:10, paddingVertical:3, borderRadius:12 },
@@ -1790,7 +1472,9 @@ const styles = StyleSheet.create({
   pricingTotalLabel: { fontSize:14, fontWeight:"700", color:C.textDark },
   pricingTotalValue: { fontSize:16, fontWeight:"800", color:C.navy },
   paymentGrid: { flexDirection:"row", gap:16 },
+  paymentGridWeb: { flexDirection: "column", gap: 14 },
   paymentCol: { flex:1 },
+  paymentColWeb: { width: "100%", flex: undefined },
   payFieldLabel: { fontSize:11, color:C.textLight, fontWeight:"500", marginBottom:2 },
   payFieldValue: { fontSize:13, fontWeight:"600", color:C.textDark },
   payStatusRow: { flexDirection:"row", alignItems:"center" },
@@ -1862,8 +1546,8 @@ const lStyles = StyleSheet.create({
   scroll: { flex:1 },
   scrollContent: { padding:12, paddingBottom:16 },
   labelCard: { backgroundColor:C.white, borderRadius:4, overflow:"hidden", shadowColor:"#000", shadowOpacity:0.12, shadowOffset:{width:0,height:4}, shadowRadius:12, elevation:6 },
-  labelTopHeader: { backgroundColor:C.white },
-  logoImage: { width:"100%", height:90, backgroundColor:C.white },
+  labelTopHeader: { backgroundColor:C.white, alignItems:"center", paddingVertical:6, paddingHorizontal:12, borderBottomWidth:1, borderBottomColor:C.border },
+  logoImage: { width:160, height:48, backgroundColor:C.white, alignSelf:"center" },
   orangeBand: { backgroundColor:C.orange, paddingVertical:7, alignItems:"center" },
   orangeBandText: { fontSize:11, fontWeight:"800", color:C.white, letterSpacing:1.4 },
   courierRow: { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, paddingVertical:8, backgroundColor:C.white, borderBottomWidth:1, borderBottomColor:C.border },
@@ -1908,6 +1592,8 @@ const lStyles = StyleSheet.create({
   footerGst: { fontSize:9, fontWeight:"700", color:C.textDark },
   footerNote: { fontSize:8, color:C.textLight, letterSpacing:0.4, fontWeight:"600" },
   footerPowered: { fontSize:8, color:C.orange, fontWeight:"700" },
+  shippingStrip: { backgroundColor: C.white },
+  qrWrap: { width: 72, height: 72, borderWidth: 1, borderColor: C.border, padding: 2, backgroundColor: C.white, alignItems: "center", justifyContent: "center" },
   bottomBtnRow: { flexDirection:"row", gap:12, paddingHorizontal:16, paddingVertical:12, backgroundColor:"#EBEBEB", borderTopWidth:1, borderTopColor:"#D0D0D0", maxWidth:680, width:"100%" },  printBtn: { flex:1, flexDirection:"row", alignItems:"center", justifyContent:"center", backgroundColor:C.orange, borderRadius:10, paddingVertical:13 },
   printBtnText: { fontSize:14, fontWeight:"700", color:C.white },
   closeBtn: { flex:1, alignItems:"center", justifyContent:"center", backgroundColor:"#9CA3AF", borderRadius:10, paddingVertical:13 },

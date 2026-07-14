@@ -4,6 +4,7 @@ import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
+import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Circle } from "react-native-svg";
 
 const C = {
@@ -58,6 +59,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   referralTotalReferred = 0,
 }) => {
   const router = useRouter();
+  const { isTablet } = useResponsive();
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
   const displayReferralCode = formatReferralCodeDisplay(referralCode);
@@ -125,9 +127,9 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const progressPct = referralGoal > 0 ? Math.min((referralTotalReferred / referralGoal) * 100, 100) : 0;
 
   return (
-    <View style={welcomeStyles.container}>
+    <View style={[welcomeStyles.container, isTablet && welcomeStyles.containerTablet]}>
       {/* ── LEFT: Greeting + Quick Actions ── */}
-      <View style={welcomeStyles.leftCol}>
+      <View style={[welcomeStyles.leftCol, isTablet && welcomeStyles.leftColTablet]}>
         <View style={welcomeStyles.heroText}>
           <AppText style={welcomeStyles.title}>
             {greeting},{" "}
@@ -164,7 +166,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         </View>
 
         {/* ── Today's Live Overview Strip ── */}
-        <View style={welcomeStyles.statsStrip}>
+        <View style={[welcomeStyles.statsStrip, isTablet && welcomeStyles.statsStripTablet]}>
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.orange }]} />
             <AppText style={welcomeStyles.statText}>
@@ -203,10 +205,10 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       </View>
 
       {/* ── DIVIDER ── */}
-      <View style={welcomeStyles.divider} />
+      <View style={[welcomeStyles.divider, isTablet && welcomeStyles.dividerTablet]} />
 
       {/* ── RIGHT: Referral Reward Program ── */}
-      <View style={welcomeStyles.referralCol}>
+      <View style={[welcomeStyles.referralCol, isTablet && welcomeStyles.referralColTablet]}>
         {/* Header */}
         <View style={welcomeStyles.refHeader}>
           <View style={welcomeStyles.refIconBox}>
@@ -296,11 +298,18 @@ const welcomeStyles = StyleSheet.create({
       },
     }),
   },
+  containerTablet: {
+    flexDirection: "column",
+  },
   // ── Left column ──
   leftCol: {
     flex: 1,
     paddingRight: 20,
     justifyContent: "space-between",
+    minWidth: 0,
+  },
+  leftColTablet: {
+    paddingRight: 0,
   },
   heroText: {
     marginBottom: 10,
@@ -383,6 +392,9 @@ const welcomeStyles = StyleSheet.create({
     gap: 8,
     rowGap: 10,
   },
+  statsStripTablet: {
+    justifyContent: "flex-start",
+  },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -452,6 +464,12 @@ const welcomeStyles = StyleSheet.create({
     marginVertical: -18,
     alignSelf: "stretch",
   },
+  dividerTablet: {
+    width: "100%",
+    height: 1,
+    marginVertical: 14,
+    alignSelf: "auto",
+  },
   // ── Right column — Referral ──
   referralCol: {
     width: 300,
@@ -470,6 +488,14 @@ const welcomeStyles = StyleSheet.create({
         boxShadow: "0 8px 24px rgba(249, 115, 22, 0.12)",
       },
     }),
+  },
+  referralColTablet: {
+    width: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+    marginLeft: 0,
+    paddingLeft: 0,
+    marginTop: 0,
   },
   refHeader: {
     flexDirection: "row",
@@ -1181,17 +1207,25 @@ const trackingStyles = StyleSheet.create({
 });
 
 // ─── 9. TOP PRODUCTS PERFORMANCE ───
-type TopProductRow = { id: string; name: string; sold: number; price: string };
+type TopProductRow = { id: string; name: string; sold: number; price: string; image?: string };
 
 export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ items = [] }) => {
+  const router = useRouter();
+
+  const openProduct = (id: string) => {
+    if (!id) return;
+    router.push({ pathname: "/(main)/Productdetail", params: { id } } as any);
+  };
+
   return (
     <View style={panelStyles.card}>
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Top Selling Products Performance</AppText>
       
       <View style={tableStyles.headerRow}>
-        <AppText style={[tableStyles.headerText, { flex: 2 }]}>Product</AppText>
-        <AppText style={tableStyles.headerText}>Sold</AppText>
-        <AppText style={tableStyles.headerText}>Price</AppText>
+        <View style={tableStyles.imageCol} />
+        <AppText style={[tableStyles.headerText, tableStyles.nameCol]}>Product</AppText>
+        <AppText style={[tableStyles.headerText, tableStyles.soldCol]}>Sold</AppText>
+        <AppText style={[tableStyles.headerText, tableStyles.priceCol]}>Price</AppText>
       </View>
 
       {items.length === 0 ? (
@@ -1199,9 +1233,20 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
       ) : (
         items.map((it) => (
           <View key={it.id} style={tableStyles.row}>
-            <AppText style={[tableStyles.cell, { flex: 2, fontFamily: "Poppins_700Bold" }]} numberOfLines={1}>{it.name}</AppText>
-            <AppText style={tableStyles.cell}>{it.sold}</AppText>
-            <AppText style={tableStyles.cell}>{it.price}</AppText>
+            <TouchableOpacity onPress={() => openProduct(it.id)} activeOpacity={0.7}>
+              {it.image ? (
+                <Image source={{ uri: it.image }} style={tableStyles.thumb} resizeMode="cover" />
+              ) : (
+                <View style={[tableStyles.thumb, tableStyles.thumbPlaceholder]}>
+                  <MaterialCommunityIcons name="image-outline" size={18} color={C.textLight} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={tableStyles.nameCol} onPress={() => openProduct(it.id)} activeOpacity={0.7}>
+              <AppText style={[tableStyles.cell, tableStyles.nameCell]} numberOfLines={1}>{it.name}</AppText>
+            </TouchableOpacity>
+            <AppText style={[tableStyles.cell, tableStyles.soldCol]}>{it.sold}</AppText>
+            <AppText style={[tableStyles.cell, tableStyles.priceCol]}>{it.price}</AppText>
           </View>
         ))
       )}
@@ -1212,30 +1257,63 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
 const tableStyles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
-    backgroundColor: C.bg,
-    paddingVertical: 8,
+    alignItems: "center",
+    gap: 16,
+    backgroundColor: C.purplePale,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 6,
-    marginBottom: 6,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   headerText: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: "Poppins_700Bold",
-    color: C.textLight,
-    flex: 1,
+    color: C.navy,
+    letterSpacing: 0.3,
   },
   row: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
+  imageCol: {
+    width: 48,
+    flexShrink: 0,
+  },
+  thumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: C.purplePale,
+    flexShrink: 0,
+  },
+  thumbPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameCol: {
+    flex: 2,
+    minWidth: 0,
+  },
+  nameCell: {
+    fontFamily: "Poppins_600SemiBold",
+  },
+  soldCol: {
+    flex: 0.7,
+    textAlign: "center",
+  },
+  priceCol: {
+    flex: 1,
+    textAlign: "right",
+  },
   cell: {
     fontSize: 11,
     fontFamily: "Poppins_500Medium",
     color: C.textDark,
-    flex: 1,
   },
 });
 

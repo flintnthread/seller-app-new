@@ -12,12 +12,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Image,
   TextInput,
   TouchableOpacity,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
+import { Image } from "expo-image";
 import { AppText } from "@/components/AppText";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +27,7 @@ import * as ImagePicker from "expo-image-picker";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { ensureApiReachable } from "@/lib/api/config";
 import {
   fetchSellerProfile,
   getApiErrorMessage,
@@ -205,6 +206,7 @@ export default function SellerPersonalInfo() {
     (async () => {
       try {
         await hydrateSellerSession();
+        await ensureApiReachable();
         const profile = await fetchSellerProfile();
         if (!active) return;
         const loadedName =
@@ -213,8 +215,8 @@ export default function SellerPersonalInfo() {
         if (loadedName) setName(loadedName);
         if (profile.mobile) setMobile(profile.mobile.replace(/\D/g, "").slice(-10));
         if (profile.email) setEmail(profile.email);
-        const pic = profile.personal?.profilePicUrl;
-        if (pic) setImage(resolveDocumentDisplayUrl(pic));
+        const pic = profile.personal?.profilePicUrl ?? profile.documents?.files?.profilePic;
+        if (pic) setImage(resolveDocumentDisplayUrl(pic) ?? pic);
       } catch {
         // Signup route params remain as fallback
       }
@@ -280,9 +282,10 @@ export default function SellerPersonalInfo() {
     setIsUploadingPhoto(true);
     try {
       await hydrateSellerSession();
+      await ensureApiReachable();
       const updated = await uploadProfilePhoto(localUri);
-      const url = updated.personal?.profilePicUrl;
-      if (url) setImage(resolveDocumentDisplayUrl(url));
+      const url = updated.personal?.profilePicUrl ?? updated.documents?.files?.profilePic;
+      if (url) setImage(resolveDocumentDisplayUrl(url) ?? url);
       showSuccess("Profile photo uploaded.");
     } catch (e) {
       showError(getApiErrorMessage(e, "Could not upload profile photo."));
@@ -449,7 +452,7 @@ export default function SellerPersonalInfo() {
               {/* Avatar */}
               <View style={s.avatarWrap}>
                 {image ? (
-                  <Image source={{ uri: image }} style={s.avatarImg} />
+                  <Image source={{ uri: image }} style={s.avatarImg} contentFit="cover" cachePolicy="memory-disk" />
                 ) : (
                   <LinearGradient
                     colors={[T.navySoft, T.navyPale]}
@@ -570,10 +573,10 @@ const ws = StyleSheet.create({
 
 // ─── Styles ──────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
 
   // ── Header ──
-  topHeader:    { paddingHorizontal: 20, height: 200 },
+  topHeader:    { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   headerLabel:  { fontSize: 10, fontFamily: fontFamilies.bold, color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
   headerTitle:  { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },

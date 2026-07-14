@@ -653,10 +653,11 @@ export async function getGroupedFaqs(_sellerOnly = true): Promise<FaqCategoryRes
   return res.json();
 }
 
-/** Only FAQs marked for sellers in DB */
+/** Seller FAQ rows — API with sellerOnly=true is already filtered; treat missing flag as seller-visible. */
 export function isSellerFaq(f: FaqResponse): boolean {
   const raw = f as FaqResponse & { is_seller?: boolean | number | null };
   const v = raw.isSeller ?? raw.is_seller;
+  if (v == null) return true;
   return v === true || v === 1;
 }
 

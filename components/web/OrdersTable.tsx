@@ -8,6 +8,7 @@ export interface Column<T> {
   render?: (item: T) => React.ReactNode;
   width?: number | string;
   align?: "left" | "center" | "right";
+  nowrap?: boolean;
 }
 
 interface OrdersTableProps<T> {
@@ -35,6 +36,7 @@ export function OrdersTable<T>({ data, columns, onRowPress }: OrdersTableProps<T
                 style={[
                   styles.headerCell,
                   col.width ? { width: col.width as any } : { flex: 1 },
+                  col.nowrap && styles.cellNoWrap,
                   col.align === "right" && { alignItems: "flex-end" },
                   col.align === "center" && { alignItems: "center" },
                 ]}
@@ -61,6 +63,7 @@ export function OrdersTable<T>({ data, columns, onRowPress }: OrdersTableProps<T
                     style={[
                       styles.cell,
                       col.width ? { width: col.width as any } : { flex: 1 },
+                      col.nowrap && styles.cellNoWrap,
                       col.align === "right" && { alignItems: "flex-end" },
                       col.align === "center" && { alignItems: "center" },
                     ]}
@@ -127,6 +130,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     justifyContent: "center",
     overflow: "hidden",
+  },
+  cellNoWrap: {
+    flexShrink: 0,
+    ...Platform.select({
+      web: {
+        whiteSpace: "nowrap" as any,
+        overflow: "visible" as any,
+      },
+    }),
   },
   cellText: {
     fontSize: 14,

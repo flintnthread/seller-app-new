@@ -107,20 +107,31 @@ export type RegistrationPaymentOrderResponse = {
     currency: string;
     receipt: string;
     paid: boolean;
+    registrationFee?: number;
+    gstAmount?: number;
+    totalAmount?: number;
 };
 
 export type RegistrationPaymentStatusResponse = {
     paid: boolean;
+    subscriptionActive?: boolean;
+    paymentPending?: boolean;
     orderId?: string | null;
     paymentId?: string | null;
     paidAt?: string | null;
+    subscriptionExpiresAt?: string | null;
     amount: number;
+    registrationFee?: number;
+    gstAmount?: number;
+    totalAmount?: number;
     currency: string;
+    invoiceEmailSent?: boolean;
 };
 
 export type GstVerifyResponse = {
     verified?: boolean;
     isVerified?: boolean;
+    alreadyExists?: boolean;
     gstNumber: string;
     message: string;
     businessName?: string | null;
@@ -350,6 +361,11 @@ export function isGstVerifySuccessful(result: GstVerifyResponse): boolean {
     return result.verified === true || result.isVerified === true;
 }
 
+export function isGstAlreadyExists(result: GstVerifyResponse): boolean {
+    return result.alreadyExists === true
+        || /already registered with another seller/i.test(result.message ?? "");
+}
+
 export async function lookupIfscCode(ifscCode: string): Promise<IfscLookupResponse> {
     const code = encodeURIComponent(ifscCode.trim().toUpperCase());
     return apiRequest<IfscLookupResponse>(`/api/seller/profile/ifsc/${code}`);
@@ -426,6 +442,17 @@ export async function verifyRegistrationPayment(payload: {
     return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/verify", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+}
+
+export async function resendRegistrationInvoiceEmail(): Promise<RegistrationPaymentStatusResponse> {
+    const sellerId = ensureSellerId();
+    if (!sellerId) {
+        throw new ApiError(sanitizeAuthErrorMessage("Seller not logged in.", 401), 401);
+    }
+    return apiRequest<RegistrationPaymentStatusResponse>("/api/seller/profile/registration-payment/resend-invoice", {
+        method: "POST",
+        body: JSON.stringify({}),
     });
 }
 

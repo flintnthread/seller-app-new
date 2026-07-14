@@ -61,6 +61,9 @@ export type LoginResult = {
     emailVerified: boolean;
     profileCompleted: boolean;
     status: string;
+    subscriptionActive: boolean;
+    paymentPending: boolean;
+    subscriptionExpiresAt?: string | null;
     accessToken: string;
     expiresIn: number;
 };
@@ -75,6 +78,9 @@ type LoginApiResponse = {
     emailVerified: boolean;
     profileCompleted: boolean;
     status: string;
+    subscriptionActive?: boolean;
+    paymentPending?: boolean;
+    subscriptionExpiresAt?: string | null;
     accessToken: string;
     expiresIn?: number;
 };
@@ -97,6 +103,9 @@ export async function loginSeller(identifier: string, password: string): Promise
         emailVerified: body.emailVerified === true,
         profileCompleted: body.profileCompleted === true,
         status: body.status ?? "pending",
+        subscriptionActive: body.subscriptionActive !== false,
+        paymentPending: body.paymentPending === true,
+        subscriptionExpiresAt: body.subscriptionExpiresAt ?? null,
         accessToken: body.accessToken.trim(),
         expiresIn: body.expiresIn ?? 86400,
     };

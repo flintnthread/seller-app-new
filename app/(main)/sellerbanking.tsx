@@ -29,6 +29,7 @@ import {
   updateSellerBankDetails,
 } from "@/services/payoutApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
+import { ResponsivePairRow, useWebWideColumnStyle } from "@/components/common/ResponsivePairRow";
 
 
 // ─── Design tokens — identical to Screen 1 ───────────────────
@@ -302,23 +303,11 @@ const inp = StyleSheet.create({
   autoNote:  { fontSize: 11, color: T.textLight, marginTop: 5, marginLeft: 2, fontStyle: "italic" },
 });
 
-// ─── Web-only: InputPairRow renders 2 inputs side-by-side on web, stacked on mobile ──
-const isWeb = Platform.OS === "web";
-
-const InputPairRow: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-  isWeb ? (
-    <View style={pair.row}>{children}</View>
-  ) : (
-    <>{children}</>
-  );
-
-const pair = StyleSheet.create({
-  row: { flexDirection: "row", gap: 16 },
-});
 
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBanking() {
   const router = useRouter();
+  const webWideCol = useWebWideColumnStyle();
   const searchParams = useLocalSearchParams<{ businessCategory?: string; returnTo?: string }>();
   const businessCategory =
     typeof searchParams.businessCategory === "string" ? searchParams.businessCategory : "";
@@ -616,8 +605,8 @@ export default function SellerBanking() {
             <SectionLabel title="Auto-filled Details" iconName="magic" color={T.success} />
 
             {/* Bank Name + Branch Name: side-by-side on web, stacked on mobile */}
-            <InputPairRow>
-              <View style={isWeb ? { flex: 1 } : {}}>
+            <ResponsivePairRow gap={16}>
+              <View style={webWideCol}>
                 <InputRow
                   label="Bank Name"
                   value={bankName}
@@ -628,7 +617,7 @@ export default function SellerBanking() {
                   accentColor={T.orange}
                 />
               </View>
-              <View style={isWeb ? { flex: 1 } : {}}>
+              <View style={webWideCol}>
                 <InputRow
                   label="Branch Name"
                   value={branchName}
@@ -639,7 +628,7 @@ export default function SellerBanking() {
                   accentColor={T.orange}
                 />
               </View>
-            </InputPairRow>
+            </ResponsivePairRow>
           </SectionCard>
 
           {/* ── Account Information card ── */}
@@ -677,8 +666,8 @@ export default function SellerBanking() {
             />
 
             {/* Account Number + Confirm: side-by-side on web, stacked on mobile */}
-            <InputPairRow>
-              <View style={isWeb ? { flex: 1 } : {}}>
+            <ResponsivePairRow gap={16}>
+              <View style={webWideCol}>
                 <InputRow
                   label="Account Number"
                   value={accountNumber}
@@ -708,7 +697,7 @@ export default function SellerBanking() {
                   onLayout={(e) => handleFieldLayout("accountNumber", e)}
                 />
               </View>
-              <View style={isWeb ? { flex: 1 } : {}}>
+              <View style={webWideCol}>
                 <InputRow
                   label="Confirm Account Number"
                   value={confirmAccountNumber}
@@ -734,7 +723,7 @@ export default function SellerBanking() {
                   onLayout={(e) => handleFieldLayout("confirmAccountNumber", e)}
                 />
               </View>
-            </InputPairRow>
+            </ResponsivePairRow>
           </SectionCard>
 
           {/* ── Buttons — exact Screen 1 ── */}
@@ -775,10 +764,10 @@ export default function SellerBanking() {
 
 // ─── Styles — mirrors Screen 1 exactly ───────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
 
   // ── Header — exact Screen 1 ──
-  topHeader:    { paddingHorizontal: 20, height: 200 },
+  topHeader:    { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
     headerLabel: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.55)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
     headerTitle: { fontSize: 18, fontFamily: fontFamilies.bold, color: T.white, marginBottom: 2 },

@@ -18,6 +18,7 @@ import {
     resolveActiveNavId,
 } from "@/lib/navigation/sellerNavConfig";
 import { useSellerProfileSummary } from "@/hooks/useSellerProfileSummary";
+import { useProfileStatus } from "@/hooks/useProfileStatus";
 
 const C = {
     navyDeep: "#151D4F",
@@ -56,6 +57,10 @@ export function SellerTopNav({ compact = false }: Props) {
     const activeId = resolveActiveNavId(pathname);
     const activeItem = SELLER_NAV_ITEMS.find((i) => i.id === activeId) ?? SELLER_NAV_ITEMS[0];
     const { summary, loading: profileLoading } = useSellerProfileSummary();
+    const { isProfileCompleted } = useProfileStatus();
+    const profileDone = summary?.profileCompleted === true || isProfileCompleted;
+    const approval = summary?.accountStatus?.approvalState;
+    const showSellerTools = profileDone && approval === "approved";
 
     const greeting = useMemo(() => {
         const hour = new Date().getHours();
@@ -138,23 +143,27 @@ export function SellerTopNav({ compact = false }: Props) {
                         <Text style={s.navName} numberOfLines={1}>
                             {activeItem?.label ?? "Dashboard"}
                         </Text>
-                        <Text style={s.navGreeting} numberOfLines={1}>
+                        <Text style={s.navGreeting} numberOfLines={2}>
                             {subtitle}
                         </Text>
                     </View>
                     <View style={s.navRight}>
-                        <TouchableOpacity
-                            style={s.navIconBtn}
-                            onPress={() => router.push("/(main)/notifications")}
-                        >
-                            <Ionicons name="notifications-outline" size={22} color={C.white} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={s.navIconBtn}
-                            onPress={() => router.push("/(main)/settingsModule")}
-                        >
-                            <Ionicons name="settings-outline" size={22} color={C.white} />
-                        </TouchableOpacity>
+                        {showSellerTools ? (
+                            <>
+                                <TouchableOpacity
+                                    style={s.navIconBtn}
+                                    onPress={() => router.push("/(main)/notifications")}
+                                >
+                                    <Ionicons name="notifications-outline" size={22} color={C.white} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={s.navIconBtn}
+                                    onPress={() => router.push("/(main)/settingsModule")}
+                                >
+                                    <Ionicons name="settings-outline" size={22} color={C.white} />
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
                     </View>
                 </View>
             </SafeAreaView>
@@ -189,7 +198,7 @@ const s = StyleSheet.create({
     logoImg: { width: 24, height: 24 },
     navTitleContainer: { flex: 1, marginHorizontal: 12 },
     navName: { fontFamily: "Poppins_700Bold", fontSize: 16, color: C.white },
-    navGreeting: { fontFamily: "Poppins_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+    navGreeting: { fontFamily: "Poppins_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 16 },
     navRight: { flexDirection: "row", gap: 8 },
     menuCardsContainer: { backgroundColor: "#F7F8FC", paddingTop: 4, position: "relative" },
     tabBorderBottomLine: {

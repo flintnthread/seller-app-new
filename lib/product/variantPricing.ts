@@ -215,6 +215,17 @@ export function calculateVariantPricingFromStrings(input: {
     });
 }
 
+export function normalizePricingWithoutCommission(pricing: VariantPricingResult): VariantPricingResult {
+    const totalIntraCity = round2(pricing.finalPrice + pricing.intraCityCharge);
+    const totalMetroMetro = round2(pricing.finalPrice + pricing.metroMetroCharge);
+    return {
+        ...pricing,
+        commissionAmount: 0,
+        totalIntraCity,
+        totalMetroMetro,
+    };
+}
+
 export function mapPricingPreviewToResult(preview: {
     mrpExcl: number;
     sellingExcl: number;

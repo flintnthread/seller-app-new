@@ -7,10 +7,11 @@ import { useSellerProfile } from '@/hooks/useSellerProfile';
 import { useProfileStatus } from '@/hooks/useProfileStatus';
 import { useSweetAlert } from '@/components/common/SweetAlert';
 import { clearSellerId } from '@/lib/api/sellerSession';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export function DesktopHeader({ 
   isSidebarOpen, 
-  onToggleSidebar 
+  onToggleSidebar,
 }: { 
   isSidebarOpen?: boolean; 
   onToggleSidebar?: () => void; 
@@ -20,11 +21,10 @@ export function DesktopHeader({
   const { isProfileCompleted } = useProfileStatus();
   const profileDone = profile?.profileCompleted === true || isProfileCompleted;
   const approval = profile?.approvalState ?? profile?.accountStatus?.approvalState;
-  const showViewProfile = profileDone && approval === "approved";
-  const showSubmittedProfile =
-    profileDone && (approval === "pending_review" || approval === "rejected");
+  const showSellerTools = profileDone && approval === "approved";
   const { showSuccess, confirmAction, SweetAlertHost } = useSweetAlert();
   const [isHovered, setIsHovered] = useState(false);
+  const { isNarrowWeb, isCompact } = useResponsive();
 
   const firstLetter = profile?.firstName?.trim()?.charAt(0)?.toUpperCase() || "P";
 
@@ -45,7 +45,7 @@ export function DesktopHeader({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isNarrowWeb && styles.containerNarrow]}>
       {!isSidebarOpen && onToggleSidebar && (
         <Pressable 
           onPress={onToggleSidebar} 
@@ -59,40 +59,45 @@ export function DesktopHeader({
         </Pressable>
       )}
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIcon} />
+      <View style={[styles.searchContainer, isNarrowWeb && styles.searchContainerNarrow]}>
+        <Ionicons name="search-outline" size={16} color="#999" style={styles.searchIcon} />
         <TextInput 
           style={styles.searchInput}
-          placeholder="Search orders, products..."
+          placeholder="Search"
           placeholderTextColor="#999"
         />
       </View>
       
-      <View style={styles.rightSection}>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/notifications')}>
-          <IconSymbol name="bell.fill" size={20} color="#666666" />
-          <View style={styles.notificationBadge} />
-        </Pressable>
+      <View style={[styles.rightSection, isCompact && styles.rightSectionCompact]}>
+        {showSellerTools ? (
+          <>
+            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/notifications')}>
+              <IconSymbol name="bell.fill" size={18} color="#666666" />
+              <View style={styles.notificationBadge} />
+            </Pressable>
 
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(main)/helpsupport')}>
-          <Ionicons name="headset-outline" size={20} color="#666666" />
-        </Pressable>
+            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/helpsupport')}>
+              <Ionicons name="headset-outline" size={18} color="#666666" />
+            </Pressable>
+
+            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/settingsModule')}>
+              <Ionicons name="settings-outline" size={18} color="#666666" />
+            </Pressable>
+          </>
+        ) : null}
         
-        {/* Profile Avatar with Dropdown */}
         <View 
           // @ts-ignore
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           style={styles.avatarWrapper}
         >
-          <Pressable style={styles.avatar} onPress={() => router.push('/Profile')}>
+          <Pressable style={[styles.avatar, isCompact && styles.avatarCompact]} onPress={() => router.push('/Profile')}>
             <Text style={styles.avatarText}>{firstLetter}</Text>
           </Pressable>
           
           {isHovered && (
             <View style={styles.dropdownMenu}>
-             
-              
               <Pressable 
                 onPress={handleLogout}
                 // @ts-ignore
@@ -126,6 +131,11 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 50,
     gap: 16,
+    minWidth: 0,
+  },
+  containerNarrow: {
+    paddingHorizontal: 12,
+    gap: 8,
   },
   menuButton: {
     width: 36,
@@ -137,9 +147,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
     marginRight: 4,
+    flexShrink: 0,
   },
   searchContainer: {
     flex: 1,
+    minWidth: 0,
     maxWidth: 620,
     flexDirection: 'row',
     alignItems: 'center',
@@ -150,11 +162,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 38,
   },
+  searchContainerNarrow: {
+    paddingHorizontal: 10,
+  },
   searchIcon: {
     marginRight: 8,
+    flexShrink: 0,
   },
   searchInput: {
     flex: 1,
+    minWidth: 0,
     height: '100%',
     fontSize: 14,
     color: '#000',
@@ -163,15 +180,21 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     flexShrink: 0,
-    paddingLeft: 8,
+    paddingLeft: 4,
     marginLeft: 'auto' as any,
+  },
+  rightSectionCompact: {
+    gap: 0,
   },
   iconButton: {
     padding: 8,
     borderRadius: 20,
     position: 'relative',
+  },
+  iconButtonCompact: {
+    padding: 6,
   },
   notificationBadge: {
     position: 'absolute',
@@ -191,6 +214,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarCompact: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
   avatarText: {
     color: '#ffffff',

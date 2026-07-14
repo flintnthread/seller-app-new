@@ -30,11 +30,20 @@ function readEnvFile(name) {
 
 const devSellerId = readEnvFile("EXPO_PUBLIC_DEV_SELLER_ID") || "1";
 const androidEmulatorApi = readEnvFile("EXPO_PUBLIC_API_ANDROID_EMULATOR") === "true";
+const webBasePath =
+    process.env.EXPO_PUBLIC_WEB_BASE_PATH !== undefined
+        ? process.env.EXPO_PUBLIC_WEB_BASE_PATH
+        : readEnvFile("EXPO_PUBLIC_WEB_BASE_PATH") || "/";
 
 module.exports = {
     expo: {
         ...appJson.expo,
+        experiments: {
+            ...appJson.expo.experiments,
+            baseUrl: webBasePath,
+        },
         extra: {
+            ...appJson.expo.extra,
             devSellerId,
             androidEmulatorApi,
         },

@@ -61,6 +61,7 @@ export type VariantFormState = {
     sizeId?: number;
     sku: string;
     stock: string;
+    minQuantity?: string;
     mrp: string;
     sellingPrice: string;
     discount: string;
@@ -88,6 +89,7 @@ type Props = {
     catalogLoading?: boolean;
     context: VariantFormContext;
     showHeader?: boolean;
+    isB2B?: boolean;
 };
 
 function isLightHex(hex: string): boolean {
@@ -405,6 +407,7 @@ export function createEmptyVariantFormState(): VariantFormState {
         size: "",
         sku: "",
         stock: "",
+        minQuantity: "",
         mrp: "",
         sellingPrice: "",
         discount: "0",
@@ -420,6 +423,7 @@ export function ProductVariantFormCard({
     catalogLoading = false,
     context,
     showHeader = true,
+    isB2B = false,
 }: Props) {
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showSizePicker, setShowSizePicker] = useState(false);
@@ -450,7 +454,6 @@ export function ProductVariantFormCard({
         catalog?.deliverySlabs,
     );
 
-    const catalogCommission = catalog?.commissionPercent ?? 15;
     const productGstPercent = Number.isFinite(context.gstPercentage) && (context.gstPercentage ?? 0) >= 0
         ? (context.gstPercentage as number)
         : resolveGstPercentFromCatalog(catalog, {
@@ -543,7 +546,6 @@ export function ProductVariantFormCard({
                     metroMetroCharge: fallbackDelivery.metroMetro,
                 }),
             discountOverride: parseFloat(state.discount) || null,
-            commissionPercent: catalogCommission,
         });
 
     if (catalogLoading) {
@@ -620,6 +622,19 @@ export function ProductVariantFormCard({
                 </View>
             </View>
 
+            {isB2B ? (
+                <View style={{ width: "50%" }}>
+                    <Lbl text="Min Quantity" compact />
+                    <Field
+                        placeholder="1"
+                        value={state.minQuantity ?? ""}
+                        onChangeText={(val) => patch({ minQuantity: val })}
+                        keyboardType="numeric"
+                    />
+                    <Hint text="Minimum units per B2B order" />
+                </View>
+            ) : null}
+
             <View style={s.row2}>
                 <View style={{ flex: 1 }}>
                     <Lbl text="MRP (excl. GST)" required />
@@ -661,7 +676,7 @@ export function ProductVariantFormCard({
             <VariantPriceBreakdown
                 pricing={pricingPreview?.pricing ?? localPricing}
                 delivery={pricingPreview?.delivery ?? fallbackDelivery}
-                commissionPercent={pricingPreview?.commissionPercent ?? catalogCommission}
+                commissionPercent={pricingPreview?.commissionPercent}
                 hasWeight={hasWeight}
             />
 
@@ -704,6 +719,7 @@ export function variantDetailToFormState(v: ProductDetailVariant): VariantFormSt
         size: v.size ?? "",
         sku: v.sku ?? "",
         stock: String(v.stock ?? ""),
+        minQuantity: v.minQuantity != null ? String(v.minQuantity) : "",
         mrp: String(v.mrpExclGst || v.mrp || ""),
         sellingPrice: String(v.sellingPriceExGst || v.sellingPrice || ""),
         discount: String(v.discount ?? "0"),
@@ -736,6 +752,8 @@ export async function buildVariantMutationPayload(form: VariantFormState): Promi
     if (form.sizeId != null) payload.sizeId = form.sizeId;
     const sku = form.sku?.trim();
     if (sku) payload.sku = sku;
+    const minQty = parseInt(form.minQuantity ?? "", 10);
+    if (Number.isFinite(minQty) && minQty > 0) payload.minQuantity = minQty;
     return payload;
 }
 
@@ -774,7 +792,6 @@ export function variantFormStateToPricing(
                 metroMetroCharge: fallbackDelivery.metroMetro,
             }),
         discountOverride: parseFloat(state.discount) || null,
-        commissionPercent: catalog?.commissionPercent ?? 15,
     });
 }
 

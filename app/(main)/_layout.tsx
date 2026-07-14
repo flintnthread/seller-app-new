@@ -1,26 +1,69 @@
-import { Tabs, Slot, usePathname } from "expo-router";
-import React from "react";
+import { Tabs, Slot, usePathname, useRouter, useGlobalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import { Platform, View, ActivityIndicator } from "react-native";
 import { HapticTab } from "@/components/haptic-tab";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useSellerSessionGate } from "@/hooks/useSellerSessionGate";
 import { WebLayout } from "@/components/web/WebLayout";
 import { SellerTopNav } from "@/components/common/SellerTopNav";
 import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
+import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { Ionicons } from "@expo/vector-icons";
+
+function buildReturnPath(pathname: string, params: Record<string, string | string[] | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null || key === "redirect") continue;
+    if (Array.isArray(value)) {
+      value.forEach((v) => search.append(key, v));
+    } else {
+      search.set(key, value);
+    }
+  }
+  const qs = search.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
+/** Inline here to avoid expo-router circular import from a separate hooks module. */
+function useSellerSessionGate() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      await hydrateSellerSession(true);
+      if (!mounted) return;
+      if (!ensureSellerId()) {
+        const returnPath = buildReturnPath(pathname, params);
+        router.replace({
+          pathname: "/(auth)/login",
+          params: { redirect: returnPath },
+        });
+        return;
+      }
+      setReady(true);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [router, pathname, params]);
+
+  return ready;
+}
+
+function SessionLoading() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <ActivityIndicator size="large" color="#1E3A6E" />
+    </View>
+  );
+}
 
 function MobileMainLayout() {
   const pathname = usePathname();
   const showNav = shouldShowSellerTopNav(pathname);
-  const sessionReady = useSellerSessionGate();
-
-  if (!sessionReady) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" color="#1E3A6E" />
-      </View>
-    );
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -100,6 +143,7 @@ function MobileMainLayout() {
       <Tabs.Screen name="sizes" options={{ href: null }} />
       <Tabs.Screen name="categoryrequest" options={{ href: null }} />
       <Tabs.Screen name="settingsModule" options={{ href: null }} />
+      <Tabs.Screen name="subscriptionRenewal" options={{ href: null }} />
       <Tabs.Screen name="viewsellerprofile" options={{ href: null }} />
     </Tabs>
       </View>
@@ -111,14 +155,11 @@ export default function TabLayout() {
   useColorScheme();
   const sessionReady = useSellerSessionGate();
 
+  if (!sessionReady) {
+    return <SessionLoading />;
+  }
+
   if (Platform.OS === "web") {
-    if (!sessionReady) {
-      return (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#1E3A6E" />
-        </View>
-      );
-    }
     return (
       <WebLayout>
         <Slot />

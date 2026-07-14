@@ -18,6 +18,7 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
 import { AppText } from "@/components/AppText";
@@ -35,6 +36,7 @@ import {
   updateBusinessProfile,
   verifyGstNumber,
   isGstVerifySuccessful,
+  isGstAlreadyExists,
   type GstVerifyResponse,
 } from "@/services/sellerProfileApi";
 import {
@@ -125,7 +127,7 @@ const GstDetailRow: React.FC<{ label: string; value?: string | null | undefined 
   );
 };
 
-const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: boolean }> = ({ details, verified }) => {
+const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: boolean; alreadyExists?: boolean }> = ({ details, verified, alreadyExists }) => {
   const hasRegistryDetails = !!(
     details.businessName?.trim() ||
     details.tradeName?.trim() ||
@@ -139,7 +141,11 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
   let headerColor = T.textMid;
   let iconName: "check-circle" | "exclamation-circle" | "info-circle" = "info-circle";
 
-  if (verified && isActive) {
+  if (alreadyExists) {
+    title = "GSTIN already registered";
+    headerColor = T.orange;
+    iconName = "exclamation-circle";
+  } else if (verified && isActive) {
     title = "GSTIN verified";
     headerColor = T.success;
     iconName = "check-circle";
@@ -162,7 +168,11 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
   }
 
   return (
-    <View style={[gstDetailStyles.card, !verified && gstDetailStyles.cardWarning]}>
+    <View style={[
+      gstDetailStyles.card,
+      alreadyExists && gstDetailStyles.cardError,
+      !verified && !alreadyExists && gstDetailStyles.cardWarning,
+    ]}>
       <View style={gstDetailStyles.header}>
         <Icon name={iconName} size={16} color={headerColor} />
         <AppText style={[gstDetailStyles.title, { color: headerColor }]}>{title}</AppText>
@@ -202,6 +212,10 @@ const gstDetailStyles = StyleSheet.create({
     borderColor: T.orange + "66",
     backgroundColor: T.orangePale,
   },
+  cardError: {
+    borderColor: T.error + "66",
+    backgroundColor: "#FEF2F2",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -239,11 +253,18 @@ const gstDetailStyles = StyleSheet.create({
 });
 
 // ─── Field wrapper with label ────────────────────────────────
-const FieldLabel: React.FC<{ label: string; required?: boolean; note?: string }> = ({ label, required, note }) => (
-  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 6 }}>
-    <AppText style={fl.label}>{label}</AppText>
-    {required && <AppText style={fl.requiredText}>*</AppText>}
-    {note && <AppText style={fl.note}>{note}</AppText>}
+const FieldLabel: React.FC<{ label: string; required?: boolean; note?: string; stackNote?: boolean }> = ({
+  label,
+  required,
+  note,
+  stackNote = false,
+}) => (
+  <View style={{ flexDirection: stackNote ? "column" : "row", alignItems: stackNote ? "flex-start" : "center", marginBottom: 8, gap: 6, flexWrap: "wrap" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+      <AppText style={fl.label}>{label}</AppText>
+      {required && <AppText style={fl.requiredText}>*</AppText>}
+    </View>
+    {note ? <AppText style={[fl.note, stackNote && { marginTop: 2 }]}>{note}</AppText> : null}
   </View>
 );
 const fl = StyleSheet.create({
@@ -373,11 +394,13 @@ const StyledInput: React.FC<{
   multiline = false, numberOfLines = 3, autoCapitalize = "characters",
 }) => {
     const [focused, setFocused] = useState(false);
+    const { width } = useWindowDimensions();
+    const stackNote = width < 480;
     const borderColor = error ? T.error : isValid ? T.success : focused ? T.orange : T.border;
 
     return (
       <View style={{ marginBottom: 18 }} onLayout={onLayout} ref={innerRef} collapsable={false}>
-        <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note })} />
+        <FieldLabel label={label} {...(required !== undefined && { required })} {...(note !== undefined && { note, stackNote: stackNote && !!note })} />
         <View style={[
           si.wrap,
           { borderColor },
@@ -424,6 +447,9 @@ const si = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 8,
+  },
+  gstRowStacked: {
+    flexDirection: "column",
   },
   gstInputShell: {
     flex: 1,
@@ -539,6 +565,8 @@ const sc = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────
 export default function SellerBusinessInfo() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollContentRef = useRef<View>(null);
   const fieldViewRefs = useRef<Record<string, View | null>>({});
@@ -573,6 +601,7 @@ export default function SellerBusinessInfo() {
   const [aadhaarOnFile, setAadhaarOnFile] = useState(false);
   const [isVerifyingGst, setIsVerifyingGst] = useState(false);
   const [gstDetails, setGstDetails] = useState<GstVerifyResponse | null>(null);
+  const [gstAlreadyExists, setGstAlreadyExists] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
 
   const businessTypes = ["Sole Proprietorship", "Partnership", "Private Limited", "Public Limited", "LLP"];
@@ -780,8 +809,7 @@ export default function SellerBusinessInfo() {
       await hydrateSellerSession();
       const result = await verifyGstNumber(normalizedGst);
       const verified = isGstVerifySuccessful(result);
-      const isDuplicateGst =
-        /already registered with another seller/i.test(result.message ?? "");
+      const alreadyExists = isGstAlreadyExists(result);
       const hasRegistryDetails =
         !!result.businessName?.trim() ||
         !!result.tradeName?.trim() ||
@@ -789,16 +817,18 @@ export default function SellerBusinessInfo() {
         !!result.status?.trim();
 
       setGstNumber(normalizedGst);
+      setGstAlreadyExists(alreadyExists);
 
-      if (isDuplicateGst) {
+      if (alreadyExists) {
         setGstVerified(false);
-        setGstDetails(null);
-        const duplicateMessage =
-          result.message ||
-          "This GSTIN is already registered with another seller account.";
-        setGstError(duplicateMessage);
+        setGstDetails(result);
+        applyGstDetailsFromResponse(result);
+        clearFieldError("gstNumber");
         clearFieldError("gstVerification");
-        showError(duplicateMessage);
+        showWarning(
+          "GSTIN already registered",
+          result.message || "This GST number is already registered with another seller account."
+        );
         return;
       }
 
@@ -817,6 +847,11 @@ export default function SellerBusinessInfo() {
           "GST not fully verified",
           result.message || "Registered details were loaded, but this GSTIN could not be fully verified."
         );
+      } else if (result.message?.trim()) {
+        setGstVerified(false);
+        setGstDetails(null);
+        setGstError(result.message);
+        showError(result.message);
       } else if (result.panNumber?.trim()) {
         setGstVerified(false);
         setGstDetails(result);
@@ -832,6 +867,7 @@ export default function SellerBusinessInfo() {
     } catch (e) {
       setGstVerified(false);
       setGstDetails(null);
+      setGstAlreadyExists(false);
       showError(getApiErrorMessage(e, "GST verification failed."));
     } finally {
       setIsVerifyingGst(false);
@@ -890,6 +926,10 @@ export default function SellerBusinessInfo() {
       errors.push({ field: "businessAddress", message: "Enter a complete business address" });
     }
     if (businessCategory && hasGST && gstErr) errors.push({ field: "gstNumber", message: gstErr });
+    if (businessCategory && hasGST && gstAlreadyExists) {
+      showWarning("Already existed GST number", "Cannot continue");
+      return;
+    }
     if (businessCategory && hasGST && !gstVerified) errors.push({ field: "gstVerification", message: "Please verify your GST number" });
     if (panErr) errors.push({ field: "panNumber", message: panErr });
     if (aadErr) errors.push({ field: "aadharNumber", message: aadErr });
@@ -999,7 +1039,7 @@ export default function SellerBusinessInfo() {
             accentColor={T.orange}
             icon="archive"
           >
-            <View style={{ flexDirection: "row", gap: 12 }} ref={registerFieldRef("businessCategory")} collapsable={false}>
+            <View style={{ flexDirection: isCompact ? "column" : "row", gap: 12 }} ref={registerFieldRef("businessCategory")} collapsable={false}>
               <CategoryCard
                 title="B2C"
                 desc="Sell directly to customers"
@@ -1130,7 +1170,7 @@ export default function SellerBusinessInfo() {
                       required
                       {...(businessCategory === "B2B" && { note: "mandatory for B2B" })}
                     />
-                    <View style={si.gstRow}>
+                    <View style={[si.gstRow, isCompact && si.gstRowStacked]}>
                       <View style={si.gstInputShell}>
                         <View style={[si.wrap, {
                           borderColor: gstError ? T.error : gstVerified ? T.success : T.border,
@@ -1145,6 +1185,7 @@ export default function SellerBusinessInfo() {
                               setGstError(error);
                               setGstVerified(false);
                               setGstDetails(null);
+                              setGstAlreadyExists(false);
                               clearFieldError("gstNumber");
                               clearFieldError("gstVerification");
                             }}
@@ -1203,7 +1244,11 @@ export default function SellerBusinessInfo() {
                       </View>
                     ) : null}
                     {gstDetails ? (
-                      <GstVerifiedDetailsCard details={gstDetails} verified={gstVerified} />
+                      <GstVerifiedDetailsCard
+                        details={gstDetails}
+                        verified={gstVerified}
+                        alreadyExists={gstAlreadyExists}
+                      />
                     ) : null}
                   </View>
                 </>
@@ -1312,10 +1357,10 @@ export default function SellerBusinessInfo() {
 
 // ─── Root styles ─────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: T.bg },
+  root: { flex: 1, backgroundColor: T.bg, width: "100%" },
 
   // Header
-  topHeader:    { paddingHorizontal: 20, height: 200 },
+  topHeader:    { paddingHorizontal: 20, paddingBottom: 16, minHeight: 180 },
   headerInner:  { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 10, marginBottom: 18 },
   // backBtnHeader: {
   //   width: 40,

@@ -78,8 +78,12 @@ export function useSellerProducts() {
             const msg = e instanceof Error ? e.message : "Failed to load products.";
             setProducts([]);
             if (__DEV__) {
-                const { baseUrl, platform, isEmulator } = getApiDebugInfo();
-                setError(`${msg}\n\n[dev] API: ${baseUrl} (${platform}${isEmulator ? ", emulator" : ""})`);
+                const { baseUrl, productionUrl } = getApiDebugInfo();
+                const hint =
+                    msg === "Failed to fetch" || msg.includes("Cannot reach seller API")
+                        ? "\n\nStart seller-service: flintnthreadbackend\\scripts\\run-seller-service.bat"
+                        : "";
+                setError(`${msg}\n\n[dev] API: ${baseUrl} (web)${hint}`);
             } else {
                 setError(msg);
             }

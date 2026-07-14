@@ -35,6 +35,7 @@ import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityI
 import type { Order, OrderItem, OrderStatus } from "@/lib/orders/ordersData";
 import { resolveLineItemAmount } from "@/lib/orders/orderLineAmount";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   getLiveOrder,
   getLiveOrders,
@@ -141,6 +142,14 @@ const DEFAULT_FILTERS: FilterState = {
   customDateTo: null,
 };
 
+function countActiveFilters(f: FilterState): number {
+  return [
+    f.paymentStatus !== "All",
+    f.orderValue !== "All",
+    f.dateRange !== "All",
+  ].filter(Boolean).length;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Status / tab / sort config
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,7 +162,7 @@ const STATUS_CONFIG: Record<
   Shipped: { bg: C.purplePale, text: "Shipped", color: C.purple },
   Delivered: { bg: C.greenPale, text: "Delivered", color: C.green },
   Returned: { bg: C.redPale, text: "Returned", color: C.red },
-  Cancelled: { bg: C.bg, text: "Cancelled", color: C.textLight },
+  Cancelled: { bg: C.redPale, text: "Cancelled", color: C.red },
 };
 
 type IconLib = "Ionicons" | "MCIcons";
@@ -204,8 +213,8 @@ const STAT_ICONS: Partial<Record<string, StatIconCfg>> = {
   Cancelled: {
     lib: "Ionicons",
     name: "close-circle-outline",
-    color: C.textLight,
-    bg: C.bg,
+    color: C.red,
+    bg: C.redPale,
   },
 };
 
@@ -485,7 +494,11 @@ const DesktopListRow: React.FC<{ order: Order; isLast: boolean }> = ({ order, is
 // ─────────────────────────────────────────────────────────────────────────────
 // OrderCard — responsive card with backend product name, qty, and line amount
 // ─────────────────────────────────────────────────────────────────────────────
-const OrderCard: React.FC<{ order: Order; isDesktop?: boolean }> = ({ order, isDesktop }) => {
+const OrderCard: React.FC<{ order: Order; isDesktop?: boolean; isWebCompact?: boolean }> = ({
+  order,
+  isDesktop,
+  isWebCompact,
+}) => {
   const statusCfg = STATUS_CONFIG[order.status];
   if (!statusCfg) return null;
 
@@ -496,42 +509,48 @@ const OrderCard: React.FC<{ order: Order; isDesktop?: boolean }> = ({ order, isD
     router.push({ pathname: "/(main)/orderDetails", params: { orderId: order.id, openLabel: "1" } });
 
   return (
-    <View style={[styles.orderCard, isDesktop && deskStyles.orderCardDesktop]}>
-      <View style={styles.orderCardTopRow}>
+    <View style={[
+      styles.orderCard,
+      isDesktop && deskStyles.orderCardDesktop,
+      isWebCompact && styles.orderCardWebMobile,
+    ]}>
+      <View style={[styles.orderCardTopRow, isWebCompact && styles.orderCardTopRowWebMobile]}>
         <View style={styles.orderCardLeft}>
-          <Text style={styles.orderId} numberOfLines={1}>{order.id}</Text>
-          <Text style={styles.orderDate} numberOfLines={1}>{order.date}</Text>
+          <Text style={[styles.orderId, isWebCompact && styles.orderIdWebMobile]} numberOfLines={1}>{order.id}</Text>
+          <Text style={[styles.orderDate, isWebCompact && styles.orderDateWebMobile]} numberOfLines={1}>{order.date}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
-          <Text style={[styles.statusText, { color: statusCfg.color }]}>
+        <View style={[styles.statusBadge, isWebCompact && styles.statusBadgeWebMobile, { backgroundColor: statusCfg.bg }]}>
+          <Text style={[styles.statusText, isWebCompact && styles.statusTextWebMobile, { color: statusCfg.color }]}>
             {statusCfg.text}
           </Text>
         </View>
       </View>
 
-      <View style={styles.productRow}>
+      <View style={[styles.productRow, isWebCompact && styles.productRowWebMobile]}>
         <TouchableOpacity onPress={openDetails} activeOpacity={0.85}>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.productImage} />
+            <Image source={{ uri: imageUri }} style={[styles.productImage, isWebCompact && styles.productImageWebMobile]} />
           ) : (
-            <View style={[styles.productImage, styles.productImagePlaceholder]}>
-              <MaterialCommunityIcons name="package-variant" size={26} color={C.textLight} />
+            <View style={[styles.productImage, styles.productImagePlaceholder, isWebCompact && styles.productImageWebMobile]}>
+              <MaterialCommunityIcons name="package-variant" size={isWebCompact ? 22 : 26} color={C.textLight} />
             </View>
           )}
         </TouchableOpacity>
 
         <View style={styles.productMiddle}>
-          <View style={styles.productTitleRow}>
+          <View style={[styles.productTitleRow, isWebCompact && styles.productTitleRowWebMobile]}>
             <Text
-              style={styles.productName}
-              numberOfLines={4}
+              style={[styles.productName, isWebCompact && styles.productNameWebMobile]}
+              numberOfLines={isWebCompact ? 3 : 4}
               ellipsizeMode="tail"
               // @ts-ignore — web tooltip for full product title
               title={order.product}
             >
               {order.product}
             </Text>
-            <Text style={styles.priceText}>{order.price}</Text>
+            <Text style={[styles.priceText, isWebCompact && styles.priceTextWebMobile]} numberOfLines={1}>
+              {order.price}
+            </Text>
           </View>
           {order.variant ? (
             <Text style={styles.productVariant} numberOfLines={1}>
@@ -545,17 +564,21 @@ const OrderCard: React.FC<{ order: Order; isDesktop?: boolean }> = ({ order, isD
         </View>
       </View>
 
-      <TouchableOpacity style={styles.shippingLabelBtn} onPress={openShippingLabel} activeOpacity={0.75}>
-        <MaterialCommunityIcons name="truck-outline" size={14} color={C.navy} />
-        <Text style={styles.shippingLabelText}>Shipping Label</Text>
+      <TouchableOpacity
+        style={[styles.shippingLabelBtn, isWebCompact && styles.shippingLabelBtnWebMobile]}
+        onPress={openShippingLabel}
+        activeOpacity={0.75}
+      >
+        <MaterialCommunityIcons name="truck-outline" size={isWebCompact ? 13 : 14} color={C.navy} />
+        <Text style={[styles.shippingLabelText, isWebCompact && styles.shippingLabelTextWebMobile]}>Shipping Label</Text>
       </TouchableOpacity>
 
-      <View style={styles.orderCardBottom}>
-        <Text style={styles.customerLabel} numberOfLines={1}>
+      <View style={[styles.orderCardBottom, isWebCompact && styles.orderCardBottomWebMobile]}>
+        <Text style={[styles.customerLabel, isWebCompact && styles.customerLabelWebMobile]} numberOfLines={1}>
           <Text style={styles.customerKey}>Customer: </Text>
           {order.customer}
         </Text>
-        <TouchableOpacity style={styles.viewDetailsBtn} onPress={openDetails}>
+        <TouchableOpacity style={[styles.viewDetailsBtn, isWebCompact && styles.viewDetailsBtnWebMobile]} onPress={openDetails}>
           <Text style={styles.viewDetailsText}>View Details</Text>
           <Ionicons name="chevron-forward" size={13} color={C.navy} style={{ marginLeft: 2 }} />
         </TouchableOpacity>
@@ -918,12 +941,321 @@ const DesktopFilterModal: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Web-mobile Modal: Sort (bottom sheet via Modal — fixes overlap on web)
+// ─────────────────────────────────────────────────────────────────────────────
+const WebMobileSortModal: React.FC<{
+  visible: boolean;
+  tempSortOption: SortOption;
+  onChangeTempSort: (v: SortOption) => void;
+  onReset: () => void;
+  onCancel: () => void;
+  onApply: () => void;
+}> = ({
+  visible,
+  tempSortOption,
+  onChangeTempSort,
+  onReset,
+  onCancel,
+  onApply,
+}) => (
+  <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.webMobileSheetBackdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onCancel} />
+        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.webMobileSheetContainer}>
+        <View style={styles.handleArea}>
+          <View style={styles.dragHandle} />
+        </View>
+        <View style={styles.sheetHeader}>
+          <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Sort Orders</Text>
+          <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
+            <Text style={styles.resetText}>Reset</Text>
+          </TouchableOpacity>
+        </View>
+        {SORT_OPTIONS.map((option, index) => {
+          const selected = tempSortOption === option.value;
+          return (
+            <React.Fragment key={option.value}>
+              <TouchableOpacity
+                style={styles.sheetOption}
+                activeOpacity={0.75}
+                onPress={() => onChangeTempSort(option.value)}
+              >
+                <Text
+                  style={[
+                    styles.sheetOptionText,
+                    selected && styles.sheetOptionTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selected && styles.radioOuterActive,
+                  ]}
+                >
+                  {selected && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+              {index !== SORT_OPTIONS.length - 1 && (
+                <View style={styles.optionDivider} />
+              )}
+            </React.Fragment>
+          );
+        })}
+        <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
+          <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
+            <Text style={styles.applyBtnText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+        </TouchableOpacity>
+      </View>
+  </Modal>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web-mobile Modal: Filter (bottom sheet via Modal — fixes overlap on web)
+// ─────────────────────────────────────────────────────────────────────────────
+const WebMobileFilterModal: React.FC<{
+  visible: boolean;
+  tempFilters: FilterState;
+  onChangeTempFilters: (f: FilterState) => void;
+  onReset: () => void;
+  onCancel: () => void;
+  onApply: () => void;
+}> = ({
+  visible,
+  tempFilters,
+  onChangeTempFilters,
+  onReset,
+  onCancel,
+  onApply,
+}) => {
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const tempActiveCount = countActiveFilters(tempFilters);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.webMobileSheetBackdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onCancel} />
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {}}
+          style={[styles.webMobileSheetContainer, styles.webMobileFilterSheet]}
+        >
+          <View style={styles.handleArea}>
+            <View style={styles.dragHandle} />
+          </View>
+
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Filter Orders</Text>
+            <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
+              <Text style={styles.resetText}>Reset All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.webMobileFilterScroll}>
+            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile]}>
+              Payment Status
+            </Text>
+            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+              {(
+                ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
+              ).map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.chip,
+                    styles.chipWebMobile,
+                    tempFilters.paymentStatus === opt && styles.chipActive,
+                  ]}
+                  onPress={() =>
+                    onChangeTempFilters({ ...tempFilters, paymentStatus: opt })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      styles.chipTextWebMobile,
+                      tempFilters.paymentStatus === opt && styles.chipTextActive,
+                    ]}
+                  >
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
+              Order Value
+            </Text>
+            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+              {(
+                [
+                  { label: "All", value: "All" },
+                  { label: "< ₹500", value: "below500" },
+                  { label: "₹500–1K", value: "500to1000" },
+                  { label: "₹1K–2K", value: "1000to2000" },
+                  { label: "> ₹2K", value: "above2000" },
+                ] as { label: string; value: OrderValueFilter }[]
+              ).map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.chip,
+                    styles.chipWebMobile,
+                    tempFilters.orderValue === opt.value && styles.chipActive,
+                  ]}
+                  onPress={() =>
+                    onChangeTempFilters({ ...tempFilters, orderValue: opt.value })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      styles.chipTextWebMobile,
+                      tempFilters.orderValue === opt.value && styles.chipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
+              Date Range
+            </Text>
+            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+              {(
+                [
+                  { label: "All", value: "All" },
+                  { label: "Today", value: "today" },
+                  { label: "Last 7d", value: "last7" },
+                  { label: "Last 30d", value: "last30" },
+                  { label: "Custom", value: "custom" },
+                ] as { label: string; value: FilterState["dateRange"] }[]
+              ).map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.chip,
+                    styles.chipWebMobile,
+                    tempFilters.dateRange === opt.value && styles.chipActive,
+                  ]}
+                  onPress={() =>
+                    onChangeTempFilters({ ...tempFilters, dateRange: opt.value })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      styles.chipTextWebMobile,
+                      tempFilters.dateRange === opt.value && styles.chipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {tempFilters.dateRange === "custom" && (
+              <View style={[styles.customDateRow, styles.customDateRowWebMobile]}>
+                <TouchableOpacity
+                  style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
+                  onPress={() => setShowFromPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
+                  <Text style={styles.customDateText} numberOfLines={1}>
+                    {tempFilters.customDateFrom
+                      ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "From Date"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
+                <TouchableOpacity
+                  style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
+                  onPress={() => setShowToPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
+                  <Text style={styles.customDateText} numberOfLines={1}>
+                    {tempFilters.customDateTo
+                      ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "To Date"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {showFromPicker && (
+              <DateTimePicker
+                value={tempFilters.customDateFrom ?? new Date()}
+                mode="date"
+                display="default"
+                {...(tempFilters.customDateTo ? { maximumDate: tempFilters.customDateTo } : {})}
+                onChange={(_, date) => {
+                  setShowFromPicker(false);
+                  if (date) onChangeTempFilters({ ...tempFilters, customDateFrom: date });
+                }}
+              />
+            )}
+
+            {showToPicker && (
+              <DateTimePicker
+                value={tempFilters.customDateTo ?? new Date()}
+                mode="date"
+                display="default"
+                {...(tempFilters.customDateFrom ? { minimumDate: tempFilters.customDateFrom } : {})}
+                maximumDate={new Date()}
+                onChange={(_, date) => {
+                  setShowToPicker(false);
+                  if (date) onChangeTempFilters({ ...tempFilters, customDateTo: date });
+                }}
+              />
+            )}
+
+            <View style={{ height: 12 }} />
+          </ScrollView>
+
+          <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
+            <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
+              <Text style={styles.applyBtnText}>
+                Apply{tempActiveCount > 0 ? ` (${tempActiveCount})` : ""}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function OrdersScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { isWeb, isTablet } = useResponsive();
   const isDesktop = width >= DESKTOP_BREAKPOINT;
+  const isWebCompact = isWeb && !isDesktop;
+  const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
 
   const [activeTab, setActiveTab] = useState<TabKey>("All Orders");
   const [search, setSearch] = useState("");
@@ -996,8 +1328,9 @@ export default function OrdersScreen() {
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   const openSortSheet = () => {
+    setFilterVisible(false);
     setTempSortOption(sortOption);
-    if (isDesktop) {
+    if (isDesktop || isWebCompact) {
       setSheetVisible(true);
       return;
     }
@@ -1017,7 +1350,7 @@ export default function OrdersScreen() {
   };
 
   const closeSortSheet = (discard = true) => {
-    if (isDesktop) {
+    if (isDesktop || isWebCompact) {
       if (discard) setTempSortOption(sortOption);
       setSheetVisible(false);
       return;
@@ -1046,8 +1379,9 @@ export default function OrdersScreen() {
   const filterOverlayOpacity = useRef(new Animated.Value(0)).current;
 
   const openFilterSheet = () => {
+    setSheetVisible(false);
     setTempFilters(filters);
-    if (isDesktop) {
+    if (isDesktop || isWebCompact) {
       setFilterVisible(true);
       return;
     }
@@ -1067,7 +1401,7 @@ export default function OrdersScreen() {
   };
 
   const closeFilterSheet = (discard = true) => {
-    if (isDesktop) {
+    if (isDesktop || isWebCompact) {
       if (discard) setTempFilters(filters);
       setFilterVisible(false);
       return;
@@ -1089,11 +1423,7 @@ export default function OrdersScreen() {
     });
   };
 
-  const activeFilterCount = [
-    filters.paymentStatus !== "All",
-    filters.orderValue !== "All",
-    filters.dateRange !== "All",
-  ].filter(Boolean).length;
+  const activeFilterCount = countActiveFilters(filters);
 
   // ── Sort sheet PanResponder (mobile only) ─────────────────────────────────
   const sortPanResponder = useRef(
@@ -1699,10 +2029,19 @@ export default function OrdersScreen() {
   // MOBILE LAYOUT — 100% identical to v4
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={C.navy} />
+    <ScreenRoot style={[styles.safeArea, isWeb && styles.safeAreaWeb]}>
+      {Platform.OS !== "web" && <StatusBar barStyle="light-content" backgroundColor={C.navy} />}
 
-      <View style={styles.blueSection}>
+      <View style={[styles.blueSection, isWebCompact && styles.blueSectionWebMobile]}>
+        {isWebCompact && (
+          <View style={styles.webMobileIntro}>
+            <Text style={styles.webMobileTitle}>Orders</Text>
+            <Text style={styles.webMobileSubtitle} numberOfLines={2}>
+              Track and manage all your orders
+            </Text>
+          </View>
+        )}
+        {!isWebCompact && (
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -1728,17 +2067,20 @@ export default function OrdersScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        )}
 
-        <View style={styles.overviewCard}>
+        <View style={[styles.overviewCard, isWebCompact && styles.overviewCardWebMobile]}>
           <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 8,
-            }}
+            style={[
+              {
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: isWebCompact ? 4 : 8,
+              },
+            ]}
           >
-            <Text style={styles.overviewTitle}>Orders Overview</Text>
+            <Text style={[styles.overviewTitle, isWebCompact && styles.overviewTitleWebMobile]}>Orders Overview</Text>
             {/* <TouchableOpacity>
               <Text
                 style={{
@@ -1752,6 +2094,40 @@ export default function OrdersScreen() {
               </Text>
             </TouchableOpacity> */}
           </View>
+          {isWebCompact ? (
+            <View style={[styles.statsGridWebMobile, isTablet && styles.statsGridWebTablet]}>
+              {stats.map((stat) => {
+                const iconCfg = STAT_ICONS[stat.label];
+                if (!iconCfg) return null;
+                return (
+                  <View key={stat.label} style={styles.statItemWebMobile}>
+                    <View
+                      style={[
+                        styles.iconWrapper,
+                        styles.iconWrapperWebMobile,
+                        { backgroundColor: iconCfg.bg },
+                      ]}
+                    >
+                      <StatIcon cfg={iconCfg} size={16} />
+                    </View>
+                    <View style={styles.statTextWebMobile}>
+                      <Text
+                        style={styles.statCountWebMobile}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.7}
+                      >
+                        {stat.count}
+                      </Text>
+                      <Text style={styles.statLabelWebMobile} numberOfLines={2}>
+                        {stat.label}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1779,13 +2155,14 @@ export default function OrdersScreen() {
               );
             })}
           </ScrollView>
+          )}
         </View>
       </View>
 
       <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        style={[styles.scrollView, isWebCompact && styles.scrollViewWebMobile]}
+        showsVerticalScrollIndicator={isWebCompact}
+        contentContainerStyle={[isWebCompact && styles.scrollContentWebMobile, { paddingBottom: isWebCompact ? 80 : 100 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1798,15 +2175,16 @@ export default function OrdersScreen() {
         {/* Tabs */}
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabsContainer}
-          contentContainerStyle={styles.tabsContent}
+          showsHorizontalScrollIndicator={isWebCompact}
+          style={[styles.tabsContainer, isWebCompact && styles.tabsContainerWebMobile]}
+          contentContainerStyle={[styles.tabsContent, isWebCompact && styles.tabsContentWebMobile]}
         >
           {TABS.map((tab) => (
             <TouchableOpacity
               key={tab.label}
               style={[
                 styles.tab,
+                isWebCompact && styles.tabWebMobile,
                 activeTab === tab.label && styles.tabActive,
               ]}
               onPress={() => setActiveTab(tab.label)}
@@ -1814,8 +2192,10 @@ export default function OrdersScreen() {
               <Text
                 style={[
                   styles.tabText,
+                  isWebCompact && styles.tabTextWebMobile,
                   activeTab === tab.label && styles.tabTextActive,
                 ]}
+                numberOfLines={1}
               >
                 {tab.label}
                 {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
@@ -1825,8 +2205,8 @@ export default function OrdersScreen() {
         </ScrollView>
 
         {/* Search + Sort + Filter Row */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
+        <View style={[styles.searchRow, isWebCompact && styles.searchRowWebMobile]}>
+          <View style={[styles.searchBox, isWebCompact && styles.searchBoxWebMobile]}>
             <Ionicons
               name="search-outline"
               size={16}
@@ -1841,76 +2221,134 @@ export default function OrdersScreen() {
               onChangeText={setSearch}
             />
           </View>
-          <TouchableOpacity style={styles.sortBtn} onPress={openSortSheet}>
-            <Ionicons
-              name="swap-vertical-outline"
-              size={16}
-              color={C.textMid}
-            />
-            <Text style={styles.sortText}> Sort</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterBtn,
-              activeFilterCount > 0 && styles.filterBtnActive,
-            ]}
-            onPress={openFilterSheet}
-          >
-            <Ionicons
-              name="options-outline"
-              size={16}
-              color={activeFilterCount > 0 ? C.white : C.textMid}
-            />
-            <Text
-              style={[
-                styles.filterBtnText,
-                activeFilterCount > 0 && { color: C.white },
-              ]}
-            >
-              {" "}
-              Filter
-            </Text>
-            {activeFilterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {isWebCompact ? (
+            <View style={styles.sortFilterRowWebMobile}>
+              <TouchableOpacity style={[styles.sortBtn, styles.sortBtnWebMobile]} onPress={openSortSheet}>
+                <Ionicons
+                  name="swap-vertical-outline"
+                  size={16}
+                  color={C.textMid}
+                />
+                <Text style={styles.sortText}> Sort</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterBtn,
+                  styles.filterBtnWebMobile,
+                  activeFilterCount > 0 && styles.filterBtnActive,
+                ]}
+                onPress={openFilterSheet}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={16}
+                  color={activeFilterCount > 0 ? C.white : C.textMid}
+                />
+                <Text
+                  style={[
+                    styles.filterBtnText,
+                    activeFilterCount > 0 && { color: C.white },
+                  ]}
+                >
+                  {" "}
+                  Filter
+                </Text>
+                {activeFilterCount > 0 && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.sortBtn} onPress={openSortSheet}>
+                <Ionicons
+                  name="swap-vertical-outline"
+                  size={16}
+                  color={C.textMid}
+                />
+                <Text style={styles.sortText}> Sort</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterBtn,
+                  activeFilterCount > 0 && styles.filterBtnActive,
+                ]}
+                onPress={openFilterSheet}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={16}
+                  color={activeFilterCount > 0 ? C.white : C.textMid}
+                />
+                <Text
+                  style={[
+                    styles.filterBtnText,
+                    activeFilterCount > 0 && { color: C.white },
+                  ]}
+                >
+                  {" "}
+                  Filter
+                </Text>
+                {activeFilterCount > 0 && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Totals Row */}
-        <View style={styles.totalsRow}>
-          <View style={styles.totalCard}>
+        <View style={[styles.totalsRow, isWebCompact && styles.totalsRowWebMobile]}>
+          <View style={[styles.totalCard, isWebCompact && styles.totalCardWebMobile]}>
             <View
-              style={[styles.totalIconWrap, { backgroundColor: "#EEF0FA" }]}
+              style={[styles.totalIconWrap, isWebCompact && styles.totalIconWrapWebMobile, { backgroundColor: "#EEF0FA" }]}
             >
               <MaterialCommunityIcons
                 name="clipboard-list-outline"
-                size={22}
+                size={isWebCompact ? 18 : 22}
                 color={C.navy}
               />
             </View>
             <View style={styles.totalCardText}>
-              <Text style={styles.totalCardLabel}>Order Products</Text>
-              <Text style={styles.totalCardValue}>{orderStats.totalLineItems}</Text>
+              <Text style={[styles.totalCardLabel, isWebCompact && styles.totalCardLabelWebMobile]} numberOfLines={1}>
+                Order Products
+              </Text>
+              <Text
+                style={[styles.totalCardValue, isWebCompact && styles.totalCardValueWebMobile]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {orderStats.totalLineItems}
+              </Text>
             </View>
           </View>
-          <View style={styles.totalVerticalDivider} />
-          <View style={styles.totalCard}>
+          <View style={[styles.totalVerticalDivider, isWebCompact && styles.totalVerticalDividerWebMobile]} />
+          <View style={[styles.totalCard, isWebCompact && styles.totalCardWebMobile]}>
             <View
-              style={[styles.totalIconWrap, { backgroundColor: "#EEF0FA" }]}
+              style={[styles.totalIconWrap, isWebCompact && styles.totalIconWrapWebMobile, { backgroundColor: "#EEF0FA" }]}
             >
               <MaterialCommunityIcons
                 name="wallet-outline"
-                size={22}
+                size={isWebCompact ? 18 : 22}
                 color={C.navy}
               />
             </View>
             <View style={styles.totalCardText}>
-              <Text style={styles.totalCardLabel}>Total Sale</Text>
-              <Text style={[styles.totalCardValue, { color: C.navy }]}>
-                ₹
-                {orderStats.totalSale.toLocaleString("en-IN")}
+              <Text style={[styles.totalCardLabel, isWebCompact && styles.totalCardLabelWebMobile]} numberOfLines={1}>
+                Total Sale
+              </Text>
+              <Text
+                style={[styles.totalCardValue, isWebCompact && styles.totalCardValueWebMobile, { color: C.navy }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+              >
+                ₹{orderStats.totalSale.toLocaleString("en-IN")}
               </Text>
             </View>
           </View>
@@ -1918,7 +2356,7 @@ export default function OrdersScreen() {
 
         {/* Active filter pills */}
         {activeFilterCount > 0 && (
-          <View style={styles.activePillsRow}>
+          <View style={[styles.activePillsRow, isWebCompact && styles.activePillsRowWebMobile]}>
             {filters.paymentStatus !== "All" && (
               <View style={styles.activePill}>
                 <MaterialCommunityIcons
@@ -2018,7 +2456,7 @@ export default function OrdersScreen() {
         )}
 
         {/* Orders List */}
-        <View style={styles.ordersListContainer}>
+        <View style={[styles.ordersListContainer, isWebCompact && styles.ordersListContainerWebMobile]}>
           {ordersLoading ? (
             <View style={styles.emptyState}>
               <ActivityIndicator size="large" color={C.navy} />
@@ -2034,7 +2472,7 @@ export default function OrdersScreen() {
             </View>
           ) : sortedOrders.length > 0 ? (
             sortedOrders.map((order) => (
-              <OrderCard key={order.listKey} order={order} />
+              <OrderCard key={order.listKey} order={order} isWebCompact={isWebCompact} />
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -2090,6 +2528,9 @@ export default function OrdersScreen() {
         </View>
       )}
 
+      {/* ── Sort / Filter: native app uses animated bottom sheets ── */}
+      {!isWebCompact && (
+      <>
       {/* ── Sort Overlay ── */}
       <Animated.View
         style={[styles.overlay, { opacity: overlayOpacity, pointerEvents: sheetVisible ? "auto" : "none" }]}
@@ -2401,7 +2842,37 @@ export default function OrdersScreen() {
           </TouchableOpacity>
         </View>
       </Animated.View>
-    </SafeAreaView>
+      </>
+      )}
+
+      {/* ── Web mobile: Modal-based sort & filter (no overlap) ── */}
+      {isWebCompact && (
+        <>
+          <WebMobileSortModal
+            visible={sheetVisible}
+            tempSortOption={tempSortOption}
+            onChangeTempSort={setTempSortOption}
+            onReset={() => setTempSortOption("newest")}
+            onCancel={() => closeSortSheet(true)}
+            onApply={() => {
+              setSortOption(tempSortOption);
+              closeSortSheet(false);
+            }}
+          />
+          <WebMobileFilterModal
+            visible={filterVisible}
+            tempFilters={tempFilters}
+            onChangeTempFilters={setTempFilters}
+            onReset={() => setTempFilters(DEFAULT_FILTERS)}
+            onCancel={() => closeFilterSheet(true)}
+            onApply={() => {
+              setFilters(tempFilters);
+              closeFilterSheet(false);
+            }}
+          />
+        </>
+      )}
+    </ScreenRoot>
   );
 }
 
@@ -2410,7 +2881,166 @@ export default function OrdersScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.bg, position: "relative" },
+  safeAreaWeb: { width: "100%", minWidth: 0 },
   blueSection: { backgroundColor: C.navy, paddingBottom: 55, borderRadius: 15 },
+  blueSectionWebMobile: {
+    paddingBottom: 8,
+    borderRadius: 12,
+    marginBottom: 4,
+    paddingTop: 2,
+  },
+  webMobileIntro: {
+    paddingHorizontal: 4,
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  webMobileTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: C.white,
+  },
+  webMobileSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 4,
+  },
+  overviewCardWebMobile: {
+    position: "relative",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    marginHorizontal: 0,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    elevation: 2,
+  },
+  overviewTitleWebMobile: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  statsGridWebMobile: {
+    gap: 6,
+    ...Platform.select({
+      web: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 6,
+      },
+    }),
+  },
+  statsGridWebTablet: {
+    ...Platform.select({
+      web: {
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: 6,
+      },
+    }),
+  },
+  statItemWebMobile: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    padding: 6,
+    minWidth: 0,
+    gap: 6,
+  },
+  iconWrapperWebMobile: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    flexShrink: 0,
+  },
+  statTextWebMobile: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statCountWebMobile: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.textDark,
+  },
+  statLabelWebMobile: {
+    fontSize: 10,
+    color: C.textMid,
+    marginTop: 1,
+    lineHeight: 13,
+  },
+  scrollViewWebMobile: {
+    marginTop: 0,
+  },
+  scrollContentWebMobile: {
+    paddingHorizontal: 0,
+  },
+  tabsContainerWebMobile: {
+    borderRadius: 10,
+    marginBottom: 0,
+  },
+  tabsContentWebMobile: {
+    paddingHorizontal: 0,
+  },
+  tabWebMobile: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  tabTextWebMobile: {
+    fontSize: 12,
+  },
+  searchRowWebMobile: {
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 0,
+    paddingVertical: 6,
+  },
+  searchBoxWebMobile: {
+    flex: 1,
+    minWidth: "100%",
+  },
+  sortFilterRowWebMobile: {
+    flexDirection: "row",
+    width: "100%",
+    gap: 8,
+  },
+  sortBtnWebMobile: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  filterBtnWebMobile: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  totalsRowWebMobile: {
+    marginHorizontal: 0,
+    marginBottom: 6,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  totalCardWebMobile: {
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  totalIconWrapWebMobile: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  totalCardLabelWebMobile: {
+    fontSize: 10,
+  },
+  totalCardValueWebMobile: {
+    fontSize: 16,
+  },
+  totalVerticalDividerWebMobile: {
+    height: 36,
+    marginHorizontal: 4,
+  },
+  ordersListContainerWebMobile: {
+    paddingHorizontal: 0,
+    gap: 8,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -2582,6 +3212,11 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     alignItems: "center",
   },
+  activePillsRowWebMobile: {
+    paddingHorizontal: 0,
+    paddingBottom: 6,
+    gap: 6,
+  },
   activePill: {
     flexDirection: "row",
     alignItems: "center",
@@ -2646,21 +3281,37 @@ const styles = StyleSheet.create({
       default: { elevation: 2 },
     }),
   },
+  orderCardWebMobile: {
+    borderRadius: 12,
+    padding: 10,
+  },
   orderCardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     marginBottom: 12,
   },
-  orderCardLeft: { flex: 1 },
+  orderCardTopRowWebMobile: {
+    marginBottom: 8,
+    gap: 6,
+  },
+  orderCardLeft: { flex: 1, minWidth: 0 },
   orderId: { fontSize: 14, fontWeight: "700", color: C.textDark },
+  orderIdWebMobile: { fontSize: 13 },
   orderDate: { fontSize: 11, color: C.textLight, marginTop: 2 },
+  orderDateWebMobile: { fontSize: 10 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusBadgeWebMobile: { paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0 },
   statusText: { fontSize: 12, fontWeight: "700" },
+  statusTextWebMobile: { fontSize: 10 },
   productRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     marginBottom: 10,
     gap: 12,
+  },
+  productRowWebMobile: {
+    gap: 8,
+    marginBottom: 6,
   },
   productImage: {
     width: 72,
@@ -2668,6 +3319,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: C.bg,
     flexShrink: 0,
+  },
+  productImageWebMobile: {
+    width: 58,
+    height: 58,
+    borderRadius: 8,
   },
   productImagePlaceholder: {
     alignItems: "center",
@@ -2682,6 +3338,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
+  productTitleRowWebMobile: {
+    flexDirection: "column",
+    gap: 4,
+  },
   productName: {
     flex: 1,
     fontSize: 13,
@@ -2689,6 +3349,11 @@ const styles = StyleSheet.create({
     color: C.textDark,
     lineHeight: 18,
     flexShrink: 1,
+  },
+  productNameWebMobile: {
+    fontSize: 12,
+    lineHeight: 16,
+    width: "100%",
   },
   productVariant: { fontSize: 12, color: C.textLight },
   qtyRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
@@ -2701,6 +3366,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     minWidth: 56,
   },
+  priceTextWebMobile: {
+    fontSize: 14,
+    textAlign: "left",
+    minWidth: 0,
+    alignSelf: "flex-start",
+  },
   shippingLabelBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -2709,11 +3380,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingVertical: 2,
   },
+  shippingLabelBtnWebMobile: {
+    marginBottom: 6,
+  },
   shippingLabelText: {
     fontSize: 12,
     fontWeight: "700",
     color: C.navy,
     textDecorationLine: "underline",
+  },
+  shippingLabelTextWebMobile: {
+    fontSize: 11,
   },
   orderCardBottom: {
     flexDirection: "row",
@@ -2723,7 +3400,13 @@ const styles = StyleSheet.create({
     borderTopColor: C.border,
     paddingTop: 10,
   },
+  orderCardBottomWebMobile: {
+    flexWrap: "wrap",
+    gap: 6,
+    paddingTop: 6,
+  },
   customerLabel: { fontSize: 13, color: C.textMid, flex: 1, marginRight: 8 },
+  customerLabelWebMobile: { fontSize: 11, minWidth: 0 },
   customerKey: { fontWeight: "700", color: C.textDark },
   viewDetailsBtn: {
     flexDirection: "row",
@@ -2733,6 +3416,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
+  },
+  viewDetailsBtnWebMobile: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    flexShrink: 0,
   },
   viewDetailsText: { fontSize: 12, fontWeight: "700", color: C.navy },
   emptyState: {
@@ -2851,6 +3539,70 @@ const styles = StyleSheet.create({
     maxHeight: "82%",
     ...webBoxShadow("0 -4px 20px rgba(0, 0, 0, 0.18)"),
     ...nativeShadow("#000", { width: 0, height: -4 }, 0.18, 20, 30),
+  },
+  webMobileSheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  webMobileSheetContainer: {
+    backgroundColor: C.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 20,
+    width: "100%",
+    maxWidth: 480,
+    alignSelf: "center",
+    ...webBoxShadow("0 -4px 20px rgba(0, 0, 0, 0.18)"),
+  },
+  webMobileFilterSheet: {
+    maxHeight: "88%",
+  },
+  webMobileFilterScroll: {
+    flexGrow: 0,
+    maxHeight: 420,
+  },
+  sheetTitleWebMobile: {
+    fontSize: 15,
+  },
+  sheetFooterWebMobile: {
+    marginTop: 12,
+    gap: 8,
+  },
+  cancelBtnWebMobile: {
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  applyBtnWebMobile: {
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  filterSectionLabelWebMobile: {
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  chipRowWebMobile: {
+    gap: 6,
+  },
+  chipWebMobile: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 18,
+  },
+  chipTextWebMobile: {
+    fontSize: 11,
+  },
+  customDateRowWebMobile: {
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  customDateBtnWebMobile: {
+    minWidth: "44%",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   filterSectionLabel: {
     fontSize: 13,

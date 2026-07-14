@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { fetchDashboard } from "@/services/dashboardApi";
-import { deactivateSellerAccount } from "@/services/settingsApi";
+import { deactivateSellerAccount, downloadRegistrationInvoice, fetchRegistrationInvoices, type SellerRegistrationInvoice } from "@/services/settingsApi";
 import { useSellerAppPreferences } from "@/hooks/useSellerAppPreferences";
 import { LANGUAGE_OPTIONS, languageLabel } from "@/lib/settings/appPreferences";
 import {
@@ -61,8 +61,15 @@ export default function SettingsScreen() {
     rating: "—",
     orders: "—",
   });
+  const [invoices, setInvoices] = useState<SellerRegistrationInvoice[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoiceDownloadingId, setInvoiceDownloadingId] = useState<number | null>(null);
 
   useEffect(() => {
+    fetchRegistrationInvoices()
+      .then(setInvoices)
+      .catch(() => setInvoices([]))
+      .finally(() => setInvoicesLoading(false));
     fetchDashboard()
       .then((row) => {
         setHeaderStats({
@@ -75,6 +82,20 @@ export default function SettingsScreen() {
         setHeaderStats({ revenue: "—", rating: "—", orders: "—" });
       });
   }, []);
+
+  const handleDownloadInvoice = useCallback(
+    async (invoice: SellerRegistrationInvoice) => {
+      setInvoiceDownloadingId(invoice.id);
+      try {
+        await downloadRegistrationInvoice(invoice.id, invoice.invoiceNumber || `invoice-${invoice.id}`);
+      } catch (e) {
+        showError(e instanceof Error ? e.message : "Could not download invoice.");
+      } finally {
+        setInvoiceDownloadingId(null);
+      }
+    },
+    [showError]
+  );
 
   const confirmDeleteAccount = useCallback(async () => {
     const confirmed = await confirmDelete(
@@ -172,7 +193,10 @@ export default function SettingsScreen() {
           router.push("/(main)/helpsupport");
           break;
         case "16":
-          router.push("/legal-document?type=privacy");
+          router.push({
+            pathname: "/legal-document",
+            params: { type: "privacy", returnTo: "/(main)/settingsModule" },
+          });
           break;
         case "17":
           void confirmLogout();
@@ -530,6 +554,40 @@ export default function SettingsScreen() {
         <AppText style={styles.sectionTitle}>Account Settings</AppText>
 
         {filterItems(accountSettings).map(renderItem)}
+
+        <AppText style={styles.sectionTitle}>Subscription Invoices</AppText>
+        {invoicesLoading ? (
+          <AppText style={styles.settingSubtitle}>Loading invoices...</AppText>
+        ) : invoices.length === 0 ? (
+          <View style={styles.settingCard}>
+            <AppText style={styles.settingSubtitle}>No subscription invoices yet.</AppText>
+          </View>
+        ) : (
+          invoices.map((invoice) => (
+            <TouchableOpacity
+              key={invoice.id}
+              style={styles.settingCard}
+              onPress={() => void handleDownloadInvoice(invoice)}
+              disabled={invoiceDownloadingId === invoice.id}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="document-text-outline" size={20} color="#2563eb" />
+                </View>
+                <View style={styles.textContainer}>
+                  <AppText style={styles.settingTitle}>{invoice.invoiceNumber}</AppText>
+                  <AppText style={styles.settingSubtitle}>
+                    Rs {(invoice.totalAmount ?? invoice.amount / 100).toFixed(2)} (₹{invoice.registrationFee ?? 899} + GST) ·{" "}
+                    {invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString() : "—"}
+                  </AppText>
+                </View>
+              </View>
+              <AppText style={styles.invoiceDownloadText}>
+                {invoiceDownloadingId === invoice.id ? "..." : "Download"}
+              </AppText>
+            </TouchableOpacity>
+          ))
+        )}
 
         {/* Security */}
 
@@ -902,6 +960,12 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 4,
     fontSize: 12,
+  },
+
+  invoiceDownloadText: {
+    color: "#2563eb",
+    fontFamily: fontFamilies.semibold,
+    fontSize: 13,
   },
 
   infoCard: {

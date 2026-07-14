@@ -131,59 +131,95 @@ function useLocalApiFallbacks(): boolean {
     return process.env.EXPO_PUBLIC_API_USE_LOCAL === "true";
 }
 
+/** Web app opened at localhost / 127.0.0.1 (Expo web dev). */
+export function isLocalWebDev(): boolean {
+    return (
+        Platform.OS === "web" &&
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    );
+}
+
+/** Local seller-service URL for web dev (port 8083). */
+export function resolveLocalSellerApiUrl(): string {
+    const webOverride = process.env.EXPO_PUBLIC_API_WEB_BASE_URL?.trim().replace(/\/$/, "");
+    if (webOverride) return webOverride;
+    const host =
+        typeof window !== "undefined" && window.location.hostname
+            ? window.location.hostname
+            : "localhost";
+    return `http://${host}:8083`;
+}
+
+/**
+ * Base URL for seller KYC / profile images.
+ * Local web dev → seller-service on :8083. Production → CDN (flintnthread.in).
+ */
+export function resolveSellerMediaBaseUrl(): string {
+    if (isLocalWebDev() || useLocalApiFallbacks()) {
+        if (cachedWorkingBaseUrl && Date.now() < cacheExpiresAt) {
+            return cachedWorkingBaseUrl;
+        }
+        if (isLocalWebDev()) {
+            return resolveLocalSellerApiUrl();
+        }
+    }
+    return resolvePublicMediaBaseUrl();
+}
+
 /**
  * Candidate seller API base URLs (most likely first).
- * Default: https://flintnthread.online (VPS nginx → seller :8083).
- * Local fallbacks only when EXPO_PUBLIC_API_USE_LOCAL=true.
+ * On localhost web, local seller-service (:8083) is tried before production.
  */
 export function getApiBaseUrlCandidates(): string[] {
-    const candidates: string[] = [getProductionApiUrl()];
+    const production = getProductionApiUrl();
+    const candidates: string[] = [];
 
-    if (!useLocalApiFallbacks()) {
+    if (useLocalApiFallbacks() || isLocalWebDev()) {
+        const manualOverride =
+            getExtra().apiBaseUrl?.trim().replace(/\/$/, "") ||
+            process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
+        const hosts: string[] = [];
+
+        if (Platform.OS === "web") {
+            const webOverride = process.env.EXPO_PUBLIC_API_WEB_BASE_URL?.trim().replace(/\/$/, "");
+            if (webOverride) candidates.push(webOverride);
+
+            const webLan = getWebLanHost();
+            if (webLan) hosts.push(webLan);
+            hosts.push("localhost", "127.0.0.1");
+            pushHostPorts(candidates, hosts);
+
+            const devHost = getExpoDevLanHost();
+            if (devHost) pushHostPorts(candidates, [devHost]);
+        } else {
+            const devHost = getExpoDevLanHost();
+            if (devHost) hosts.push(devHost);
+
+            if (Platform.OS === "android" && isAndroidEmulator()) {
+                hosts.push("10.0.2.2");
+            }
+
+            if (isIosSimulator()) {
+                hosts.push("localhost", "127.0.0.1");
+            }
+
+            hosts.push("localhost", "127.0.0.1");
+            if (Platform.OS === "android") {
+                hosts.push("10.0.2.2");
+            }
+
+            pushHostPorts(candidates, hosts);
+        }
+
+        if (manualOverride && !isLocalWebDev()) {
+            candidates.push(manualOverride);
+        }
+        candidates.push(production);
         return uniqueUrls(candidates);
     }
 
-    const manualOverride =
-        getExtra().apiBaseUrl?.trim().replace(/\/$/, "") ||
-        process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
-    const hosts: string[] = [];
-
-    if (Platform.OS === "web") {
-        const webOverride = process.env.EXPO_PUBLIC_API_WEB_BASE_URL?.trim().replace(/\/$/, "");
-        if (webOverride) candidates.push(webOverride);
-
-        const webLan = getWebLanHost();
-        if (webLan) hosts.push(webLan);
-        hosts.push("localhost", "127.0.0.1");
-        pushHostPorts(candidates, hosts);
-
-        const devHost = getExpoDevLanHost();
-        if (devHost) pushHostPorts(candidates, [devHost]);
-
-        if (manualOverride) candidates.push(manualOverride);
-        return uniqueUrls(candidates);
-    }
-
-    const devHost = getExpoDevLanHost();
-    if (devHost) hosts.push(devHost);
-
-    if (Platform.OS === "android" && isAndroidEmulator()) {
-        hosts.push("10.0.2.2");
-    }
-
-    if (isIosSimulator()) {
-        hosts.push("localhost", "127.0.0.1");
-    }
-
-    hosts.push("localhost", "127.0.0.1");
-    if (Platform.OS === "android") {
-        hosts.push("10.0.2.2");
-    }
-
-    pushHostPorts(candidates, hosts);
-
-    if (manualOverride) candidates.push(manualOverride);
-
+    candidates.push(production);
     return uniqueUrls(candidates);
 }
 

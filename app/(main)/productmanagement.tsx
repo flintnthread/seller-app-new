@@ -24,6 +24,7 @@ import {
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
 import { useProductFilterCatalog } from "@/hooks/useProductFilterCatalog";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
     leafSubcategoriesForMiddle,
     middleCategoriesForMain,
@@ -820,6 +821,8 @@ const truncateTitle = (title: string) => {
 // ─────────────────────────────────────────────────────────────
 const WebProductsScreen: React.FC = () => {
     const router = useRouter();
+    const { width: viewportWidth, isTablet } = useResponsive();
+    const useCompactStats = viewportWidth < 1280;
     const { products, setProducts, loading, error, needsLogin, reload } = useSellerProducts();
 
     useFocusEffect(
@@ -1049,7 +1052,9 @@ const WebProductsScreen: React.FC = () => {
                             <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
                             <Text style={wst.breadcrumbActive}>Product Management</Text>
                         </View>
-                        <Text style={wst.pageTitle}>Product Management</Text>
+                        <Text style={wst.pageTitle} numberOfLines={1}>
+                            Product Management
+                        </Text>
                     </View>
                     
                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
@@ -1065,23 +1070,37 @@ const WebProductsScreen: React.FC = () => {
                 </View>
 
                 {/* STATS ROW */}
-                <View style={wst.statsRow}>
+                <View style={[wst.statsRow, useCompactStats && wst.statsRowCompact, useCompactStats && isTablet && wst.statsRowTablet]}>
                     {[
                         { label: "Total Products", value: totalCount,      icon: "package-variant-closed", color: C.navy,    bg: "#EEF1FF",    trend: "+3 this week"  },
                         { label: "Active",          value: activeCount,     icon: "check-circle",           color: "#16A34A", bg: "#DCFCE7",    trend: "selling well"  },
                         { label: "Inactive",        value: inactiveCount,   icon: "pause-circle",           color: "#B45309", bg: "#FEF9C3",    trend: "needs review"  },
                         { label: "Out of Stock",    value: outOfStockCount, icon: "close-circle-outline",   color: "#DC2626", bg: "#FEE2E2",    trend: "restock soon"  },
                         { label: "Low Stock",       value: lowStockCount,   icon: "alert-circle-outline",   color: C.orange,  bg: C.orangePale, trend: "≤10 units"     },
-                    ].map((stat, i) => (
-                        <View key={i} style={wst.statCard}>
+                    ].map((stat, i, arr) => (
+                        <View
+                            key={i}
+                            style={[
+                                wst.statCard,
+                                useCompactStats && wst.statCardCompact,
+                                useCompactStats && i === arr.length - 1 && arr.length % 2 === 1 && wst.statCardFullSpan,
+                            ]}
+                        >
                             <View style={wst.statCardTop}>
                                 <View style={[wst.statCardIcon, { backgroundColor: stat.bg }]}>
                                     <MaterialCommunityIcons name={stat.icon as any} size={20} color={stat.color} />
                                 </View>
-                                <Text style={[wst.statCardVal, { color: stat.color }]}>{stat.value}</Text>
+                                <Text
+                                    style={[wst.statCardVal, { color: stat.color }]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.7}
+                                >
+                                    {stat.value}
+                                </Text>
                             </View>
-                            <Text style={wst.statCardLabel}>{stat.label}</Text>
-                            <Text style={wst.statCardTrend}>{stat.trend}</Text>
+                            <Text style={wst.statCardLabel} numberOfLines={2}>{stat.label}</Text>
+                            {!useCompactStats ? <Text style={wst.statCardTrend}>{stat.trend}</Text> : null}
                         </View>
                     ))}
                 </View>
@@ -1696,7 +1715,31 @@ const wst = StyleSheet.create({
     pageTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.white, letterSpacing: -0.5 },
     pageSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "rgba(255,255,255,0.8)" },
     statsRow: { flexDirection: "row", gap: 12, marginBottom: 18, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
-    statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+    statsRowCompact: Platform.select({
+        web: {
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 10,
+            marginTop: -36,
+        } as object,
+        default: {
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 10,
+            marginTop: -36,
+        },
+    }),
+    statsRowTablet: Platform.select({
+        web: {
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        } as object,
+    }),
+    statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, minWidth: 0 },
+    statCardCompact: { flex: undefined, width: undefined, minHeight: 88, padding: 12 },
+    statCardFullSpan: Platform.select({
+        web: { gridColumn: "1 / -1" } as object,
+        default: { width: "100%" },
+    }),
     statCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
     statCardIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     statCardVal: { fontFamily: "Outfit_800ExtraBold", fontSize: 26 },
@@ -1901,9 +1944,33 @@ const wst = StyleSheet.create({
     statusPillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 11 },
     actionBtn: { width: 30, height: 30, borderRadius: 7, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
 
-    // Grid
-    webGridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 16 },
-    webGridCard: { width: "22%" as any, minWidth: 180, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+    // Grid — 3 equal columns on web so cards fill the full row
+    webGridContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 14,
+        padding: 16,
+        ...(Platform.OS === "web"
+            ? ({
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            } as object)
+            : {}),
+    },
+    webGridCard: {
+        width: Platform.OS === "web" ? ("100%" as any) : ("22%" as any),
+        minWidth: Platform.OS === "web" ? undefined : 180,
+        backgroundColor: C.white,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: C.border,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
     webGridImgWrap: { position: "relative" },
     webGridImg: { width: "100%", height: 240, backgroundColor: C.bg },
     webGridStatusBadge: { position: "absolute", top: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
@@ -1931,10 +1998,15 @@ const wst = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────
-// MOBILE SCREEN — COMPLETELY UNCHANGED
+// MOBILE + NARROW WEB (<1024px)
 // ─────────────────────────────────────────────────────────────
 const MobileProductsScreen: React.FC = () => {
     const router = useRouter();
+    const { width: screenWidth, isCompact, isWeb, isTablet, isDesktop } = useResponsive();
+    const isWebCompact = isWeb && !isDesktop;
+    const ScreenRoot = isWeb ? View : SafeAreaView;
+    const statColWidth = Math.floor((screenWidth - 32 - 8) / 2);
+    const gridCardWidth = Math.floor((screenWidth - 24 - 10) / 2);
     const { products, setProducts, loading, error, needsLogin, reload } = useSellerProducts();
 
     useFocusEffect(
@@ -2019,6 +2091,78 @@ const MobileProductsScreen: React.FC = () => {
         { icon:"pause-circle",         label:"Inactive",     value:String(inactiveCount),   color:C.yellow, bg:C.yellowPale           },
         { icon:"close-circle-outline", label:"Out of Stock", value:String(outOfStockCount), color:C.red,    bg:C.redPale              },
     ];
+
+    const renderStatsGrid = () => (
+        <View style={[s.statsGrid, isTablet && !isWebCompact && s.statsGridTablet]}>
+            {PRODUCT_STATS.map((stat) => (
+                <View
+                    key={stat.label}
+                    style={[
+                        s.statItemCompact,
+                        !isWeb && { width: statColWidth },
+                    ]}
+                >
+                    <View style={[s.statIconBoxCompact, { backgroundColor: stat.bg }]}>
+                        <MaterialCommunityIcons name={stat.icon as any} size={18} color={stat.color} />
+                    </View>
+                    <View style={s.statTextCol}>
+                        <Text
+                            style={[s.statValueCompact, { color: stat.color }]}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                        >
+                            {stat.value}
+                        </Text>
+                        <Text style={s.statLabelCompact} numberOfLines={2}>{stat.label}</Text>
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+
+    const renderActionCards = () => (
+        <View style={[s.actionRow, isCompact && s.actionRowStack, isWebCompact && s.actionRowWebCompact]}>
+            <TouchableOpacity style={s.actionCardEqual} activeOpacity={0.75} onPress={() => router.push("/(main)/Addnewproduct")}>
+                <View style={s.actionCardInner}>
+                    <View style={[s.actionIconBoxCompact, { backgroundColor: "rgba(30,43,107,0.10)" }]}>
+                        <MaterialCommunityIcons name="plus-box-outline" size={24} color={C.navy} />
+                    </View>
+                    <View style={s.actionTextCol}>
+                        <Text style={s.actionTitleCompact}>Add New Product</Text>
+                        <Text style={s.actionDescCompact} numberOfLines={2}>Create and add a new product</Text>
+                    </View>
+                </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.actionCardEqual} activeOpacity={0.75} onPress={() => router.push("/(main)/bulkupload")}>
+                <View style={s.actionCardInner}>
+                    <View style={[s.actionIconBoxCompact, { backgroundColor: C.greenPale }]}>
+                        <MaterialCommunityIcons name="cloud-upload-outline" size={24} color={C.green} />
+                    </View>
+                    <View style={s.actionTextCol}>
+                        <Text style={[s.actionTitleCompact, { color: C.green }]}>Bulk Upload</Text>
+                        <Text style={s.actionDescCompact} numberOfLines={2}>Upload products via CSV</Text>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        </View>
+    );
+
+    const headerTools = (
+        <View style={s.headerTools}>
+            <TouchableOpacity onPress={() => setShowSearch(true)} style={s.headerToolBtn} accessibilityLabel="Search products">
+                <Feather name="search" size={20} color={C.white} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowFilter(true)} style={s.headerToolBtn} accessibilityLabel="Filter products">
+                <View style={{ position: "relative" }}>
+                    <Feather name="filter" size={20} color={C.white} />
+                    {activeFilterCount > 0 && (
+                        <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
+                    )}
+                </View>
+            </TouchableOpacity>
+        </View>
+    );
 
     const processedProducts = useMemo(() => {
         let list = [...products];
@@ -2147,8 +2291,8 @@ const MobileProductsScreen: React.FC = () => {
     }
 
     return (
-        <SafeAreaView style={s.root}>
-            <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
+        <ScreenRoot style={[s.root, isWeb && s.rootWeb]}>
+            {Platform.OS !== "web" && <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />}
             {showSearch ? (
                 <View style={s.headerWrapper}>
                     <View style={s.searchBarRow}>
@@ -2163,30 +2307,36 @@ const MobileProductsScreen: React.FC = () => {
                         )}
                     </View>
                 </View>
-            ) : (
-                <AppHeader 
-                    title="Products" 
-                    subtitle="Manage and view your products" 
-                    showBackButton 
-                    rightActions={
-                        <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                            <TouchableOpacity onPress={() => setShowSearch(true)}>
-                                <Feather name="search" size={21} color="#ffffff" />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setShowFilter(true)}>
-                                <View style={{ position: "relative" }}>
-                                    <Feather name="filter" size={21} color="#ffffff" />
-                                    {activeFilterCount > 0 && (
-                                        <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
-                                    )}
-                                </View>
-                            </TouchableOpacity>
+            ) : isWebCompact ? (
+                <View style={s.heroSection}>
+                    <View style={s.webMobileIntro}>
+                        <View style={s.webIntroRow}>
+                            <View style={s.webIntroTextCol}>
+                                <Text style={s.webMobileTitle}>Products</Text>
+                                <Text style={s.webMobileSubtitle} numberOfLines={2}>Manage and view your products</Text>
+                            </View>
+                            {headerTools}
                         </View>
-                    }
+                    </View>
+                    <View style={s.overviewCard}>
+                        <Text style={s.overviewTitle}>Products Overview</Text>
+                        {renderStatsGrid()}
+                    </View>
+                </View>
+            ) : (
+                <AppHeader
+                    title="Products"
+                    subtitle="Manage and view your products"
+                    showBackButton
+                    rightActions={headerTools}
                 />
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            <ScrollView
+                showsVerticalScrollIndicator={isWebCompact}
+                style={isWebCompact ? s.scrollWebCompact : undefined}
+                contentContainerStyle={[isWebCompact && s.scrollContentWebCompact, { paddingBottom: 100 }]}
+            >
                 {error ? (
                     <View style={{ marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: C.redPale, borderWidth: 1, borderColor: "#FECACA" }}>
                         <Text style={{ fontFamily: "Outfit_500Medium", fontSize: 12, color: C.red }}>{error}</Text>
@@ -2195,37 +2345,18 @@ const MobileProductsScreen: React.FC = () => {
                         </TouchableOpacity>
                     </View>
                 ) : null}
-                <View style={s.actionRow}>
-                    <TouchableOpacity style={s.actionCard} activeOpacity={0.75} onPress={() => router.push("/(main)/Addnewproduct")}>
-                        <View style={[s.actionIconBox, { backgroundColor: "rgba(30,43,107,0.10)" }]}>
-                            <MaterialCommunityIcons name="plus-box-outline" size={28} color={C.navy} />
-                        </View>
-                        <Text style={s.actionTitle}>Add New Product</Text>
-                        <Text style={s.actionDesc}>Create and add a new product</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.actionCard} activeOpacity={0.75} onPress={() => router.push("/(main)/bulkupload")}>
-                        <View style={[s.actionIconBox, { backgroundColor: C.greenPale }]}>
-                            <MaterialCommunityIcons name="cloud-upload-outline" size={28} color={C.green} />
-                        </View>
-                        <Text style={[s.actionTitle, { color: C.green }]}>Bulk Upload</Text>
-                        <Text style={s.actionDesc}>Upload products via CSV</Text>
-                    </TouchableOpacity>
-                </View>
 
-                <View style={s.statsCard}>
-                    {PRODUCT_STATS.map((stat, i) => (
-                        <React.Fragment key={i}>
-                            <View style={s.statItem}>
-                                <View style={[s.statIconBox, { backgroundColor: stat.bg }]}>
-                                    <MaterialCommunityIcons name={stat.icon as any} size={22} color={stat.color} />
-                                </View>
-                                <Text style={[s.statValue, { color: stat.color }]}>{stat.value}</Text>
-                                <Text style={s.statLabel}>{stat.label}</Text>
-                            </View>
-                            {i < PRODUCT_STATS.length - 1 && <View style={s.statDivider} />}
-                        </React.Fragment>
-                    ))}
-                </View>
+                {!isWebCompact ? (
+                    <>
+                        {renderActionCards()}
+                        <View style={s.statsSection}>
+                            <Text style={s.statsSectionTitle}>Overview</Text>
+                            {renderStatsGrid()}
+                        </View>
+                    </>
+                ) : (
+                    <View style={s.webCompactActions}>{renderActionCards()}</View>
+                )}
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabScrollContent} style={s.tabScrollWrapper}>
                     {TABS.map(tab => {
@@ -2376,7 +2507,7 @@ const MobileProductsScreen: React.FC = () => {
                         {visibleProducts.map(product => {
                             const st = getStatusColor(product.status);
                             return (
-                                <TouchableOpacity key={product.id} style={s.gridCard} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
+                                <TouchableOpacity key={product.id} style={[s.gridCard, { width: gridCardWidth }]} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
                                     <Image source={{ uri: product.image }} style={s.gridImage} resizeMode="contain" />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
@@ -2518,7 +2649,7 @@ const MobileProductsScreen: React.FC = () => {
             {locationProductId && (
                 <DeliveryLocationsModal product={locationProduct} onClose={() => setLocationProductId(null)} />
             )}
-        </SafeAreaView>
+        </ScreenRoot>
     );
 };
 
@@ -2527,6 +2658,59 @@ const MobileProductsScreen: React.FC = () => {
 // ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
     root: { flex:1, backgroundColor:C.bg },
+    rootWeb: { width: "100%", minWidth: 0 },
+    heroSection: { backgroundColor: C.navyDeep, paddingBottom: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, marginBottom: 4 },
+    webMobileIntro: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
+    webIntroRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+    webIntroTextCol: { flex: 1, minWidth: 0 },
+    webMobileTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 22, color: C.white, letterSpacing: -0.3 },
+    webMobileSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "rgba(255,255,255,0.78)", marginTop: 4, lineHeight: 18 },
+    headerTools: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
+    headerToolBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" },
+    overviewCard: { marginHorizontal: 12, backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
+    overviewTitle: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.textMid, marginBottom: 8 },
+    scrollWebCompact: { flex: 1, minWidth: 0 },
+    scrollContentWebCompact: { paddingTop: 8 },
+    webCompactActions: { paddingHorizontal: 12, paddingTop: 4 },
+    statsSection: { marginHorizontal: 16, marginTop: 4, marginBottom: 10 },
+    statsSectionTitle: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.textMid, marginBottom: 8 },
+    statsGrid: {
+        gap: 8,
+        ...Platform.select({
+            web: {
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+            } as object,
+            default: {
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+            },
+        }),
+    },
+    statsGridTablet: Platform.select({
+        web: {
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        } as object,
+    }),
+    statItemCompact: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: C.card,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+        gap: 10,
+        minWidth: 0,
+        minHeight: 64,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    statIconBoxCompact: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    statTextCol: { flex: 1, minWidth: 0 },
+    statValueCompact: { fontFamily: "Outfit_800ExtraBold", fontSize: 18, lineHeight: 22 },
+    statLabelCompact: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight, lineHeight: 14, marginTop: 1 },
     headerWrapper:   { backgroundColor:C.navyDeep, paddingTop:Platform.OS==="android"?(StatusBar.currentHeight??0)+4:0, paddingBottom:4 },
     headerRow:       { flexDirection:"row", alignItems:"center", paddingHorizontal:12, paddingVertical:10, gap:8 },
     searchBarRow:    { flexDirection:"row", alignItems:"center", paddingHorizontal:12, paddingVertical:10, gap:10 },
@@ -2538,20 +2722,21 @@ const s = StyleSheet.create({
     searchInput:     { flex:1, fontFamily:"Outfit_400Regular", fontSize:14, color:C.white, borderBottomWidth:1, borderBottomColor:"rgba(255,255,255,0.4)", paddingVertical:4 },
     filterBadge:     { position:"absolute", top:-4, right:-4, backgroundColor:C.orange, width:16, height:16, borderRadius:8, alignItems:"center", justifyContent:"center" },
     filterBadgeText: { fontFamily:"Outfit_700Bold", fontSize:9, color:C.white },
-    actionRow:    { flexDirection:"row", paddingHorizontal:16, paddingTop:14, paddingBottom:6, gap:12 },
-    actionCard:   { flex:1, backgroundColor:C.card, borderRadius:16, padding:12, alignItems:"flex-start", shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:8, elevation:3, position:"relative", height:130 },
-    actionIconBox:{ width:48, height:48, borderRadius:13, alignItems:"center", justifyContent:"center", marginBottom:10 },
-    actionTitle:  { fontFamily:"Outfit_700Bold",    fontSize:13, color:C.navy, marginBottom:3 },
-    actionDesc:   { fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight, lineHeight:15, marginBottom:10 },
-    statsCard:   { flexDirection:"row", alignItems:"center", backgroundColor:C.card, borderRadius:16, marginHorizontal:16, marginTop:4, marginBottom:10, paddingVertical:16, paddingHorizontal:8, shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:8, elevation:3 },
-    statItem:    { flex:1, alignItems:"center", gap:4 },
+    actionRow:    { flexDirection:"row", paddingHorizontal:16, paddingTop:14, paddingBottom:6, gap:10 },
+    actionRowStack: { flexDirection: "column" },
+    actionRowWebCompact: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
+    actionCardEqual: { flex: 1, minWidth: 0, backgroundColor:C.card, borderRadius:14, padding:12, shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:8, elevation:3 },
+    actionCardInner: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
+    actionIconBoxCompact: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    actionTextCol: { flex: 1, minWidth: 0 },
+    actionTitleCompact: { fontFamily:"Outfit_700Bold", fontSize:13, color:C.navy, marginBottom: 2 },
+    actionDescCompact: { fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight, lineHeight:15 },
     statIconBox: { width:40, height:40, borderRadius:11, alignItems:"center", justifyContent:"center", marginBottom:4 },
     statValue:   { fontFamily:"Outfit_800ExtraBold", fontSize:18, color:C.textDark },
-    statLabel:   { fontFamily:"Outfit_400Regular", fontSize:9.5, color:C.textLight, textAlign:"center" },
-    statDivider: { width:1, height:52, backgroundColor:C.border, marginHorizontal:2 },
+    statLabel:   { fontFamily:"Outfit_500Medium", fontSize:10, color:C.textLight, textAlign:"center" },
     tabScrollWrapper: { marginBottom:8 },
     tabScrollContent: { paddingHorizontal:16, gap:8, paddingVertical:4 },
-    tabBtn:      { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:12, paddingVertical:9, borderRadius:22, borderWidth:1.5, backgroundColor:C.card },
+    tabBtn:      { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:12, paddingVertical:9, borderRadius:22, borderWidth:1.5, backgroundColor:C.card, flexShrink:0 },
     tabBtnText:  { fontFamily:"Outfit_600SemiBold", fontSize:12, color:C.textMid },
     tabBadgePill:    { paddingHorizontal:6, paddingVertical:1, borderRadius:10 },
     tabBadgePillTxt: { fontFamily:"Outfit_700Bold", fontSize:10 },
@@ -2560,14 +2745,14 @@ const s = StyleSheet.create({
     sortBtnLeft: { flexDirection:"row", alignItems:"center", gap:10 },
     sortIconWrap: { width:34, height:34, borderRadius:10, backgroundColor:C.navy, alignItems:"center", justifyContent:"center" },
     sortBtnLabel: { fontFamily:"Outfit_400Regular", fontSize:10, color:C.textLight },
-    sortBtnValue: { fontFamily:"Outfit_700Bold", fontSize:12, color:C.navy, maxWidth:SW * 0.3 },
+    sortBtnValue: { fontFamily:"Outfit_700Bold", fontSize:12, color:C.navy, flexShrink: 1 },
     sortBtnRight: { flexDirection:"row", alignItems:"center", gap:6 },
     viewRangePill: { backgroundColor:C.navyDeep+"12", borderRadius:6, paddingHorizontal:8, paddingVertical:3 },
     viewRangePillTxt: { fontFamily:"Outfit_700Bold", fontSize:11, color:C.navy },
     viewToggle:   { flexDirection:"row", backgroundColor:C.card, borderRadius:10, padding:3, borderWidth:1, borderColor:C.border },
     viewBtn:      { width:34, height:34, borderRadius:8, alignItems:"center", justifyContent:"center" },
     viewBtnActive:{ backgroundColor:C.navy },
-    sortMenuWrapper: { paddingHorizontal:18, paddingTop:4, marginBottom:6, width:320 },
+    sortMenuWrapper: { paddingHorizontal:16, paddingTop:4, marginBottom:6, alignSelf: "stretch", width: "100%" },
     sortMenu: { marginHorizontal:0, marginBottom:0, backgroundColor:C.card, borderRadius:16, borderWidth:1, borderColor:C.border, overflow:"hidden", elevation:8, shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.12, shadowRadius:14 },
     sortMenuHeader: { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:16, paddingTop:14, paddingBottom:10 },
     sortMenuTitle: { fontFamily:"Outfit_700Bold", fontSize:14, color:C.navy },
@@ -2612,7 +2797,7 @@ const s = StyleSheet.create({
     stockText:     { fontFamily:"Outfit_600SemiBold", fontSize:11, color:C.textMid },
     moreBtn:       { width:32, height:32, borderRadius:9, backgroundColor:C.bg, alignItems:"center", justifyContent:"center", borderWidth:1, borderColor:C.border },
     gridContainer: { flexDirection:"row", flexWrap:"wrap", paddingHorizontal:12, gap:10, marginBottom:10 },
-    gridCard:      { width:(SW-52)/2, backgroundColor:C.card, borderRadius:14, overflow:"hidden", shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:6, elevation:2 },
+    gridCard:      { backgroundColor:C.card, borderRadius:14, overflow:"hidden", shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:6, elevation:2 },
     gridImage:     { width:"100%", height:130, backgroundColor:C.bg },
     statusBadgeSmall: { position:"absolute", top:8, right:8, paddingHorizontal:6, paddingVertical:3, borderRadius:5 },
     statusTextSmall:  { fontFamily:"Outfit_600SemiBold", fontSize:10 },
@@ -2683,9 +2868,10 @@ const ProductsScreen: React.FC = () => {
         Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold,
         Outfit_700Bold, Outfit_800ExtraBold,
     });
+    const { isDesktop } = useResponsive();
     if (!fontsLoaded) return null;
 
-    if (Platform.OS === "web") {
+    if (isDesktop) {
         return <WebProductsScreen />;
     }
     return <MobileProductsScreen />;

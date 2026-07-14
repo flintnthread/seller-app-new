@@ -7,6 +7,7 @@ import {
 } from "./config";
 import { ensureAccessToken, ensureSellerId, touchSessionActivity } from "./sellerSession";
 import { legacySellerApiPath } from "./sellerPaths";
+import { refreshSessionIfActive, tryRefreshSession } from "./sessionRefresh";
 
 export class ApiError extends Error {
     constructor(
@@ -98,6 +99,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
         try {
             const body = await res.json();
             if (body?.message) message = body.message;
+            if (body?.detail && body.detail !== body.message) {
+                message = `${message} (${body.detail})`;
+            }
         } catch {
             // ignore
         }

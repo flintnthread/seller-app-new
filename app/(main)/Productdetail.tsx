@@ -31,11 +31,22 @@ import {
     type VariantFormContext,
     type VariantFormState,
 } from "@/lib/product/ProductVariantFormCard";
-import { calculateVariantPricingFromStrings } from "@/lib/product/variantPricing";
+import { calculateVariantPricing, calculateVariantPricingFromStrings, COMMISSION_PERCENT } from "@/lib/product/variantPricing";
 import { formatBuyerInstructionsForDisplay } from "@/lib/product/customProductFields";
+import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
+import { resolveMinQuantity } from "@/lib/product/resolveMinQuantity";
+import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
+/** Desktop product-detail chrome needs ~1024px for the side-by-side hero. */
+const PRODUCT_DETAIL_DESKTOP_MIN = 1024;
+
+function useProductDetailWebLayout(): boolean {
+  const { width } = useResponsive();
+  return isWeb && width >= PRODUCT_DETAIL_DESKTOP_MIN;
+}
 
 // ─── Color Palette ────────────────────────────────────────────
 const C = {
@@ -55,7 +66,7 @@ type TabId = "overview" | "variants" | "specifications" | "delivery" | "return" 
 type VariantViewMode = "grid" | "list" | "table";
 
 /** Fixed column widths for the variants table — total must match VARIANT_TABLE_WIDTH. */
-const VARIANT_TABLE_COL_WIDTHS = [44, 80, 80, 110, 70, 100, 100, 100, 100, 100, 120, 100, 100, 100, 100, 90] as const;
+const VARIANT_TABLE_COL_WIDTHS = [44, 80, 80, 110, 70, 70, 100, 100, 100, 100, 100, 120, 100, 100, 100, 100, 90] as const;
 const VARIANT_TABLE_WIDTH = VARIANT_TABLE_COL_WIDTHS.reduce((sum, w) => sum + w, 0);
 
 interface Spec { label: string; value: string; }
@@ -74,14 +85,19 @@ interface SizeChartEntry {
 
 type Product = ProductDetail;
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: "overview",        label: "Overview",       icon: "information-outline"    },
-  { id: "variants",        label: "Variants",       icon: "tune-variant"           },
-  { id: "specifications",  label: "Specifications", icon: "clipboard-list-outline" },
-  { id: "delivery",        label: "Delivery",       icon: "truck-outline"          },
-  { id: "return",          label: "Returns",        icon: "refresh"                },
-  { id: "sizechart",       label: "Size Chart",     icon: "ruler"                  },
+const TABS: { id: TabId; label: string; icon: string; compactLabel?: string }[] = [
+  { id: "overview",        label: "Overview",       compactLabel: "Overview", icon: "information-outline"    },
+  { id: "variants",        label: "Variants",       compactLabel: "Variants", icon: "tune-variant"           },
+  { id: "specifications",  label: "Specifications", compactLabel: "Specs",    icon: "clipboard-list-outline" },
+  { id: "delivery",        label: "Delivery",       compactLabel: "Delivery", icon: "truck-outline"          },
+  { id: "return",          label: "Returns",        compactLabel: "Returns",  icon: "refresh"                },
+  { id: "sizechart",       label: "Size Chart",     compactLabel: "Sizes",    icon: "ruler"                  },
 ];
+
+function tabLabel(tab: (typeof TABS)[number], compact: boolean): string {
+  if (compact && tab.compactLabel) return tab.compactLabel;
+  return tab.label;
+}
 
 function getStatusStyle(status: string) {
   if (status === "Active")   return { bg: C.greenPale,  color: C.green  };
@@ -127,11 +143,14 @@ function parseGstPercent(gst: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function pickPrimaryVariant(variants: Variant[]): Variant | null {
-  if (!variants.length) return null;
-  const inStock = variants.filter((v) => v.stock > 0);
-  const pool = inStock.length > 0 ? inStock : variants;
-  return pool.reduce((best, v) => (v.stock >= best.stock ? v : best), pool[0]);
+function pickDisplayVariant(variants: Variant[]): Variant | null {
+  return pickMinimumPriceVariant(variants, resolveVariantMetroTotal);
+}
+
+function formatLowestVariantLabel(v: Variant | null): string | null {
+  if (!v) return null;
+  const parts = [v.color !== "—" ? v.color : null, v.size !== "—" ? v.size : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 function resolveMrpInclGst(p: Product, variant: Variant | null): number {
@@ -143,28 +162,91 @@ function resolveMrpInclGst(p: Product, variant: Variant | null): number {
   return Math.round(mrpExcl * (1 + gstPct / 100) * 100) / 100;
 }
 
-function resolveTotalMetroPrice(p: Product, variant: Variant | null): number {
-  if (variant?.totalMetroMetro && variant.totalMetroMetro > 0) return variant.totalMetroMetro;
-  if (p.price > 0) return p.price;
-  if (variant) {
-    const pricing = calculateVariantPricingFromStrings({
-      mrp: String(variant.mrpExclGst || variant.mrp || 0),
-      sellingPrice: String(variant.sellingPriceExGst || variant.sellingPrice || 0),
-      gstPercent: variant.gstPercent,
-      intraCityCharge: variant.intraCityDelivery,
+function resolveVariantDisplayPricing(p: Product, variant: Variant) {
+  const pricing = calculateVariantPricingFromStrings({
+    mrp: String(variant.mrpExclGst || variant.mrp || 0),
+    sellingPrice: String(variant.sellingPriceExGst || variant.sellingPrice || 0),
+    gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
+    intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
+    metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
+    discountOverride: variant.discount,
+    ...(Number.isFinite(variant.commissionPercent) ? { commissionPercent: variant.commissionPercent } : {}),
+  });
+  if (pricing) return pricing;
+
+  const mrpExcl = variant.mrpExclGst || variant.mrp || 0;
+  const sellingExcl = variant.sellingPriceExGst || variant.sellingPrice || 0;
+  if (mrpExcl > 0 && sellingExcl > 0) {
+    return calculateVariantPricing({
+      mrpExcl,
+      sellingExcl,
+      gstPercent: variant.gstPercent ?? parseGstPercent(p.gst),
+      intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
       metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
-      discountOverride: variant.discount,
+      discountOverride: variant.discountPercentage ?? variant.discount ?? null,
+      commissionPercent: Number.isFinite(variant.commissionPercent)
+        ? variant.commissionPercent
+        : COMMISSION_PERCENT,
     });
-    if (pricing) return pricing.totalMetroMetro;
   }
-  return 0;
+
+  return null;
+}
+
+function resolveTotalMetroPrice(p: Product, variant: Variant | null): number {
+  if (!variant) return p.price > 0 ? p.price : 0;
+  const pricing = resolveVariantDisplayPricing(p, variant);
+  if (pricing) return pricing.totalMetroMetro;
+  return resolveVariantMetroTotal({
+    finalPrice: variant.sellingPriceWithGst || variant.finalPrice,
+    metroMetroDelivery: variant.metroMetroDelivery ?? p.metroMetroCharge,
+    commissionAmount: variant.commissionAmount,
+    commissionPercent: variant.commissionPercent,
+    totalMetroMetro: variant.totalMetroMetro ?? variant.totalPriceMetroMetro,
+  });
+}
+
+function resolveDisplaySku(p: Product, variants: Variant[]): string {
+  const display = pickDisplayVariant(variants);
+  if (display?.sku && display.sku !== "—") return display.sku;
+  return p.sku && p.sku !== "—" ? p.sku : "—";
+}
+
+function normalizeVariantsForDisplay(product: Product, items: Variant[]): Variant[] {
+  return items.map((v) => {
+    const pricing = resolveVariantDisplayPricing(product, v);
+    if (!pricing) return v;
+    return {
+      ...v,
+      commissionAmount: pricing.commissionAmount,
+      commissionPercent: Number.isFinite(v.commissionPercent) ? v.commissionPercent : COMMISSION_PERCENT,
+      totalIntraCity: pricing.totalIntraCity,
+      totalMetroMetro: pricing.totalMetroMetro,
+    };
+  });
+}
+
+function prepareProductDetailView(detail: Product): { product: Product; variants: Variant[] } {
+  const variants = normalizeVariantsForDisplay(detail, detail.variants);
+  const { totalMetro, displayVariant } = getHeroPricing(detail, variants);
+  return {
+    product: {
+      ...detail,
+      sku: resolveDisplaySku(detail, detail.variants),
+      price: totalMetro,
+      color: displayVariant?.color ?? detail.color,
+      size: displayVariant?.size ?? detail.size,
+      minQuantity: resolveMinQuantity(detail.variants, displayVariant, detail.minQuantity) ?? undefined,
+    },
+    variants,
+  };
 }
 
 function getHeroPricing(p: Product, variants: Variant[]) {
-  const primary = pickPrimaryVariant(variants);
-  const totalMetro = resolveTotalMetroPrice(p, primary);
-  const mrpInclGst = resolveMrpInclGst(p, primary);
-  return { totalMetro, mrpInclGst };
+  const displayVariant = pickDisplayVariant(variants);
+  const totalMetro = resolveTotalMetroPrice(p, displayVariant);
+  const mrpInclGst = resolveMrpInclGst(p, displayVariant);
+  return { totalMetro, mrpInclGst, displayVariant };
 }
 
 // ─── Sub components ───────────────────────────────────────────
@@ -466,7 +548,8 @@ const EditVariantModal: React.FC<{
   variantIndex: number;
   onClose: () => void;
   onSave: (form: VariantFormState) => Promise<void>;
-}> = ({ visible, variant, product, variantIndex, onClose, onSave }) => {
+  isB2B?: boolean;
+}> = ({ visible, variant, product, variantIndex, onClose, onSave, isB2B = false }) => {
   const [form, setForm] = useState<VariantFormState>(createEmptyVariantFormState());
   const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -541,6 +624,7 @@ const EditVariantModal: React.FC<{
               catalogLoading={catalogLoading}
               context={formContext}
               showHeader
+              isB2B={isB2B}
             />
           </ScrollView>
 
@@ -570,7 +654,8 @@ const AddVariantModal: React.FC<{
   onSubmit: (form: VariantFormState) => Promise<void>;
   product: Product;
   variantIndex: number;
-}> = ({ visible, onClose, onSubmit, product, variantIndex }) => {
+  isB2B?: boolean;
+}> = ({ visible, onClose, onSubmit, product, variantIndex, isB2B = false }) => {
   const [form, setForm] = useState<VariantFormState>(createEmptyVariantFormState());
   const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -648,6 +733,7 @@ const AddVariantModal: React.FC<{
               catalogLoading={catalogLoading}
               context={formContext}
               showHeader
+              isB2B={isB2B}
             />
           </ScrollView>
 
@@ -721,10 +807,12 @@ const av = StyleSheet.create({
 });
 
 // ─── VARIANTS GRID VIEW ───────────────────────────────────────
-const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
+const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => {
+  const useWebLayout = useProductDetailWebLayout();
+  return (
   <View style={[{ flexDirection: "row", flexWrap: "wrap", gap: 10 }]}>
     {variants.map(v => (
-      <View key={v.id} style={[vr.gridCard, isWeb && vr.gridCardWeb]}>
+      <View key={v.id} style={[vr.gridCard, useWebLayout && vr.gridCardWeb]}>
         {v.imageUri ? (
           <Image source={{ uri: v.imageUri }} style={vr.gridThumb} resizeMode="cover" />
         ) : null}
@@ -752,8 +840,13 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label
         <Text style={vr.gridMrp}>MRP Excl. GST ₹{v.mrpExclGst.toFixed(2)}</Text>
         <View style={vr.gridDivider} />
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Stock</Text><Text style={vr.gridRowVal}>{v.stock} units</Text></View>
+        {v.minQuantity != null && v.minQuantity > 0 ? (
+          <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Min Qty</Text><Text style={[vr.gridRowVal, { color: C.navy }]}>{v.minQuantity} units</Text></View>
+        ) : null}
         <View style={vr.gridRow}><Text style={vr.gridRowLabel}>GST</Text><Text style={[vr.gridRowVal, { color: C.orange }]}>₹{v.gstAmount.toFixed(2)} ({v.gstPercent}%)</Text></View>
-        <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Commission</Text><Text style={[vr.gridRowVal, { color: C.red }]}>₹{v.commissionAmount.toFixed(2)}</Text></View>
+        {v.commissionAmount > 0 ? (
+          <View style={vr.gridRow}><Text style={vr.gridRowLabel}>Commission</Text><Text style={[vr.gridRowVal, { color: C.red }]}>₹{v.commissionAmount.toFixed(2)}</Text></View>
+        ) : null}
         <View style={vr.gridDivider} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
           <View style={vr.sizePill}><Text style={vr.sizePillTxt}>{v.size}</Text></View>
@@ -772,7 +865,8 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label
       </View>
     ))}
   </View>
-);
+  );
+};
 
 const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
   <View style={{ gap: 8 }}>
@@ -790,7 +884,9 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label
           )}
           <View style={{ flex: 1 }}>
             <Text style={vr.listCardName}>{v.color} · {v.size}</Text>
-            <Text style={vr.listCardSku}>{v.sku} · {v.stock} units</Text>
+            <Text style={vr.listCardSku}>
+              {v.sku} · {v.stock} units{v.minQuantity != null && v.minQuantity > 0 ? ` · Min ${v.minQuantity}` : ""}
+            </Text>
           </View>
           <View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount}% OFF</Text></View>
           {/* FIX: navy background for edit button */}
@@ -823,7 +919,7 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label
 
 // ─── VARIANTS TABLE VIEW ──────────────────────────────────────
 const VARIANT_TABLE_HEADERS = [
-  "", "Color", "Size", "SKU", "Stock", "MRP\n(Excl. GST)", "Discount\n(%)",
+  "", "Color", "Size", "SKU", "Stock", "Min\nQty", "MRP\n(Excl. GST)", "Discount\n(%)",
   "Selling Price\n(Excl. GST)", "GST\n(%)", "Selling Price\n(With GST)",
   "Commission\n(% of SP w/ GST)", "Intra-City\nDelivery", "Metro-Metro\nDelivery",
   "Total\n(Intra-City)", "Total\n(Metro-Metro)", "Actions",
@@ -860,17 +956,18 @@ const VariantsTableBody: React.FC<{
         <View style={[vr.cell, colWidth(2)]}><View style={vr.sizePill}><Text style={vr.sizePillTxt}>{v.size}</Text></View></View>
         <View style={[vr.cell, colWidth(3)]}><Text style={[vr.cellTxt, { fontSize: 10.5, color: C.textLight }]} numberOfLines={1}>{v.sku}</Text></View>
         <View style={[vr.cell, colWidth(4)]}><View style={vr.stockPill}><Text style={vr.stockPillTxt}>{v.stock} units</Text></View></View>
-        <View style={[vr.cell, colWidth(5)]}><Text style={[vr.cellTxt, { color: C.red, fontFamily: "Outfit_700Bold" }]}>₹{v.mrpExclGst.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(6)]}><View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount.toFixed(2)}% OFF</Text></View></View>
-        <View style={[vr.cell, colWidth(7)]}><Text style={vr.cellTxt}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(8)]}><Text style={[vr.cellTxt, { color: C.orange }]}>+ ₹{v.gstAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.gstPercent}%)</Text></View>
-        <View style={[vr.cell, colWidth(9)]}><Text style={[vr.cellTxt, { color: C.navy, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(10)]}><Text style={[vr.cellTxt, { color: C.red }]}>+ ₹{v.commissionAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.commissionPercent}%)</Text></View>
-        <View style={[vr.cell, colWidth(11)]}><Text style={vr.cellTxt}>+ ₹{v.intraCityDelivery.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(12)]}><Text style={vr.cellTxt}>+ ₹{v.metroMetroDelivery.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(13), { backgroundColor: "#F0FDF4" }]}><Text style={[vr.cellTxt, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{v.totalIntraCity.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(14), { backgroundColor: "#FFFBEB" }]}><Text style={[vr.cellTxt, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text></View>
-        <View style={[vr.cell, colWidth(15), { flexDirection: "row", justifyContent: "center", gap: 6 }]}>
+        <View style={[vr.cell, colWidth(5)]}><Text style={[vr.cellTxt, { color: C.navy }]}>{v.minQuantity != null && v.minQuantity > 0 ? v.minQuantity : "—"}</Text></View>
+        <View style={[vr.cell, colWidth(6)]}><Text style={[vr.cellTxt, { color: C.red, fontFamily: "Outfit_700Bold" }]}>₹{v.mrpExclGst.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(7)]}><View style={vr.discountPill}><Text style={vr.discountPillTxt}>{v.discount.toFixed(2)}% OFF</Text></View></View>
+        <View style={[vr.cell, colWidth(8)]}><Text style={vr.cellTxt}>₹{v.sellingPriceExGst.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(9)]}><Text style={[vr.cellTxt, { color: C.orange }]}>+ ₹{v.gstAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.gstPercent}%)</Text></View>
+        <View style={[vr.cell, colWidth(10)]}><Text style={[vr.cellTxt, { color: C.navy, fontFamily: "Outfit_700Bold" }]}>₹{v.sellingPriceWithGst.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(11)]}><Text style={[vr.cellTxt, { color: C.red }]}>+ ₹{v.commissionAmount.toFixed(2)}</Text><Text style={vr.cellSub}>({v.commissionPercent}%)</Text></View>
+        <View style={[vr.cell, colWidth(12)]}><Text style={vr.cellTxt}>+ ₹{v.intraCityDelivery.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(13)]}><Text style={vr.cellTxt}>+ ₹{v.metroMetroDelivery.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(14), { backgroundColor: "#F0FDF4" }]}><Text style={[vr.cellTxt, { color: C.green, fontFamily: "Outfit_700Bold" }]}>₹{v.totalIntraCity.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(15), { backgroundColor: "#FFFBEB" }]}><Text style={[vr.cellTxt, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text></View>
+        <View style={[vr.cell, colWidth(16), { flexDirection: "row", justifyContent: "center", gap: 6 }]}>
           <TouchableOpacity style={[vr.deleteBtn, { backgroundColor: C.navy }]} onPress={() => onEdit(v)}>
             <MaterialCommunityIcons name="pencil-outline" size={14} color={C.white} />
           </TouchableOpacity>
@@ -886,9 +983,11 @@ const VariantsTableBody: React.FC<{
   </View>
 );
 
-const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
+const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => {
+  const useWebLayout = useProductDetailWebLayout();
+  return (
   <View style={vr.tableWrap}>
-    {isWeb ? (
+    {useWebLayout ? (
       <View style={vr.tableScrollWeb}>
         <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} />
       </View>
@@ -905,7 +1004,8 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string, labe
       </ScrollView>
     )}
   </View>
-);
+  );
+};
 
 // ─── VARIANTS TAB ─────────────────────────────────────────────
 const VariantsTab: React.FC<{
@@ -1063,6 +1163,7 @@ const vr = StyleSheet.create({
 
 // ─── Overview Tab ─────────────────────────────────────────────
 const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
+  const useWebLayout = useProductDetailWebLayout();
   const displayStatus = resolveDisplayStatus(p);
   const statusStyle = getStatusStyle(displayStatus);
   const middleCategory = resolveMiddleCategory(p);
@@ -1070,7 +1171,7 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
   const buyerInstructions = formatBuyerInstructionsForDisplay(p.customInstructions);
   const adminNotesVisible = hasAdminNotes(p.adminNotes);
 
-  if (isWeb) {
+  if (useWebLayout) {
     return (
       <View style={wt.twoColGrid}>
         <View style={[wt.fullWidthCard]}>
@@ -1143,7 +1244,8 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
 
 // ─── Specs Tab ────────────────────────────────────────────────
 const SpecsTab: React.FC<{ p: Product }> = ({ p }) => {
-  if (isWeb) {
+  const useWebLayout = useProductDetailWebLayout();
+  if (useWebLayout) {
     return (
       <View style={wt.twoColGrid}>
         <View style={wt.halfCard}>
@@ -1181,13 +1283,14 @@ const SpecsTab: React.FC<{ p: Product }> = ({ p }) => {
 
 // ─── Delivery Tab ─────────────────────────────────────────────
 const DeliveryTab: React.FC<{ p: Product }> = ({ p }) => {
+  const useWebLayout = useProductDetailWebLayout();
   const chargeRows: DeliveryCharge[] = p.deliveryCharges.length > 0
     ? p.deliveryCharges
     : [
         { zone: "Intra-city", standard: `₹${p.intraCityCharge}`, express: "—" },
         { zone: "Metro-metro", standard: `₹${p.metroMetroCharge}`, express: "—" },
       ];
-  if (isWeb) {
+  if (useWebLayout) {
     return (
       <View style={wt.twoColGrid}>
         <View style={wt.halfCard}>
@@ -1237,7 +1340,8 @@ const DeliveryTab: React.FC<{ p: Product }> = ({ p }) => {
 
 // ─── Return Tab ───────────────────────────────────────────────
 const ReturnTab: React.FC<{ p: Product }> = ({ p }) => {
-  if (isWeb) {
+  const useWebLayout = useProductDetailWebLayout();
+  if (useWebLayout) {
     return (
       <View style={wt.twoColGrid}>
         <View style={wt.fullWidthCard}>
@@ -1279,6 +1383,7 @@ const SizeChartTab: React.FC<{
   chartName?: string;
   chartImage?: string;
 }> = ({ chart, chartName, chartImage }) => {
+  const useWebLayout = useProductDetailWebLayout();
   const hasSleeve = chart.some((row) => row.sleeve && row.sleeve !== "—" && row.sleeve.trim().length > 0);
   const columns = hasSleeve
     ? ["Size", "Chest", "Waist", "Hip", "Length", "Sleeve"]
@@ -1339,7 +1444,7 @@ const SizeChartTab: React.FC<{
     </>
   );
 
-  return isWeb ? (
+  return useWebLayout ? (
     <View style={wt.twoColGrid}>
       <View style={wt.fullWidthCard}>
         <SectionHeader icon="ruler" title="Size Chart" />
@@ -1383,7 +1488,10 @@ const WebHeroSection: React.FC<{
   const displayStatus = resolveDisplayStatus(p);
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
-  const { totalMetro, mrpInclGst } = getHeroPricing(p, variants);
+  const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
+  const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
+  const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
+  const displayDiscount = displayVariant?.discount ?? p.discount;
   const [variantImage, setVariantImage] = useState<string | null>(null);
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
@@ -1400,7 +1508,7 @@ const WebHeroSection: React.FC<{
       <View style={wh.imageSection}>
         <View style={wh.heroImageWrap}>
           <Image source={{ uri: variantImage ?? heroImages[safeActiveImg] }} style={wh.heroImage} resizeMode="cover" />
-          <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
+          <View style={s.discountBadge}><Text style={s.discountText}>{displayDiscount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
             <Text style={s.stockChipText}>{p.stock} units</Text>
@@ -1444,27 +1552,41 @@ const WebHeroSection: React.FC<{
           </View>
 
           <Text style={wh.productName}>{p.name}</Text>
-          <Text style={wh.skuText}>SKU: {p.sku}</Text>
+          <Text style={wh.skuText}>SKU: {displayVariant?.sku && displayVariant.sku !== "—" ? displayVariant.sku : p.sku}</Text>
+          {lowestVariantLabel ? (
+            <Text style={wh.variantMeta}>Lowest price: {lowestVariantLabel}</Text>
+          ) : null}
 
           <View style={wh.priceRow}>
             <Text style={wh.price}>₹{totalMetro.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</Text>
             {mrpInclGst > totalMetro ? (
               <Text style={wh.mrp}>₹{mrpInclGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</Text>
             ) : null}
-            {p.discount > 0 ? (
-              <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            {displayDiscount > 0 ? (
+              <View style={s.saveBadge}><Text style={s.saveText}>Save {displayDiscount}%</Text></View>
             ) : null}
           </View>
-          <Text style={wh.priceNote}>Total (Metro-Metro)</Text>
+          <Text style={wh.priceNote}>Total (Metro-Metro) · lowest price variant</Text>
+          {minQuantity != null ? (
+            <View style={wh.minQtyRow}>
+              <MaterialCommunityIcons name="package-variant-closed" size={14} color={C.navy} />
+              <Text style={wh.minQtyText}>Minimum order quantity: <Text style={wh.minQtyVal}>{minQuantity} units</Text></Text>
+            </View>
+          ) : null}
 
           <View style={wh.divider} />
 
           <View style={wh.detailCard}>
             <View style={wh.detailLine}>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Color</Text><Text style={wh.detailValue}>{displayVariant?.color ?? p.color}</Text></View>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Size</Text><Text style={wh.detailValue}>{displayVariant?.size ?? p.size}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Material</Text><Text style={wh.detailValue}>{p.material}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Weight</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>HSN Code</Text><Text style={wh.detailValue}>{p.hsnCode}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Warranty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{p.warranty}</Text></View>
+              {minQuantity != null ? (
+                <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Min Order Qty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{minQuantity} units</Text></View>
+              ) : null}
             </View>
           </View>
 
@@ -1535,6 +1657,9 @@ const WebHeroSection: React.FC<{
 const ProductDetailScreen: React.FC = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { isCompact, isNarrowWeb } = useResponsive();
+  const useDesktopWebLayout = useProductDetailWebLayout();
+  const compact = isCompact || isNarrowWeb;
 
   const [p, setP] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1552,12 +1677,28 @@ const ProductDetailScreen: React.FC = () => {
   const [addAlertSubtitle, setAddAlertSubtitle] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [deletingVariant, setDeletingVariant] = useState(false);
+  const [isB2B, setIsB2B] = useState(false);
 
   const [fontsLoaded] = useFonts({ Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold });
 
   const goToProductManagement = () => {
     router.push("/(main)/productmanagement" as any);
   };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await hydrateSellerSession();
+        const profile = await fetchSellerProfile();
+        if (!active) return;
+        setIsB2B(toUiBusinessCategory(profile.business?.businessCategory) === "B2B");
+      } catch {
+        if (active) setIsB2B(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1580,8 +1721,9 @@ const ProductDetailScreen: React.FC = () => {
       try {
         const detail = await fetchProductDetail(String(id));
         if (!cancelled) {
-          setP(detail);
-          setVariants(detail.variants);
+          const view = prepareProductDetailView(detail);
+          setP(view.product);
+          setVariants(view.variants);
           setActiveImg(0);
         }
       } catch (e) {
@@ -1600,8 +1742,9 @@ const ProductDetailScreen: React.FC = () => {
     const payload = await buildVariantMutationPayload(form);
     await createProductVariant(String(id), payload);
     const detail = await fetchProductDetail(String(id));
-    setP(detail);
-    setVariants(detail.variants);
+    const view = prepareProductDetailView(detail);
+    setP(view.product);
+    setVariants(view.variants);
     setAddAlertTitle("Variant Added");
     setAddAlertSubtitle(`${form.color} · Size ${form.size} variant added successfully.`);
     setShowAddAlert(true);
@@ -1621,8 +1764,9 @@ const ProductDetailScreen: React.FC = () => {
     try {
       await deleteProductVariant(String(id), variantId);
       const detail = await fetchProductDetail(String(id));
-      setP(detail);
-      setVariants(detail.variants);
+      const view = prepareProductDetailView(detail);
+      setP(view.product);
+      setVariants(view.variants);
       setDeleteAlertSubtitle("Variant removed successfully.");
       setShowDeleteAlert(true);
       setTimeout(() => setShowDeleteAlert(false), 1700);
@@ -1652,8 +1796,9 @@ const ProductDetailScreen: React.FC = () => {
     const payload = await buildVariantMutationPayload(form);
     await updateProductVariant(String(id), editingVariant.id, payload);
     const detail = await fetchProductDetail(String(id));
-    setP(detail);
-    setVariants(detail.variants);
+    const view = prepareProductDetailView(detail);
+    setP(view.product);
+    setVariants(view.variants);
     setAddAlertTitle("Variant Updated");
     setAddAlertSubtitle(`${form.color} · Size ${form.size} variant updated successfully.`);
     setShowAddAlert(true);
@@ -1689,13 +1834,16 @@ const ProductDetailScreen: React.FC = () => {
   const displayStatus = resolveDisplayStatus(p);
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
-  const { totalMetro, mrpInclGst } = getHeroPricing(p, variants);
+  const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
+  const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
+  const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
+  const displayDiscount = displayVariant?.discount ?? p.discount;
 
   const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
 
-  // ─── WEB LAYOUT ───────────────────────────────────────────
-  if (isWeb) {
+  // ─── WEB LAYOUT (wide screens only) ───────────────────────
+  if (useDesktopWebLayout) {
     return (
       <View style={sw.root}>
         <View style={sw.header}>
@@ -1726,13 +1874,18 @@ const ProductDetailScreen: React.FC = () => {
             <WebHeroSection p={p} activeImg={activeImg} setActiveImg={setActiveImg} variants={variants} />
 
             <View style={sw.tabBar}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sw.tabScrollContent}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                contentContainerStyle={sw.tabScrollContent}
+              >
                 {TABS.map(tab => {
                   const isActive = activeTab === tab.id;
                   return (
                     <TouchableOpacity
                       key={tab.id}
-                      style={[sw.tabBtn, isActive && sw.tabBtnActive]}
+                      style={[sw.tabBtn, isActive && sw.tabBtnActive, { flexShrink: 0 }]}
                       onPress={() => setActiveTab(tab.id)}
                       activeOpacity={0.75}
                     >
@@ -1779,6 +1932,7 @@ const ProductDetailScreen: React.FC = () => {
           onSubmit={handleAddVariant}
           product={p}
           variantIndex={variants.length + 1}
+          isB2B={isB2B}
         />
         <EditVariantModal
           visible={!!editingVariant}
@@ -1787,6 +1941,7 @@ const ProductDetailScreen: React.FC = () => {
           variantIndex={Math.max(1, variants.findIndex((v) => v.id === editingVariant?.id) + 1)}
           onClose={() => setEditingVariant(null)}
           onSave={handleSaveVariant}
+          isB2B={isB2B}
         />
         <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
         <DeleteConfirmModal
@@ -1813,29 +1968,35 @@ const ProductDetailScreen: React.FC = () => {
     );
   }
 
-  // ─── MOBILE LAYOUT ────────────────────────────────────────
-  return (
-    <SafeAreaView style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} />
+  // ─── MOBILE / NARROW WEB LAYOUT ───────────────────────────
+  const Shell = isWeb ? View : SafeAreaView;
 
-      <View style={s.header}>
+  return (
+    <Shell style={[s.root, isWeb && s.rootWeb]}>
+      {!isWeb ? <StatusBar barStyle="light-content" backgroundColor={C.navyDeep} /> : null}
+
+      <View style={[s.header, compact && s.headerCompact]}>
         <TouchableOpacity onPress={goToProductManagement} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={C.white} />
         </TouchableOpacity>
         <View style={s.headerContent}>
-          <Text style={s.headerTitle}>Product Details</Text>
-          <Text style={s.headerSub}>SKU: {p.sku}</Text>
+          <Text style={s.headerTitle} numberOfLines={1}>Product Details</Text>
+          <Text style={s.headerSub} numberOfLines={1}>SKU: {displayVariant?.sku && displayVariant.sku !== "—" ? displayVariant.sku : p.sku}</Text>
         </View>
-        <View style={[s.statusChip, { backgroundColor: st.bg }]}>
+        <View style={[s.statusChip, { backgroundColor: st.bg }, compact && s.statusChipCompact]}>
           <View style={[s.statusDot, { backgroundColor: st.color }]} />
-          <Text style={[s.statusChipText, { color: st.color }]}>{displayStatus}</Text>
+          <Text style={[s.statusChipText, { color: st.color }]} numberOfLines={1}>{displayStatus}</Text>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={s.scroll}
+        contentContainerStyle={[s.scrollContent, compact && s.scrollContentCompact]}
+      >
         <View style={s.galleryContainer}>
           <Image source={{ uri: heroImages[Math.min(activeImg, heroImages.length - 1)] }} style={s.heroImage} resizeMode="cover" />
-          <View style={s.discountBadge}><Text style={s.discountText}>{p.discount}% OFF</Text></View>
+          <View style={s.discountBadge}><Text style={s.discountText}>{displayDiscount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
             <Text style={s.stockChipText}>{p.stock} units</Text>
@@ -1856,20 +2017,29 @@ const ProductDetailScreen: React.FC = () => {
           ))}
         </ScrollView>
 
-        <View style={s.heroCard}>
+        <View style={[s.heroCard, compact && s.heroCardCompact]}>
           <View style={s.catPill}><Text style={s.catPillText}>{p.category} · {leafSubcategory}</Text></View>
           <Text style={s.productName}>{p.name}</Text>
-          <Text style={s.skuText}>SKU: {p.sku}</Text>
+          <Text style={s.skuText}>SKU: {displayVariant?.sku && displayVariant.sku !== "—" ? displayVariant.sku : p.sku}</Text>
+          {lowestVariantLabel ? (
+            <Text style={s.variantMeta}>Lowest price: {lowestVariantLabel}</Text>
+          ) : null}
           <View style={s.priceRow}>
             <Text style={s.price}>₹{totalMetro.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</Text>
             {mrpInclGst > totalMetro ? (
               <Text style={s.mrp}>₹{mrpInclGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</Text>
             ) : null}
-            {p.discount > 0 ? (
-              <View style={s.saveBadge}><Text style={s.saveText}>Save {p.discount}%</Text></View>
+            {displayDiscount > 0 ? (
+              <View style={s.saveBadge}><Text style={s.saveText}>Save {displayDiscount}%</Text></View>
             ) : null}
           </View>
-          <Text style={s.priceNote}>Total (Metro-Metro)</Text>
+          <Text style={s.priceNote}>Total (Metro-Metro) · lowest price variant</Text>
+          {minQuantity != null ? (
+            <View style={s.minQtyRow}>
+              <MaterialCommunityIcons name="package-variant-closed" size={14} color={C.navy} />
+              <Text style={s.minQtyText}>Minimum order quantity: <Text style={s.minQtyVal}>{minQuantity} units</Text></Text>
+            </View>
+          ) : null}
 
           {uniqueColors.length > 0 && (
             <View style={s.colorsSection}>
@@ -1900,9 +2070,11 @@ const ProductDetailScreen: React.FC = () => {
 
           <View style={s.attrRow}>
             {([
-              { label: "Size",     value: p.size     },
+              { label: "Color",    value: displayVariant?.color ?? p.color },
+              { label: "Size",     value: displayVariant?.size ?? p.size },
               { label: "Material", value: p.material },
               { label: "Weight",   value: p.weight   },
+              ...(minQuantity != null ? [{ label: "Min Order", value: `${minQuantity} units` }] : []),
             ]).map(a => (
               <View key={a.label} style={s.attrChip}>
                 <Text style={s.attrLabel}>{a.label}: </Text>
@@ -1913,13 +2085,19 @@ const ProductDetailScreen: React.FC = () => {
         </View>
 
         <View style={s.tabBarRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabScrollContent} style={s.tabScrollWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={compact}
+            nestedScrollEnabled
+            contentContainerStyle={[s.tabScrollContent, compact && s.tabScrollContentCompact]}
+            style={s.tabScrollWrapper}
+          >
             {TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
-                <TouchableOpacity key={tab.id} style={[s.tabBtn, isActive && s.tabBtnActive]} onPress={() => setActiveTab(tab.id)} activeOpacity={0.75}>
+                <TouchableOpacity key={tab.id} style={[s.tabBtn, isActive && s.tabBtnActive, { flexShrink: 0 }]} onPress={() => setActiveTab(tab.id)} activeOpacity={0.75}>
                   <MaterialCommunityIcons name={tab.icon as any} size={13} color={isActive ? C.white : C.textMid} />
-                  <Text style={[s.tabBtnText, isActive && s.tabBtnTextActive]}>{tab.label}</Text>
+                  <Text style={[s.tabBtnText, isActive && s.tabBtnTextActive]} numberOfLines={1}>{tabLabel(tab, compact)}</Text>
                   {tab.id === "variants" && (
                     <View style={[s.tabBadge, { backgroundColor: isActive ? "rgba(255,255,255,0.3)" : "#FFF7ED" }]}>
                       <Text style={[s.tabBadgeTxt, { color: isActive ? C.white : C.orange }]}>{variants.length}</Text>
@@ -1931,7 +2109,7 @@ const ProductDetailScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        <View style={s.tabContent}>
+        <View style={[s.tabContent, compact && s.tabContentCompact]}>
           {activeTab === "overview"       && <OverviewTab p={p} />}
           {activeTab === "variants"       && (
             <VariantsTab
@@ -1954,18 +2132,18 @@ const ProductDetailScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      <View style={s.bottomBar}>
-        <TouchableOpacity style={s.backAction} onPress={() => router.push("/(main)/productmanagement" as any)} activeOpacity={0.8}>
+      <View style={[s.bottomBar, compact && s.bottomBarCompact, isWeb && s.bottomBarWeb]}>
+        <TouchableOpacity style={[s.backAction, compact && s.bottomBtnCompact]} onPress={() => router.push("/(main)/productmanagement" as any)} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={17} color={C.navy} />
-          <Text style={s.backActionText}>Back</Text>
+          {!compact ? <Text style={s.backActionText}>Back</Text> : null}
         </TouchableOpacity>
-        <TouchableOpacity style={s.variantAction} onPress={() => { setActiveTab("variants"); setShowAddVariant(true); }} activeOpacity={0.85}>
+        <TouchableOpacity style={[s.variantAction, compact && s.bottomBtnCompact]} onPress={() => { setActiveTab("variants"); setShowAddVariant(true); }} activeOpacity={0.85}>
           <MaterialCommunityIcons name="plus-circle-outline" size={17} color={C.white} />
-          <Text style={s.variantActionText}>Add Variant</Text>
+          <Text style={[s.variantActionText, compact && s.bottomBtnTextCompact]} numberOfLines={1}>Add Variant</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.editAction} onPress={() => router.push({ pathname: "/(main)/Editproduct", params: { id: p.id } } as any)} activeOpacity={0.85}>
+        <TouchableOpacity style={[s.editAction, compact && s.bottomBtnCompact]} onPress={() => router.push({ pathname: "/(main)/Editproduct", params: { id: p.id } } as any)} activeOpacity={0.85}>
           <MaterialCommunityIcons name="pencil-outline" size={17} color={C.white} />
-          <Text style={s.editActionText}>Edit</Text>
+          <Text style={[s.editActionText, compact && s.bottomBtnTextCompact]}>Edit</Text>
         </TouchableOpacity>
       </View>
 
@@ -1975,6 +2153,7 @@ const ProductDetailScreen: React.FC = () => {
         onSubmit={handleAddVariant}
         product={p}
         variantIndex={variants.length + 1}
+        isB2B={isB2B}
       />
       <EditVariantModal
         visible={!!editingVariant}
@@ -1983,6 +2162,7 @@ const ProductDetailScreen: React.FC = () => {
         variantIndex={Math.max(1, variants.findIndex((v) => v.id === editingVariant?.id) + 1)}
         onClose={() => setEditingVariant(null)}
         onSave={handleSaveVariant}
+        isB2B={isB2B}
       />
       <SizeChartModal visible={showSizeChart} onClose={() => setShowSizeChart(false)} chart={p.sizeChart} />
       <DeleteConfirmModal
@@ -2005,7 +2185,7 @@ const ProductDetailScreen: React.FC = () => {
         title={addAlertTitle}
         subtitle={addAlertSubtitle}
       />
-    </SafeAreaView>
+    </Shell>
   );
 };
 
@@ -2046,12 +2226,18 @@ const sub = StyleSheet.create({
 // ─── Mobile Screen Styles ─────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
+  rootWeb: { width: "100%", minWidth: 0, alignSelf: "stretch" },
+  scroll: { flex: 1, width: "100%", minWidth: 0 },
+  scrollContent: { paddingBottom: 110 },
+  scrollContentCompact: { paddingBottom: 96 },
   header: { backgroundColor: C.navyDeep, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 12 : 12, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
-  backBtn:       { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
-  headerContent: { flex: 1 },
+  headerCompact: { gap: 8, paddingHorizontal: 10, paddingVertical: 10 },
+  backBtn:       { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  headerContent: { flex: 1, minWidth: 0 },
   headerTitle:   { fontFamily: "Outfit_700Bold",    fontSize: 17, color: C.white, lineHeight: 22 },
   headerSub:     { fontFamily: "Outfit_400Regular", fontSize: 11, color: "rgba(255,255,255,0.55)" },
-  statusChip:    { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  statusChip:    { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, flexShrink: 0 },
+  statusChipCompact: { paddingHorizontal: 8 },
   statusDot:     { width: 7, height: 7, borderRadius: 3.5 },
   statusChipText:{ fontFamily: "Outfit_700Bold", fontSize: 11 },
   galleryContainer: { backgroundColor: "#F3F4F8", position: "relative" },
@@ -2060,22 +2246,27 @@ const s = StyleSheet.create({
   discountText:  { fontFamily: "Outfit_800ExtraBold", fontSize: 12, color: C.white },
   stockChip:     { position: "absolute", top: 14, right: 14, backgroundColor: "rgba(240,253,244,0.92)", borderWidth: 1, borderColor: C.green, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 4 },
   stockChipText: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.green },
-  thumbRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white },
+  thumbRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white, width: "100%" },
   thumbScrollContent: { flexDirection: "row", gap: 8 },
   thumb:         { width: 60, height: 60, borderRadius: 10, overflow: "hidden", borderWidth: 2, borderColor: C.border },
   thumbActive:   { borderColor: C.navy, borderWidth: 2.5 },
   thumbImg:      { width: "100%", height: "100%" },
   heroCard:      { backgroundColor: C.white, marginHorizontal: 14, marginTop: 4, marginBottom: 12, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: C.border, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
+  heroCardCompact: { marginHorizontal: 0, borderRadius: 14, padding: 12 },
   catPill:       { alignSelf: "flex-start", backgroundColor: C.purplePale, borderRadius: 7, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
   catPillText:   { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.purple },
   productName:   { fontFamily: "Outfit_800ExtraBold", fontSize: 20, color: C.textDark, lineHeight: 26, marginBottom: 4 },
   skuText:       { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, marginBottom: 12 },
+  variantMeta:   { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.navy, marginBottom: 8 },
   priceRow:      { flexDirection: "row", alignItems: "baseline", gap: 10, marginBottom: 4 },
   price:         { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.orange },
   mrp:           { fontFamily: "Outfit_500Medium", fontSize: 14, color: C.textLight, textDecorationLine: "line-through" },
   saveBadge:     { backgroundColor: C.greenPale, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   saveText:      { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.green },
   priceNote:     { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 4 },
+  minQtyRow:     { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, backgroundColor: C.purplePale, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: "#E0DBFF" },
+  minQtyText:    { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textMid, flex: 1 },
+  minQtyVal:     { fontFamily: "Outfit_700Bold", color: C.navy },
   colorsSection: { marginTop: 12, marginBottom: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   colorsLabel:   { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textLight, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   colorSwatches: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
@@ -2091,17 +2282,23 @@ const s = StyleSheet.create({
   attrChip:  { flexDirection: "row", alignItems: "center", backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
   attrLabel: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight },
   attrValue: { fontFamily: "Outfit_700Bold",   fontSize: 11, color: C.navy     },
-  tabBarRow:        { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  tabScrollWrapper: { flex: 1 },
-  tabScrollContent: { paddingHorizontal: 14, gap: 8, paddingVertical: 4 },
-  tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card },
+  tabBarRow:        { flexDirection: "row", alignItems: "center", marginBottom: 8, width: "100%" },
+  tabScrollWrapper: { flex: 1, minWidth: 0 },
+  tabScrollContent: { paddingHorizontal: 14, gap: 8, paddingVertical: 4, paddingRight: 24 },
+  tabScrollContentCompact: { paddingHorizontal: 0, paddingRight: 20 },
+  tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card, flexShrink: 0 },
   tabBtnActive:    { backgroundColor: C.navy, borderColor: C.navy },
   tabBtnText:      { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid },
   tabBtnTextActive:{ color: C.white },
   tabBadge:        { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
   tabBadgeTxt:     { fontFamily: "Outfit_700Bold", fontSize: 10 },
   tabContent:      { paddingHorizontal: 14 },
+  tabContentCompact: { paddingHorizontal: 0 },
   bottomBar:         { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", gap: 6, padding: 10, paddingBottom: Platform.OS === "ios" ? 28 : 12, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.10, shadowRadius: 12, elevation: 12 },
+  bottomBarCompact: { gap: 4, paddingHorizontal: 8, paddingVertical: 8, paddingBottom: Platform.OS === "ios" ? 24 : 8 },
+  bottomBarWeb: { position: "relative" as const, marginTop: 8 },
+  bottomBtnCompact: { paddingVertical: 10, gap: 4 },
+  bottomBtnTextCompact: { fontSize: 11 },
   backAction:        { flex: 0.8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1.5, borderColor: C.navy, borderRadius: 13, paddingVertical: 11 },
   backActionText:    { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.navy },
   variantAction:     { flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: C.orange, borderRadius: 13, paddingVertical: 11 },
@@ -2129,10 +2326,14 @@ const wh = StyleSheet.create({
   topRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   productName:    { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.textDark, lineHeight: 34, marginBottom: 4 },
   skuText:        { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, marginBottom: 14 },
+  variantMeta:    { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.navy, marginBottom: 10 },
   priceRow:       { flexDirection: "row", alignItems: "baseline", gap: 12, marginBottom: 4 },
   price:          { fontFamily: "Outfit_800ExtraBold", fontSize: 32, color: C.orange },
   mrp:            { fontFamily: "Outfit_500Medium", fontSize: 16, color: C.textLight, textDecorationLine: "line-through" },
   priceNote:      { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
+  minQtyRow:      { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, backgroundColor: C.purplePale, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: "#E0DBFF" },
+  minQtyText:     { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textMid, flex: 1 },
+  minQtyVal:      { fontFamily: "Outfit_700Bold", color: C.navy },
   divider:            { borderTopWidth: 1, borderTopColor: "#F3F4F6", marginVertical: 14 },
   detailCard:         { backgroundColor: C.bg, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
   detailLine:         { flexDirection: "row", gap: 10, flexWrap: "wrap" },
@@ -2188,8 +2389,8 @@ const sw = StyleSheet.create({
   contentWrap: { maxWidth: 1400, alignSelf: "center", width: "100%", minWidth: 0, paddingHorizontal: 32, paddingTop: 24, paddingBottom: 48 } as any,
   tabBar:      { backgroundColor: C.white, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 8, marginBottom: 16, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   tabBarInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tabScrollContent:{ gap: 6, paddingVertical: 2 },
-  tabBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: "transparent", backgroundColor: "transparent" },
+  tabScrollContent:{ gap: 6, paddingVertical: 2, paddingRight: 16 },
+  tabBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: "transparent", backgroundColor: "transparent", flexShrink: 0 },
   tabBtnActive:{ backgroundColor: C.navy, borderColor: C.navy },
   tabBtnText:  { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
   tabBtnTextActive:{ color: C.white },

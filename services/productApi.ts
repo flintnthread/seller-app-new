@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { apiRequest } from "@/lib/api/client";
 import { resolveMediaUrl, resolveMediaUrls } from "@/lib/media/resolveMediaUrl";
+import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
 
 export type ProductListItem = {
     id: string;
@@ -19,6 +20,8 @@ export type ProductListItem = {
     subSubcategory?: string;
     color: string;
     size: string;
+    /** Minimum order quantity from the lowest-price variant. */
+    minQuantity?: number;
     description?: string;
     material?: string;
     weight?: string;
@@ -36,9 +39,12 @@ export type ProductDetailVariant = {
     productId: string;
     color: string;
     colorHex: string;
+    colorId?: number;
     size: string;
+    sizeId?: number;
     sku: string;
     stock: number;
+    minQuantity?: number;
     basePrice: number;
     mrpExclGst: number;
     mrpPrice: number;
@@ -102,6 +108,7 @@ export type ProductDetail = {
     status: string;
     rawStatus: string;
     stock: number;
+    minQuantity?: number;
     updated: string;
     category: string;
     categorySub?: string;
@@ -164,6 +171,21 @@ export type ProductDetail = {
     sizeChart: ProductDetailSizeChartRow[];
 };
 
+type ApiProductListVariant = {
+    id?: number;
+    sku?: string;
+    color?: string;
+    size?: string;
+    stock?: number;
+    minQuantity?: number;
+    finalPrice?: number;
+    sellingPrice?: number;
+    metroMetroDeliveryCharge?: number;
+    commissionAmount?: number;
+    commissionPercent?: number;
+    totalPriceMetroMetro?: number;
+};
+
 type ApiProductListItem = {
     id: number;
     name: string;
@@ -179,12 +201,14 @@ type ApiProductListItem = {
     subcategory?: string;
     color?: string;
     size?: string;
+    minQuantity?: number;
     description?: string;
     material?: string;
     weight?: string;
     dimensions?: string;
     returnPolicy?: string;
     warranty?: string;
+    variants?: ApiProductListVariant[];
 };
 
 type ApiProductVariant = {
@@ -192,9 +216,12 @@ type ApiProductVariant = {
     productId?: number;
     color?: string;
     colorHex?: string;
+    colorId?: number;
     size?: string;
+    sizeId?: number;
     sku?: string;
     stock?: number;
+    minQuantity?: number;
     basePrice?: number;
     mrpExclGst?: number;
     mrpPrice?: number;
@@ -250,6 +277,7 @@ type ApiProductDetail = {
     status?: string;
     rawStatus?: string;
     stock?: number;
+    minQuantity?: number;
     updated?: string;
     category?: string;
     categorySub?: string;
@@ -294,16 +322,48 @@ type ApiProductDetail = {
     sizeChart?: ProductDetailSizeChartRow[];
 };
 
+function pickMinimumPriceListVariant(variants: ApiProductListVariant[]): ApiProductListVariant | null {
+    return pickMinimumPriceVariant(variants, resolveVariantMetroTotal);
+}
+
+function resolveListItemDisplayVariant(row: ApiProductListItem): ApiProductListVariant | null {
+    const variants = row.variants ?? [];
+    if (variants.length) return pickMinimumPriceListVariant(variants);
+    return null;
+}
+
+function resolveListItemPrice(row: ApiProductListItem): number {
+    const apiPrice = num(row.price);
+    const display = resolveListItemDisplayVariant(row);
+    if (!display) return apiPrice;
+
+    const metroTotal = resolveVariantMetroTotal(display);
+    return metroTotal > 0 ? metroTotal : apiPrice;
+}
+
+function resolveListItemSku(row: ApiProductListItem): string {
+    const display = resolveListItemDisplayVariant(row);
+    if (display?.sku?.trim()) return display.sku.trim();
+    return row.sku?.trim() ?? "";
+}
+
 function toListItem(row: ApiProductListItem): ProductListItem {
     const categorySub = row.categorySub?.trim() || undefined;
     const subcategory = row.subcategory ?? "";
     const leaf =
         categorySub && subcategory && categorySub !== subcategory ? subcategory : undefined;
+    const display = resolveListItemDisplayVariant(row);
+    const minQuantity =
+        display?.minQuantity != null && display.minQuantity > 0
+            ? display.minQuantity
+            : row.minQuantity != null && row.minQuantity > 0
+              ? row.minQuantity
+              : undefined;
     return {
         id: String(row.id),
         name: row.name ?? "",
-        sku: row.sku ?? "",
-        price: Number(row.price ?? 0),
+        sku: resolveListItemSku(row),
+        price: resolveListItemPrice(row),
         mrpInclGst: row.mrpInclGst != null ? Number(row.mrpInclGst) : undefined,
         image: resolveMediaUrl(row.image ?? "") ?? "",
         status: row.status ?? "Inactive",
@@ -313,8 +373,9 @@ function toListItem(row: ApiProductListItem): ProductListItem {
         categorySub,
         subcategory,
         subSubcategory: leaf,
-        color: row.color ?? "",
-        size: row.size ?? "",
+        color: display?.color?.trim() || row.color || "",
+        size: display?.size?.trim() || row.size || "",
+        ...(minQuantity != null ? { minQuantity } : {}),
         description: row.description,
         material: row.material,
         weight: row.weight,
@@ -335,9 +396,12 @@ function toVariant(v: ApiProductVariant): ProductDetailVariant {
         productId: String(v.productId ?? ""),
         color: v.color ?? "—",
         colorHex: v.colorHex ?? "#9CA3AF",
+        ...(v.colorId != null ? { colorId: num(v.colorId) } : {}),
         size: v.size ?? "—",
+        ...(v.sizeId != null ? { sizeId: num(v.sizeId) } : {}),
         sku: v.sku ?? "—",
         stock: num(v.stock),
+        minQuantity: v.minQuantity != null ? num(v.minQuantity) : undefined,
         basePrice: num(v.basePrice),
         mrpExclGst: num(v.mrpExclGst),
         mrpPrice: num(v.mrpPrice),
@@ -395,6 +459,7 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         status: row.status ?? "Inactive",
         rawStatus: row.rawStatus ?? row.status ?? "",
         stock: num(row.stock),
+        minQuantity: row.minQuantity != null && row.minQuantity > 0 ? num(row.minQuantity) : undefined,
         updated: row.updated ?? "—",
         category: row.category ?? "Uncategorized",
         categorySub: row.categorySub?.trim() || undefined,
@@ -541,6 +606,7 @@ export type CreateProductVariantPayload = {
     size: string;
     sku?: string;
     stock: number;
+    minQuantity?: number;
     mrp: number;
     sellingPrice: number;
     discount?: number;
@@ -714,6 +780,7 @@ export type VariantMutationPayload = {
     size: string;
     sku?: string;
     stock: number;
+    minQuantity?: number;
     mrp: number;
     sellingPrice: number;
     discount?: number;

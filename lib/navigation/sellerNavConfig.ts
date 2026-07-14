@@ -95,6 +95,18 @@ export function shouldShowSellerTopNav(pathname: string): boolean {
     return !SUB_SCREEN_PATTERNS.some((p) => pathname.includes(p));
 }
 
+/** Onboarding screens use their own full-bleed headers — skip desktop chrome. */
+export function isOnboardingScreen(pathname: string): boolean {
+    return SUB_SCREEN_PATTERNS.some((p) => pathname.includes(p));
+}
+
+/** Product flows use mobile-first layout on narrow web — drop outer padding. */
+export function isMobileFirstProductScreen(pathname: string): boolean {
+    return ["productmanagement", "Productdetail", "Editproduct", "Addnewproduct", "bulkupload"].some((p) =>
+        pathname.includes(p),
+    );
+}
+
 export const NAV_SUBTITLES: Record<string, string> = {
     dashboard: "Your seller overview",
     products: "Manage your products",
