@@ -170,7 +170,7 @@ function resolveVariantDisplayPricing(p: Product, variant: Variant) {
     intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
     metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
     discountOverride: variant.discount,
-    ...(variant.commissionPercent > 0 ? { commissionPercent: variant.commissionPercent } : {}),
+    ...(Number.isFinite(variant.commissionPercent) ? { commissionPercent: variant.commissionPercent } : {}),
   });
   if (pricing) return pricing;
 
@@ -184,7 +184,9 @@ function resolveVariantDisplayPricing(p: Product, variant: Variant) {
       intraCityCharge: variant.intraCityDelivery ?? p.intraCityCharge,
       metroMetroCharge: variant.metroMetroDelivery ?? p.metroMetroCharge,
       discountOverride: variant.discountPercentage ?? variant.discount ?? null,
-      commissionPercent: variant.commissionPercent > 0 ? variant.commissionPercent : COMMISSION_PERCENT,
+      commissionPercent: Number.isFinite(variant.commissionPercent)
+        ? variant.commissionPercent
+        : COMMISSION_PERCENT,
     });
   }
 
@@ -217,7 +219,7 @@ function normalizeVariantsForDisplay(product: Product, items: Variant[]): Varian
     return {
       ...v,
       commissionAmount: pricing.commissionAmount,
-      commissionPercent: v.commissionPercent > 0 ? v.commissionPercent : COMMISSION_PERCENT,
+      commissionPercent: Number.isFinite(v.commissionPercent) ? v.commissionPercent : COMMISSION_PERCENT,
       totalIntraCity: pricing.totalIntraCity,
       totalMetroMetro: pricing.totalMetroMetro,
     };

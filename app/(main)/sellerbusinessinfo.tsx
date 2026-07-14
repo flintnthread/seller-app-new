@@ -143,7 +143,7 @@ const GstVerifiedDetailsCard: React.FC<{ details: GstVerifyResponse; verified: b
 
   if (alreadyExists) {
     title = "GSTIN already registered";
-    headerColor = T.error;
+    headerColor = T.orange;
     iconName = "exclamation-circle";
   } else if (verified && isActive) {
     title = "GSTIN verified";
@@ -847,6 +847,11 @@ export default function SellerBusinessInfo() {
           "GST not fully verified",
           result.message || "Registered details were loaded, but this GSTIN could not be fully verified."
         );
+      } else if (result.message?.trim()) {
+        setGstVerified(false);
+        setGstDetails(null);
+        setGstError(result.message);
+        showError(result.message);
       } else if (result.panNumber?.trim()) {
         setGstVerified(false);
         setGstDetails(result);

@@ -57,7 +57,7 @@ const URL = "https://flintnthread.in/seller/login";
 // ─── Data ─────────────────────────────────────────────────
 const SELLER_TYPES = [
   { icon: "account-tie",       title: "Individuals",    sub: "Turn your passion into profit by selling handmade or unique items.",  color: "#F97316", bg: "#FFF3E8" },
-  { icon: "store-outline",     title: "Boutiques",      sub: "Curate unique collections and build a loyal customer base online.",      color: "#7C3AED", bg: "#F5F3FF" },
+  { icon: "store-outline",     title: "Boutique Designers",      sub: "Curate unique collections and build a loyal customer base online.",      color: "#7C3AED", bg: "#F5F3FF" },
   { icon: "shopping-outline",  title: "Retailers",      sub: "Expand your product range and reach new customer segments.", color: "#0EA5E9", bg: "#F0F9FF" },
   { icon: "package-variant",   title: "Wholesalers",    sub: "Connect with retailers and bulk buyers through our B2B marketplace features.",           color: "#10B981", bg: "#ECFDF5" },
   { icon: "hanger",            title: "Fashion Brands", sub: "Launch your fashion line and connect with style-conscious customers worldwide.",    color: "#EC4899", bg: "#FDF2F8" },
@@ -68,7 +68,7 @@ const WHY = [
   { icon: "cash-multiple",  title: "Up to 15% Commission",  desc: "Transparent commission on every order. Fair and competitive.",    tag: "FAIR PRICING" },
   { icon: "shield-check",   title: "Secure Payments",        desc: "PCI-compliant gateway — zero fraud risk for you or your buyers.", tag: "SAFE"         },
   { icon: "headset",        title: "24 / 7 Support",          desc: "Dedicated seller support, available whenever you need help.",    tag: "ALWAYS ON"    },
-  { icon: "tag-outline",    title: "₹199 Registration",       desc: "One-time fee only — charged from the 20th of each month.",      tag: "LOW COST"     },
+  { icon: "tag-outline",    title: "₹899/Annum Registration",       desc: "Yearly fee",      tag: "LOW COST"     },
   { icon: "rocket-launch",  title: "B2B & B2C Ready",         desc: "Choose your model and reach the right buyers from day one.",    tag: "FLEXIBLE"     },
 ];
 
@@ -1056,7 +1056,7 @@ const SellerLanding: React.FC = () => {
                 {[
                   { icon: "shield-check", text: "Secure Payments" },
                   { icon: "clock-fast",   text: approvalLabel   },
-                  { icon: "tag",          text: "₹199 to Start"   },
+                  
                 ].map((t) => (
                   <View key={t.text} style={s.trustItem}>
                     <MaterialCommunityIcons name={t.icon as any} size={14} color={C.orangeLight} />
@@ -1387,7 +1387,7 @@ const SellerLanding: React.FC = () => {
               <View style={isDesktop ? ds?.regRight : undefined}>
                 <View style={s.feePill}>
                   <MaterialCommunityIcons name="tag-outline" size={16} color={C.orange} />
-                  <Text style={s.feePillText}>  One-time fee: <Text style={{ fontFamily: "Outfit_800ExtraBold", color: C.orange }}>₹199 only</Text></Text>
+                  <Text style={s.feePillText}>  Yearly Fee:<Text style={{ fontFamily: "Outfit_800ExtraBold", color: C.orange }}>₹899 Per Annum</Text></Text>
                 </View>
 
                 <TouchableOpacity onPress={() => goToSelling()} activeOpacity={0.88} style={{ marginTop: 24 }}>
@@ -1911,7 +1911,7 @@ const hs = StyleSheet.create({
     borderRadius: 8,
   },
   navLinkText: {
-    fontFamily: "Outfit_900Black",
+    fontFamily: "Outfit_780Black",
     fontSize: 15,
     color: C.textDark,
     letterSpacing: -0.2,

@@ -27,7 +27,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { lookupOrderPayoutAmount } from "@/services/earningsApi";
-import { fetchSellerOrderDetail, fetchSellerOrderDetails } from "@/services/orderApi";
+import { fetchSellerOrderDetail, fetchSellerOrderDetails, isCustomerPaymentCollected } from "@/services/orderApi";
 import { ensureSellerId } from "@/lib/api/sellerSession";
 import type { OrderDetail } from "@/lib/orders/ordersData";
 import {
@@ -73,11 +73,7 @@ function sellerPaymentStatusRaw(order: OrderDetail): string {
 }
 
 function isCustomerPaymentCompleted(order: OrderDetail): boolean {
-  const payment = order.payment;
-  if (payment.paymentCompleted === true) return true;
-  if (payment.status === "Paid") return true;
-  const status = payment.status?.toLowerCase() ?? "";
-  return status.includes("paid") || status.includes("success") || status.includes("completed");
+  return isCustomerPaymentCollected(order.payment, order.status);
 }
 
 function isOrderCancelled(order: OrderDetail): boolean {

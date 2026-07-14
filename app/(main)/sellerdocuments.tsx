@@ -50,7 +50,6 @@ import {
   updateCompanyPan,
   uploadSellerDocument,
   verifyRegistrationPayment,
-  resendRegistrationInvoiceEmail,
   type SellerDocumentField,
 } from "@/services/sellerProfileApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
@@ -817,7 +816,6 @@ export default function SellerDocuments() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid">("pending");
   const [paymentBusy, setPaymentBusy] = useState(false);
-  const [invoiceResendBusy, setInvoiceResendBusy] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [paymentMessageIsError, setPaymentMessageIsError] = useState(false);
 
@@ -1209,7 +1207,7 @@ export default function SellerDocuments() {
                 setPaymentStatus("paid");
                 if (result.invoiceEmailSent === false) {
                   showPaymentMessage(
-                    "Payment successful, but the invoice email could not be sent. Use Resend invoice below.",
+                    "Payment successful, but the invoice email could not be sent. Please contact support.",
                     true
                   );
                 } else {
@@ -1237,26 +1235,6 @@ export default function SellerDocuments() {
       setPaymentBusy(false);
     }
   }, [clearFieldError, loadRazorpayScript, paymentStatus, showPaymentMessage]);
-
-  const handleResendInvoice = useCallback(async () => {
-    setInvoiceResendBusy(true);
-    try {
-      await hydrateSellerSession();
-      const result = await resendRegistrationInvoiceEmail();
-      if (result.invoiceEmailSent === false) {
-        showPaymentMessage(
-          "Invoice is ready but email could not be sent. Your server admin must set SENDGRID_API_KEY for seller-service and verify support@flintnthread.in in SendGrid, then try again.",
-          true
-        );
-      } else {
-        showPaymentMessage("Invoice email sent successfully. Please check your inbox and spam folder.", false);
-      }
-    } catch (e) {
-      showPaymentMessage(getApiErrorMessage(e, "Could not resend invoice email."), true);
-    } finally {
-      setInvoiceResendBusy(false);
-    }
-  }, [showPaymentMessage]);
 
   // ── Helper: wrap upload boxes 2-per-row on web, stacked on mobile ──
   
@@ -1621,18 +1599,6 @@ export default function SellerDocuments() {
                   <AppText style={s.payNowBtnText}>{paymentBusy ? "Processing..." : "Pay now"}</AppText>
                 </TouchableOpacity>
               )}
-              {paymentStatus === "paid" ? (
-                <TouchableOpacity
-                  style={[s.resendInvoiceBtn, invoiceResendBusy && { opacity: 0.7 }]}
-                  onPress={handleResendInvoice}
-                  disabled={invoiceResendBusy}
-                  activeOpacity={0.85}
-                >
-                  <AppText style={s.resendInvoiceBtnText}>
-                    {invoiceResendBusy ? "Sending invoice..." : "Resend invoice to email"}
-                  </AppText>
-                </TouchableOpacity>
-              ) : null}
               {!!paymentMessage && (
                 <AppText style={[
                   s.paymentMessage,
@@ -1968,17 +1934,6 @@ const s = StyleSheet.create({
   payNowBtnText: { fontSize: 12, fontWeight: "800", color: T.white },
   paymentSuccessBadge: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
   paymentSuccessText: { fontSize: 12, fontWeight: "700", color: T.success },
-  resendInvoiceBtn: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: T.navy,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: T.white,
-  },
-  resendInvoiceBtnText: { fontSize: 11, fontWeight: "700", color: T.navy },
   paymentMessage: { marginTop: 8, fontSize: 11, lineHeight: 16, fontWeight: "600" },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: T.border, backgroundColor: T.white, alignItems: "center", justifyContent: "center", marginTop: 1 },
   termsTextWrap: { flex: 1, minWidth: 0 },
