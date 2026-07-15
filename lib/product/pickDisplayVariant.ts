@@ -7,6 +7,15 @@ function num(v: unknown, fallback = 0): number {
     return Number.isFinite(n) ? n : fallback;
 }
 
+function hasFiniteNumber(v: unknown): boolean {
+    return v != null && v !== "" && Number.isFinite(Number(v));
+}
+
+/**
+ * Metro-metro customer total for a variant.
+ * Matches product-detail behavior: commissionPercent/Amount of 0 is real (no default %),
+ * and a stored total from the API is preferred when present.
+ */
 export function resolveVariantMetroTotal(v: {
     finalPrice?: number;
     sellingPriceWithGst?: number;
@@ -15,22 +24,25 @@ export function resolveVariantMetroTotal(v: {
     metroMetroDeliveryCharge?: number;
     commissionAmount?: number;
     commissionPercent?: number;
+    commissionPercentage?: number;
     totalMetroMetro?: number;
     totalPriceMetroMetro?: number;
 }): number {
     const finalPrice = num(v.finalPrice ?? v.sellingPriceWithGst ?? v.sellingPrice);
     const metro = num(v.metroMetroDelivery ?? v.metroMetroDeliveryCharge);
-    const commissionPct = num(v.commissionPercent) > 0 ? num(v.commissionPercent) : COMMISSION_PERCENT;
-    const commission =
-        num(v.commissionAmount) > 0
-            ? num(v.commissionAmount)
-            : Math.round((finalPrice * commissionPct) / 100 * 100) / 100;
-    const withCommission = Math.round((finalPrice + metro + commission) * 100) / 100;
 
     const precomputed = num(v.totalMetroMetro ?? v.totalPriceMetroMetro);
-    if (precomputed > 0 && precomputed >= withCommission - 0.01) return precomputed;
+    if (precomputed > 0) return precomputed;
 
-    return withCommission;
+    const pctRaw = v.commissionPercent ?? v.commissionPercentage;
+    // Explicit 0 is valid — only fall back to default % when percent is omitted.
+    const commissionPct = hasFiniteNumber(pctRaw) ? num(pctRaw) : COMMISSION_PERCENT;
+
+    const commission = hasFiniteNumber(v.commissionAmount)
+        ? num(v.commissionAmount)
+        : Math.round(((finalPrice * commissionPct) / 100) * 100) / 100;
+
+    return Math.round((finalPrice + metro + commission) * 100) / 100;
 }
 
 export function pickMinimumPriceVariant<T extends { id?: string | number }>(

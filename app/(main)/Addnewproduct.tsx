@@ -142,7 +142,8 @@ const getStepScrollContent = (isDesktop: boolean, compactBottom = false) =>
     isDesktop
         ? {
               flexGrow: 0,
-              paddingHorizontal: 32,
+              // WebLayout owns horizontal inset (aligns with DesktopHeader)
+              paddingHorizontal: 0,
               paddingTop: 24,
               paddingBottom: compactBottom ? 0 : 80,
               width: "100%" as const,
@@ -3989,30 +3990,111 @@ const sp = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 // DISCARD MODAL (edit mode)
 // ─────────────────────────────────────────────────────────────
-const DiscardModal = ({ visible, onDiscard, onKeep }: { visible: boolean; onDiscard: () => void; onKeep: () => void }) => (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onKeep}>
-        <View style={dm.overlay}>
-            <View style={dm.sheet}>
-                <View style={dm.iconWrap}><MaterialCommunityIcons name="alert-circle-outline" size={36} color={C.amber} /></View>
-                <AppText style={dm.title}>Discard Changes?</AppText>
-                <AppText style={dm.body}>You have unsaved edits. If you leave now, your changes will be lost.</AppText>
-                <TouchableOpacity style={dm.discardBtn} onPress={onDiscard}><AppText style={dm.discardTxt}>Yes, Discard</AppText></TouchableOpacity>
-                <TouchableOpacity style={dm.keepBtn} onPress={onKeep}><AppText style={dm.keepTxt}>Keep Editing</AppText></TouchableOpacity>
+const DiscardModal = ({ visible, onDiscard, onKeep }: { visible: boolean; onDiscard: () => void; onKeep: () => void }) => {
+    const { width, isDesktop, isTablet } = useResponsive();
+    const sheetMax = isDesktop ? 380 : isTablet ? 360 : Math.min(340, Math.max(280, width - 48));
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onKeep}>
+            <View style={dm.overlay}>
+                <View style={[dm.sheet, { maxWidth: sheetMax, width: "100%" as any }]}>
+                    <View style={dm.iconWrap}>
+                        <MaterialCommunityIcons name="alert-circle-outline" size={isDesktop ? 28 : 32} color={C.amber} />
+                    </View>
+                    <AppText style={[dm.title, isDesktop && dm.titleDesktop]}>Discard Changes?</AppText>
+                    <AppText style={[dm.body, isDesktop && dm.bodyDesktop]}>
+                        You have unsaved edits. If you leave now, your changes will be lost.
+                    </AppText>
+                    <View style={[dm.actions, isDesktop && dm.actionsRow]}>
+                        <TouchableOpacity
+                            style={[dm.discardBtn, isDesktop && dm.actionBtnDesktop]}
+                            onPress={onDiscard}
+                            activeOpacity={0.85}
+                        >
+                            <AppText style={dm.discardTxt}>Yes, Discard</AppText>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[dm.keepBtn, isDesktop && dm.actionBtnDesktop]}
+                            onPress={onKeep}
+                            activeOpacity={0.85}
+                        >
+                            <AppText style={dm.keepTxt}>Keep Editing</AppText>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
-        </View>
-    </Modal>
-);
+        </Modal>
+    );
+};
 
 const dm = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(10,20,60,0.45)", alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
-    sheet: { backgroundColor: C.white, borderRadius: 22, padding: 28, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 20, width: "100%" },
-    iconWrap: { width: 68, height: 68, borderRadius: 18, backgroundColor: C.amberPale, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-    title: { fontFamily: fontFamilies.bold, fontSize: 18, color: C.textDark, marginBottom: 10, textAlign: "center" },
-    body: { fontFamily: fontFamilies.regular, fontSize: 13.5, color: C.textMid, textAlign: "center", lineHeight: 20, marginBottom: 24 },
-    discardBtn: { width: "100%", backgroundColor: C.red, borderRadius: 13, paddingVertical: 14, alignItems: "center", marginBottom: 10 },
-    discardTxt: { fontFamily: fontFamilies.bold, fontSize: 14, color: C.white },
-    keepBtn: { width: "100%", backgroundColor: C.navyGhost, borderRadius: 13, paddingVertical: 14, alignItems: "center" },
-    keepTxt: { fontFamily: fontFamilies.semiBold, fontSize: 14, color: C.navy },
+    overlay: {
+        flex: 1,
+        backgroundColor: "rgba(10,20,60,0.45)",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 24,
+        paddingVertical: 24,
+    },
+    sheet: {
+        backgroundColor: C.white,
+        borderRadius: 18,
+        paddingHorizontal: 22,
+        paddingTop: 22,
+        paddingBottom: 18,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.16,
+        shadowRadius: 20,
+        elevation: 20,
+        alignSelf: "center",
+    },
+    iconWrap: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
+        backgroundColor: C.amberPale,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 12,
+    },
+    title: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 17,
+        color: C.textDark,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    titleDesktop: { fontSize: 16 },
+    body: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 13,
+        color: C.textMid,
+        textAlign: "center",
+        lineHeight: 19,
+        marginBottom: 18,
+    },
+    bodyDesktop: { fontSize: 12.5, lineHeight: 18, marginBottom: 16 },
+    actions: { width: "100%", gap: 8 },
+    actionsRow: { flexDirection: "row-reverse", gap: 10 },
+    discardBtn: {
+        width: "100%",
+        backgroundColor: C.red,
+        borderRadius: 11,
+        paddingVertical: 12,
+        alignItems: "center",
+    },
+    keepBtn: {
+        width: "100%",
+        backgroundColor: C.navyGhost,
+        borderRadius: 11,
+        paddingVertical: 12,
+        alignItems: "center",
+    },
+    actionBtnDesktop: { flex: 1, width: undefined as any, paddingVertical: 11 },
+    discardTxt: { fontFamily: fontFamilies.bold, fontSize: 13.5, color: C.white },
+    keepTxt: { fontFamily: fontFamilies.semiBold, fontSize: 13.5, color: C.navy },
 });
 
 // ─────────────────────────────────────────────────────────────

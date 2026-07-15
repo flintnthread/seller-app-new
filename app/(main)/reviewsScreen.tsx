@@ -259,6 +259,8 @@ const styles = StyleSheet.create({
   containerWeb: {
     width: "100%",
     minWidth: 0,
+    // Align with DesktopHeader / WebLayout contentPadding
+    paddingHorizontal: 0,
   },
   webMobileIntro: {
     marginBottom: 12,

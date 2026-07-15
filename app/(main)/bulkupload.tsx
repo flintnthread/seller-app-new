@@ -479,7 +479,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: Platform.OS === "web" ? 0 : 20,
     paddingBottom: 40,
   },
   sectionTitle: {

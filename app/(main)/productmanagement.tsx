@@ -1494,11 +1494,11 @@ const WebProductsScreen: React.FC = () => {
                             <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false}>
                                 {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
                                 <View style={wst.tableHead}>
-                                    <Text style={[wst.tableHeadCell, { flex: 3.2 }]}>Product</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.8 }]}>Category</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 3.0 }]}>Product</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.7 }]}>Category</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.8 }]}>Size</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.0 }]}>Price</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.1 }]}>Status</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>Price</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>Status</Text>
                                     <Text style={[wst.tableHeadCell, { flex: 0.7, textAlign: "right" }]}>Actions</Text>
                                 </View>
                                 {visibleProducts.length === 0 ? (
@@ -1516,16 +1516,16 @@ const WebProductsScreen: React.FC = () => {
                                         return (
                                             <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
-                                                <View style={[wst.tableCell, { flex: 3.2 }]}>
+                                                <View style={[wst.tableCell, { flex: 3.0, minWidth: 0 }]}>
                                                     <Image source={{ uri: product.image }} style={wst.tableProductImg} />
-                                                    <View style={{ flex: 1 }}>
+                                                    <View style={{ flex: 1, minWidth: 0 }}>
                                                         <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.tableProductSub}>{product.color}</Text>
                                                         <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Category hierarchy: main → category → subcategory */}
-                                                <View style={[wst.tableCell, { flex: 1.8, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.7, minWidth: 0, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                                                     <View style={wst.categoryTag}>
                                                         <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
                                                     </View>
@@ -1537,24 +1537,29 @@ const WebProductsScreen: React.FC = () => {
                                                     </Text>
                                                 </View>
                                                 {/* ── WEB CHANGE 8c: Size col — its own column ── */}
-                                                <View style={[wst.tableCell, { flex: 0.8, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.8, minWidth: 0, flexDirection: "column", alignItems: "flex-start" }]}>
                                                     <View style={wst.sizePill}>
                                                         <Text style={wst.sizePillTxt}>{product.size}</Text>
                                                     </View>
                                                 </View>
-                                                {/* Price */}
-                                                <View style={[wst.tableCell, { flex: 1.0 }]}>
-                                                    <ProductPriceTag price={product.price} mrpInclGst={product.mrpInclGst} priceStyle={wst.tablePriceVal} />
+                                                {/* Price — stack sale + MRP so they never spill into Status */}
+                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 0, overflow: "hidden" }]}>
+                                                    <ProductPriceTag
+                                                        price={product.price}
+                                                        mrpInclGst={product.mrpInclGst}
+                                                        priceStyle={wst.tablePriceVal}
+                                                        containerStyle={wst.tablePriceStack}
+                                                    />
                                                 </View>
                                                 {/* Status */}
-                                                <View style={[wst.tableCell, { flex: 1.1 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 0, flexShrink: 0 }]}>
                                                     <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
                                                         <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                         <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Actions */}
-                                                <View style={[wst.tableCell, { flex: 0.7, justifyContent: "flex-end" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.7, minWidth: 0, justifyContent: "flex-end" }]}>
                                                     <TouchableOpacity style={wst.actionBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }} activeOpacity={0.75}>
                                                         <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
                                                     </TouchableOpacity>
@@ -1684,8 +1689,9 @@ const wst = StyleSheet.create({
     navBulkBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
     navBulkBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.white },
     pageScroll: { flex: 1 },
-    pageContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 40 },
-    pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0, backgroundColor: C.navyDeep, paddingHorizontal: 32, paddingVertical: 28, paddingBottom: 68, borderRadius: 22, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, marginHorizontal: 2, marginTop: 12, shadowColor: C.navyDeep, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10 },
+    // Horizontal inset comes from WebLayout so it matches DesktopHeader search
+    pageContent: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 40 },
+    pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0, backgroundColor: C.navyDeep, paddingHorizontal: 32, paddingVertical: 28, paddingBottom: 68, borderRadius: 22, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, marginHorizontal: 2, marginTop: 0, shadowColor: C.navyDeep, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10 },
     titleContainer: {
         paddingLeft: 0,
         marginVertical: 0,
@@ -1702,7 +1708,7 @@ const wst = StyleSheet.create({
             gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
             gap: 10,
             marginTop: -36,
-        } as object,
+        } as any,
         default: {
             flexDirection: "row",
             flexWrap: "wrap",
@@ -1713,12 +1719,13 @@ const wst = StyleSheet.create({
     statsRowTablet: Platform.select({
         web: {
             gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        } as object,
+        } as any,
+        default: {},
     }),
     statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, minWidth: 0 },
     statCardCompact: { flex: undefined, width: undefined, minHeight: 88, padding: 12 },
     statCardFullSpan: Platform.select({
-        web: { gridColumn: "1 / -1" } as object,
+        web: { gridColumn: "1 / -1" } as any,
         default: { width: "100%" },
     }),
     statCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
@@ -1917,6 +1924,7 @@ const wst = StyleSheet.create({
     sizePillTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 10.5, color: C.textMid },
 
     tablePriceVal: { fontFamily: "Outfit_700Bold", fontSize: 13.5, color: C.navyDeep },
+    tablePriceStack: { flexDirection: "column", alignItems: "flex-start", gap: 2, flexWrap: "nowrap" },
     tableStockVal: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark },
     lowStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.orange },
     outStockHint: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.red },
@@ -1935,7 +1943,7 @@ const wst = StyleSheet.create({
             ? ({
                 display: "grid",
                 gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            } as object)
+            } as any)
             : {}),
     },
     webGridCard: {
@@ -1976,7 +1984,7 @@ const wst = StyleSheet.create({
     emptyDesc: { fontFamily: "Outfit_400Regular", fontSize: 12.5, color: C.textLight, marginTop: 4 },
     emptyBtn: { marginTop: 14, backgroundColor: C.navy, borderRadius: 9, paddingHorizontal: 22, paddingVertical: 9 },
     emptyBtnTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
-});
+}) as any;
 
 // ─────────────────────────────────────────────────────────────
 // MOBILE + NARROW WEB (<1024px)
@@ -2139,6 +2147,12 @@ const MobileProductsScreen: React.FC = () => {
         </View>
     );
 
+    const activeFilterCount = [
+        applied.category !== "All", applied.subcategory !== "All",
+        applied.color !== "All",    applied.size !== "All",
+        applied.lowPrice > priceMin, applied.highPrice < priceMax,
+    ].filter(Boolean).length;
+
     const headerTools = (
         <View style={s.headerTools}>
             <TouchableOpacity onPress={() => setShowSearch(true)} style={s.headerToolBtn} accessibilityLabel="Search products">
@@ -2230,12 +2244,6 @@ const MobileProductsScreen: React.FC = () => {
         });
         setVisibleCount(viewRange);
     };
-
-    const activeFilterCount = [
-        applied.category !== "All", applied.subcategory !== "All",
-        applied.color !== "All",    applied.size !== "All",
-        applied.lowPrice > priceMin, applied.highPrice < priceMax,
-    ].filter(Boolean).length;
 
     const handleTabChange       = (tab: TabType) => { setSelectedTab(tab); setVisibleCount(viewRange); };
     const handleSortSelect      = (opt: SortType) => { setSortBy(opt); setShowSortMenu(false); setVisibleCount(viewRange); };
@@ -2673,23 +2681,24 @@ const s = StyleSheet.create({
     statsSectionTitle: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.textMid, marginBottom: 8 },
     statsGrid: {
         gap: 8,
-        ...Platform.select({
+        ...(Platform.select({
             web: {
                 display: "grid",
                 gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 gap: 8,
-            } as object,
+            },
             default: {
                 flexDirection: "row",
                 flexWrap: "wrap",
                 gap: 8,
             },
-        }),
+        }) as any),
     },
     statsGridTablet: Platform.select({
         web: {
             gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        } as object,
+        } as any,
+        default: {},
     }),
     statItemCompact: {
         flexDirection: "row",
@@ -2840,7 +2849,7 @@ const s = StyleSheet.create({
     clearFilterText:{ fontFamily:"Outfit_600SemiBold", fontSize:14, color:C.navy },
     applyFilterBtn: { flex:2, paddingVertical:13, borderRadius:12, backgroundColor:C.navy, alignItems:"center" },
     applyFilterText:{ fontFamily:"Outfit_600SemiBold", fontSize:14, color:C.white },
-});
+}) as any;
 
 const fs = StyleSheet.create({
     sectionLabel:     { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.textMid, marginBottom:10, marginTop:14 },

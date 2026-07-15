@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -197,7 +198,12 @@ const EarningsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: {
+    flex: 1,
+    ...(Platform.OS === "web"
+      ? { paddingVertical: 16, paddingHorizontal: 0 }
+      : { padding: 16 }),
+  },
   filterRow: { flexDirection: "row", marginBottom: 16, gap: 8 },
   filterBtn: {
     flex: 1,

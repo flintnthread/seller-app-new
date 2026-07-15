@@ -1599,7 +1599,8 @@ const desktopStyles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    // On web, WebLayout owns horizontal inset (aligns with DesktopHeader)
+    paddingHorizontal: Platform.OS === "web" ? 0 : 16,
     paddingTop: 10,
     paddingBottom: 40,
   },

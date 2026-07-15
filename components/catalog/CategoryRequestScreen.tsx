@@ -760,7 +760,7 @@ const pg = StyleSheet.create({
     mobileRoot: { flex: 1, backgroundColor: "#F7F8FC" },
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
-    wrapWeb: { paddingHorizontal: 16, paddingTop: 10, width: "100%" },
+    wrapWeb: { paddingHorizontal: 0, paddingTop: 10, width: "100%" },
     wrapWebMobile: {
         paddingHorizontal: 0,
         paddingTop: 0,
@@ -768,6 +768,7 @@ const pg = StyleSheet.create({
     },
     wrapDesktop: {
         width: "100%",
+        paddingHorizontal: 0,
         paddingBottom: 48,
     },
     pageHeader: { marginBottom: 20 },

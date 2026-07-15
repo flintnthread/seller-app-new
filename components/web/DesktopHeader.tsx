@@ -12,9 +12,12 @@ import { useResponsive } from '@/hooks/useResponsive';
 export function DesktopHeader({ 
   isSidebarOpen, 
   onToggleSidebar,
+  contentPadding = 24,
 }: { 
   isSidebarOpen?: boolean; 
-  onToggleSidebar?: () => void; 
+  onToggleSidebar?: () => void;
+  /** Match WebLayout content inset so search aligns with page left edge */
+  contentPadding?: number;
 }) {
   const router = useRouter();
   const { profile } = useSellerProfile();
@@ -45,7 +48,13 @@ export function DesktopHeader({
   };
 
   return (
-    <View style={[styles.container, isNarrowWeb && styles.containerNarrow]}>
+    <View
+      style={[
+        styles.container,
+        isNarrowWeb && styles.containerNarrow,
+        { paddingHorizontal: contentPadding },
+      ]}
+    >
       {!isSidebarOpen && onToggleSidebar && (
         <Pressable 
           onPress={onToggleSidebar} 
@@ -125,7 +134,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eaeaea',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
     backdropFilter: 'blur(12px)',
     position: 'sticky' as any,
     top: 0,
@@ -134,7 +142,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   containerNarrow: {
-    paddingHorizontal: 12,
     gap: 8,
   },
   menuButton: {

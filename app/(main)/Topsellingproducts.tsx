@@ -845,7 +845,7 @@ headerIcons: {
 
   content: { flex: 1, backgroundColor: '#F4F7FF' },
   listContent: {
-  paddingHorizontal: 16,
+  paddingHorizontal: Platform.OS === "web" ? 0 : 16,
   paddingBottom: 20,
   paddingTop: 4,
 },

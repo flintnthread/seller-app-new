@@ -802,7 +802,7 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
         style={{flex:1}}
         contentContainerStyle={[
           wl.content,
-          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 },
+          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:0 },
           isMobileWeb && wl.contentMobile,
         ]}
         showsVerticalScrollIndicator={false}
@@ -1365,8 +1365,8 @@ titleBarInner:{ flexDirection:"column", alignItems:"flex-start", gap:14, alignSe
   pageSubtitle: { fontSize:13, color:C.textLight, marginTop:2 },
   stepperRow:   { flexDirection:"row", alignItems:"flex-start", gap:0, width:"100%", flex: 1,  },
   stepCircle:   { width:34, height:34, borderRadius:17, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4,},
-  content:      { padding:20, gap:0, paddingBottom:40 , paddingTop: 24},
-  contentMobile: { padding: 12, paddingTop: 16, paddingBottom: 24 },
+  content:      { paddingVertical:24, paddingHorizontal: Platform.OS === "web" ? 0 : 20, gap:0, paddingBottom:40 },
+  contentMobile: { paddingVertical: 16, paddingHorizontal: Platform.OS === "web" ? 0 : 12, paddingBottom: 24 },
 });
 
 // ── Mobile styles (100% identical to original v6) ─────────────────────────────

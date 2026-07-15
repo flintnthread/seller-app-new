@@ -10,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -362,7 +363,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   listContent: { paddingBottom: 40 },
-  sectionWrap: { paddingHorizontal: 12, paddingTop: 12 },
+  sectionWrap: { paddingHorizontal: Platform.OS === "web" ? 0 : 12, paddingTop: 12 },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",

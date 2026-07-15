@@ -563,7 +563,7 @@ const rs = StyleSheet.create({
 const wrs = StyleSheet.create({
     root:               { flex: 1, backgroundColor: C.bg },
     scroll:             { flex: 1 },
-    content:            { paddingHorizontal: 32, paddingTop: 24, paddingBottom: 40, maxWidth: 1200, alignSelf: "center" as any, width: "100%" as any },
+    content:            { paddingHorizontal: 0, paddingTop: 24, paddingBottom: 40, maxWidth: 1200, alignSelf: "center" as any, width: "100%" as any },
     pageHeader:         { marginBottom: 24 },
     breadcrumb:         { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
     breadcrumbDim:      { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight },
