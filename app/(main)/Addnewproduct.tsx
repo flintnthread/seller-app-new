@@ -4521,9 +4521,9 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             });
             const result = await createProduct(payload);
             setSavedProductId(result.productId);
+            setSweetAlertStage("success");
+            setSweetAlertVisible(true);
             showToast(`Product saved (ID ${result.productId})`, "success");
-            resetFormState();
-            goToProductManagement();
         } catch (err: unknown) {
             const msg =
                 err instanceof ApiError

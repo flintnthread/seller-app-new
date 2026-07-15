@@ -5,13 +5,13 @@ import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
 import { resendEmailVerificationOtp } from "@/services/authApi";
 import { ApiError } from "@/lib/api/client";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 export default function CheckEmailScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ email?: string }>();
+    const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
     const [resending, setResending] = useState(false);
-    const [statusMessage, setStatusMessage] = useState("");
-    const [statusIsError, setStatusIsError] = useState(false);
     const email =
         typeof params.email === "string" && params.email.trim()
             ? params.email.trim().toLowerCase()
@@ -20,19 +20,15 @@ export default function CheckEmailScreen() {
     const handleResend = async () => {
         if (!email || email === "your email") return;
         setResending(true);
-        setStatusMessage("");
-        setStatusIsError(false);
         try {
             const message = await resendEmailVerificationOtp(email);
-            setStatusMessage(message);
-            setStatusIsError(false);
+            showSuccess(message || "Verification email has been resent.", "Email resent");
         } catch (err) {
-            setStatusMessage(
+            showError(
                 err instanceof ApiError
                     ? err.message
                     : "Verification email could not be sent. Please try again later."
             );
-            setStatusIsError(true);
         } finally {
             setResending(false);
         }
@@ -50,22 +46,12 @@ export default function CheckEmailScreen() {
                 </AppText>
                 <AppText style={styles.email}>{email}</AppText>
                 <AppText style={styles.hint}>
-                    Open your email and click &quot;Verify my email&quot;. You will receive a 6-digit code after
-                    clicking the link. After verification, log in with your registered email and password.
+                    Open your email and click &quot;Verify my email&quot;. After verification, log in with your
+                    registered email and password.
                 </AppText>
                 <AppText style={styles.subHint}>
                     Did not receive it? Check spam folder or tap Resend link below.
                 </AppText>
-                {statusMessage ? (
-                    <AppText
-                        style={[
-                            styles.statusMessage,
-                            statusIsError ? styles.statusMessageError : styles.statusMessageSuccess,
-                        ]}
-                    >
-                        {statusMessage}
-                    </AppText>
-                ) : null}
                 <TouchableOpacity
                     style={styles.secondaryButton}
                     onPress={() => router.replace("/(auth)/login")}
@@ -87,6 +73,7 @@ export default function CheckEmailScreen() {
                     <AppText style={styles.link}>Back to signup</AppText>
                 </TouchableOpacity>
             </View>
+            <SweetAlertHost />
         </View>
     );
 }
@@ -147,28 +134,12 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         marginBottom: 12,
     },
-    bold: {
-        fontFamily: fontFamilies.bold,
-        color: "#1E3A6E",
-    },
     subHint: {
         fontSize: 12,
         color: "#94a3b8",
         textAlign: "center",
         lineHeight: 18,
         marginBottom: 20,
-    },
-    statusMessage: {
-        fontSize: 13,
-        textAlign: "center",
-        marginBottom: 12,
-        fontFamily: fontFamilies.semiBold,
-    },
-    statusMessageSuccess: {
-        color: "#3D9E5A",
-    },
-    statusMessageError: {
-        color: "#DC2626",
     },
     secondaryButton: {
         marginTop: 12,
@@ -178,19 +149,6 @@ const styles = StyleSheet.create({
         color: "#376197",
         fontSize: 14,
         fontFamily: fontFamilies.semiBold,
-    },
-    button: {
-        backgroundColor: "#F97316",
-        paddingVertical: 14,
-        paddingHorizontal: 32,
-        borderRadius: 10,
-        width: "100%",
-        alignItems: "center",
-    },
-    buttonText: {
-        color: "#FFFFFF",
-        fontSize: 16,
-        fontFamily: fontFamilies.bold,
     },
     link: {
         marginTop: 16,

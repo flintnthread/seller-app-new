@@ -31,6 +31,7 @@ import {
     productMatchesCategoryFilter,
 } from "@/lib/catalog/catalogFilterOptions";
 import { ProductPriceTag } from "@/lib/product/ProductPriceTag";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -216,9 +217,16 @@ const WrapColorGroup = ({ options, selected, onSelect, dotColors = DOT_COLORS }:
 interface DeliveryLocationsModalProps {
     product: Product | undefined;
     onClose: () => void;
+    onNotifySuccess?: (message: string, title?: string) => void;
+    onNotifyError?: (message: string, title?: string) => void;
 }
 
-const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product, onClose }) => {
+const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({
+    product,
+    onClose,
+    onNotifySuccess,
+    onNotifyError,
+}) => {
     if (!product) return null;
     const [deliverAll, setDeliverAll]             = useState(true);
     const [pincodeQuery, setPincodeQuery]         = useState("");
@@ -246,11 +254,12 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
             );
         } catch (err) {
             const msg = err instanceof ApiError ? err.message : "Failed to load delivery settings.";
-            Alert.alert("Error", msg);
+            if (onNotifyError) onNotifyError(msg);
+            else Alert.alert("Error", msg);
         } finally {
             setLoading(false);
         }
-    }, [product.id]);
+    }, [product.id, onNotifyError]);
 
     useEffect(() => {
         loadSettings();
@@ -322,36 +331,22 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({ product
                 pincodeIds: deliverAll ? [] : selectedPincodeIds,
             });
             const count = selectedPincodeIds.length;
-            const successMsg = `Successfully applied delivery settings for "${product.name}".\n\n${deliverAll ? "📦 Product will be delivered to all locations India-wide." : count > 0 ? `📍 ${count} location${count > 1 ? "s" : ""} selected for delivery.` : "⚠️ No locations selected."}`;
-            
-            if (Platform.OS === "web" && typeof window !== "undefined") {
-                onClose(); // Close the modal immediately so it doesn't stay in the background
-                const Swal = require('sweetalert2');
-                Swal.fire({
-                    title: 'Locations Updated!',
-                    html: successMsg.replace(/\n/g, '<br/>'),
-                    icon: 'success',
-                    confirmButtonText: 'Great',
-                    confirmButtonColor: C.orange,
-                    customClass: { popup: 'swal2-product-popup' }
-                });
+            const successMsg = deliverAll
+                ? `Delivery settings saved for "${product.name}". Product will be delivered India-wide.`
+                : count > 0
+                  ? `Delivery settings saved for "${product.name}". ${count} location${count > 1 ? "s" : ""} selected.`
+                  : `Delivery settings saved for "${product.name}". No locations selected.`;
+
+            onClose();
+            if (onNotifySuccess) {
+                onNotifySuccess(successMsg, "Locations Updated!");
             } else {
-                Alert.alert("✅ Delivery Locations Updated", successMsg, [{ text: "OK", style: "default", onPress: onClose }], { cancelable: false });
+                Alert.alert("Locations Updated", successMsg);
             }
         } catch (err) {
             const msg = err instanceof ApiError ? err.message : "Failed to save delivery settings.";
-            if (Platform.OS === "web" && typeof window !== "undefined") {
-                const Swal = require('sweetalert2');
-                Swal.fire({
-                    title: 'Error',
-                    text: msg,
-                    icon: 'error',
-                    confirmButtonText: 'OK',
-                    confirmButtonColor: C.orange
-                });
-            } else {
-                Alert.alert("Error", msg);
-            }
+            if (onNotifyError) onNotifyError(msg);
+            else Alert.alert("Error", msg);
         } finally {
             setSaving(false);
         }
@@ -619,22 +614,7 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
     const handleAction = (label: string) => {
         if (label === "Delete Product") {
             onClose();
-            if (Platform.OS === "web" && typeof window !== "undefined") {
-                const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
-                if (confirmed) void onDelete(product.id);
-                return;
-            }
-            setTimeout(() => {
-                Alert.alert(
-                    "Delete Product",
-                    `Are you sure you want to delete "${product.name}"?`,
-                    [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Delete", style: "destructive", onPress: () => void onDelete(product.id) },
-                    ],
-                    { cancelable: true }
-                );
-            }, 300);
+            void onDelete(product.id);
         } else if (label === "View Product") { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any);
         } else if (label === "Edit Product") { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any);
         } else if (label === "Update Location") { onClose(); setTimeout(() => onUpdateLocation(product.id), 200);
@@ -700,22 +680,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
     const handleAction = (label: string) => {
         if (label === "Delete Product") {
             onClose();
-            if (Platform.OS === "web" && typeof window !== "undefined") {
-                const confirmed = window.confirm(`Are you sure you want to delete "${product.name}"?`);
-                if (confirmed) void onDelete(product.id);
-                return;
-            }
-            setTimeout(() => {
-                Alert.alert(
-                    "Delete Product",
-                    `Are you sure you want to delete "${product.name}"?`,
-                    [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Delete", style: "destructive", onPress: () => void onDelete(product.id) },
-                    ],
-                    { cancelable: true }
-                );
-            }, 300);
+            void onDelete(product.id);
         } else if (label === "View Product")    { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any); }
         else if (label === "Edit Product")      { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any); }
         else if (label === "Update Location")   { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
@@ -864,6 +829,8 @@ const WebProductsScreen: React.FC = () => {
         color: "All", size: "All", lowPrice: PRICE_MIN, highPrice: PRICE_MAX_FALLBACK,
     });
 
+    const { showSuccess, showError, confirmDelete, SweetAlertHost } = useSweetAlert();
+
     const priceBoundsInitialized = useRef(false);
 
     useEffect(() => {
@@ -916,14 +883,22 @@ const WebProductsScreen: React.FC = () => {
     const locationProduct     = products.find(p => p.id === locationProductId);
 
     const handleDelete = useCallback(async (id: string) => {
+        const product = products.find((p) => p.id === id);
+        const name = product?.name?.trim() || "this product";
+        const confirmed = await confirmDelete(
+            "Delete Product",
+            `Are you sure you want to delete "${name}"? This cannot be undone.`
+        );
+        if (!confirmed) return;
         try {
             await deleteProduct(id);
             await reload();
+            showSuccess(`"${name}" has been deleted successfully.`, "Product deleted!");
         } catch (e) {
             const msg = e instanceof ApiError ? e.message : "Failed to delete product.";
-            Alert.alert("Delete failed", msg);
+            showError(msg, "Delete failed");
         }
-    }, [reload]);
+    }, [products, reload, confirmDelete, showSuccess, showError]);
     const handleUpdateLocation = useCallback((id: string) => setLocationProductId(id), []);
 
     const totalCount      = products.length;
@@ -1679,8 +1654,14 @@ const WebProductsScreen: React.FC = () => {
                 <WebProductActionPopup product={activeActionProduct} onClose={() => setProductActionId(null)} onDelete={handleDelete} onUpdateLocation={handleUpdateLocation} />
             )}
             {locationProductId && (
-                <DeliveryLocationsModal product={locationProduct} onClose={() => setLocationProductId(null)} />
+                <DeliveryLocationsModal
+                    product={locationProduct}
+                    onClose={() => setLocationProductId(null)}
+                    onNotifySuccess={showSuccess}
+                    onNotifyError={showError}
+                />
             )}
+            <SweetAlertHost />
         </View>
     );
 };
@@ -2065,15 +2046,25 @@ const MobileProductsScreen: React.FC = () => {
         setApplied((prev) => ({ ...prev, lowPrice: priceMin, highPrice: priceMax }));
     }, [catalogLoading, priceMin, priceMax]);
 
+    const { showSuccess, showError, confirmDelete, SweetAlertHost } = useSweetAlert();
+
     const handleDelete = useCallback(async (id: string) => {
+        const product = products.find((p) => p.id === id);
+        const name = product?.name?.trim() || "this product";
+        const confirmed = await confirmDelete(
+            "Delete Product",
+            `Are you sure you want to delete "${name}"? This cannot be undone.`
+        );
+        if (!confirmed) return;
         try {
             await deleteProduct(id);
             await reload();
+            showSuccess(`"${name}" has been deleted successfully.`, "Product deleted!");
         } catch (e) {
             const msg = e instanceof ApiError ? e.message : "Failed to delete product.";
-            Alert.alert("Delete failed", msg);
+            showError(msg, "Delete failed");
         }
-    }, [reload]);
+    }, [products, reload, confirmDelete, showSuccess, showError]);
 
     const handleUpdateLocation = useCallback((id: string) => {
         setLocationProductId(id);
@@ -2647,8 +2638,14 @@ const MobileProductsScreen: React.FC = () => {
                 <ProductActionSheet product={activeActionProduct} onClose={() => setProductActionId(null)} onDelete={handleDelete} onUpdateLocation={handleUpdateLocation} />
             )}
             {locationProductId && (
-                <DeliveryLocationsModal product={locationProduct} onClose={() => setLocationProductId(null)} />
+                <DeliveryLocationsModal
+                    product={locationProduct}
+                    onClose={() => setLocationProductId(null)}
+                    onNotifySuccess={showSuccess}
+                    onNotifyError={showError}
+                />
             )}
+            <SweetAlertHost />
         </ScreenRoot>
     );
 };

@@ -969,6 +969,7 @@ export default function SellerBusinessInfo() {
       await updateBusinessProfile(payload as any);
       await clearBusinessOnboardingDraft();
       setValidationErrors([]);
+      showSuccess("Business information saved successfully.", "Saved");
       router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
     } catch (e) {
       showError(getApiErrorMessage(e, "Could not save business information."));

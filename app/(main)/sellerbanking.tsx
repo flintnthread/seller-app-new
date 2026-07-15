@@ -315,7 +315,7 @@ export default function SellerBanking() {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollContentRef = useRef<View>(null);
   const fieldViewRefs = useRef<Record<string, View | null>>({});
-  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
+  const { showError, showWarning, showSuccess, SweetAlertHost } = useSweetAlert();
 
   const registerFieldRef = useCallback(
     (field: string) => (node: View | null) => {
@@ -505,6 +505,7 @@ export default function SellerBanking() {
         accountHolder: accountHolderName.trim(),
         accountNumber: accountNumber.trim(),
       });
+      showSuccess("Bank details saved successfully.", "Saved");
       if (returnTo === "payout") {
         router.back();
         return;
