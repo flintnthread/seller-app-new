@@ -23,10 +23,18 @@ function WebMainContent({
       <DesktopHeader
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={onToggleSidebar}
+        contentPadding={contentPadding}
       />
       <ScrollView
         style={styles.contentScroll}
-        contentContainerStyle={[styles.contentContainer, { padding: contentPadding, paddingBottom: contentPadding + 24 }]}
+        contentContainerStyle={[
+          styles.contentContainer,
+          {
+            paddingHorizontal: contentPadding,
+            paddingTop: 13,
+            paddingBottom: contentPadding + 24,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
@@ -51,6 +59,8 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
   }, [isNarrowWeb]);
 
   const sidebarOverlay = isNarrowWeb;
+  // Single horizontal inset for DesktopHeader search + page body.
+  // Screens must not add another outer paddingHorizontal on web.
   const contentPadding =
     onboarding || (isNarrowWeb && mobileFirstProduct)
       ? 0

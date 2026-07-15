@@ -938,7 +938,7 @@ const pg = StyleSheet.create({
     mobileScroll: { paddingBottom: 32 },
     wrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 24 },
     wrapWeb: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 0,
         paddingTop: 10,
         width: "100%",
         paddingBottom: 24,

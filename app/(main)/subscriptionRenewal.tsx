@@ -189,7 +189,10 @@ const s = StyleSheet.create({
   header: { paddingBottom: 20 },
   headerTitle: { color: T.white, fontSize: 22, fontFamily: fontFamilies.bold, paddingHorizontal: 20, paddingTop: 12 },
   headerSub: { color: "#CBD5E1", fontSize: 13, paddingHorizontal: 20, marginTop: 6 },
-  body: { padding: 20 },
+  body: {
+    paddingVertical: 20,
+    paddingHorizontal: Platform.OS === "web" ? 0 : 20,
+  },
   title: { fontSize: 20, fontFamily: fontFamilies.bold, color: T.textDark, marginTop: 16 },
   sub: { fontSize: 14, color: T.textSoft, marginTop: 8, textAlign: "center" },
   card: {
