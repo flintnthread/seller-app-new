@@ -33,11 +33,42 @@ function normalizeMediaPath(value: string): string {
     return p.startsWith("/") ? p : `/${p}`;
 }
 
+/** Reject blank / placeholder strings that would render as empty image slots. */
+export function isUsableMediaUrl(url: string | null | undefined): boolean {
+    if (!url) return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+    if (
+        lower === "null" ||
+        lower === "undefined" ||
+        lower === "none" ||
+        lower === "n/a" ||
+        lower === "-" ||
+        lower === "—"
+    ) {
+        return false;
+    }
+    // Folder-only paths with no file name
+    if (/\/uploads\/(products|size_charts)?\/?$/i.test(trimmed)) return false;
+    const fileName = trimmed.split("?")[0]?.split("/").pop()?.trim().toLowerCase() ?? "";
+    if (
+        !fileName ||
+        fileName === "null" ||
+        fileName === "undefined" ||
+        fileName === "none" ||
+        fileName === "n/a"
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** Turn API / CDN image paths into URLs the app can load. */
 export function resolveMediaUrl(url: string | null | undefined): string | null {
-    if (!url || !url.trim()) return null;
+    if (!isUsableMediaUrl(url)) return null;
 
-    const trimmed = url.trim();
+    const trimmed = url!.trim();
     if (
         trimmed.startsWith("data:") ||
         trimmed.startsWith("file://") ||
@@ -91,5 +122,5 @@ export function resolveMediaUrls(urls: string[] | null | undefined): string[] {
     if (!urls?.length) return [];
     return urls
         .map((u) => resolveMediaUrl(u))
-        .filter((u): u is string => Boolean(u && u.trim()));
+        .filter((u): u is string => isUsableMediaUrl(u));
 }

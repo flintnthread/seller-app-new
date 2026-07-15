@@ -186,9 +186,13 @@ type ApiProductListVariant = {
     minQuantity?: number;
     finalPrice?: number;
     sellingPrice?: number;
+    sellingPriceWithGst?: number;
+    metroMetroDelivery?: number;
     metroMetroDeliveryCharge?: number;
     commissionAmount?: number;
     commissionPercent?: number;
+    commissionPercentage?: number;
+    totalMetroMetro?: number;
     totalPriceMetroMetro?: number;
 };
 
@@ -461,7 +465,7 @@ function toDetail(row: ApiProductDetail): ProductDetail {
         mrpInclGst: num(row.mrpInclGst),
         sellingPriceExGst: num(row.sellingPriceExGst),
         discount: num(row.discount),
-        images: images.length > 0 ? images : [""],
+        images: images,
         status: row.status ?? "Inactive",
         rawStatus: row.rawStatus ?? row.status ?? "",
         stock: num(row.stock),

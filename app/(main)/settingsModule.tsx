@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === "web" ? "#F1F5F9" : "#f8fafc",
   },
   scrollContent: {
-    paddingHorizontal: Platform.OS === "web" ? 16 : 20,
+    paddingHorizontal: Platform.OS === "web" ? 0 : 20,
     paddingTop: Platform.OS === "web" ? 10 : 0,
     paddingBottom: 40,
   },

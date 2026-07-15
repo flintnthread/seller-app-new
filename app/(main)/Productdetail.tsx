@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, Dimensions, StatusBar, SafeAreaView, Platform,
@@ -35,6 +35,7 @@ import { calculateVariantPricing, calculateVariantPricingFromStrings, COMMISSION
 import { formatBuyerInstructionsForDisplay } from "@/lib/product/customProductFields";
 import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
 import { resolveMinQuantity } from "@/lib/product/resolveMinQuantity";
+import { isUsableMediaUrl } from "@/lib/media/resolveMediaUrl";
 import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
 import { useResponsive } from "@/hooks/useResponsive";
 import {
@@ -42,6 +43,34 @@ import {
   isSweetsPlaceholderColor,
   variantDimensionLabels,
 } from "@/lib/product/sweetsCategory";
+
+function useProductGallery(rawImages: string[] | undefined, activeImg: number, setActiveImg: (i: number) => void) {
+  const [failed, setFailed] = useState<Record<string, true>>({});
+
+  useEffect(() => {
+    setFailed({});
+  }, [rawImages?.join("|")]);
+
+  const images = useMemo(
+    () => (rawImages ?? []).filter((img) => isUsableMediaUrl(img) && !failed[img]),
+    [rawImages, failed],
+  );
+
+  useEffect(() => {
+    if (images.length === 0) {
+      if (activeImg !== 0) setActiveImg(0);
+      return;
+    }
+    if (activeImg > images.length - 1) setActiveImg(images.length - 1);
+  }, [images.length, activeImg, setActiveImg]);
+
+  const markFailed = useCallback((url: string) => {
+    if (!url) return;
+    setFailed((prev) => (prev[url] ? prev : { ...prev, [url]: true }));
+  }, []);
+
+  return { images, markFailed };
+}
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -1359,8 +1388,7 @@ const SpecsTab: React.FC<{ p: Product }> = ({ p }) => {
           <View style={wt.threeColInner}>
             <View style={wt.thirdTile}><InfoRow label="Box Dimensions" value={p.packaging.boxDimensions} /><InfoRow label="Gross Weight" value={p.packaging.grossWeight} /></View>
             <View style={wt.thirdTile}><InfoRow label="Packaging Type" value={p.packaging.packagingType} /><InfoRow label="Fragile Item" value={p.packaging.fragile ? "Yes" : "No"} valueColor={p.packaging.fragile ? C.red : C.green} /></View>
-            <View style={wt.thirdTile}><InfoRow label="Product Weight" value={p.weight} /><InfoRow label="Product Dimensions" value={p.dimensions} /></View>
-          </View>
+            </View>
         </View>
       </View>
     );
@@ -1577,7 +1605,9 @@ const WebHeroSection: React.FC<{
   activeImg: number;
   setActiveImg: (i: number) => void;
   variants: Variant[];
-}> = ({ p, activeImg, setActiveImg, variants }) => {
+  galleryImages: string[];
+  onImageError: (url: string) => void;
+}> = ({ p, activeImg, setActiveImg, variants, galleryImages, onImageError }) => {
   const displayStatus = resolveDisplayStatus(p);
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
@@ -1592,25 +1622,46 @@ const WebHeroSection: React.FC<{
     ? []
     : variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
-  const galleryImages = p.images.filter(img => img && img.trim().length > 0);
-  const heroImages = galleryImages.length > 0 ? galleryImages : [""];
-  const safeActiveImg = Math.min(activeImg, heroImages.length - 1);
+  const heroImages = galleryImages;
+  const safeActiveImg = heroImages.length ? Math.min(activeImg, heroImages.length - 1) : 0;
   const hasMultipleImages = heroImages.length > 1;
+  const heroUri = variantImage ?? (heroImages[safeActiveImg] || null);
 
-  const handlePrev = () => setActiveImg((safeActiveImg - 1 + heroImages.length) % heroImages.length);
-  const handleNext = () => setActiveImg((safeActiveImg + 1) % heroImages.length);
+  const handlePrev = () => {
+    if (!heroImages.length) return;
+    setActiveImg((safeActiveImg - 1 + heroImages.length) % heroImages.length);
+  };
+  const handleNext = () => {
+    if (!heroImages.length) return;
+    setActiveImg((safeActiveImg + 1) % heroImages.length);
+  };
 
   return (
     <View style={wh.container}>
       <View style={wh.imageSection}>
         <View style={wh.heroImageWrap}>
-          <Image source={{ uri: variantImage ?? heroImages[safeActiveImg] }} style={wh.heroImage} resizeMode="cover" />
+          {heroUri ? (
+            <Image
+              source={{ uri: heroUri }}
+              style={wh.heroImage}
+              resizeMode="cover"
+              onError={() => {
+                if (variantImage) setVariantImage(null);
+                onImageError(heroUri);
+              }}
+            />
+          ) : (
+            <View style={[wh.heroImage, wh.heroImageEmpty]}>
+              <MaterialCommunityIcons name="image-off-outline" size={40} color={C.textLight} />
+            </View>
+          )}
           <View style={s.discountBadge}><Text style={s.discountText}>{displayDiscount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
             <Text style={s.stockChipText}>{p.stock} units</Text>
           </View>
         </View>
+        {heroImages.length > 0 ? (
         <View style={wh.thumbNavRow}>
           {hasMultipleImages && (
             <TouchableOpacity style={wh.thumbNavBtn} onPress={handlePrev} activeOpacity={0.8}>
@@ -1624,9 +1675,14 @@ const WebHeroSection: React.FC<{
             contentContainerStyle={wh.thumbScrollContent}
             style={wh.thumbScroller}
           >
-            {heroImages.filter(Boolean).map((img, i) => (
-              <TouchableOpacity key={i} onPress={() => { setVariantImage(null); setActiveImg(i); }} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
-                <Image source={{ uri: img }} style={wh.thumbImg} resizeMode="cover" />
+            {heroImages.map((img, i) => (
+              <TouchableOpacity key={`${img}-${i}`} onPress={() => { setVariantImage(null); setActiveImg(i); }} style={[wh.thumb, i === safeActiveImg && wh.thumbActive]}>
+                <Image
+                  source={{ uri: img }}
+                  style={wh.thumbImg}
+                  resizeMode="cover"
+                  onError={() => onImageError(img)}
+                />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -1636,6 +1692,7 @@ const WebHeroSection: React.FC<{
             </TouchableOpacity>
           )}
         </View>
+        ) : null}
       </View>
 
       <View style={wh.detailsSection}>
@@ -1912,6 +1969,12 @@ const ProductDetailScreen: React.FC = () => {
     setTimeout(() => setShowAddAlert(false), 1700);
   }, [id, editingVariant]);
 
+  const { images: galleryImages, markFailed: markImageFailed } = useProductGallery(
+    p?.images,
+    activeImg,
+    setActiveImg,
+  );
+
   if (!fontsLoaded) return null;
 
   if (loading) {
@@ -1935,9 +1998,6 @@ const ProductDetailScreen: React.FC = () => {
     );
   }
 
-  const displayImages = p.images.filter(img => img && img.trim().length > 0);
-  const heroImages = displayImages.length > 0 ? displayImages : [""];
-
   const displayStatus = resolveDisplayStatus(p);
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
@@ -1952,6 +2012,8 @@ const ProductDetailScreen: React.FC = () => {
     ? []
     : variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
+  const safeActiveImg = galleryImages.length ? Math.min(activeImg, galleryImages.length - 1) : 0;
+  const heroUri = galleryImages[safeActiveImg] || null;
 
   // ─── WEB LAYOUT (wide screens only) ───────────────────────
   if (useDesktopWebLayout) {
@@ -1982,7 +2044,14 @@ const ProductDetailScreen: React.FC = () => {
 
         <ScrollView style={sw.scrollView} showsVerticalScrollIndicator={false}>
           <View style={sw.contentWrap}>
-            <WebHeroSection p={p} activeImg={activeImg} setActiveImg={setActiveImg} variants={variants} />
+            <WebHeroSection
+              p={p}
+              activeImg={activeImg}
+              setActiveImg={setActiveImg}
+              variants={variants}
+              galleryImages={galleryImages}
+              onImageError={markImageFailed}
+            />
 
             <View style={sw.tabBar}>
               <ScrollView
@@ -2107,7 +2176,18 @@ const ProductDetailScreen: React.FC = () => {
         contentContainerStyle={[s.scrollContent, compact && s.scrollContentCompact]}
       >
         <View style={s.galleryContainer}>
-          <Image source={{ uri: heroImages[Math.min(activeImg, heroImages.length - 1)] }} style={s.heroImage} resizeMode="cover" />
+          {heroUri ? (
+            <Image
+              source={{ uri: heroUri }}
+              style={s.heroImage}
+              resizeMode="cover"
+              onError={() => markImageFailed(heroUri)}
+            />
+          ) : (
+            <View style={[s.heroImage, s.heroImageEmpty]}>
+              <MaterialCommunityIcons name="image-off-outline" size={36} color={C.textLight} />
+            </View>
+          )}
           <View style={s.discountBadge}><Text style={s.discountText}>{displayDiscount}% OFF</Text></View>
           <View style={s.stockChip}>
             <MaterialCommunityIcons name="check-circle-outline" size={12} color={C.green} />
@@ -2115,6 +2195,7 @@ const ProductDetailScreen: React.FC = () => {
           </View>
         </View>
 
+        {galleryImages.length > 0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -2122,12 +2203,18 @@ const ProductDetailScreen: React.FC = () => {
           contentContainerStyle={s.thumbScrollContent}
           style={s.thumbRow}
         >
-          {heroImages.filter(Boolean).map((img, i) => (
-            <TouchableOpacity key={i} onPress={() => setActiveImg(i)} style={[s.thumb, i === activeImg && s.thumbActive]}>
-              <Image source={{ uri: img }} style={s.thumbImg} resizeMode="cover" />
+          {galleryImages.map((img, i) => (
+            <TouchableOpacity key={`${img}-${i}`} onPress={() => setActiveImg(i)} style={[s.thumb, i === safeActiveImg && s.thumbActive]}>
+              <Image
+                source={{ uri: img }}
+                style={s.thumbImg}
+                resizeMode="cover"
+                onError={() => markImageFailed(img)}
+              />
             </TouchableOpacity>
           ))}
         </ScrollView>
+        ) : null}
 
         <View style={[s.heroCard, compact && s.heroCardCompact]}>
           <View style={s.catPill}><Text style={s.catPillText}>{p.category} · {leafSubcategory}</Text></View>
@@ -2357,6 +2444,7 @@ const s = StyleSheet.create({
   statusChipText:{ fontFamily: "Outfit_700Bold", fontSize: 11 },
   galleryContainer: { backgroundColor: "#F3F4F8", position: "relative" },
   heroImage:     { width: "100%", height: 300 },
+  heroImageEmpty:{ alignItems: "center", justifyContent: "center", backgroundColor: "#EEF0F5" },
   discountBadge: { position: "absolute", top: 14, left: 14, backgroundColor: C.red, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   discountText:  { fontFamily: "Outfit_800ExtraBold", fontSize: 12, color: C.white },
   stockChip:     { position: "absolute", top: 14, right: 14, backgroundColor: "rgba(240,253,244,0.92)", borderWidth: 1, borderColor: C.green, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 4 },
@@ -2428,6 +2516,7 @@ const wh = StyleSheet.create({
   imageSection:   { width: 420, flexShrink: 0 },
   heroImageWrap:  { borderRadius: 16, overflow: "hidden", position: "relative", backgroundColor: "#F3F4F8" },
   heroImage:      { width: "100%", height: 380 },
+  heroImageEmpty: { alignItems: "center", justifyContent: "center", backgroundColor: "#EEF0F5" },
   thumbRow:       { marginTop: 10 },
   thumbNavRow:    { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
   thumbScroller:  { flex: 1 },
@@ -2489,7 +2578,7 @@ const wt = StyleSheet.create({
 const sw = StyleSheet.create({
   root:        { flex: 1, backgroundColor: C.bg },
   header:      { backgroundColor: C.navyDeep, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
-  headerInner: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 32, paddingVertical: 16, maxWidth: 1400, alignSelf: "center", width: "100%" } as any,
+  headerInner: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 0, paddingVertical: 16, maxWidth: 1400, alignSelf: "center", width: "100%" } as any,
   backBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   backBtnText: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
   headerContent:{ flex: 1 },
@@ -2501,7 +2590,7 @@ const sw = StyleSheet.create({
   editBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 },
   editBtnText: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.white },
   scrollView:  { flex: 1, minWidth: 0 },
-  contentWrap: { maxWidth: 1400, alignSelf: "center", width: "100%", minWidth: 0, paddingHorizontal: 32, paddingTop: 24, paddingBottom: 48 } as any,
+  contentWrap: { maxWidth: 1400, alignSelf: "center", width: "100%", minWidth: 0, paddingHorizontal: 0, paddingTop: 24, paddingBottom: 48 } as any,
   tabBar:      { backgroundColor: C.white, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 8, marginBottom: 16, shadowColor: "#1E2B6B", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   tabBarInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   tabScrollContent:{ gap: 6, paddingVertical: 2, paddingRight: 16 },

@@ -3791,8 +3791,9 @@ const deskStyles = StyleSheet.create({
   desktopScrollView: {
     flex: 1,
     backgroundColor: C.bg,
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    // Align with DesktopHeader / WebLayout contentPadding (top gap from WebLayout only)
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
 
   /* ── Toolbar overrides for desktop ── */
@@ -3806,7 +3807,7 @@ const deskStyles = StyleSheet.create({
     gap: 4,
     borderRadius: 22,
     marginHorizontal: 2,
-    marginTop: 12,
+    marginTop: 0,
   },
   desktopTab: {
     flex: 1,
@@ -3823,7 +3824,7 @@ const deskStyles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 14,
-    marginHorizontal: 24,
+    marginHorizontal: 0,
     marginTop: 14,
     marginBottom: 20,
     gap: 10,
@@ -3874,11 +3875,11 @@ const deskStyles = StyleSheet.create({
     color: C.textDark,
   },
   desktopTotalsRow: {
-    marginHorizontal: 24,
+    marginHorizontal: 0,
     maxWidth: 500,
   },
   desktopPillsRow: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
   },
 
   /* ── responsive grid ── */
@@ -3887,7 +3888,7 @@ const deskStyles = StyleSheet.create({
       display: "grid",
       gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
       gap: 16,
-      paddingHorizontal: 24,
+      paddingHorizontal: 0,
       marginTop: 4,
     } as object,
     default: {

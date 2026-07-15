@@ -19,8 +19,8 @@
  *   • Web layout only appears when Platform.OS === "web" AND width >= 768.
  */
 
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Clipboard,
@@ -48,7 +48,7 @@ import { openShippingLabelPrint } from "@/lib/shipping/shippingLabelHtml";
 import { fetchSellerOrderDetail, syncShiprocketTracking } from "@/services/orderApi";
 import { fetchSellerProfile } from "@/services/sellerProfileApi";
 import { ensureSellerId } from "@/lib/api/sellerSession";
-import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/orders/ordersStore";
+import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges, upsertLiveOrder } from "@/lib/orders/ordersStore";
 import { useResponsive } from "@/hooks/useResponsive";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
@@ -802,7 +802,7 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
         style={{flex:1}}
         contentContainerStyle={[
           wl.content,
-          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:24 },
+          isDesktop && { flexDirection:"row", alignItems:"flex-start", maxWidth:1280, alignSelf:"center", width:"100%", paddingHorizontal:0 },
           isMobileWeb && wl.contentMobile,
         ]}
         showsVerticalScrollIndicator={false}
@@ -1214,31 +1214,47 @@ export default function OrderDetailsScreen() {
   useEffect(() => {
     if (!orderId) return;
 
+    // Optimistic paint from in-memory store (may be stale until focus refresh).
     const existing = getLiveOrder(orderId);
-    if (existing) {
-      setOrder(existing);
-    } else {
-      (async () => {
-        try {
-          await loadOrdersFromApi();
-          const loaded = getLiveOrder(orderId);
-          if (loaded) {
-            setOrder(loaded);
-            return;
-          }
-          const detail = await fetchSellerOrderDetail(orderId);
-          setOrder(detail);
-        } catch {
-          // keep undefined → not-found UI
-        }
-      })();
-    }
+    if (existing) setOrder(existing);
 
     const unsub = subscribeToOrderChanges(() => {
-      if (orderId) setOrder(getLiveOrder(orderId));
+      if (!orderId) return;
+      const live = getLiveOrder(orderId);
+      if (live) setOrder(live);
     });
     return unsub;
   }, [orderId]);
+
+  // Always refetch when opening / refocusing so buyer address updates appear.
+  useFocusEffect(
+    useCallback(() => {
+      if (!orderId) return;
+      let active = true;
+      (async () => {
+        try {
+          const detail = await fetchSellerOrderDetail(orderId);
+          if (!active) return;
+          upsertLiveOrder(detail);
+          setOrder(detail);
+        } catch {
+          if (!active) return;
+          if (!getLiveOrder(orderId)) {
+            try {
+              await loadOrdersFromApi();
+              const loaded = getLiveOrder(orderId);
+              if (loaded) setOrder(loaded);
+            } catch {
+              // keep undefined → not-found UI
+            }
+          }
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [orderId])
+  );
 
   useEffect(() => {
     if (openLabel === "1" || openLabel === "true") setLabelModalVisible(true);
@@ -1365,8 +1381,8 @@ titleBarInner:{ flexDirection:"column", alignItems:"flex-start", gap:14, alignSe
   pageSubtitle: { fontSize:13, color:C.textLight, marginTop:2 },
   stepperRow:   { flexDirection:"row", alignItems:"flex-start", gap:0, width:"100%", flex: 1,  },
   stepCircle:   { width:34, height:34, borderRadius:17, borderWidth:1.5, alignItems:"center", justifyContent:"center", marginBottom:4,},
-  content:      { padding:20, gap:0, paddingBottom:40 , paddingTop: 24},
-  contentMobile: { padding: 12, paddingTop: 16, paddingBottom: 24 },
+  content:      { paddingVertical:24, paddingHorizontal: Platform.OS === "web" ? 0 : 20, gap:0, paddingBottom:40 },
+  contentMobile: { paddingVertical: 16, paddingHorizontal: Platform.OS === "web" ? 0 : 12, paddingBottom: 24 },
 });
 
 // ── Mobile styles (100% identical to original v6) ─────────────────────────────
