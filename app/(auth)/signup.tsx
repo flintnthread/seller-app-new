@@ -587,7 +587,7 @@ const SellerSignUpScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const { setIsProfileCompleted } = useProfileStatus();
-  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
+  const { showError, showWarning, showSuccess, SweetAlertHost } = useSweetAlert();
   const scrollViewRef = useRef<ScrollView>(null);
   const otpSentAtRef = useRef<number | null>(null);
   const cardFade = useRef(new Animated.Value(0)).current;
@@ -863,13 +863,7 @@ const SellerSignUpScreen: React.FC = () => {
   const handleSendOtp = useCallback(async () => {
     if (!validateMobile(mobile)) {
       const mobileErr = getMobileError(mobile) || "Enter a valid 10-digit mobile number";
-      showMessage({
-        message: mobileErr,
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
-
+      showError(mobileErr);
       fieldRefs.mobile.current?.focus();
       return;
     }
@@ -885,12 +879,10 @@ const SellerSignUpScreen: React.FC = () => {
       setOtpTimer(OTP_RESEND_SECONDS);
       setIsTimerActive(true);
 
-      showMessage({
-        message: result.message || `OTP sent to ${formatMobileForSms(mobile)}`,
-        type: "success",
-        icon: "success",
-        ...toastConfig,
-      });
+      showSuccess(
+        result.message || `OTP sent to ${formatMobileForSms(mobile)}`,
+        otpSent ? "OTP resent" : "OTP sent"
+      );
     } catch (err) {
       if (isExistingAccountError(err)) {
         redirectToLoginForExistingAccount(
@@ -899,25 +891,15 @@ const SellerSignUpScreen: React.FC = () => {
         );
         return;
       }
-      showMessage({
-        message: err instanceof ApiError ? err.message : "Failed to send OTP",
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
+      showError(err instanceof ApiError ? err.message : "Failed to send OTP");
     } finally {
       setSendingOtp(false);
     }
-  }, [mobile, redirectToLoginForExistingAccount]);
+  }, [mobile, otpSent, redirectToLoginForExistingAccount, showSuccess, showError]);
 
   const handleVerifyOtp = useCallback(async () => {
     if (!otp || otp.trim().length < 4) {
-      showMessage({
-        message: "Enter the OTP",
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
+      showError("Enter the OTP");
       fieldRefs.otp.current?.focus();
       return;
     }
@@ -939,12 +921,10 @@ const SellerSignUpScreen: React.FC = () => {
       const result = await verifyRegistrationOtp(mobile, otp);
       setOtpVerified(true);
       setMobileVerificationToken(result.mobileVerificationToken);
-      showMessage({
-        message: `Mobile ${formatMobileForSms(mobile)} verified successfully`,
-        type: "success",
-        icon: "success",
-        ...toastConfig,
-      });
+      showSuccess(
+        `Mobile ${formatMobileForSms(mobile)} verified successfully`,
+        "Mobile verified"
+      );
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Invalid OTP. Please try again.";
       if (isOtpExpiredMessage(message)) {
@@ -956,7 +936,7 @@ const SellerSignUpScreen: React.FC = () => {
     } finally {
       setVerifyingOtp(false);
     }
-  }, [otp, mobile, showError, showWarning]);
+  }, [otp, mobile, showError, showWarning, showSuccess]);
 
   const handleSignUp = useCallback(async () => {
     const errors = collectSignUpValidationErrors();
@@ -1001,13 +981,10 @@ const SellerSignUpScreen: React.FC = () => {
 
       const registeredEmail = email.trim().toLowerCase();
 
-      showMessage({
-        ...toastConfig,
-        message: `Verification link sent to ${registeredEmail}. Open your email and click the link.`,
-        type: "success",
-        icon: "success",
-        duration: 4000,
-      });
+      showSuccess(
+        `Verification link sent to ${registeredEmail}. Open your email and click the link.`,
+        "Account created"
+      );
 
       router.replace({
         pathname: "/(auth)/check-email",
@@ -1025,12 +1002,7 @@ const SellerSignUpScreen: React.FC = () => {
         );
         return;
       }
-      showMessage({
-        message: err instanceof ApiError ? err.message : "Registration failed",
-        type: "danger",
-        icon: "danger",
-        ...toastConfig,
-      });
+      showError(err instanceof ApiError ? err.message : "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -1039,6 +1011,8 @@ const SellerSignUpScreen: React.FC = () => {
     collectSignUpValidationErrors,
     showSignUpValidationAlert,
     showWarning,
+    showSuccess,
+    showError,
     scrollToFirstError,
     router,
     fullName,

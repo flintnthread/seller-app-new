@@ -232,7 +232,7 @@ export default function SellerAddressInfo() {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollContentRef = useRef<View>(null);
   const fieldViewRefs = useRef<Record<string, View | null>>({});
-  const { showError, showWarning, SweetAlertHost } = useSweetAlert();
+  const { showError, showWarning, showSuccess, SweetAlertHost } = useSweetAlert();
 
   const registerFieldRef = useCallback(
     (field: string) => (node: View | null) => {
@@ -450,6 +450,7 @@ export default function SellerAddressInfo() {
       } as const;
 
       await updateAddressProfile(payload);
+      showSuccess("Address details saved successfully.", "Saved");
       router.push({
         pathname: "/(main)/sellerbanking",
         params: businessCategory ? { businessCategory } : {},

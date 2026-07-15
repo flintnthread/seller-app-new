@@ -27,6 +27,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useEarningsData } from "@/hooks/useEarningsData";
 import { fetchAnalyticsOverview, fetchAnalyticsSales, requestPayout } from "@/services/earningsApi";
 import { fetchPayoutSummary, exportPayoutTransactionsCsv, type PayoutSummary } from "@/services/payoutApi";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 interface Transaction {
   id: string;
@@ -73,6 +74,7 @@ export default function EarningsScreen() {
   const [filterRevenue, setFilterRevenue] = useState("₹0");
   const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
   const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
+  const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
 
   const availableBalance = payoutSummary?.pendingAmount ?? earningsData?.availableBalance ?? 0;
   const totalRevenueAmount =
@@ -100,7 +102,7 @@ export default function EarningsScreen() {
     } else {
       setWithdrawError("");
       setShowWithdrawFormModal(false);
-      Alert.alert("OTP Sent", "Enter the OTP sent to your registered mobile number.");
+      showSuccess("Enter the OTP sent to your registered mobile number.", "OTP sent");
       setTimeout(() => {
         setShowWithdrawOtpModal(true);
       }, 400);
@@ -496,7 +498,7 @@ export default function EarningsScreen() {
                 try {
                   const csv = await exportPayoutTransactionsCsv();
                   if (!csv.trim()) {
-                    Alert.alert("No data", "No transactions available to export.");
+                    showWarning("No transactions available to export.", "No data");
                     return;
                   }
                   if (Platform.OS === "web") {
@@ -510,8 +512,9 @@ export default function EarningsScreen() {
                   }
                   setShowDownloadModal(false);
                   setShowSuccessModal(true);
+                  showSuccess("Your earnings report has been downloaded.", "Export ready");
                 } catch (e) {
-                  Alert.alert("Export failed", e instanceof Error ? e.message : "Could not export report.");
+                  showError(e instanceof Error ? e.message : "Could not export report.", "Export failed");
                 }
               }}
             >
@@ -753,6 +756,7 @@ export default function EarningsScreen() {
           }}
         />
       )}
+      <SweetAlertHost />
     </ScreenRoot>
   );
 }
