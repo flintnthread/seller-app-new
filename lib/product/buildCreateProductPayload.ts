@@ -1,4 +1,4 @@
-import { uriToImageSource } from "@/lib/media/imagePayload";
+import { uploadProductImage } from "@/services/productApi";
 import { applyCustomBuyerFieldsToPayload, type CustomBuyerField } from "@/lib/product/customProductFields";
 import type {
     CreateProductPayload,
@@ -79,6 +79,26 @@ function parseIntSafe(value: string): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Ensure every local/picked image is uploaded to seller-service disk first.
+ * Create/update payloads store relative paths: uploads/products/{file}.
+ */
+async function toStoredImageSource(uri: string): Promise<string> {
+    const trimmed = uri?.trim();
+    if (!trimmed) return "";
+    if (/^uploads\/products\//i.test(trimmed) || /^\/uploads\/products\//i.test(trimmed)) {
+        return trimmed.replace(/^\//, "");
+    }
+    if (/^https?:\/\//i.test(trimmed) && /\/uploads\/products\//i.test(trimmed)) {
+        try {
+            return new URL(trimmed).pathname.replace(/^\//, "");
+        } catch {
+            /* re-upload */
+        }
+    }
+    return uploadProductImage(trimmed);
+}
+
 function resolveVariantImages(variants: VariantRow[]): VariantRow[] {
     const imagesByColor = new Map<string, string[]>();
     return variants.map((variant) => {
@@ -126,7 +146,7 @@ export async function buildCreateProductPayload(input: {
     const productImages: NonNullable<CreateProductPayload["images"]> = [];
     if (images.primaryImage) {
         productImages.push({
-            source: await uriToImageSource(images.primaryImage),
+            source: await toStoredImageSource(images.primaryImage),
             primary: true,
             sortOrder: 0,
         });
@@ -136,7 +156,7 @@ export async function buildCreateProductPayload(input: {
     for (const uri of images.additionalImages ?? []) {
         if (!uri?.trim()) continue;
         productImages.push({
-            source: await uriToImageSource(uri),
+            source: await toStoredImageSource(uri),
             primary: false,
             sortOrder: sortOrder++,
         });
@@ -149,7 +169,7 @@ export async function buildCreateProductPayload(input: {
             const uri = variant.images[i];
             if (!uri?.trim()) continue;
             variantImages.push({
-                source: await uriToImageSource(uri),
+                source: await toStoredImageSource(uri),
                 primary: i === 0,
                 sortOrder: variantImages.length,
             });

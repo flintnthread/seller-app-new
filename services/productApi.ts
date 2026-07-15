@@ -1,5 +1,11 @@
 import { Platform } from "react-native";
 import { apiRequest } from "@/lib/api/client";
+import {
+    apiUpload,
+    appendFileToFormData,
+    buildUploadPart,
+    guessFileName,
+} from "@/lib/api/multipart";
 import { resolveMediaUrl, resolveMediaUrls } from "@/lib/media/resolveMediaUrl";
 import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product/pickDisplayVariant";
 
@@ -746,6 +752,53 @@ export async function createProduct(payload: CreateProductPayload): Promise<Crea
             variantId: String(v.variantId ?? ""),
         })),
     };
+}
+
+/**
+ * Upload a local product image to seller-service (saved under uploads/products/).
+ * Returns the relative path for create/update payloads (e.g. uploads/products/abc.jpg).
+ */
+export async function uploadProductImage(localUri: string): Promise<string> {
+    const trimmed = localUri?.trim();
+    if (!trimmed) {
+        throw new Error("Image URI is required.");
+    }
+    // Already a stored relative path
+    if (/^uploads\/products\//i.test(trimmed) || /^\/uploads\/products\//i.test(trimmed)) {
+        return trimmed.replace(/^\//, "");
+    }
+    // Absolute URL that already points at our uploads folder
+    if (/^https?:\/\//i.test(trimmed) && /\/uploads\/products\//i.test(trimmed)) {
+        try {
+            const pathname = new URL(trimmed).pathname.replace(/^\//, "");
+            if (pathname.startsWith("uploads/products/")) {
+                return pathname;
+            }
+        } catch {
+            /* fall through to re-upload */
+        }
+    }
+    const formData = new FormData();
+    const part = await buildUploadPart(trimmed, { name: guessFileName(trimmed, "product.jpg") });
+    appendFileToFormData(formData, "file", part);
+    const row = await apiUpload<{ url?: string; imageUrl?: string; imagePath?: string }>(
+        "/api/seller/product-media/upload",
+        formData
+    );
+    const imagePath = String(row.imagePath ?? "").trim().replace(/^\//, "");
+    if (imagePath.startsWith("uploads/products/")) {
+        return imagePath;
+    }
+    // Fallback: derive path from absolute URL
+    const url = String(row.url ?? row.imageUrl ?? "").trim();
+    if (url && /\/uploads\/products\//i.test(url)) {
+        try {
+            return new URL(url).pathname.replace(/^\//, "");
+        } catch {
+            /* ignore */
+        }
+    }
+    throw new Error("Image upload failed — no imagePath returned.");
 }
 
 export type UpdateProductPayload = CreateProductPayload & {

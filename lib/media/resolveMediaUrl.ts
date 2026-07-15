@@ -50,7 +50,11 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
         try {
             const parsed = new URL(trimmed);
             if (parsed.pathname.includes("/uploads/")) {
-                if (isSellerUploadPath(parsed.pathname)) {
+                if (
+                    isSellerUploadPath(parsed.pathname) ||
+                    parsed.pathname.includes("/uploads/products/") ||
+                    parsed.pathname.includes("/uploads/size_charts/")
+                ) {
                     return `${resolveSellerMediaBaseUrl()}${parsed.pathname}`;
                 }
                 return `${resolvePublicMediaBaseUrl()}${parsed.pathname}`;
@@ -65,6 +69,11 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
     if (!path) return null;
 
     if (isSellerUploadPath(path)) {
+        return `${resolveSellerMediaBaseUrl()}${path}`;
+    }
+
+    // Product / size-chart images live on seller-service disk
+    if (path.includes("/uploads/products/") || path.includes("/uploads/size_charts/")) {
         return `${resolveSellerMediaBaseUrl()}${path}`;
     }
 
