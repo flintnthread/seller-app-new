@@ -4736,7 +4736,7 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             setSavedProductId(String(editProductId));
             setSweetAlertStage("success");
             setSweetAlertVisible(true);
-            showToast("Product updated successfully!", "success");
+            showToast("Product updated — submitted for admin re-approval.", "success");
         } catch (err: unknown) {
             const msg = err instanceof ApiError ? err.message : "Failed to update product.";
             showToast(msg, "error");
@@ -4860,10 +4860,10 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             productName={basicData.name ?? ""}
             savedProductId={savedProductId}
             isSaving={isSaving}
-            successTitle={isEditMode && sweetAlertStage === "success" ? "Product Updated!" : undefined}
+            successTitle={isEditMode && sweetAlertStage === "success" ? "Submitted for Approval!" : undefined}
             successSubtitle={
                 isEditMode && sweetAlertStage === "success"
-                    ? `"${basicData.name || "Product"}" has been updated successfully.${
+                    ? `"${basicData.name || "Product"}" was updated and sent for admin re-approval. It will stay hidden from customers until approved.${
                           editProductId ? `\nProduct ID: ${editProductId}` : ""
                       }`
                     : undefined
