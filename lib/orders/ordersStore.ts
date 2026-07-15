@@ -150,6 +150,15 @@ export function getLiveOrder(id: string): OrderDetail | undefined {
     return liveOrders.get(id);
 }
 
+/** Replace / insert one order in the in-memory store (e.g. after a fresh detail fetch). */
+export function upsertLiveOrder(order: OrderDetail): void {
+    liveOrders.set(order.id, { ...order, steps: [...order.steps] });
+    if (order.orderNumber && order.orderNumber !== order.id) {
+        liveOrders.set(order.orderNumber, { ...order, steps: [...order.steps] });
+    }
+    notify();
+}
+
 export function getLiveOrders(): OrderDetail[] {
     return Array.from(liveOrders.values());
 }

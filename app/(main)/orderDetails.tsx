@@ -19,8 +19,8 @@
  *   • Web layout only appears when Platform.OS === "web" AND width >= 768.
  */
 
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Clipboard,
@@ -48,7 +48,7 @@ import { openShippingLabelPrint } from "@/lib/shipping/shippingLabelHtml";
 import { fetchSellerOrderDetail, syncShiprocketTracking } from "@/services/orderApi";
 import { fetchSellerProfile } from "@/services/sellerProfileApi";
 import { ensureSellerId } from "@/lib/api/sellerSession";
-import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges } from "@/lib/orders/ordersStore";
+import { getLiveOrder, loadOrdersFromApi, subscribeToOrderChanges, upsertLiveOrder } from "@/lib/orders/ordersStore";
 import { useResponsive } from "@/hooks/useResponsive";
 
 // ─── Breakpoints ──────────────────────────────────────────────────────────────
@@ -1214,31 +1214,47 @@ export default function OrderDetailsScreen() {
   useEffect(() => {
     if (!orderId) return;
 
+    // Optimistic paint from in-memory store (may be stale until focus refresh).
     const existing = getLiveOrder(orderId);
-    if (existing) {
-      setOrder(existing);
-    } else {
-      (async () => {
-        try {
-          await loadOrdersFromApi();
-          const loaded = getLiveOrder(orderId);
-          if (loaded) {
-            setOrder(loaded);
-            return;
-          }
-          const detail = await fetchSellerOrderDetail(orderId);
-          setOrder(detail);
-        } catch {
-          // keep undefined → not-found UI
-        }
-      })();
-    }
+    if (existing) setOrder(existing);
 
     const unsub = subscribeToOrderChanges(() => {
-      if (orderId) setOrder(getLiveOrder(orderId));
+      if (!orderId) return;
+      const live = getLiveOrder(orderId);
+      if (live) setOrder(live);
     });
     return unsub;
   }, [orderId]);
+
+  // Always refetch when opening / refocusing so buyer address updates appear.
+  useFocusEffect(
+    useCallback(() => {
+      if (!orderId) return;
+      let active = true;
+      (async () => {
+        try {
+          const detail = await fetchSellerOrderDetail(orderId);
+          if (!active) return;
+          upsertLiveOrder(detail);
+          setOrder(detail);
+        } catch {
+          if (!active) return;
+          if (!getLiveOrder(orderId)) {
+            try {
+              await loadOrdersFromApi();
+              const loaded = getLiveOrder(orderId);
+              if (loaded) setOrder(loaded);
+            } catch {
+              // keep undefined → not-found UI
+            }
+          }
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [orderId])
+  );
 
   useEffect(() => {
     if (openLabel === "1" || openLabel === "true") setLabelModalVisible(true);
