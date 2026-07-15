@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useResponsive } from "@/hooks/useResponsive";
 import { fetchProductReviews, replyToReview } from "@/services/reviewApi";
+import { useSweetAlert } from "@/components/common/SweetAlert";
 
 const initialReviews: {
   id: string;
@@ -32,6 +33,7 @@ const ReviewsScreen = () => {
   const { isWeb, isMobile } = useResponsive();
   const isWebMobile = isWeb && isMobile;
   const ScreenRoot = Platform.OS === "web" ? View : SafeAreaView;
+  const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
   const [reviews, setReviews] = useState(initialReviews);
   const [loading, setLoading] = useState(true);
 
@@ -101,8 +103,9 @@ const ReviewsScreen = () => {
       setReplyVisible(false);
       setReplyText("");
       triggerToast();
+      showSuccess("Your reply has been posted successfully.", "Reply sent");
     } catch {
-      Alert.alert("Error", "Failed to send reply. Please try again.");
+      showError("Failed to send reply. Please try again.");
     }
   };
 
@@ -240,6 +243,7 @@ const ReviewsScreen = () => {
           </View>
         </View>
       </Modal>
+      <SweetAlertHost />
     </ScreenRoot>
   );
 };

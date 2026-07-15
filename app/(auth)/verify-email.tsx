@@ -50,7 +50,7 @@ function Highlight({ children }: { children: string }) {
 function NeedHelpBox() {
     return (
         <View style={styles.helpBox}>
-            <AppText style={styles.helpTitle}>Need Help?</AppText>
+            {/* <AppText style={styles.helpTitle}>Need Help?</AppText>
             <AppText style={styles.helpText}>
                 If you have any questions or need assistance, please contact our support team:
             </AppText>
@@ -61,7 +61,7 @@ function NeedHelpBox() {
             <AppText style={styles.helpLine}>
                 <AppText style={styles.helpLabel}>Phone: </AppText>
                 <AppText style={styles.helpText}>{SUPPORT_PHONE}</AppText>
-            </AppText>
+            </AppText> */}
         </View>
     );
 }
@@ -70,10 +70,10 @@ function EmailFooter() {
     const year = new Date().getFullYear();
     return (
         <View style={styles.footer}>
-            <AppText style={styles.footerText}>© {year} Flint & Thread. All rights reserved.</AppText>
+            {/* <AppText style={styles.footerText}>© {year} Flint & Thread. All rights reserved.</AppText>
             <AppText style={styles.footerMuted}>
                 This is an automated message. Please do not reply to this email.
-            </AppText>
+            </AppText> */}
         </View>
     );
 }
@@ -89,7 +89,7 @@ export default function VerifyEmailScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isDesktop } = useResponsive();
-    const { showSuccess, SweetAlertHost } = useSweetAlert();
+    const { showSuccess, showError, SweetAlertHost } = useSweetAlert();
 
     const token = useMemo(() => {
         const raw = params.token;
@@ -250,18 +250,21 @@ export default function VerifyEmailScreen() {
         setMessage("");
         try {
             const result = await resendEmailVerificationOtp(email);
-            if (result.toLowerCase().includes("code has been sent")) {
+            if (result.toLowerCase().includes("code has been sent") || result.toLowerCase().includes("sent")) {
                 setOtpSent(true);
                 setMessage("");
+                showSuccess(result || "A new verification code has been sent to your email.", "OTP resent");
             } else {
                 setMessage(result);
+                showSuccess(result, "OTP resent");
             }
         } catch (err) {
-            setMessage(
+            const msg =
                 err instanceof ApiError
                     ? err.message
-                    : "Verification email could not be sent. Please try again later."
-            );
+                    : "Verification email could not be sent. Please try again later.";
+            setMessage(msg);
+            showError(msg);
         } finally {
             setResending(false);
         }
@@ -345,13 +348,7 @@ export default function VerifyEmailScreen() {
 
                 {renderCard(
                     <>
-                        <AppText style={styles.greeting}>Hello {displayName},</AppText>
-
-                        <AppText style={styles.bodyText}>
-                            Thank you for registering as a <Highlight>seller</Highlight> on our{" "}
-                            <Highlight>platform</Highlight>! To complete your registration and start{" "}
-                            <Highlight>selling</Highlight>, please verify your email address.
-                        </AppText>
+                        
 
                         {!success ? (
                             <>
