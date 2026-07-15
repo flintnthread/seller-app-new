@@ -690,6 +690,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
 
     const getStatusBadge = (status: string) => {
         if (status === "Active")       return { bg: "#DCFCE7", color: "#16A34A" };
+        if (status === "Deactivated")  return { bg: "#F1F5F9", color: "#64748B" };
         if (status === "Inactive")     return { bg: "#FEF9C3", color: "#B45309" };
         if (status === "Out of Stock") return { bg: "#FEE2E2", color: "#DC2626" };
         return { bg: C.orangePale, color: C.orange };
@@ -903,7 +904,7 @@ const WebProductsScreen: React.FC = () => {
 
     const totalCount      = products.length;
     const activeCount     = products.filter(p => p.status === "Active").length;
-    const inactiveCount   = products.filter(p => p.status === "Inactive").length;
+    const inactiveCount   = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
     const outOfStockCount = products.filter(p => p.status === "Out of Stock").length;
     const lowStockCount   = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
 
@@ -911,7 +912,11 @@ const WebProductsScreen: React.FC = () => {
     const processedProducts = useMemo(() => {
         let list = [...products];
         if (selectedTab === "Low Stock") list = list.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD);
-        else if (selectedTab !== "All Products") list = list.filter(p => p.status === selectedTab);
+        else if (selectedTab === "Inactive") {
+            list = list.filter(p => p.status === "Inactive" || p.status === "Deactivated");
+        } else if (selectedTab !== "All Products") {
+            list = list.filter(p => p.status === selectedTab);
+        }
         if (searchQuery.trim()) {
             list = list.filter(p => productMatchesSearch(p, searchQuery));
         }
@@ -939,6 +944,7 @@ const WebProductsScreen: React.FC = () => {
 
     const getStatusStyle = (status: string) => {
         if (status === "Active")       return { bg: "#DCFCE7", color: "#16A34A", dot: "#16A34A" };
+        if (status === "Deactivated")  return { bg: "#F1F5F9", color: "#64748B", dot: "#64748B" };
         if (status === "Inactive")     return { bg: "#FEF9C3", color: "#B45309", dot: "#F59E0B" };
         if (status === "Out of Stock") return { bg: "#FEE2E2", color: "#DC2626", dot: "#EF4444" };
         return { bg: "#FEF3C7", color: "#D97706", dot: "#F97316" };
@@ -2072,7 +2078,7 @@ const MobileProductsScreen: React.FC = () => {
 
     const totalCount      = products.length;
     const activeCount     = products.filter(p => p.status === "Active").length;
-    const inactiveCount   = products.filter(p => p.status === "Inactive").length;
+    const inactiveCount   = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
     const outOfStockCount = products.filter(p => p.status === "Out of Stock").length;
     const lowStockCount   = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
 
@@ -2159,6 +2165,8 @@ const MobileProductsScreen: React.FC = () => {
         let list = [...products];
         if (selectedTab === "Low Stock") {
             list = list.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD);
+        } else if (selectedTab === "Inactive") {
+            list = list.filter(p => p.status === "Inactive" || p.status === "Deactivated");
         } else if (selectedTab !== "All Products") {
             list = list.filter(p => p.status === selectedTab);
         }
@@ -2188,9 +2196,10 @@ const MobileProductsScreen: React.FC = () => {
     const hasMore         = visibleCount < processedProducts.length;
 
     const getStatusColor = (status: string) => {
-        if (status === "Active")   return { bg: C.greenPale,  color: C.green  };
-        if (status === "Inactive") return { bg: C.yellowPale, color: C.yellow };
-        return                            { bg: C.redPale,    color: C.red    };
+        if (status === "Active")       return { bg: C.greenPale,  color: C.green  };
+        if (status === "Deactivated")  return { bg: "#F1F5F9",    color: "#64748B" };
+        if (status === "Inactive")     return { bg: C.yellowPale, color: C.yellow };
+        return                                 { bg: C.redPale,    color: C.red    };
     };
 
     const applyFilters = () => {
