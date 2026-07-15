@@ -37,6 +37,11 @@ import { pickMinimumPriceVariant, resolveVariantMetroTotal } from "@/lib/product
 import { resolveMinQuantity } from "@/lib/product/resolveMinQuantity";
 import { fetchSellerProfile, toUiBusinessCategory } from "@/services/sellerProfileApi";
 import { useResponsive } from "@/hooks/useResponsive";
+import {
+  isSweetsCategory,
+  isSweetsPlaceholderColor,
+  variantDimensionLabels,
+} from "@/lib/product/sweetsCategory";
 
 const { width: SW } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -147,9 +152,20 @@ function pickDisplayVariant(variants: Variant[]): Variant | null {
   return pickMinimumPriceVariant(variants, resolveVariantMetroTotal);
 }
 
-function formatLowestVariantLabel(v: Variant | null): string | null {
+function isProductSweets(p: Product): boolean {
+  return (
+    isSweetsCategory(p.category, p.categorySub, p.subcategory) ||
+    isSweetsPlaceholderColor(p.color)
+  );
+}
+
+function formatLowestVariantLabel(v: Variant | null, sweetsProduct = false): string | null {
   if (!v) return null;
-  const parts = [v.color !== "—" ? v.color : null, v.size !== "—" ? v.size : null].filter(Boolean);
+  const dim = variantDimensionLabels(sweetsProduct || isSweetsPlaceholderColor(v.color));
+  const parts = [
+    dim.showColor && v.color !== "—" && !isSweetsPlaceholderColor(v.color) ? v.color : null,
+    v.size !== "—" ? v.size : null,
+  ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -807,19 +823,31 @@ const av = StyleSheet.create({
 });
 
 // ─── VARIANTS GRID VIEW ───────────────────────────────────────
-const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => {
+const VariantsGrid: React.FC<{
+  variants: Variant[];
+  onDelete: (id: string, label: string) => void;
+  onEdit: (v: Variant) => void;
+  sweetsProduct?: boolean;
+}> = ({ variants, onDelete, onEdit, sweetsProduct = false }) => {
   const useWebLayout = useProductDetailWebLayout();
+  const dimLabels = variantDimensionLabels(sweetsProduct);
   return (
   <View style={[{ flexDirection: "row", flexWrap: "wrap", gap: 10 }]}>
-    {variants.map(v => (
+    {variants.map(v => {
+      const hideColor = !dimLabels.showColor || isSweetsPlaceholderColor(v.color);
+      const displayTitle = hideColor ? v.size : v.color;
+      const deleteLabel = hideColor ? v.size : `${v.color} - ${v.size}`;
+      return (
       <View key={v.id} style={[vr.gridCard, useWebLayout && vr.gridCardWeb]}>
         {v.imageUri ? (
           <Image source={{ uri: v.imageUri }} style={vr.gridThumb} resizeMode="cover" />
         ) : null}
         <View style={vr.gridCardTop}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-            <View style={[vr.colorDot, { backgroundColor: v.colorHex, borderWidth: v.color === "White" ? 1 : 0, borderColor: C.border }]} />
-            <Text style={vr.gridCardName}>{v.color}</Text>
+            {!hideColor ? (
+              <View style={[vr.colorDot, { backgroundColor: v.colorHex, borderWidth: v.color === "White" ? 1 : 0, borderColor: C.border }]} />
+            ) : null}
+            <Text style={vr.gridCardName}>{displayTitle}</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 4 }}>
             {/* FIX: navy background for edit button */}
@@ -828,7 +856,7 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label
             </TouchableOpacity>
             <TouchableOpacity
               style={vr.gridDelBtn}
-              onPress={() => onDelete(v.id, `${v.color} - ${v.size}`)}
+              onPress={() => onDelete(v.id, deleteLabel)}
             >
               <MaterialCommunityIcons name="trash-can-outline" size={13} color={C.red} />
             </TouchableOpacity>
@@ -863,19 +891,31 @@ const VariantsGrid: React.FC<{ variants: Variant[]; onDelete: (id: string, label
           <Text style={[vr.gridRowVal, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text>
         </View>
       </View>
-    ))}
+      );
+    })}
   </View>
   );
 };
 
-const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => (
+const VariantsList: React.FC<{
+  variants: Variant[];
+  onDelete: (id: string, label: string) => void;
+  onEdit: (v: Variant) => void;
+  sweetsProduct?: boolean;
+}> = ({ variants, onDelete, onEdit, sweetsProduct = false }) => {
+  const dimLabels = variantDimensionLabels(sweetsProduct);
+  return (
   <View style={{ gap: 8 }}>
-    {variants.map(v => (
+    {variants.map(v => {
+      const hideColor = !dimLabels.showColor || isSweetsPlaceholderColor(v.color);
+      const title = hideColor ? v.size : `${v.color} · ${v.size}`;
+      const deleteLabel = hideColor ? v.size : `${v.color} - ${v.size}`;
+      return (
       <View key={v.id} style={vr.listCard}>
         <View style={vr.listCardTop}>
           {v.imageUri ? (
             <Image source={{ uri: v.imageUri }} style={vr.listThumb} resizeMode="cover" />
-          ) : (
+          ) : hideColor ? null : (
             <View style={[vr.colorDot, {
               backgroundColor: v.colorHex,
               width: 22, height: 22, borderRadius: 11,
@@ -883,7 +923,7 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label
             }]} />
           )}
           <View style={{ flex: 1 }}>
-            <Text style={vr.listCardName}>{v.color} · {v.size}</Text>
+            <Text style={vr.listCardName}>{title}</Text>
             <Text style={vr.listCardSku}>
               {v.sku} · {v.stock} units{v.minQuantity != null && v.minQuantity > 0 ? ` · Min ${v.minQuantity}` : ""}
             </Text>
@@ -898,7 +938,7 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label
           </TouchableOpacity>
           <TouchableOpacity
             style={[vr.deleteBtn, { width: 30, height: 30 }]}
-            onPress={() => onDelete(v.id, `${v.color} - ${v.size}`)}
+            onPress={() => onDelete(v.id, deleteLabel)}
           >
             <MaterialCommunityIcons name="trash-can-outline" size={14} color={C.white} />
           </TouchableOpacity>
@@ -913,17 +953,35 @@ const VariantsList: React.FC<{ variants: Variant[]; onDelete: (id: string, label
           <View style={[vr.listPriceTile, { backgroundColor: "#FFFBEB" }]}><Text style={vr.listPriceLabel}>Metro</Text><Text style={[vr.listPriceVal, { color: C.yellow, fontFamily: "Outfit_700Bold" }]}>₹{v.totalMetroMetro.toFixed(2)}</Text></View>
         </View>
       </View>
-    ))}
+      );
+    })}
   </View>
-);
+  );
+};
 
 // ─── VARIANTS TABLE VIEW ──────────────────────────────────────
-const VARIANT_TABLE_HEADERS = [
-  "", "Color", "Size", "SKU", "Stock", "Min\nQty", "MRP\n(Excl. GST)", "Discount\n(%)",
-  "Selling Price\n(Excl. GST)", "GST\n(%)", "Selling Price\n(With GST)",
-  "Commission\n(% of SP w/ GST)", "Intra-City\nDelivery", "Metro-Metro\nDelivery",
-  "Total\n(Intra-City)", "Total\n(Metro-Metro)", "Actions",
-] as const;
+const getVariantTableHeaders = (sweetsProduct: boolean) => {
+  const dim = variantDimensionLabels(sweetsProduct);
+  return [
+    "",
+    dim.showColor ? "Color" : "—",
+    dim.sizeLabel,
+    "SKU",
+    "Stock",
+    "Min\nQty",
+    "MRP\n(Excl. GST)",
+    "Discount\n(%)",
+    "Selling Price\n(Excl. GST)",
+    "GST\n(%)",
+    "Selling Price\n(With GST)",
+    "Commission\n(% of SP w/ GST)",
+    "Intra-City\nDelivery",
+    "Metro-Metro\nDelivery",
+    "Total\n(Intra-City)",
+    "Total\n(Metro-Metro)",
+    "Actions",
+  ] as const;
+};
 
 const colWidth = (index: number) => ({ width: VARIANT_TABLE_COL_WIDTHS[index] });
 
@@ -931,16 +989,23 @@ const VariantsTableBody: React.FC<{
   variants: Variant[];
   onDelete: (id: string, label: string) => void;
   onEdit: (v: Variant) => void;
-}> = ({ variants, onDelete, onEdit }) => (
+  sweetsProduct?: boolean;
+}> = ({ variants, onDelete, onEdit, sweetsProduct = false }) => {
+  const dimLabels = variantDimensionLabels(sweetsProduct);
+  const headers = getVariantTableHeaders(sweetsProduct);
+  return (
   <View style={{ width: VARIANT_TABLE_WIDTH, minWidth: VARIANT_TABLE_WIDTH }}>
     <View style={vr.tableHead}>
-      {VARIANT_TABLE_HEADERS.map((col, i) => (
+      {headers.map((col, i) => (
         <View key={i} style={[vr.headCell, colWidth(i)]}>
           <Text style={vr.headTxt}>{col}</Text>
         </View>
       ))}
     </View>
-    {variants.map((v, idx) => (
+    {variants.map((v, idx) => {
+      const hideColor = !dimLabels.showColor || isSweetsPlaceholderColor(v.color);
+      const deleteLabel = hideColor ? v.size : `${v.color} - ${v.size}`;
+      return (
       <View key={v.id} style={[vr.tableRow, { backgroundColor: idx % 2 === 0 ? C.white : "#FAFBFF" }]}>
         <View style={[vr.cell, colWidth(0), { justifyContent: "center", gap: 4 }]}>
           {v.imageUri
@@ -950,8 +1015,14 @@ const VariantsTableBody: React.FC<{
           {v.videoUri ? <MaterialCommunityIcons name="video-outline" size={11} color={C.green} style={{ alignSelf: "center" }} /> : null}
         </View>
         <View style={[vr.cell, colWidth(1)]}>
-          <View style={[vr.colorDot, { backgroundColor: v.colorHex, borderWidth: v.color === "White" ? 1 : 0, borderColor: C.border }]} />
-          <Text style={vr.cellTxt} numberOfLines={1}>{v.color}</Text>
+          {hideColor ? (
+            <Text style={[vr.cellTxt, { color: C.textLight }]}>—</Text>
+          ) : (
+            <>
+              <View style={[vr.colorDot, { backgroundColor: v.colorHex, borderWidth: v.color === "White" ? 1 : 0, borderColor: C.border }]} />
+              <Text style={vr.cellTxt} numberOfLines={1}>{v.color}</Text>
+            </>
+          )}
         </View>
         <View style={[vr.cell, colWidth(2)]}><View style={vr.sizePill}><Text style={vr.sizePillTxt}>{v.size}</Text></View></View>
         <View style={[vr.cell, colWidth(3)]}><Text style={[vr.cellTxt, { fontSize: 10.5, color: C.textLight }]} numberOfLines={1}>{v.sku}</Text></View>
@@ -973,23 +1044,30 @@ const VariantsTableBody: React.FC<{
           </TouchableOpacity>
           <TouchableOpacity
             style={vr.deleteBtn}
-            onPress={() => onDelete(v.id, `${v.color} - ${v.size}`)}
+            onPress={() => onDelete(v.id, deleteLabel)}
           >
             <MaterialCommunityIcons name="trash-can-outline" size={14} color={C.white} />
           </TouchableOpacity>
         </View>
       </View>
-    ))}
+      );
+    })}
   </View>
-);
+  );
+};
 
-const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string, label: string) => void; onEdit: (v: Variant) => void }> = ({ variants, onDelete, onEdit }) => {
+const VariantsTable: React.FC<{
+  variants: Variant[];
+  onDelete: (id: string, label: string) => void;
+  onEdit: (v: Variant) => void;
+  sweetsProduct?: boolean;
+}> = ({ variants, onDelete, onEdit, sweetsProduct = false }) => {
   const useWebLayout = useProductDetailWebLayout();
   return (
   <View style={vr.tableWrap}>
     {useWebLayout ? (
       <View style={vr.tableScrollWeb}>
-        <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} />
+        <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       </View>
     ) : (
       <ScrollView
@@ -1000,7 +1078,7 @@ const VariantsTable: React.FC<{ variants: Variant[]; onDelete: (id: string, labe
         style={[vr.tableScroll, { marginHorizontal: -14 }]}
         contentContainerStyle={{ width: VARIANT_TABLE_WIDTH }}
       >
-        <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} />
+        <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       </ScrollView>
     )}
   </View>
@@ -1013,7 +1091,8 @@ const VariantsTab: React.FC<{
   onAdd: () => void;
   onDelete: (id: string, label: string) => void;
   onEdit: (v: Variant) => void;
-}> = ({ variants, onAdd, onDelete, onEdit }) => {
+  sweetsProduct?: boolean;
+}> = ({ variants, onAdd, onDelete, onEdit, sweetsProduct = false }) => {
   const [viewMode, setViewMode] = useState<VariantViewMode>("table");
 
   return (
@@ -1080,11 +1159,11 @@ const VariantsTab: React.FC<{
           <Text style={vr.emptySub}>Tap "Add" to create the first variant</Text>
         </View>
       ) : viewMode === "grid" ? (
-        <VariantsGrid variants={variants} onDelete={onDelete} onEdit={onEdit} />
+        <VariantsGrid variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       ) : viewMode === "list" ? (
-        <VariantsList variants={variants} onDelete={onDelete} onEdit={onEdit} />
+        <VariantsList variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       ) : (
-        <VariantsTable variants={variants} onDelete={onDelete} onEdit={onEdit} />
+        <VariantsTable variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       )}
     </>
   );
@@ -1170,6 +1249,7 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
   const leafSubcategory = resolveLeafSubcategory(p);
   const buyerInstructions = formatBuyerInstructionsForDisplay(p.customInstructions);
   const adminNotesVisible = hasAdminNotes(p.adminNotes);
+  const dimLabels = variantDimensionLabels(isProductSweets(p));
 
   if (useWebLayout) {
     return (
@@ -1183,8 +1263,10 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
           <InfoRow label="Category"    value={p.category}    />
           {middleCategory ? <InfoRow label="Category Group" value={middleCategory} /> : null}
           <InfoRow label="Subcategory" value={leafSubcategory} />
-          <InfoRow label="Color"       value={p.color}       />
-          <InfoRow label="Size"        value={p.size}        />
+          {dimLabels.showColor && !isSweetsPlaceholderColor(p.color) ? (
+            <InfoRow label={dimLabels.colorLabel} value={p.color} />
+          ) : null}
+          <InfoRow label={dimLabels.sizeLabel} value={p.size} />
           <InfoRow label="HSN Code"    value={p.hsnCode}     />
           <InfoRow label="GST"         value={p.gst} valueColor={C.orange} />
           <InfoRow label="Material"    value={p.material}    />
@@ -1233,7 +1315,18 @@ const OverviewTab: React.FC<{ p: Product }> = ({ p }) => {
   return (
     <>
       <SectionCard><SectionHeader icon="text-box-outline" title="Full Description" /><Text style={sub.descText}>{p.description}</Text></SectionCard>
-      <SectionCard><SectionHeader icon="tag-multiple-outline" title="Classification" /><InfoRow label="Category" value={p.category} />{middleCategory ? <InfoRow label="Category Group" value={middleCategory} /> : null}<InfoRow label="Subcategory" value={leafSubcategory} /><InfoRow label="Color" value={p.color} /><InfoRow label="Size" value={p.size} /><InfoRow label="HSN Code" value={p.hsnCode} /><InfoRow label="GST" value={p.gst} valueColor={C.orange} /></SectionCard>
+      <SectionCard>
+        <SectionHeader icon="tag-multiple-outline" title="Classification" />
+        <InfoRow label="Category" value={p.category} />
+        {middleCategory ? <InfoRow label="Category Group" value={middleCategory} /> : null}
+        <InfoRow label="Subcategory" value={leafSubcategory} />
+        {dimLabels.showColor && !isSweetsPlaceholderColor(p.color) ? (
+          <InfoRow label={dimLabels.colorLabel} value={p.color} />
+        ) : null}
+        <InfoRow label={dimLabels.sizeLabel} value={p.size} />
+        <InfoRow label="HSN Code" value={p.hsnCode} />
+        <InfoRow label="GST" value={p.gst} valueColor={C.orange} />
+      </SectionCard>
       <SectionCard><SectionHeader icon="warehouse" title="Inventory" /><InfoRow label="Stock Quantity" value={`${p.stock} units`} valueColor={C.green} /><InfoRow label="Status" value={displayStatus} valueColor={statusStyle.color} /><InfoRow label="Last Updated" value={p.updated} /><InfoRow label="Created At" value={p.createdAt} /><InfoRow label="Approved At" value={p.approvedAt} /></SectionCard>
       {adminNotesVisible ? (
         <SectionCard last><SectionHeader icon="bell-outline" title="Admin Notes" /><View style={sub.adminNoteBox}><Text style={sub.adminNoteText}>{p.adminNotes}</Text></View></SectionCard>
@@ -1489,11 +1582,15 @@ const WebHeroSection: React.FC<{
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
   const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
-  const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
+  const sweetsProduct = isProductSweets(p);
+  const dimLabels = variantDimensionLabels(sweetsProduct);
+  const lowestVariantLabel = formatLowestVariantLabel(displayVariant, sweetsProduct);
   const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
   const displayDiscount = displayVariant?.discount ?? p.discount;
   const [variantImage, setVariantImage] = useState<string | null>(null);
-  const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
+  const uniqueColors = sweetsProduct
+    ? []
+    : variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
   const galleryImages = p.images.filter(img => img && img.trim().length > 0);
   const heroImages = galleryImages.length > 0 ? galleryImages : [""];
@@ -1578,10 +1675,12 @@ const WebHeroSection: React.FC<{
 
           <View style={wh.detailCard}>
             <View style={wh.detailLine}>
-              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Color</Text><Text style={wh.detailValue}>{displayVariant?.color ?? p.color}</Text></View>
-              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Size</Text><Text style={wh.detailValue}>{displayVariant?.size ?? p.size}</Text></View>
+              {dimLabels.showColor && !isSweetsPlaceholderColor(displayVariant?.color ?? p.color) ? (
+                <View style={wh.detailCellInline}><Text style={wh.detailLabel}>{dimLabels.colorLabel}</Text><Text style={wh.detailValue}>{displayVariant?.color ?? p.color}</Text></View>
+              ) : null}
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>{dimLabels.sizeLabel}</Text><Text style={wh.detailValue}>{displayVariant?.size ?? p.size}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Material</Text><Text style={wh.detailValue}>{p.material}</Text></View>
-              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Weight</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
+              <View style={wh.detailCellInline}><Text style={wh.detailLabel}>{sweetsProduct ? "Product Weight" : "Weight"}</Text><Text style={wh.detailValue}>{p.weight}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>HSN Code</Text><Text style={wh.detailValue}>{p.hsnCode}</Text></View>
               <View style={wh.detailCellInline}><Text style={wh.detailLabel}>Warranty</Text><Text style={[wh.detailValue, { color: C.navy }]}>{p.warranty}</Text></View>
               {minQuantity != null ? (
@@ -1622,7 +1721,7 @@ const WebHeroSection: React.FC<{
 
           {uniqueSizes.length > 0 && (
             <View style={wh.sizesSection}>
-              <Text style={wh.sizesLabel}>Available Sizes</Text>
+              <Text style={wh.sizesLabel}>{sweetsProduct ? "Available Weights" : "Available Sizes"}</Text>
               <View style={wh.sizePills}>
                 {uniqueSizes.map((size, idx) => (
                   <View key={idx} style={wh.sizeChip}>
@@ -1637,7 +1736,7 @@ const WebHeroSection: React.FC<{
 
           <View style={wh.attrRow}>
             {([
-              { label: "Size", value: p.size },
+              { label: dimLabels.sizeLabel, value: p.size },
               { label: "Delivery", value: p.delivery.estimated },
               { label: "Stock", value: `${p.stock} units` },
             ]).map(a => (
@@ -1746,7 +1845,11 @@ const ProductDetailScreen: React.FC = () => {
     setP(view.product);
     setVariants(view.variants);
     setAddAlertTitle("Variant Added");
-    setAddAlertSubtitle(`${form.color} · Size ${form.size} variant added successfully.`);
+    setAddAlertSubtitle(
+      isProductSweets(view.product) || isSweetsPlaceholderColor(form.color)
+        ? `Weight ${form.size} variant added successfully.`
+        : `${form.color} · Size ${form.size} variant added successfully.`
+    );
     setShowAddAlert(true);
     setTimeout(() => setShowAddAlert(false), 1700);
   }, [id]);
@@ -1800,7 +1903,11 @@ const ProductDetailScreen: React.FC = () => {
     setP(view.product);
     setVariants(view.variants);
     setAddAlertTitle("Variant Updated");
-    setAddAlertSubtitle(`${form.color} · Size ${form.size} variant updated successfully.`);
+    setAddAlertSubtitle(
+      isProductSweets(view.product) || isSweetsPlaceholderColor(form.color)
+        ? `Weight ${form.size} variant updated successfully.`
+        : `${form.color} · Size ${form.size} variant updated successfully.`
+    );
     setShowAddAlert(true);
     setTimeout(() => setShowAddAlert(false), 1700);
   }, [id, editingVariant]);
@@ -1835,11 +1942,15 @@ const ProductDetailScreen: React.FC = () => {
   const st = getStatusStyle(displayStatus);
   const leafSubcategory = resolveLeafSubcategory(p);
   const { totalMetro, mrpInclGst, displayVariant } = getHeroPricing(p, variants);
-  const lowestVariantLabel = formatLowestVariantLabel(displayVariant);
+  const sweetsProduct = isProductSweets(p);
+  const dimLabels = variantDimensionLabels(sweetsProduct);
+  const lowestVariantLabel = formatLowestVariantLabel(displayVariant, sweetsProduct);
   const minQuantity = resolveMinQuantity(variants, displayVariant, p.minQuantity);
   const displayDiscount = displayVariant?.discount ?? p.discount;
 
-  const uniqueColors = variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
+  const uniqueColors = sweetsProduct
+    ? []
+    : variants.filter((v, i, arr) => arr.findIndex(x => x.color === v.color) === i);
   const uniqueSizes = [...new Set(variants.map(v => v.size))];
 
   // ─── WEB LAYOUT (wide screens only) ───────────────────────
@@ -1910,6 +2021,7 @@ const ProductDetailScreen: React.FC = () => {
                   onAdd={() => setShowAddVariant(true)}
                   onDelete={requestDeleteVariant}
                   onEdit={handleEditVariant}
+                  sweetsProduct={sweetsProduct}
                 />
               )}
               {activeTab === "specifications" && <SpecsTab    p={p} />}
@@ -2057,7 +2169,7 @@ const ProductDetailScreen: React.FC = () => {
 
           {uniqueSizes.length > 0 && (
             <View style={s.sizesSection}>
-              <Text style={s.sizesLabel}>Available Sizes</Text>
+              <Text style={s.sizesLabel}>{sweetsProduct ? "Available Weights" : "Available Sizes"}</Text>
               <View style={s.sizePills}>
                 {uniqueSizes.map((size, idx) => (
                   <View key={idx} style={s.sizeChipHero}>
@@ -2070,10 +2182,12 @@ const ProductDetailScreen: React.FC = () => {
 
           <View style={s.attrRow}>
             {([
-              { label: "Color",    value: displayVariant?.color ?? p.color },
-              { label: "Size",     value: displayVariant?.size ?? p.size },
+              ...(dimLabels.showColor && !isSweetsPlaceholderColor(displayVariant?.color ?? p.color)
+                ? [{ label: dimLabels.colorLabel, value: displayVariant?.color ?? p.color }]
+                : []),
+              { label: dimLabels.sizeLabel, value: displayVariant?.size ?? p.size },
               { label: "Material", value: p.material },
-              { label: "Weight",   value: p.weight   },
+              { label: sweetsProduct ? "Product Weight" : "Weight", value: p.weight },
               ...(minQuantity != null ? [{ label: "Min Order", value: `${minQuantity} units` }] : []),
             ]).map(a => (
               <View key={a.label} style={s.attrChip}>
@@ -2117,6 +2231,7 @@ const ProductDetailScreen: React.FC = () => {
               onAdd={() => setShowAddVariant(true)}
               onDelete={requestDeleteVariant}
               onEdit={handleEditVariant}
+              sweetsProduct={sweetsProduct}
             />
           )}
           {activeTab === "specifications" && <SpecsTab    p={p} />}

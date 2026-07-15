@@ -19,6 +19,21 @@ import {
     normalizeHex,
 } from "./catalogConfig";
 import { useResponsive } from "@/hooks/useResponsive";
+import {
+    SIZE_CATALOG_GROUPS,
+    classifySizeCatalog,
+    sizeCatalogGroupLabel,
+    type SizeCatalogGroupId,
+} from "@/lib/sizeCatalogGroups";
+
+const CATALOG_EXAMPLES: Record<SizeCatalogGroupId, { name: string; code: string }> = {
+    apparel: { name: "M", code: "M" },
+    footwear: { name: "UK 8", code: "UK-8" },
+    waist: { name: "32", code: "32" },
+    kids: { name: "2-3Y", code: "2-3Y" },
+    free: { name: "Free Size", code: "FS" },
+    other: { name: "Custom", code: "CUSTOM" },
+};
 
 // ─── Warning bullets ─────────────────────────────────────────────────────────
 
@@ -148,14 +163,20 @@ export function AddCatalogModal({
                 if (ok) {
                     reset();
                     onClose();
-                    notifySuccess("Your size has been updated successfully.");
+                    const groupLabel = sizeCatalogGroupLabel(
+                        classifySizeCatalog(payload.name, payload.code)
+                    );
+                    notifySuccess(`Size updated — visible under ${groupLabel}.`);
                 }
             } else {
                 ok = (await onSaveSize(payload)) !== false;
                 if (ok) {
                     reset();
                     onClose();
-                    notifySuccess("Your size has been added successfully.");
+                    const groupLabel = sizeCatalogGroupLabel(
+                        classifySizeCatalog(payload.name, payload.code)
+                    );
+                    notifySuccess(`Size added — visible under ${groupLabel}.`);
                 }
             }
         } finally {
@@ -266,6 +287,34 @@ export function AddCatalogModal({
                                     autoCapitalize="characters"
                                 />
                                 <Text style={m.helper}>{config.codeHelper}</Text>
+
+                                <Text style={m.label}>Catalog type examples</Text>
+                                <View style={m.catalogChipRow}>
+                                    {SIZE_CATALOG_GROUPS.map((g) => (
+                                        <TouchableOpacity
+                                            key={g.id}
+                                            style={m.catalogChip}
+                                            onPress={() => {
+                                                const eg = CATALOG_EXAMPLES[g.id];
+                                                setName(eg.name);
+                                                setCode(eg.code);
+                                            }}
+                                            activeOpacity={0.85}
+                                        >
+                                            <Text style={m.catalogChipTxt}>{g.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <View style={m.catalogMatchBox}>
+                                    <Text style={m.catalogMatchLabel}>Will appear under</Text>
+                                    <Text style={m.catalogMatchValue}>
+                                        {sizeCatalogGroupLabel(classifySizeCatalog(name, code))}
+                                    </Text>
+                                    <Text style={m.catalogMatchHint}>
+                                        Auto-matched from name + code. After save, this size shows in that catalog tab.
+                                    </Text>
+                                </View>
                             </>
                         )}
 
@@ -448,6 +497,51 @@ const m = StyleSheet.create({
         color: "#6B7280",
         marginBottom: 8,
         lineHeight: 17,
+    },
+    catalogChipRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginBottom: 12,
+    },
+    catalogChip: {
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "#FED7AA",
+        backgroundColor: "#FFF7ED",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    catalogChipTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 11,
+        color: "#C2410C",
+    },
+    catalogMatchBox: {
+        backgroundColor: "#FFF7ED",
+        borderWidth: 1,
+        borderColor: "#FED7AA",
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+    },
+    catalogMatchLabel: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 11,
+        color: "#9A3412",
+        marginBottom: 2,
+    },
+    catalogMatchValue: {
+        fontFamily: "Outfit_700Bold",
+        fontSize: 15,
+        color: ORANGE_BRAND,
+    },
+    catalogMatchHint: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 11,
+        color: "#9A3412",
+        marginTop: 4,
+        lineHeight: 15,
     },
     select: {
         flexDirection: "row",

@@ -29,6 +29,11 @@ import {
     type VariantPricingResult,
 } from "@/lib/product/variantPricing";
 import {
+    isSweetsCategory,
+    variantDimensionLabels,
+    SWEETS_DEFAULT_COLOR,
+} from "@/lib/product/sweetsCategory";
+import {
     fetchVariantPricingPreview,
     type ProductFormCatalog,
     type ProductDetailVariant,
@@ -188,12 +193,14 @@ function SizePickerModal({
     selected,
     onSelect,
     onClose,
+    title = "Select Size",
 }: {
     visible: boolean;
     options: string[];
     selected: string;
     onSelect: (val: string) => void;
     onClose: () => void;
+    title?: string;
 }) {
     const { isDesktop } = useResponsive();
     const items = uniquePickerOptions(options);
@@ -204,7 +211,7 @@ function SizePickerModal({
                 <View style={[pm.sheet, isDesktop && pm.popup]}>
                     {!isDesktop && <View style={pm.drag} />}
                     <View style={pm.hdr}>
-                        <AppText style={pm.title}>Select Size</AppText>
+                        <AppText style={pm.title}>{title}</AppText>
                         <TouchableOpacity onPress={onClose} style={pm.closeBtn}>
                             <Ionicons name="close" size={18} color={C.textMid} />
                         </TouchableOpacity>
@@ -439,7 +446,21 @@ export function ProductVariantFormCard({
         () => catalogSizes.map((sz) => (sz.name === sz.code ? sz.name : `${sz.name} (${sz.code})`)),
         [catalogSizes],
     );
-    const catalogReady = catalogColors.length > 0 && catalogSizes.length > 0;
+    const sweetsProduct = isSweetsCategory(
+        context.category,
+        context.categorySubName,
+    );
+    const dimLabels = variantDimensionLabels(sweetsProduct);
+    const catalogReady = sweetsProduct
+        ? catalogSizes.length > 0
+        : catalogColors.length > 0 && catalogSizes.length > 0;
+
+    useEffect(() => {
+        if (!sweetsProduct) return;
+        if (String(state.color ?? "").trim()) return;
+        onChange({ ...state, color: SWEETS_DEFAULT_COLOR });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sweetsProduct]);
 
     const weightKg = parseFloat(String(context.weight ?? "").trim());
     const hasWeight = Number.isFinite(weightKg) && weightKg > 0;
@@ -560,7 +581,9 @@ export function ProductVariantFormCard({
         return (
             <View style={s.loadingWrap}>
                 <AppText style={s.loadingTxt}>
-                    No colors or sizes in your catalog. Add them from product settings first.
+                    {sweetsProduct
+                        ? "No weights/packs in your size catalog. Add size entries (e.g. 500 grams) first."
+                        : "No colors or sizes in your catalog. Add them from product settings first."}
                 </AppText>
             </View>
         );
@@ -581,20 +604,22 @@ export function ProductVariantFormCard({
             ) : null}
 
             <View style={[s.row2, Platform.OS === "web" && { zIndex: 20 }]}>
+                {dimLabels.showColor ? (
+                    <View style={{ flex: 1 }}>
+                        <Lbl text={dimLabels.colorLabel} required />
+                        <ColorSelectField
+                            placeholder="Select color"
+                            value={state.color}
+                            {...(selectedColorHex ? { hex: selectedColorHex } : {})}
+                            onPress={() => setShowColorPicker(true)}
+                        />
+                    </View>
+                ) : null}
                 <View style={{ flex: 1 }}>
-                    <Lbl text="Color" required />
-                    <ColorSelectField
-                        placeholder="Select color"
-                        value={state.color}
-                        {...(selectedColorHex ? { hex: selectedColorHex } : {})}
-                        onPress={() => setShowColorPicker(true)}
-                    />
-                </View>
-                <View style={{ flex: 1 }}>
-                    <Lbl text="Size" required />
+                    <Lbl text={dimLabels.sizeLabel} required />
                     <TouchableOpacity style={s.drop} onPress={() => setShowSizePicker(true)} activeOpacity={0.85}>
                         <AppText style={[s.dropText, !state.size && s.dropPh]} numberOfLines={1}>
-                            {state.size || "Select size"}
+                            {state.size || dimLabels.sizePlaceholder}
                         </AppText>
                         <Ionicons name="chevron-down" size={15} color={C.textLight} />
                     </TouchableOpacity>
@@ -689,22 +714,26 @@ export function ProductVariantFormCard({
                 onRemove={(i) => patch({ images: state.images.filter((_, idx) => idx !== i) })}
             />
 
-            <ColorPickerModal
-                visible={showColorPicker}
-                colors={catalogColors}
-                selected={state.color}
-                onSelect={(color) => patch({ color: color.name, colorId: color.id })}
-                onClose={() => setShowColorPicker(false)}
-            />
+            {dimLabels.showColor ? (
+                <ColorPickerModal
+                    visible={showColorPicker}
+                    colors={catalogColors}
+                    selected={state.color}
+                    onSelect={(color) => patch({ color: color.name, colorId: color.id })}
+                    onClose={() => setShowColorPicker(false)}
+                />
+            ) : null}
             <SizePickerModal
                 visible={showSizePicker}
                 options={sizeOptions}
                 selected={state.size}
+                title={dimLabels.sizeSelectTitle}
                 onSelect={(val) => {
                     const size = resolveSizeFromLabel(val);
                     patch({
                         size: size?.name ?? val,
                         ...(size?.id != null ? { sizeId: size.id } : {}),
+                        ...(sweetsProduct ? { color: SWEETS_DEFAULT_COLOR } : {}),
                     });
                 }}
                 onClose={() => setShowSizePicker(false)}

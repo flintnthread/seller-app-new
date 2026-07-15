@@ -81,16 +81,18 @@ export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
 export const SIZE_PAGE_CONFIG: CatalogPageConfig = {
     kind: "size",
     pageTitle: "Sizes",
-    pageSubtitle: "Manage sizes you added. Shared catalog sizes are view only.",
+    pageSubtitle:
+        "Sizes stay in one catalog database. Browse by Apparel, Footwear, Waist, Kids, Free Size, or Other.",
     addModalTitle: "Add New Size",
     saveButtonLabel: "Save Size",
     entityLabel: "size",
     warningEntity: "size",
     nameLabel: "Size Name",
-    namePlaceholder: "e.g., Extra Large, Medium, Small",
+    namePlaceholder: "e.g. M, UK 8, 32, 2-3Y, Free Size",
     codeLabel: "Size Code",
-    codePlaceholder: "e.g., XL, M, S",
-    codeHelper: "Short code for the size (e.g., XS, S, M, L, XL, XXL)",
+    codePlaceholder: "e.g. M, UK-8, 32, 2-3Y, FS",
+    codeHelper:
+        "Naming decides the tab: Apparel (XS–4XL), Footwear (UK/EU/US), Waist (26–44), Kids (2-3Y), Free Size (FS/OS).",
 };
 
 export const normalizeHex = (value: string) => {

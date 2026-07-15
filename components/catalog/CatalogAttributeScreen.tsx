@@ -46,6 +46,15 @@ import {
 } from "@/services/sizeApi";
 import { ensureSellerId, hydrateSellerSession } from "@/lib/api/sellerSession";
 import { getApiDebugInfo } from "@/lib/api/config";
+import {
+    SIZE_CATALOG_ALL,
+    SIZE_CATALOG_GROUPS,
+    classifySizeCatalog,
+    countSizesByCatalogGroup,
+    filterSizesByCatalogGroup,
+    sizeCatalogGroupLabel,
+    type SizeCatalogFilterId,
+} from "@/lib/sizeCatalogGroups";
 
 type CatalogAttributeScreenProps = {
     config: CatalogPageConfig;
@@ -67,6 +76,8 @@ export function CatalogAttributeScreen({
     const useCatalogCards = !isWeb || isMobile;
     const tableMinWidth = Math.max(640, Math.min(900, width - 24));
     const [search, setSearch] = useState("");
+    const [sizeCatalogFilter, setSizeCatalogFilter] =
+        useState<SizeCatalogFilterId>(SIZE_CATALOG_ALL);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingSize, setEditingSize] = useState<SizeRecord | null>(null);
     const [editingColor, setEditingColor] = useState<ColorRecord | null>(null);
@@ -84,7 +95,7 @@ export function CatalogAttributeScreen({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, viewType]);
+    }, [search, viewType, sizeCatalogFilter]);
 
     const loadCatalog = useCallback(async () => {
         await hydrateSellerSession();
@@ -128,18 +139,26 @@ export function CatalogAttributeScreen({
 
     const items = config.kind === "color" ? colors : sizes;
 
+    const sizeCatalogCounts = useMemo(
+        () => (config.kind === "size" ? countSizesByCatalogGroup(sizes) : null),
+        [config.kind, sizes]
+    );
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return items;
         if (config.kind === "color") {
-            return (items as ColorRecord[]).filter(
+            const list = items as ColorRecord[];
+            if (!q) return list;
+            return list.filter(
                 (c) => c.name.toLowerCase().includes(q) || c.hex.toLowerCase().includes(q)
             );
         }
-        return (items as SizeRecord[]).filter(
+        const byGroup = filterSizesByCatalogGroup(items as SizeRecord[], sizeCatalogFilter);
+        if (!q) return byGroup;
+        return byGroup.filter(
             (s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
         );
-    }, [items, search, config.kind]);
+    }, [items, search, config.kind, sizeCatalogFilter]);
 
     const activeCount = items.filter((i) => i.status === "Active").length;
 
@@ -223,6 +242,9 @@ export function CatalogAttributeScreen({
         try {
             const created = await createSize(payload);
             setSizes((prev) => [created, ...prev]);
+            setSizeCatalogFilter(classifySizeCatalog(created.name, created.code));
+            setSearch("");
+            setCurrentPage(1);
             return true;
         } catch (e) {
             showError(e instanceof Error ? e.message : "Could not save size.");
@@ -240,6 +262,8 @@ export function CatalogAttributeScreen({
         try {
             const updated = await updateSize(id, payload);
             setSizes((prev) => prev.map((s) => (s.id === id ? updated : s)));
+            setSizeCatalogFilter(classifySizeCatalog(updated.name, updated.code));
+            setCurrentPage(1);
             return true;
         } catch (e) {
             showError(e instanceof Error ? e.message : "Could not update size.");
@@ -398,6 +422,46 @@ export function CatalogAttributeScreen({
                 )}
             </View>
 
+            {config.kind === "size" && sizeCatalogCounts ? (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={pg.catalogTabsRow}
+                    style={pg.catalogTabsScroll}
+                >
+                    <TouchableOpacity
+                        style={[
+                            pg.catalogTab,
+                            sizeCatalogFilter === SIZE_CATALOG_ALL && pg.catalogTabActive,
+                        ]}
+                        onPress={() => setSizeCatalogFilter(SIZE_CATALOG_ALL)}
+                    >
+                        <Text
+                            style={[
+                                pg.catalogTabTxt,
+                                sizeCatalogFilter === SIZE_CATALOG_ALL && pg.catalogTabTxtActive,
+                            ]}
+                        >
+                            All ({sizeCatalogCounts.all})
+                        </Text>
+                    </TouchableOpacity>
+                    {SIZE_CATALOG_GROUPS.map((g) => {
+                        const active = sizeCatalogFilter === g.id;
+                        return (
+                            <TouchableOpacity
+                                key={g.id}
+                                style={[pg.catalogTab, active && pg.catalogTabActive]}
+                                onPress={() => setSizeCatalogFilter(g.id)}
+                            >
+                                <Text style={[pg.catalogTabTxt, active && pg.catalogTabTxtActive]}>
+                                    {g.label} ({sizeCatalogCounts[g.id]})
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            ) : null}
+
             {useCatalogCards && (
                 <View style={pg.mobileList}>
                     {catalogLoading ? (
@@ -489,9 +553,14 @@ export function CatalogAttributeScreen({
                             return (
                                 <View key={s.id} style={[pg.sizeCard, !isWeb && pg.sizeCardNative]}>
                                     <View style={pg.sizeCardTop}>
-                                        <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
-                                            {s.name}
-                                        </Text>
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
+                                                {s.name}
+                                            </Text>
+                                            <Text style={pg.sizeCatalogLabel} numberOfLines={1}>
+                                                {sizeCatalogGroupLabel(classifySizeCatalog(s.name, s.code))}
+                                            </Text>
+                                        </View>
                                         <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
                                             <Text
                                                 style={[
@@ -584,6 +653,7 @@ export function CatalogAttributeScreen({
                                         <>
                                             <Text style={[pg.th, pg.colName]}>Size Name</Text>
                                             <Text style={[pg.th, pg.colCode]}>Code</Text>
+                                            <Text style={[pg.th, pg.colCatalog]}>Catalog</Text>
                                         </>
                                     )}
                                     <Text style={[pg.th, pg.colStatus]}>Status</Text>
@@ -678,6 +748,9 @@ export function CatalogAttributeScreen({
                                                     {s.name}
                                                 </Text>
                                                 <Text style={[pg.tdMono, pg.colCode]}>{s.code}</Text>
+                                                <Text style={[pg.tdCatalog, pg.colCatalog]} numberOfLines={1}>
+                                                    {sizeCatalogGroupLabel(classifySizeCatalog(s.name, s.code))}
+                                                </Text>
                                                 <View style={pg.colStatus}>
                                                     <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
                                                         <Text style={[pg.badgeTxt, isActive ? pg.badgeTxtOn : pg.badgeTxtOff]}>
@@ -767,6 +840,9 @@ export function CatalogAttributeScreen({
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={pg.gridCardTitle} numberOfLines={1}>{s.name}</Text>
                                                     <Text style={pg.gridCardMeta}>{s.code}</Text>
+                                                    <Text style={pg.sizeCatalogLabel}>
+                                                        {sizeCatalogGroupLabel(classifySizeCatalog(s.name, s.code))}
+                                                    </Text>
                                                 </View>
                                                 <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
                                                     <Text style={[pg.badgeTxt, isActive ? pg.badgeTxtOn : pg.badgeTxtOff]}>{s.status}</Text>
@@ -1144,6 +1220,49 @@ const pg = StyleSheet.create({
         gap: 10,
         marginBottom: 16,
     },
+    catalogTabsScroll: {
+        marginBottom: 14,
+        marginTop: -4,
+    },
+    catalogTabsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingVertical: 2,
+        paddingRight: 8,
+    },
+    catalogTab: {
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    catalogTabActive: {
+        backgroundColor: ORANGE_BRAND,
+        borderColor: ORANGE_BRAND,
+    },
+    catalogTabTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 12,
+        color: "#6B7280",
+    },
+    catalogTabTxtActive: {
+        color: "#FFFFFF",
+    },
+    sizeCatalogLabel: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 11,
+        color: ORANGE_BRAND,
+        marginTop: 2,
+    },
+    tdCatalog: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 13,
+        color: ORANGE_BRAND,
+    },
+    colCatalog: { flex: 1.1, paddingRight: 8 },
     searchInputWrap: {
         flexDirection: "row",
         alignItems: "center",

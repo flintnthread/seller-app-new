@@ -27,6 +27,11 @@ import {
     findCategorySubForProductSub,
 } from "@/lib/product/categoryPaths";
 import {
+    isSweetsCategory,
+    variantDimensionLabels,
+    SWEETS_DEFAULT_COLOR,
+} from "@/lib/product/sweetsCategory";
+import {
     newCustomBuyerField,
     validateCustomBuyerFields,
     CUSTOM_BUYER_FIELD_TYPES,
@@ -907,12 +912,14 @@ const validateBasicInfo = (data: any): string[] => {
     return e;
 };
 
-const validateVariants = (variants: any[]): string[] => {
+const validateVariants = (variants: any[], opts?: { sweets?: boolean }): string[] => {
     const e: string[] = [];
+    const sweets = opts?.sweets === true;
+    const sizeWord = sweets ? "Weight" : "Size";
     variants.forEach((v, i) => {
         const n = i + 1;
-        if (!v.color) e.push(`Variant #${n}: Color is required`);
-        if (!v.size) e.push(`Variant #${n}: Size is required`);
+        if (!sweets && !v.color) e.push(`Variant #${n}: Color is required`);
+        if (!v.size) e.push(`Variant #${n}: ${sizeWord} is required`);
         if (!v.stock?.trim()) e.push(`Variant #${n}: Stock Qty is required`);
         if (!v.mrp?.trim()) e.push(`Variant #${n}: MRP is required`);
         if (!v.sellingPrice?.trim()) e.push(`Variant #${n}: Selling Price is required`);
@@ -2529,7 +2536,15 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
     const sizeOptions = catalogSizes.map((s) =>
         s.name === s.code ? s.name : `${s.name} (${s.code})`
     );
-    const catalogReady = catalogColors.length > 0 && catalogSizes.length > 0;
+    const sweetsProduct = isSweetsCategory(
+        basicData?.category,
+        basicData?.categorySubName,
+        basicData?.subcategory
+    );
+    const dimLabels = variantDimensionLabels(sweetsProduct);
+    const catalogReady = sweetsProduct
+        ? catalogSizes.length > 0
+        : catalogColors.length > 0 && catalogSizes.length > 0;
 
     const fallbackDelivery = resolveDeliveryCharges(
         {
@@ -2622,7 +2637,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         );
 
     const addVariant = () => {
-        const validationErrors = validateVariants(variants);
+        const validationErrors = validateVariants(variants, { sweets: sweetsProduct });
         if (validationErrors.length > 0) {
             onValidationFail?.(validationErrors);
             return;
@@ -2630,7 +2645,19 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         const id = Date.now().toString();
         setVariants((p: Variant[]) => [
             ...p,
-            { id, color: "", size: "", sku: "", stock: "", minQuantity: "", mrp: "", sellingPrice: "", discount: "0", images: [], videoUrl: "" },
+            {
+                id,
+                color: sweetsProduct ? SWEETS_DEFAULT_COLOR : "",
+                size: "",
+                sku: "",
+                stock: "",
+                minQuantity: "",
+                mrp: "",
+                sellingPrice: "",
+                discount: "0",
+                images: [],
+                videoUrl: "",
+            },
         ]);
     };
 
@@ -2684,6 +2711,9 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
 
     const withAutoFields = (variant: Variant, index: number): Variant => {
         let next = { ...variant };
+        if (sweetsProduct && !String(next.color ?? "").trim()) {
+            next.color = SWEETS_DEFAULT_COLOR;
+        }
         if (next.color && next.size) {
             next.sku = generateVariantSku(
                 productName,
@@ -2756,25 +2786,28 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     </View>
                     <Divider />
                     <View style={[at.row2, Platform.OS === 'web' && { zIndex: 20 }]}>
-                        <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "color")}>
-                            <Lbl text="Color" required />
-                            <ColorSelectField
-                                placeholder="Select color"
-                                value={v.color}
-                                {...(() => {
-                                    const colorHex = catalogColors.find((c) => c.name === v.color)?.hex;
-                                    return colorHex ? { hex: colorHex } : {};
-                                })()}
-                                hasError={hasErr(v.id, "color")}
-                                onPress={() => openColorPicker(v.id)}
-                            />
-                        </View>
+                        {dimLabels.showColor ? (
+                            <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "color")}>
+                                <Lbl text={dimLabels.colorLabel} required />
+                                <ColorSelectField
+                                    placeholder="Select color"
+                                    value={v.color}
+                                    {...(() => {
+                                        const colorHex = catalogColors.find((c) => c.name === v.color)?.hex;
+                                        return colorHex ? { hex: colorHex } : {};
+                                    })()}
+                                    hasError={hasErr(v.id, "color")}
+                                    onPress={() => openColorPicker(v.id)}
+                                />
+                            </View>
+                        ) : null}
                         <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "size")}>
-                            <Lbl text="Size" required />
-                            <Drop dropKey={`variant-${v.id}-size`} placeholder="Select size" value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size")} options={sizeOptions} onSelect={(val: string) => {
+                            <Lbl text={dimLabels.sizeLabel} required />
+                            <Drop dropKey={`variant-${v.id}-size`} placeholder={dimLabels.sizePlaceholder} value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size") || hasErr(v.id, "weight")} options={sizeOptions} onSelect={(val: string) => {
                                 const size = resolveSizeFromLabel(val);
                                 patchVariant(v.id, {
                                     size: size?.name ?? val,
+                                    color: sweetsProduct ? SWEETS_DEFAULT_COLOR : v.color,
                                     ...(size?.id != null ? { sizeId: size.id } : {}),
                                 });
                             }} />
@@ -2893,7 +2926,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
             </View>
 
             <ColorPickerModal
-                visible={!!clrPick}
+                visible={dimLabels.showColor && !!clrPick}
                 colors={catalogColors}
                 selected={variants.find((v: Variant) => v.id === clrPick)?.color || ""}
                 onSelect={(color) => {
@@ -2904,7 +2937,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
             />
             <PM
                 visible={!!szPick}
-                title="Select Size"
+                title={dimLabels.sizeSelectTitle}
                 options={sizeOptions}
                 selected={variants.find((v: Variant) => v.id === szPick)?.size || ""}
                 onSelect={(val: string) => {
@@ -2912,6 +2945,7 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                     const size = resolveSizeFromLabel(val);
                     patchVariant(szPick, {
                         size: size?.name ?? val,
+                        color: sweetsProduct ? SWEETS_DEFAULT_COLOR : undefined,
                         ...(size?.id != null ? { sizeId: size.id } : {}),
                     });
                 }}
@@ -4453,7 +4487,13 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             setBasicErrors([]);
         }
         if (step === 1) {
-            const errors = validateVariants(variants);
+            const errors = validateVariants(variants, {
+                sweets: isSweetsCategory(
+                    basicData.category,
+                    basicData.categorySubName,
+                    basicData.subcategory
+                ),
+            });
             setVariantErrors(errors);
             if (errors.length > 0) {
                 showErrors(errors);
@@ -4481,7 +4521,13 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     // ── handleSave: validate first, then show SweetAlert confirm ──
     const handleSave = () => {
         const basicErrs = validateBasicInfo(basicData);
-        const variantErrs = validateVariants(variants);
+        const variantErrs = validateVariants(variants, {
+            sweets: isSweetsCategory(
+                basicData.category,
+                basicData.categorySubName,
+                basicData.subcategory
+            ),
+        });
         const imageErrs = validateImages(imagesData);
         const detailErrs = validateDetails(detailsData);
         const allErrors = [...basicErrs, ...variantErrs, ...imageErrs, ...detailErrs];
@@ -4557,7 +4603,13 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     const handleUpdate = async () => {
         if (!editProductId || !isDirty || savingUpdate) return;
         const basicErrs = validateBasicInfo(basicData);
-        const variantErrs = validateVariants(variants);
+        const variantErrs = validateVariants(variants, {
+            sweets: isSweetsCategory(
+                basicData.category,
+                basicData.categorySubName,
+                basicData.subcategory
+            ),
+        });
         const imageErrs = validateImages(imagesData);
         const detailErrs = validateDetails(detailsData);
         const allErrors = [...basicErrs, ...variantErrs, ...imageErrs, ...detailErrs];
