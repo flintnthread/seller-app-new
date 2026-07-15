@@ -80,21 +80,32 @@ function parseIntSafe(value: string): number {
 }
 
 /**
- * Ensure every local/picked image is uploaded to seller-service disk first.
- * Create/update payloads store relative paths: uploads/products/{file}.
+ * Ensure every local/picked image is uploaded to Cloudinary first.
+ * - New images → Cloudinary HTTPS URL
+ * - Existing Cloudinary URLs → keep as-is
+ * - Old local paths (uploads/products/...) → keep path as-is (legacy)
  */
 async function toStoredImageSource(uri: string): Promise<string> {
     const trimmed = uri?.trim();
     if (!trimmed) return "";
-    if (/^uploads\/products\//i.test(trimmed) || /^\/uploads\/products\//i.test(trimmed)) {
+    // Legacy local-disk paths — do not re-upload
+    if (/^uploads\//i.test(trimmed) || /^\/uploads\//i.test(trimmed)) {
         return trimmed.replace(/^\//, "");
     }
+    if (/^https?:\/\/res\.cloudinary\.com\//i.test(trimmed)) {
+        return trimmed;
+    }
+    // Absolute URL pointing at old uploads folder — keep relative path
     if (/^https?:\/\//i.test(trimmed) && /\/uploads\/products\//i.test(trimmed)) {
         try {
             return new URL(trimmed).pathname.replace(/^\//, "");
         } catch {
             /* re-upload */
         }
+    }
+    // Already a remote URL (non-uploads) — keep
+    if (/^https?:\/\//i.test(trimmed) && !/\/uploads\//i.test(trimmed)) {
+        return trimmed;
     }
     return uploadProductImage(trimmed);
 }

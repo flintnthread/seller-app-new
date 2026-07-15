@@ -47,6 +47,10 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
     }
 
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        // Cloudinary secure_url — never rewrite onto local seller host
+        if (/res\.cloudinary\.com|cloudinary\.com/i.test(trimmed)) {
+            return trimmed;
+        }
         try {
             const parsed = new URL(trimmed);
             if (parsed.pathname.includes("/uploads/")) {

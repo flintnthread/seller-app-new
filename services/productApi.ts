@@ -755,27 +755,26 @@ export async function createProduct(payload: CreateProductPayload): Promise<Crea
 }
 
 /**
- * Upload a local product image to seller-service (saved under uploads/products/).
- * Returns the relative path for create/update payloads (e.g. uploads/products/abc.jpg).
+ * Upload a local image to Cloudinary via seller-service.
+ * Returns the absolute HTTPS secure_url stored in product_images.image_path.
+ * Legacy uploads/products paths are returned unchanged (not re-uploaded).
  */
 export async function uploadProductImage(localUri: string): Promise<string> {
     const trimmed = localUri?.trim();
     if (!trimmed) {
         throw new Error("Image URI is required.");
     }
-    // Already a stored relative path
-    if (/^uploads\/products\//i.test(trimmed) || /^\/uploads\/products\//i.test(trimmed)) {
+    if (/^https?:\/\/res\.cloudinary\.com\//i.test(trimmed)) {
+        return trimmed;
+    }
+    if (/^uploads\//i.test(trimmed) || /^\/uploads\//i.test(trimmed)) {
         return trimmed.replace(/^\//, "");
     }
-    // Absolute URL that already points at our uploads folder
     if (/^https?:\/\//i.test(trimmed) && /\/uploads\/products\//i.test(trimmed)) {
         try {
-            const pathname = new URL(trimmed).pathname.replace(/^\//, "");
-            if (pathname.startsWith("uploads/products/")) {
-                return pathname;
-            }
+            return new URL(trimmed).pathname.replace(/^\//, "");
         } catch {
-            /* fall through to re-upload */
+            /* fall through to upload */
         }
     }
     const formData = new FormData();
@@ -785,20 +784,11 @@ export async function uploadProductImage(localUri: string): Promise<string> {
         "/api/seller/product-media/upload",
         formData
     );
-    const imagePath = String(row.imagePath ?? "").trim().replace(/^\//, "");
-    if (imagePath.startsWith("uploads/products/")) {
-        return imagePath;
+    const url = String(row.url ?? row.imageUrl ?? row.imagePath ?? "").trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+        throw new Error("Image upload failed — no Cloudinary URL returned.");
     }
-    // Fallback: derive path from absolute URL
-    const url = String(row.url ?? row.imageUrl ?? "").trim();
-    if (url && /\/uploads\/products\//i.test(url)) {
-        try {
-            return new URL(url).pathname.replace(/^\//, "");
-        } catch {
-            /* ignore */
-        }
-    }
-    throw new Error("Image upload failed — no imagePath returned.");
+    return url;
 }
 
 export type UpdateProductPayload = CreateProductPayload & {
