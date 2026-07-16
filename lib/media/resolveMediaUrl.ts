@@ -4,6 +4,20 @@ import {
     resolveSellerMediaBaseUrl,
 } from "@/lib/api/config";
 
+/** Matches CDN layout: https://flintnthread.in/uploads/seller_documents/12_aadhar_front_....png */
+const SELLER_DOCUMENT_FILE =
+    /^\d+_(profile_pic|aadhar_front|aadhar_back|pan_card|business_proof|bank_proof|cancelled_cheque|live_selfie|company_pan_doc|incorporation_certificate|partnership_deed|msme_certificate|iec_certificate)(_|\.)/i;
+
+function isSellerDocumentFileName(fileName: string): boolean {
+    const base = fileName.replace(/\\/g, "/").split("/").pop() ?? "";
+    return SELLER_DOCUMENT_FILE.test(base);
+}
+
+function sellerDocumentPath(fileName: string): string {
+    const base = fileName.replace(/\\/g, "/").trim().split("/").pop() ?? "";
+    return `/uploads/seller_documents/${base}`;
+}
+
 function isSellerUploadPath(path: string): boolean {
     return (
         path.includes("/uploads/sellers/") ||
@@ -12,20 +26,34 @@ function isSellerUploadPath(path: string): boolean {
     );
 }
 
-/** Normalize DB path to /uploads/... */
+/** Normalize DB path to /uploads/... (seller docs → seller_documents). */
 function normalizeMediaPath(value: string): string {
     const p = value.replace(/\\/g, "/").trim();
     if (!p) return "";
     if (p.startsWith("http://") || p.startsWith("https://")) {
         try {
-            return new URL(p).pathname || "";
+            return normalizeMediaPath(new URL(p).pathname || "");
         } catch {
             return "";
         }
     }
+    if (p.startsWith("/uploads/sellers/")) {
+        const fileName = p.slice("/uploads/sellers/".length);
+        if (isSellerDocumentFileName(fileName)) return sellerDocumentPath(fileName);
+        return p;
+    }
     if (p.startsWith("/uploads/")) return p;
+    if (p.startsWith("uploads/sellers/")) {
+        const fileName = p.slice("uploads/sellers/".length);
+        if (isSellerDocumentFileName(fileName)) return sellerDocumentPath(fileName);
+        return `/${p}`;
+    }
+    if (p.startsWith("uploads/seller_documents/")) return `/${p}`;
     if (p.startsWith("uploads/")) return `/${p}`;
-    // Seller files: {sellerId}_{docType}_{timestamp}.ext
+    // Seller KYC / profile: {sellerId}_{docType}_{timestamp}.ext
+    if (!p.includes("/") && isSellerDocumentFileName(p)) {
+        return sellerDocumentPath(p);
+    }
     if (!p.includes("/") && /^\d+_/.test(p)) {
         return `/uploads/sellers/${p}`;
     }
@@ -85,14 +113,15 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
         try {
             const parsed = new URL(trimmed);
             if (parsed.pathname.includes("/uploads/")) {
+                const path = normalizeMediaPath(parsed.pathname);
                 if (
-                    isSellerUploadPath(parsed.pathname) ||
-                    parsed.pathname.includes("/uploads/products/") ||
-                    parsed.pathname.includes("/uploads/size_charts/")
+                    isSellerUploadPath(path) ||
+                    path.includes("/uploads/products/") ||
+                    path.includes("/uploads/size_charts/")
                 ) {
-                    return `${resolveSellerMediaBaseUrl()}${parsed.pathname}`;
+                    return `${resolveSellerMediaBaseUrl()}${path}`;
                 }
-                return `${resolvePublicMediaBaseUrl()}${parsed.pathname}`;
+                return `${resolvePublicMediaBaseUrl()}${path}`;
             }
         } catch {
             return trimmed;
