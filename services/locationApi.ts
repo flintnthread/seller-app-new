@@ -64,7 +64,7 @@ async function publicLocationRequest<T>(path: string, init?: RequestInit): Promi
             },
         });
     } catch {
-        throw new Error(`Cannot reach seller API at ${baseUrl}. Check https://flintnthread.online`);
+        throw new Error(`Cannot reach seller API at ${baseUrl}. Check https://flintnthread.online or https://flintnthread.in`);
     }
     if (!res.ok) {
         let message = `Request failed (${res.status})`;

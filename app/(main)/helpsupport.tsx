@@ -2033,7 +2033,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
         <View style={[s.offlineBanner, isWeb && s.offlineBannerWeb]}>
           <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
           <Text style={[s.offlineBannerText, { fontFamily: F.medium }]}>
-            Cannot reach https://flintnthread.online. Check your connection and reload.
+            Cannot reach https://flintnthread.online or https://flintnthread.in. Check your connection and reload.
           </Text>
         </View>
       )}

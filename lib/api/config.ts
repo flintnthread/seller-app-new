@@ -2,8 +2,10 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
-/** Production seller API — same domain as user app; nginx routes seller paths → 8083 */
+/** Production seller API — nginx on either domain routes seller paths → 8083 */
 export const PRODUCTION_API_URL = "https://flintnthread.online";
+export const PRODUCTION_API_URL_IN = "https://flintnthread.in";
+export const PRODUCTION_API_URLS = [PRODUCTION_API_URL, PRODUCTION_API_URL_IN] as const;
 
 /** Seller API ports — local dev only */
 const API_PORTS = [8083, 8080];
@@ -115,10 +117,40 @@ function pushHostPorts(candidates: string[], hosts: string[]): void {
     }
 }
 
-function getProductionApiUrl(): string {
+/** Prefer the production domain that matches the browser host (.in vs .online). */
+function preferProductionUrlForHost(urls: string[]): string[] {
+    if (Platform.OS !== "web" || typeof window === "undefined") return urls;
+    const host = window.location.hostname?.toLowerCase() ?? "";
+    if (!host) return urls;
+    const preferIn = host === "flintnthread.in" || host.endsWith(".flintnthread.in");
+    const preferOnline =
+        host === "flintnthread.online" || host.endsWith(".flintnthread.online");
+    if (!preferIn && !preferOnline) return urls;
+    return [...urls].sort((a, b) => {
+        const aIn = a.includes("flintnthread.in");
+        const bIn = b.includes("flintnthread.in");
+        if (preferIn) return Number(bIn) - Number(aIn);
+        return Number(!bIn) - Number(!aIn);
+    });
+}
+
+function getConfiguredProductionApiUrl(): string | null {
     const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
     const fromExtra = getExtra().apiBaseUrl?.trim().replace(/\/$/, "");
-    return fromEnv || fromExtra || PRODUCTION_API_URL;
+    return fromEnv || fromExtra || null;
+}
+
+function getProductionApiUrl(): string {
+    return getConfiguredProductionApiUrl() || getProductionApiUrlCandidates()[0] || PRODUCTION_API_URL;
+}
+
+/** Ordered production API bases: preferred host first, then the other domain. */
+export function getProductionApiUrlCandidates(): string[] {
+    const configured = getConfiguredProductionApiUrl();
+    const defaults = preferProductionUrlForHost([...PRODUCTION_API_URLS]);
+    if (!configured) return uniqueUrls(defaults);
+    // Explicit env/extra stays first; still keep the other production domain as fallback.
+    return uniqueUrls([configured, ...defaults]);
 }
 
 export function resolvePublicMediaBaseUrl(): string {
@@ -172,7 +204,7 @@ export function resolveSellerMediaBaseUrl(): string {
  * On localhost web, local seller-service (:8083) is tried before production.
  */
 export function getApiBaseUrlCandidates(): string[] {
-    const production = getProductionApiUrl();
+    const productionUrls = getProductionApiUrlCandidates();
     const candidates: string[] = [];
 
     if (useLocalApiFallbacks() || isLocalWebDev()) {
@@ -215,11 +247,24 @@ export function getApiBaseUrlCandidates(): string[] {
         if (manualOverride && !isLocalWebDev()) {
             candidates.push(manualOverride);
         }
-        candidates.push(production);
+        candidates.push(...productionUrls);
         return uniqueUrls(candidates);
     }
 
-    candidates.push(production);
+    // Production web on flintnthread.* → same-origin API first (works for .online and .in).
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+        const host = window.location.hostname?.toLowerCase() ?? "";
+        if (
+            host === "flintnthread.online" ||
+            host.endsWith(".flintnthread.online") ||
+            host === "flintnthread.in" ||
+            host.endsWith(".flintnthread.in")
+        ) {
+            candidates.push(window.location.origin.replace(/\/$/, ""));
+        }
+    }
+
+    candidates.push(...productionUrls);
     return uniqueUrls(candidates);
 }
 
@@ -285,7 +330,7 @@ export async function ensureApiReachable(): Promise<string> {
     clearWorkingApiBaseUrl();
     if (lastError instanceof Error) throw lastError;
     throw new Error(
-        `Seller API not reachable at ${PRODUCTION_API_URL}. Check VPS nginx seller routes and flint-seller service.`
+        `Seller API not reachable at ${PRODUCTION_API_URLS.join(" or ")}. Check VPS nginx seller routes and flint-seller service.`
     );
 }
 

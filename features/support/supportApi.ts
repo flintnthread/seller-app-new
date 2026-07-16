@@ -144,7 +144,7 @@ async function fetchWithTimeout(
 
     if (err?.name === "AbortError") {
       throw new Error(
-        `Cannot reach seller API at ${base}. Check https://flintnthread.online and VPS nginx seller routes.`
+        `Cannot reach seller API at ${base}. Check https://flintnthread.online or https://flintnthread.in and VPS nginx seller routes.`
       );
     }
 

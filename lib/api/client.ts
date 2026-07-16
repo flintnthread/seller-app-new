@@ -81,7 +81,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
                     ? "\n• Phone and PC must be on the same Wi‑Fi (API host is detected from Expo automatically)."
                     : "";
             throw new ApiError(
-                `Cannot reach seller API at ${resolveApiBaseUrl()}.${phoneHint}${emulatorHint}\n• Check https://flintnthread.online/api/public/marketplace-stats on VPS.`
+                `Cannot reach seller API at ${resolveApiBaseUrl()}.${phoneHint}${emulatorHint}\n• Check https://flintnthread.online/api/public/marketplace-stats or https://flintnthread.in/api/public/marketplace-stats on VPS.`
             );
         }
     }

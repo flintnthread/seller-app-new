@@ -29,7 +29,7 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
         const detail =
             err instanceof Error && err.message ? ` (${err.message})` : "";
         throw new ApiError(
-            `Cannot reach seller API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Check https://flintnthread.online/api/public/marketplace-stats`
+            `Cannot reach seller API at ${url}.${detail}${phoneHint}${emulatorHint}\n• Check https://flintnthread.online/api/public/marketplace-stats or https://flintnthread.in/api/public/marketplace-stats`
         );
     }
 
