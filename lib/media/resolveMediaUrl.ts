@@ -23,14 +23,38 @@ function normalizeMediaPath(value: string): string {
             return "";
         }
     }
+    if (p.startsWith("/uploads/seller_documents/")) return p;
+    if (p.startsWith("uploads/seller_documents/")) return `/${p}`;
+    if (p.startsWith("/uploads/sellers/")) {
+        const fileName = p.slice("/uploads/sellers/".length);
+        if (isSellerDocumentFileName(fileName)) {
+            return `/uploads/seller_documents/${fileName}`;
+        }
+        return p;
+    }
+    if (p.startsWith("uploads/sellers/")) {
+        const fileName = p.slice("uploads/sellers/".length);
+        if (isSellerDocumentFileName(fileName)) {
+            return `/uploads/seller_documents/${fileName}`;
+        }
+        return `/${p}`;
+    }
     if (p.startsWith("/uploads/")) return p;
     if (p.startsWith("uploads/")) return `/${p}`;
-    // Seller files: {sellerId}_{docType}_{timestamp}.ext
+    // Seller KYC / profile files: {sellerId}_{docType}_{timestamp}.ext
     if (!p.includes("/") && /^\d+_/.test(p)) {
-        return `/uploads/sellers/${p}`;
+        return `/uploads/seller_documents/${p}`;
     }
     if (!p.includes("/")) return `/uploads/products/${p}`;
     return p.startsWith("/") ? p : `/${p}`;
+}
+
+const SELLER_DOCUMENT_FILE =
+    /^\d+_(profile_pic|aadhar_front|aadhar_back|pan_card|business_proof|bank_proof|cancelled_cheque|live_selfie|company_pan_doc|incorporation_certificate|partnership_deed|msme_certificate|iec_certificate)(_|\.)/i;
+
+function isSellerDocumentFileName(fileName: string): boolean {
+    const base = fileName.replace(/\\/g, "/").split("/").pop() ?? "";
+    return SELLER_DOCUMENT_FILE.test(base);
 }
 
 /** Reject blank / placeholder strings that would render as empty image slots. */

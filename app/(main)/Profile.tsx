@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "expo-router";
 
+import { Image } from "expo-image";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -52,8 +52,23 @@ function ProfileAvatar({
   style?: object;
   iconSize: number;
 }) {
-  if (uri) {
-    return <Image source={{ uri }} style={[{ width: size, height: size, borderRadius: size / 2 }, style]} />;
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  if (uri && !failed) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[{ width: size, height: size, borderRadius: size / 2 }, style]}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={150}
+        onError={() => setFailed(true)}
+      />
+    );
   }
   return (
     <View
