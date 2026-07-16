@@ -37,25 +37,26 @@ function normalizeMediaPath(value: string): string {
             return "";
         }
     }
+    if (p.startsWith("/uploads/seller_documents/")) return p;
+    if (p.startsWith("uploads/seller_documents/")) return `/${p}`;
     if (p.startsWith("/uploads/sellers/")) {
         const fileName = p.slice("/uploads/sellers/".length);
         if (isSellerDocumentFileName(fileName)) return sellerDocumentPath(fileName);
         return p;
     }
-    if (p.startsWith("/uploads/")) return p;
     if (p.startsWith("uploads/sellers/")) {
         const fileName = p.slice("uploads/sellers/".length);
         if (isSellerDocumentFileName(fileName)) return sellerDocumentPath(fileName);
         return `/${p}`;
     }
-    if (p.startsWith("uploads/seller_documents/")) return `/${p}`;
+    if (p.startsWith("/uploads/")) return p;
     if (p.startsWith("uploads/")) return `/${p}`;
     // Seller KYC / profile: {sellerId}_{docType}_{timestamp}.ext
     if (!p.includes("/") && isSellerDocumentFileName(p)) {
         return sellerDocumentPath(p);
     }
     if (!p.includes("/") && /^\d+_/.test(p)) {
-        return `/uploads/sellers/${p}`;
+        return `/uploads/seller_documents/${p}`;
     }
     if (!p.includes("/")) return `/uploads/products/${p}`;
     return p.startsWith("/") ? p : `/${p}`;

@@ -185,18 +185,40 @@ export function resolveLocalSellerApiUrl(): string {
 
 /**
  * Base URL for seller KYC / profile images.
- * Local web dev → seller-service on :8083. Production → CDN (flintnthread.in).
+ * - Legacy uploads: app.media.public-base-url + /uploads/seller_documents/...
+ * - Local API dev: same host as seller-service (:8083)
+ * - Cloudinary URLs: returned as-is by resolveMediaUrl
  */
 export function resolveSellerMediaBaseUrl(): string {
-    if (isLocalWebDev() || useLocalApiFallbacks()) {
+    const publicMedia = resolvePublicMediaBaseUrl();
+
+    if (useLocalApiFallbacks()) {
         if (cachedWorkingBaseUrl && Date.now() < cacheExpiresAt) {
             return cachedWorkingBaseUrl;
         }
-        if (isLocalWebDev()) {
-            return resolveLocalSellerApiUrl();
-        }
+        return resolveLocalSellerApiUrl();
     }
-    return resolvePublicMediaBaseUrl();
+
+    if (isLocalWebDev()) {
+        const apiBase = resolveApiBaseUrl().replace(/\/$/, "");
+        try {
+            const host = new URL(apiBase).hostname.toLowerCase();
+            const isLocalApi =
+                host === "localhost" ||
+                host === "127.0.0.1" ||
+                host.startsWith("192.168.") ||
+                host.startsWith("10.");
+            if (isLocalApi) {
+                return apiBase;
+            }
+        } catch {
+            /* fall through to CDN */
+        }
+        // Expo web on localhost but production API — legacy photos live on CDN (flintnthread.in).
+        return publicMedia;
+    }
+
+    return publicMedia;
 }
 
 /**
