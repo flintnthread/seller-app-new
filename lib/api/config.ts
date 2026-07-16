@@ -251,7 +251,7 @@ export function getApiBaseUrlCandidates(): string[] {
         return uniqueUrls(candidates);
     }
 
-    // Production web on flintnthread.* → same-origin API first (works for .online and .in).
+    // Production web on flintnthread.* (including seller/admin subdomains) → same-origin API first.
     if (Platform.OS === "web" && typeof window !== "undefined") {
         const host = window.location.hostname?.toLowerCase() ?? "";
         if (
@@ -316,6 +316,16 @@ export async function ensureApiReachable(): Promise<string> {
             try {
                 const body = JSON.parse(raw) as { sellersCount?: number };
                 if (typeof body?.sellersCount === "number") {
+                    // On seller/admin subdomains, keep same-origin once it works.
+                    if (
+                        Platform.OS === "web" &&
+                        typeof window !== "undefined" &&
+                        baseUrl === window.location.origin.replace(/\/$/, "")
+                    ) {
+                        setWorkingApiBaseUrl(baseUrl);
+                        cacheExpiresAt = Date.now() + 30 * 60_000;
+                        return baseUrl;
+                    }
                     setWorkingApiBaseUrl(baseUrl);
                     return baseUrl;
                 }

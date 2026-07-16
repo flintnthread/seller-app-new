@@ -80,7 +80,12 @@ async function appendFileToFormData(
 
 
 
-function buildAuthHeaders(sellerId: number, accessToken: string, options: RequestInit): Record<string, string> {
+function buildAuthHeaders(
+  sellerId: number,
+  accessToken: string,
+  options: RequestInit
+): Record<string, string> {
+  const method = String(options.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${accessToken}`,
@@ -88,10 +93,28 @@ function buildAuthHeaders(sellerId: number, accessToken: string, options: Reques
   };
   const extra = options.headers as Record<string, string> | undefined;
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-  if (!isFormData && !extra?.["Content-Type"]) {
+  const isReadOnly = method === "GET" || method === "HEAD";
+  if (!isFormData && !isReadOnly && !extra?.["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
   return { ...headers, ...extra };
+}
+
+async function fetchPublicGet(path: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  await ensureApiReachable().catch(() => {});
+  const base = resolveApiBaseUrl().replace(/\/$/, "");
+  const bustUrl = path.includes("?") ? `${base}${path}&_=${Date.now()}` : `${base}${path}?_=${Date.now()}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(bustUrl, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchWithTimeout(
@@ -105,7 +128,6 @@ async function fetchWithTimeout(
 ): Promise<Response> {
 
   await hydrateSellerSession();
-  await ensureApiReachable().catch(() => {});
   const sellerId = ensureSellerId();
   const accessToken = ensureAccessToken();
   if (!sellerId || !accessToken) {
@@ -262,31 +284,21 @@ export function getSellerId(): number {
 
 export { getBaseUrl };
 
-/** Call on Help screen load to verify phone can reach the backend */
+/** Lightweight reachability probe (public endpoint, no auth). */
 export async function checkServerConnection(): Promise<{ ok: boolean; url: string; error?: string }> {
-  await hydrateSellerSession();
-  const sellerId = ensureSellerId();
-  const accessToken = ensureAccessToken();
-  const url = sellerId
-    ? `${getBaseUrl()}/tickets/seller/${sellerId}`
-    : getBaseUrl();
-
-  if (!sellerId || !accessToken) {
-    return { ok: false, url, error: "not_authenticated" };
-  }
-
+  const base = resolveApiBaseUrl().replace(/\/$/, "");
+  const url = `${base}/api/public/marketplace-stats`;
   try {
-    const res = await fetchWithTimeout(url, {}, 8000);
-    // Any HTTP response means the backend is reachable (even 4xx/5xx).
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, url, error: "not_authenticated" };
+    const res = await fetchPublicGet("/api/public/marketplace-stats", 10000);
+    const ct = res.headers.get("content-type") ?? "";
+    const raw = await res.text();
+    const looksHtml = ct.includes("text/html") || raw.trimStart().startsWith("<");
+    if (!res.ok || looksHtml) {
+      return { ok: false, url, error: `http_${res.status}` };
     }
-    return { ok: true, url, httpStatus: res.status };
-  } catch (err: any) {
-    const message = err?.message || "Cannot reach server";
-    if (message.includes(AUTH_ACTION_FAILED)) {
-      return { ok: false, url, error: "not_authenticated" };
-    }
+    return { ok: true, url };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Cannot reach server";
     return { ok: false, url, error: message };
   }
 }
@@ -638,7 +650,7 @@ export async function getFaqs(q?: string, _sellerOnly = true): Promise<FaqRespon
   const params = new URLSearchParams();
   params.set("sellerOnly", "true");
   if (q?.trim()) params.set("q", q.trim());
-  const res = await fetchWithTimeout(`${getBaseUrl()}/faqs?${params.toString()}`);
+  const res = await fetchPublicGet(`/api/seller/support/faqs?${params.toString()}`);
   if (!res.ok) {
     throw new Error("Failed to fetch FAQs");
   }
@@ -646,7 +658,7 @@ export async function getFaqs(q?: string, _sellerOnly = true): Promise<FaqRespon
 }
 
 export async function getGroupedFaqs(_sellerOnly = true): Promise<FaqCategoryResponse[]> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/faqs/grouped?sellerOnly=true`);
+  const res = await fetchPublicGet("/api/seller/support/faqs/grouped?sellerOnly=true");
   if (!res.ok) {
     throw new Error("Failed to fetch FAQ categories");
   }
@@ -677,10 +689,27 @@ export interface LiveChatMessageResponse {
   createdAt: string;
 }
 
+const DEFAULT_SUPPORT_CONTACT_CONFIG: SupportContactConfig = {
+  chat: { enabled: true, subtitle: "Live Chat · Typically replies in minutes", whatsappNumber: "919063499092" },
+  email: { address: "support@flintnthread.in", subtitle: "support@flintnthread.in" },
+  call: { phone: "9063499092", subtitle: "Mon–Sun, 9 AM – 6 PM", hours: "Mon–Sun, 9 AM – 6 PM" },
+};
+
 export async function getSupportContactConfig(): Promise<SupportContactConfig> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/contact`);
-  if (!res.ok) throw new Error("Failed to load contact options");
-  return res.json();
+  try {
+    const res = await fetchPublicGet("/api/seller/support/contact");
+    if (!res.ok) {
+      return DEFAULT_SUPPORT_CONTACT_CONFIG;
+    }
+    const ct = res.headers.get("content-type") ?? "";
+    const raw = await res.text();
+    if (ct.includes("text/html") || raw.trimStart().startsWith("<")) {
+      return DEFAULT_SUPPORT_CONTACT_CONFIG;
+    }
+    return JSON.parse(raw) as SupportContactConfig;
+  } catch {
+    return DEFAULT_SUPPORT_CONTACT_CONFIG;
+  }
 }
 
 export async function sendSupportEmail(payload: {

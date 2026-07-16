@@ -19,14 +19,19 @@ export class ApiError extends Error {
     }
 }
 
-function authHeaders(sellerId: number, accessToken: string, extra?: HeadersInit): Record<string, string> {
-    return {
-        "Content-Type": "application/json",
+function authHeaders(sellerId: number, accessToken: string, init?: RequestInit): Record<string, string> {
+    const method = String(init?.method ?? "GET").toUpperCase();
+    const headers: Record<string, string> = {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
         "X-Seller-Id": String(sellerId),
-        ...(extra as Record<string, string> | undefined),
     };
+    const extra = init?.headers as Record<string, string> | undefined;
+    const isReadOnly = method === "GET" || method === "HEAD";
+    if (!isReadOnly && !extra?.["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+    return { ...headers, ...extra };
 }
 
 async function fetchAuthed(

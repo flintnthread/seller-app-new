@@ -47,7 +47,6 @@ import {
   closeTicket as apiCloseTicket,
   createTicketWithImage as apiCreateTicketWithImage,
   sendMessageWithImage as apiSendMessageWithImage,
-  checkServerConnection,
   getFaqs as apiGetFaqs,
   getGroupedFaqs as apiGetGroupedFaqs,
   isSellerFaq,
@@ -1455,6 +1454,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
   const [helpTopics, setHelpTopics] = useState<HelpTopic[]>([]);
   const [isLoadingFaqs, setIsLoadingFaqs] = useState(true);
   const [contactConfig, setContactConfig] = useState<SupportContactConfig | null>(null);
+  const helpLoadSeqRef = useRef(0);
   const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
 
   // ── Sweet alert state ────────────────────────────────────────────────────
@@ -1560,22 +1560,34 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
+      const seq = ++helpLoadSeqRef.current;
       void (async () => {
         await hydrateSellerSession();
-        if (cancelled) return;
-        await Promise.allSettled([loadTickets(), loadFaqs(), loadContactConfig()]);
-        if (cancelled) return;
-        const conn = await checkServerConnection();
-        if (cancelled) return;
-        if (conn.error === "not_authenticated") {
+        if (seq !== helpLoadSeqRef.current) return;
+
+        const results = await Promise.allSettled([
+          loadTickets(),
+          loadFaqs(),
+          loadContactConfig(),
+        ]);
+        if (seq !== helpLoadSeqRef.current) return;
+
+        const anySucceeded = results.some((r) => r.status === "fulfilled");
+        const allNetworkFailed =
+          results.length > 0 &&
+          results.every(
+            (r) => r.status === "rejected" && isUnreachableError(r.reason)
+          );
+        if (anySucceeded) {
           setServerOffline(false);
-          return;
+        } else if (allNetworkFailed) {
+          setServerOffline(true);
+        } else {
+          setServerOffline(false);
         }
-        setServerOffline(!conn.ok);
       })();
       return () => {
-        cancelled = true;
+        helpLoadSeqRef.current += 1;
       };
     }, [loadTickets, loadFaqs, loadContactConfig])
   );

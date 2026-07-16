@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -20,6 +20,15 @@ export function DesktopHeader({
   contentPadding?: number;
 }) {
   const router = useRouter();
+  const supportNavLock = useRef(false);
+  const goToHelpSupport = () => {
+    if (supportNavLock.current) return;
+    supportNavLock.current = true;
+    router.push('/(main)/helpsupport');
+    setTimeout(() => {
+      supportNavLock.current = false;
+    }, 600);
+  };
   const { profile } = useSellerProfile();
   const { isProfileCompleted } = useProfileStatus();
   const profileDone = profile?.profileCompleted === true || isProfileCompleted;
@@ -85,7 +94,7 @@ export function DesktopHeader({
               <View style={styles.notificationBadge} />
             </Pressable>
 
-            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={() => router.push('/(main)/helpsupport')}>
+            <Pressable style={[styles.iconButton, isCompact && styles.iconButtonCompact]} onPress={goToHelpSupport}>
               <Ionicons name="headset-outline" size={18} color="#666666" />
             </Pressable>
 
