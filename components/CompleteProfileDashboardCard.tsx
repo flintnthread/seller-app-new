@@ -179,11 +179,7 @@ export function CompleteProfileDashboardCard({ profile, loading, embedded = fals
                 ))}
             </View>
 
-            <Pressable style={styles.helpRow} onPress={() => router.push("/(main)/helpsupport")}>
-                <MaterialCommunityIcons name="headset" size={18} color={C.navy} />
-                <AppText style={styles.helpText}>Need help? Contact support</AppText>
-                <MaterialCommunityIcons name="arrow-right" size={16} color={C.textLight} />
-            </Pressable>
+           
         </>
     );
 
