@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
     fetchSellerProfile,
-    resolveDocumentDisplayUrl,
     type SellerProfileResponse,
 } from "@/services/sellerProfileApi";
+import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 
 /** Flat profile shape for legacy dashboard/settings consumers. */
 export type SellerProfile = {
@@ -23,8 +23,7 @@ export type SellerProfile = {
 };
 
 function mapResponseToProfile(response: SellerProfileResponse): SellerProfile {
-    const pic = response.personal?.profilePicUrl;
-    const resolvedPic = pic ? resolveDocumentDisplayUrl(pic) ?? undefined : undefined;
+    const resolvedPic = resolveProfilePicUrl(response) ?? undefined;
 
     return {
         id: response.sellerId,

@@ -28,10 +28,10 @@ import Icon from "react-native-vector-icons/FontAwesome";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { hydrateSellerSession } from "@/lib/api/sellerSession";
 import { ensureApiReachable } from "@/lib/api/config";
+import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 import {
   fetchSellerProfile,
   getApiErrorMessage,
-  resolveDocumentDisplayUrl,
   uploadProfilePhoto,
 } from "@/services/sellerProfileApi";
 import { scrollToFormField } from "@/lib/form/scrollToFormField";
@@ -215,8 +215,8 @@ export default function SellerPersonalInfo() {
         if (loadedName) setName(loadedName);
         if (profile.mobile) setMobile(profile.mobile.replace(/\D/g, "").slice(-10));
         if (profile.email) setEmail(profile.email);
-        const pic = profile.personal?.profilePicUrl ?? profile.documents?.files?.profilePic;
-        if (pic) setImage(resolveDocumentDisplayUrl(pic) ?? pic);
+        const pic = resolveProfilePicUrl(profile);
+        if (pic) setImage(pic);
       } catch {
         // Signup route params remain as fallback
       }
@@ -284,8 +284,8 @@ export default function SellerPersonalInfo() {
       await hydrateSellerSession();
       await ensureApiReachable();
       const updated = await uploadProfilePhoto(localUri);
-      const url = updated.personal?.profilePicUrl ?? updated.documents?.files?.profilePic;
-      if (url) setImage(resolveDocumentDisplayUrl(url) ?? url);
+      const url = resolveProfilePicUrl(updated);
+      if (url) setImage(url);
       showSuccess("Profile photo uploaded.");
     } catch (e) {
       showError(getApiErrorMessage(e, "Could not upload profile photo."));
