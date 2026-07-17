@@ -121,13 +121,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
     minWidth: 0,
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   contentScroll: {
     flex: 1,
     minWidth: 0,
+    maxWidth: '100%',
   },
   contentContainer: {
     width: '100%',
+    maxWidth: '100%',
     minWidth: 0,
+    overflow: 'hidden',
   },
 });

@@ -91,12 +91,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     overflow: "hidden",
+    width: "100%",
+    maxWidth: "100%",
   },
   scrollContent: {
     minWidth: "100%",
   },
   table: {
-    minWidth: 1100,
+    minWidth: 900,
     width: "100%",
   },
   headerRow: {
