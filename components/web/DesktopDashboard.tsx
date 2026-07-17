@@ -246,11 +246,11 @@ export function DesktopDashboard({
           />
 
           {/* Sales Heatmap & Live Tracking */}
-          <View style={styles.flexRow}>
-            <View style={{ flex: 1, minWidth: 280 }}>
+          <View style={[styles.flexRow, isMobile && styles.flexColMobile]}>
+            <View style={[styles.flexChild, isMobile && styles.flexChildMobile]}>
               <SalesHeatmap points={widgets.weekSalesPoints} />
             </View>
-            <View style={{ flex: 1, minWidth: 280 }}>
+            <View style={[styles.flexChild, isMobile && styles.flexChildMobile]}>
               <LiveOrderTrackingPanel order={activeTrackingOrder} />
             </View>
           </View>
@@ -259,11 +259,11 @@ export function DesktopDashboard({
           <TopProductsPerformance items={widgets.topProducts} />
 
           {/* Marketing Center & Financial Reconciliation */}
-          <View style={styles.flexRow}>
-            <View style={{ flex: 1, minWidth: 280 }}>
+          <View style={[styles.flexRow, isMobile && styles.flexColMobile]}>
+            <View style={[styles.flexChild, isMobile && styles.flexChildMobile]}>
               <MarketingCenter />
             </View>
-            <View style={{ flex: 1, minWidth: 280 }}>
+            <View style={[styles.flexChild, isMobile && styles.flexChildMobile]}>
               <FinancialCenter
                 availableBalance={widgets.earningsBalance}
                 bankName={widgets.bankName}
@@ -351,13 +351,17 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
   container: {
-    flex: 1,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    alignSelf: "stretch",
   },
   containerMobile: {
     paddingBottom: 8,
+    overflow: "hidden",
   },
   errorBannerMobile: {
-    marginHorizontal: 12,
+    marginHorizontal: 0,
     marginTop: 8,
   },
   incompleteWelcome: {
@@ -382,20 +386,46 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 20,
     marginBottom: 40,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   gridStacked: {
     flexDirection: "column",
+    gap: 16,
+    marginBottom: 24,
   },
   leftCol: {
     gap: 20,
+    minWidth: 0,
+    maxWidth: "100%",
   },
   rightCol: {
     gap: 16,
+    minWidth: 0,
+    maxWidth: "100%",
   },
   flexRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 16,
+    width: "100%",
+    minWidth: 0,
   },
-
+  flexColMobile: {
+    flexDirection: "column",
+    flexWrap: "nowrap",
+  },
+  flexChild: {
+    flex: 1,
+    minWidth: 280,
+  },
+  flexChildMobile: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "auto",
+    minWidth: 0,
+    width: "100%",
+    maxWidth: "100%",
+  },
 });

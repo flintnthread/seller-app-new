@@ -292,7 +292,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     marginBottom: 24,
     width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
     alignSelf: "stretch",
+    overflow: "hidden",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)",

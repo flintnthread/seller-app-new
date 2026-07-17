@@ -64,8 +64,17 @@ export async function fetchPayouts(): Promise<PayoutTransaction[]> {
     return apiRequest<PayoutTransaction[]>("/api/seller/earnings/payouts");
 }
 
-export async function fetchAnalyticsSales(period = "month"): Promise<AnalyticsSales> {
-    return apiRequest<AnalyticsSales>(`/api/seller/analytics/sales?period=${encodeURIComponent(period)}`);
+export async function fetchAnalyticsSales(
+    period = "month",
+    from?: string,
+    to?: string
+): Promise<AnalyticsSales> {
+    const params = new URLSearchParams({ period });
+    if (from && to) {
+        params.set("from", from);
+        params.set("to", to);
+    }
+    return apiRequest<AnalyticsSales>(`/api/seller/analytics/sales?${params.toString()}`);
 }
 
 export async function fetchTopSellingProducts(limit = 20): Promise<TopSellingProduct[]> {

@@ -151,6 +151,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     cardWidth = "16.66%";
   } else if (width >= 1024) {
     cardWidth = "33.33%";
+  } else if (width < 480) {
+    cardWidth = "100%";
   } else {
     cardWidth = "50%";
   }
@@ -246,9 +248,9 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   ];
 
   return (
-    <View style={styles.grid}>
+    <View style={[styles.grid, width < 480 && styles.gridCompact]}>
       {kpis.map((kpi, index) => (
-        <View key={index} style={[styles.col, { width: cardWidth as any }]}>
+        <View key={index} style={[styles.col, width < 480 && styles.colCompact, { width: cardWidth as any }]}>
           <Pressable
             // @ts-ignore
             style={({ hovered }) => [
@@ -299,10 +301,20 @@ const styles = StyleSheet.create({
     marginHorizontal: -8,
     marginBottom: 8,
     paddingTop: 10,
+    width: "100%",
+    maxWidth: "100%",
+  },
+  gridCompact: {
+    marginHorizontal: 0,
   },
   col: {
     paddingHorizontal: 8,
     marginBottom: 16,
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  colCompact: {
+    paddingHorizontal: 0,
   },
   card: {
     backgroundColor: C.white,
@@ -313,6 +325,7 @@ const styles = StyleSheet.create({
     minHeight: 128,
     justifyContent: "space-between",
     overflow: "hidden",
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.02)",

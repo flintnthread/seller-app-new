@@ -27,8 +27,10 @@ function authHeaders(sellerId: number, accessToken: string, init?: RequestInit):
         "X-Seller-Id": String(sellerId),
     };
     const extra = init?.headers as Record<string, string> | undefined;
+    const isFormData =
+        typeof FormData !== "undefined" && init?.body instanceof FormData;
     const isReadOnly = method === "GET" || method === "HEAD";
-    if (!isReadOnly && !extra?.["Content-Type"]) {
+    if (!isReadOnly && !isFormData && !extra?.["Content-Type"]) {
         headers["Content-Type"] = "application/json";
     }
     return { ...headers, ...extra };
@@ -42,7 +44,7 @@ async function fetchAuthed(
 ): Promise<Response> {
     let res = await fetch(url, {
         ...init,
-        headers: authHeaders(sellerId, accessToken, init?.headers),
+        headers: authHeaders(sellerId, accessToken, init),
     });
 
     if (res.status === 401) {
@@ -51,7 +53,7 @@ async function fetchAuthed(
         if (refreshed && retryToken) {
             res = await fetch(url, {
                 ...init,
-                headers: authHeaders(sellerId, retryToken, init?.headers),
+                headers: authHeaders(sellerId, retryToken, init),
             });
         }
     }

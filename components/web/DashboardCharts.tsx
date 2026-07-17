@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, TextInput } from "react-native";
+import { View, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, TextInput, ScrollView } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from "react-native-svg";
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from "react-native-svg";
 import type { SalesPeriod } from "./DashboardAnalytics";
 
 const C = {
@@ -78,6 +78,31 @@ function periodRevenueLabel(period: SalesPeriod): string {
   return "Custom Range Revenue";
 }
 
+/** Collapse many daily points into a readable bar series (max ~10 bars). */
+function aggregateForBars(
+  points: number[],
+  labels: string[],
+  maxBars = 10,
+): { values: number[]; labels: string[] } {
+  if (points.length === 0) return { values: [], labels: [] };
+  if (points.length <= maxBars) {
+    return { values: points, labels: labels.map((l) => String(l || "").trim() || "—") };
+  }
+  const bucket = Math.ceil(points.length / maxBars);
+  const values: number[] = [];
+  const outLabels: string[] = [];
+  for (let i = 0; i < points.length; i += bucket) {
+    const end = Math.min(i + bucket, points.length);
+    let sum = 0;
+    for (let j = i; j < end; j++) sum += Number(points[j] ?? 0);
+    values.push(sum);
+    const startLabel = String(labels[i] ?? "").trim();
+    const endLabel = String(labels[end - 1] ?? "").trim();
+    outLabels.push(endLabel || startLabel || "—");
+  }
+  return { values, labels: outLabels };
+}
+
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   salesPeriod,
   onSalesPeriodChange,
@@ -93,64 +118,94 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   const [chartWidth, setChartWidth] = useState(0);
   const [datePickerTarget, setDatePickerTarget] = useState<"from" | "to" | null>(null);
   const isDesktop = width >= 1024;
+  const isCompact = width < 480;
 
-  const currentSales = salesData[salesPeriod];
-  const currentStats = allStatsData[salesPeriod];
+  const currentSales = salesData[salesPeriod] ?? {
+    points: [] as number[],
+    labels: [] as string[],
+    totalSales: "₹0",
+    totalOrders: "0",
+    salesChange: "—",
+    ordersChange: "—",
+  };
+  const currentStats = allStatsData[salesPeriod] ?? {
+    orders: "0",
+    ordersChange: "—",
+    sales: "₹0",
+    salesChange: "—",
+    views: "0",
+    viewsChange: "—",
+    rating: "0",
+    ratingChange: "—",
+    newCustomers: "0",
+    newCustomersChange: "—",
+    avgOrderValue: "₹0",
+    avgOrderValueChange: "—",
+    conversionRate: "0%",
+    conversionRateChange: "—",
+    returns: "0",
+    returnsChange: "—",
+  };
 
-  // Dynamic layout calculations
-  const totalPadding = isDesktop ? 324 : 64; // Sidebar (260) + Content Padding
-  const availableWidth = width - totalPadding;
-  const mainChartWidth = isDesktop ? availableWidth * 0.65 - 40 : availableWidth - 40;
-  const mainChartHeight = 220;
+  const mainChartHeight = isCompact ? 160 : 190;
+  const maxBars = isCompact ? 7 : 10;
+  const barSeries = aggregateForBars(
+    currentSales?.points ?? [],
+    currentSales?.labels ?? [],
+    maxBars,
+  );
 
   const renderSVGChart = () => {
-    const W = Math.max(chartWidth || mainChartWidth, 1);
+    const W = Math.max(chartWidth > 0 ? chartWidth : Math.min(width - 48, 720), 200);
     const H = mainChartHeight;
-    const padding = 24;
-    const chartW = Math.max(W - padding * 2, 1);
-    const chartH = Math.max(H - padding * 2, 1);
+    const padL = 4;
+    const padR = 4;
+    const padT = 8;
+    const padB = 4;
+    const chartW = Math.max(W - padL - padR, 1);
+    const chartH = Math.max(H - padT - padB, 1);
 
-    if (W <= 0 || H <= 0) return null;
-
-    const points = currentSales.points;
-    if (points.length === 0) return null;
-    if (points.length === 1) return null;
-
-    const max = Math.max(...points);
-    const min = Math.min(...points);
-    const range = max - min || 1;
-
-    const xs = points.map((_, i) => padding + (i / (points.length - 1)) * chartW);
-    const ys = points.map((v) => padding + chartH - ((v - min) / range) * chartH);
-
-    let linePath = `M ${xs[0]} ${ys[0]}`;
-    for (let i = 1; i < points.length; i++) {
-      const prevX = xs[i - 1] ?? 0;
-      const prevY = ys[i - 1] ?? 0;
-      const x = xs[i] ?? 0;
-      const y = ys[i] ?? 0;
-      const cx = (prevX + x) / 2;
-      linePath += ` Q ${cx} ${prevY}, ${x} ${y}`;
+    const values = barSeries.values;
+    if (values.length === 0) {
+      return (
+        <View style={[styles.chartEmpty, { height: H }]}>
+          <AppText style={styles.chartEmptyText}>No sales in this range</AppText>
+        </View>
+      );
     }
-    const fillPath = `${linePath} L ${xs[xs.length - 1]} ${H - padding} L ${xs[0]} ${H - padding} Z`;
+
+    const max = Math.max(...values, 0);
+    const safeMax = max > 0 ? max : 1;
+    const n = values.length;
+    const gap = n <= 6 ? 10 : n <= 8 ? 8 : 6;
+    const barW = Math.max(12, (chartW - gap * (n - 1)) / n);
 
     return (
-      <View style={{ width: W, height: H, overflow: "hidden" }}>
-        <Svg width={W} height={H}>
+      <View style={{ width: "100%", height: H }}>
+        <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
           <Defs>
-            <SvgLinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={C.purple} stopOpacity={0.25} />
-              <Stop offset="100%" stopColor={C.purple} stopOpacity={0.0} />
+            <SvgLinearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={C.purple} stopOpacity={1} />
+              <Stop offset="100%" stopColor={C.purpleLight} stopOpacity={0.85} />
             </SvgLinearGradient>
-            <ClipPath id="chartClip">
-              <Rect x={0} y={0} width={W} height={H} />
-            </ClipPath>
           </Defs>
-          <Path d={fillPath} fill="url(#revenueGrad)" clipPath="url(#chartClip)" />
-          <Path d={linePath} stroke={C.purple} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" clipPath="url(#chartClip)" />
-          {xs.map((x, i) => (
-            <Circle key={`rev-${i}`} cx={x} cy={ys[i]} r={3} fill={C.white} stroke={C.purple} strokeWidth={1.5} clipPath="url(#chartClip)" />
-          ))}
+          <Rect x={padL} y={padT + chartH} width={chartW} height={1} fill={C.border} />
+          {values.map((v, i) => {
+            const h = v > 0 ? Math.max(8, (v / safeMax) * chartH) : 2;
+            const x = padL + i * (barW + gap);
+            const y = padT + chartH - h;
+            return (
+              <Rect
+                key={`bar-${i}`}
+                x={x}
+                y={y}
+                width={barW}
+                height={h}
+                rx={Math.min(6, barW / 3)}
+                fill={v > 0 ? "url(#barGrad)" : "#E5E7EB"}
+              />
+            );
+          })}
         </Svg>
       </View>
     );
@@ -159,28 +214,33 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   return (
     <View style={[styles.container, !isDesktop && styles.containerStacked]}>
       {/* ── LEFT: REVENUE CHART CARD ── */}
-      <View style={[styles.mainCard, isDesktop ? { width: "65%" } : { width: "100%" }]}>
-        <View style={styles.cardHeader}>
-          <View>
+      <View style={[styles.mainCard, isDesktop ? { width: "65%" } : { width: "100%" }, isCompact && styles.mainCardCompact]}>
+        <View style={[styles.cardHeader, isCompact && styles.cardHeaderCompact]}>
+          <View style={styles.cardHeaderText}>
             <AppText style={styles.cardTitle}>Store Intelligence Charts</AppText>
             <AppText style={styles.cardSubtitle}>Enterprise multi-dimensional analytics matrix</AppText>
           </View>
           
           {/* Segmented Period Selector */}
-          <View style={styles.periodTabs}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.periodTabsScroll}
+            contentContainerStyle={[styles.periodTabs, isCompact && styles.periodTabsCompact]}
+          >
             {PERIOD_OPTIONS.map((p) => (
               <TouchableOpacity
                 key={p}
                 onPress={() => onSalesPeriodChange(p)}
-                style={[styles.periodTab, salesPeriod === p && styles.periodTabActive]}
+                style={[styles.periodTab, isCompact && styles.periodTabCompact, salesPeriod === p && styles.periodTabActive]}
                 activeOpacity={0.8}
               >
-                <AppText style={[styles.periodTabText, salesPeriod === p && styles.periodTabTextActive]}>
-                  {p === "Custom" ? "Custom Time" : p}
+                <AppText style={[styles.periodTabText, isCompact && styles.periodTabTextCompact, salesPeriod === p && styles.periodTabTextActive]}>
+                  {p === "Custom" ? (isCompact ? "Custom" : "Custom Time") : p}
                 </AppText>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {salesPeriod === "Custom" ? (
@@ -244,22 +304,22 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
           <AppText style={styles.revenueTabLabel}>Revenue Overview</AppText>
         </View>
 
-        <View style={styles.chartDetailsRow}>
+        <View style={[styles.chartDetailsRow, isCompact && styles.chartDetailsRowCompact]}>
           <View style={styles.detailItem}>
             <AppText style={styles.detailLabel}>{periodRevenueLabel(salesPeriod)}</AppText>
             <View style={styles.detailValRow}>
-              <AppText style={styles.detailValue}>{currentStats.sales || currentSales.totalSales}</AppText>
+              <AppText style={[styles.detailValue, isCompact && styles.detailValueCompact]}>{currentStats.sales || currentSales.totalSales}</AppText>
               <View style={styles.changeBadge}>
                 <Ionicons name="caret-up" size={12} color={C.green} />
                 <AppText style={styles.changeText}>{currentSales.salesChange}</AppText>
               </View>
             </View>
           </View>
-          <View style={styles.detailDivider} />
+          <View style={[styles.detailDivider, isCompact && styles.detailDividerCompact]} />
           <View style={styles.detailItem}>
             <AppText style={styles.detailLabel}>Total Orders</AppText>
             <View style={styles.detailValRow}>
-              <AppText style={styles.detailValue}>{currentSales.totalOrders}</AppText>
+              <AppText style={[styles.detailValue, isCompact && styles.detailValueCompact]}>{currentSales.totalOrders}</AppText>
               <View style={styles.changeBadge}>
                 <Ionicons name="caret-up" size={12} color={C.green} />
                 <AppText style={styles.changeText}>{currentSales.ordersChange}</AppText>
@@ -271,16 +331,20 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
         <View 
           style={styles.chartArea}
           onLayout={(e) => {
-            const { width } = e.nativeEvent.layout;
-            if (width > 0) {
-              setChartWidth(width);
+            const next = Math.round(e.nativeEvent.layout.width);
+            if (next > 0 && next !== chartWidth) {
+              setChartWidth(next);
             }
           }}
         >
           {renderSVGChart()}
           <View style={styles.xAxisRow}>
-            {currentSales.labels.map((label, idx) => (
-              <AppText key={idx} style={styles.xAxisLabel}>
+            {barSeries.labels.map((label, idx) => (
+              <AppText
+                key={`axis-${idx}`}
+                style={[styles.xAxisLabel, isCompact && styles.xAxisLabelCompact]}
+                numberOfLines={1}
+              >
                 {label}
               </AppText>
             ))}
@@ -289,7 +353,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
       </View>
 
       {/* ── RIGHT: SALES ANALYTICS CARD ── */}
-      <View style={[styles.sideCard, isDesktop ? { width: "35%" } : { width: "100%" }]}>
+      <View style={[styles.sideCard, isDesktop ? { width: "35%" } : { width: "100%" }, isCompact && styles.mainCardCompact]}>
         <View style={styles.sideCardHeader}>
           <AppText style={styles.sideCardTitle}>Conversion Funnel</AppText>
           <AppText style={styles.sideCardSubtitle}>Key conversion & satisfaction metrics</AppText>
@@ -372,6 +436,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     marginBottom: 16,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   containerStacked: {
     flexDirection: "column",
@@ -382,11 +449,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     padding: 20,
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.02)",
       },
     }),
+  },
+  mainCardCompact: {
+    padding: 12,
+    paddingBottom: 10,
   },
   cardHeader: {
     flexDirection: "row",
@@ -395,6 +469,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
     marginBottom: 10,
+    width: "100%",
+  },
+  cardHeaderCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+  },
+  cardHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%",
   },
   cardTitle: {
     fontSize: 15,
@@ -407,6 +492,10 @@ const styles = StyleSheet.create({
     color: C.textLight,
     marginTop: 1,
   },
+  periodTabsScroll: {
+    maxWidth: "100%",
+    flexGrow: 0,
+  },
   periodTabs: {
     flexDirection: "row",
     backgroundColor: C.bg,
@@ -414,11 +503,20 @@ const styles = StyleSheet.create({
     padding: 3,
     borderWidth: 1,
     borderColor: C.border,
+    alignSelf: "flex-start",
+  },
+  periodTabsCompact: {
+    padding: 2,
   },
   periodTab: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 6,
+    flexShrink: 0,
+  },
+  periodTabCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   periodTabActive: {
     backgroundColor: C.white,
@@ -432,6 +530,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Poppins_500Medium",
     color: C.textMid,
+  },
+  periodTabTextCompact: {
+    fontSize: 11,
   },
   periodTabTextActive: {
     color: C.purple,
@@ -490,11 +591,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginTop: 8,
-    marginBottom: 12,
+    marginBottom: 8,
     gap: 16,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  chartDetailsRowCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+    padding: 10,
   },
   detailItem: {
     flex: 1,
+    minWidth: 0,
   },
   detailLabel: {
     fontSize: 11,
@@ -506,11 +617,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexWrap: "wrap",
   },
   detailValue: {
     fontSize: 18,
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
+  },
+  detailValueCompact: {
+    fontSize: 16,
   },
   changeBadge: {
     flexDirection: "row",
@@ -527,19 +642,45 @@ const styles = StyleSheet.create({
     height: 28,
     backgroundColor: C.border,
   },
+  detailDividerCompact: {
+    width: "100%",
+    height: 1,
+  },
   chartArea: {
-    marginTop: 8,
+    marginTop: 4,
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
+  },
+  chartEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.bg,
+    borderRadius: 8,
+  },
+  chartEmptyText: {
+    fontSize: 12,
+    fontFamily: "Poppins_500Medium",
+    color: C.textLight,
   },
   xAxisRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    marginTop: 6,
+    alignItems: "flex-start",
+    paddingHorizontal: 2,
+    marginTop: 8,
+    marginBottom: 0,
+    gap: 2,
   },
   xAxisLabel: {
+    flex: 1,
     fontSize: 10,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "Poppins_500Medium",
     color: C.textLight,
+    textAlign: "center",
+  },
+  xAxisLabelCompact: {
+    fontSize: 9,
   },
   sideCard: {
     backgroundColor: C.white,
@@ -547,7 +688,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     padding: 20,
-    justifyContent: "space-between",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.02)",
