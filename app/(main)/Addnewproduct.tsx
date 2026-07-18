@@ -16,6 +16,11 @@ import {
 import { AppText } from "@/components/AppText";
 import { Checkbox } from "@/lib/seller/sellerComponents";
 import { fontFamilies, fontSizes } from "@/constants/fonts";
+import {
+    SizeCatalogInlineMenu,
+    SizeCatalogPickerModal,
+    formatSizeOptionLabel,
+} from "@/components/product/SizeCatalogPickerModal";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
 import { ApiError } from "@/lib/api/client";
@@ -83,7 +88,7 @@ import {
     fetchProductFormCatalog,
     type ProductFormCatalog,
 } from "@/services/productApi";
-import { createSize } from "@/services/sizeApi";
+import { createSize, fetchSizes } from "@/services/sizeApi";
 import { createSizeChart, fetchSizeCharts } from "@/services/sizeChartApi";
 import {
     buildSizeChartCache,
@@ -988,16 +993,22 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
     );
 };
 
-const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey, disabled }: any) => {
+const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey, disabled, renderMenu, onClear }: any) => {
     const [localOpen, setLocalOpen] = useState(false);
     const dropRootRef = useRef<View>(null);
     const { isDesktop } = useResponsive();
     const activeWebDropKey = useSyncExternalStore(subscribeWebDrop, getWebDropActiveKey, () => null);
     const hasOptions = Array.isArray(options) && options.length > 0;
-    /** Prefer bottom-sheet onPress when provided; otherwise open inline menu on all breakpoints. */
-    const usesInlineMenu = hasOptions && (isDesktop || typeof onPress !== "function");
+    /** Prefer bottom-sheet onPress when provided; otherwise open inline menu on all breakpoints.
+     *  Absolute inline menus overlap adjacent fields on mobile — use bottom sheet (onPress) there.
+     *  Also support custom renderMenu (size catalog) on desktop / when no onPress. */
+    const usesInlineMenu =
+        (typeof renderMenu === "function" || hasOptions) &&
+        (isDesktop || typeof onPress !== "function");
     const usesSharedWebDrop = Platform.OS === "web" && usesInlineMenu && !!dropKey;
     const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
+    const menuMaxHeight = typeof renderMenu === "function" ? 360 : 280;
+    const canClear = typeof onClear === "function" && !!String(value ?? "").trim() && !disabled;
 
     const closeDrop = () => {
         if (usesSharedWebDrop) setWebDropActiveKey(null);
@@ -1036,7 +1047,10 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
     }, [open, usesSharedWebDrop]);
 
     const menuItems = hasOptions ? options : [];
-    const menuContent = menuItems.length === 0 ? (
+    const menuContent =
+        typeof renderMenu === "function"
+            ? renderMenu(closeDrop)
+            : menuItems.length === 0 ? (
         <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
             <AppText style={{ fontSize: 13, color: C.textLight, fontFamily: fontFamilies.medium }}>No options available</AppText>
         </View>
@@ -1054,14 +1068,32 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
 
     return (
         <View ref={dropRootRef} style={{ zIndex: open ? 200 : 1, position: "relative" }}>
-            <TouchableOpacity
-                style={[at.drop, hasError && at.fieldError, disabled && at.dropDisabled, open && { borderColor: C.navy }]}
-                onPress={handlePress}
-                activeOpacity={disabled ? 1 : 0.85}
-            >
-                <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
-                <Ionicons name={open ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
-            </TouchableOpacity>
+            <View style={[at.drop, hasError && at.fieldError, disabled && at.dropDisabled, open && { borderColor: C.navy }]}>
+                <TouchableOpacity
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}
+                    onPress={handlePress}
+                    activeOpacity={disabled ? 1 : 0.85}
+                    disabled={disabled}
+                >
+                    <AppText style={[at.dropText, !value && at.dropPh]} numberOfLines={1}>{value || placeholder}</AppText>
+                </TouchableOpacity>
+                {canClear ? (
+                    <TouchableOpacity
+                        onPress={() => {
+                            closeDrop();
+                            onClear();
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ marginRight: 2, padding: 2 }}
+                        accessibilityLabel="Clear selection"
+                    >
+                        <Ionicons name="close-circle" size={18} color={C.textLight} />
+                    </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={handlePress} disabled={disabled} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name={open ? "chevron-up" : "chevron-down"} size={15} color={C.textLight} />
+                </TouchableOpacity>
+            </View>
             {usesInlineMenu && open && !disabled && (
                 <>
                     {Platform.OS === "web" && !usesSharedWebDrop ? (
@@ -1084,7 +1116,7 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
                             shadowRadius: 12,
                             elevation: 8,
                             zIndex: 201,
-                            maxHeight: 280,
+                            maxHeight: menuMaxHeight,
                             overflow: "hidden",
                         }}
                         {...(Platform.OS === "web"
@@ -1096,7 +1128,7 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
                             keyboardShouldPersistTaps="handled"
                             showsVerticalScrollIndicator={false}
                             bounces={false}
-                            style={[{ maxHeight: 280 }, HIDE_SCROLLBAR_WEB]}
+                            style={[{ maxHeight: menuMaxHeight }, HIDE_SCROLLBAR_WEB]}
                             {...(Platform.OS === "web"
                                 ? {
                                     className: "anp-hide-scrollbar" as any,
@@ -1104,6 +1136,14 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
                                 }
                                 : {})}
                         >
+                            {canClear ? (
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}
+                                    onPress={() => { onClear(); closeDrop(); }}
+                                >
+                                    <AppText style={{ fontFamily: fontFamilies.semiBold, fontSize: 13.5, color: C.red }}>Clear selection</AppText>
+                                </TouchableOpacity>
+                            ) : null}
                             {menuContent}
                         </ScrollView>
                     </View>
@@ -1118,9 +1158,10 @@ const Hint = ({ text }: { text: string }) => <AppText style={at.hint}>{text}</Ap
 const CC = ({ cur, max }: { cur: number; max: number }) => <AppText style={at.cc}>{cur}/{max}</AppText>;
 
 // ─── Picker Modal ─────────────────────────────────────────────
-const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
+const PM = ({ visible, title, options, selected, onSelect, onClose, onClear }: any) => {
     const { isDesktop } = useResponsive();
     const items = uniquePickerOptions(options ?? []);
+    const canClear = typeof onClear === "function" && !!String(selected ?? "").trim();
     return (
     <Modal visible={visible} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={onClose}>
         <View style={[pm.overlay, isDesktop && pm.overlayCenter]}>
@@ -1139,6 +1180,14 @@ const PM = ({ visible, title, options, selected, onSelect, onClose }: any) => {
                     style={[isDesktop ? pm.listDesktop : undefined, HIDE_SCROLLBAR_WEB]}
                     {...(Platform.OS === "web" ? { className: "anp-hide-scrollbar" as any } : {})}
                 >
+                    {canClear ? (
+                        <TouchableOpacity
+                            style={[pm.item, isDesktop && pm.itemDesktop]}
+                            onPress={() => { onClear(); onClose(); }}
+                        >
+                            <AppText style={[pm.itemTxt, { color: C.red, fontFamily: fontFamilies.semiBold }]}>Clear selection</AppText>
+                        </TouchableOpacity>
+                    ) : null}
                     {items.map((opt: string, index: number) => (
                         <TouchableOpacity key={`${title}-${index}-${opt}`} style={[pm.item, isDesktop && pm.itemDesktop, selected === opt && pm.itemOn]} onPress={() => { onSelect(opt); onClose(); }}>
                             <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
@@ -1843,7 +1892,7 @@ const emptySizeRow = (size = ""): SizeChartRow => ({
 });
 
 const SIZE_TABLE_COLS = [
-    { key: "size" as const, label: "Size", width: 72, placeholder: "S" },
+    { key: "size" as const, label: "Size", width: 140, placeholder: "Select" },
     { key: "chest" as const, label: "Chest/Bust", width: 88, placeholder: "34-36" },
     { key: "waist" as const, label: "Waist", width: 80, placeholder: "28-30" },
     { key: "hip" as const, label: "Hip", width: 80, placeholder: "36-38" },
@@ -2544,9 +2593,14 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
 
     const catalogColors: { id: number; name: string; hex: string }[] = catalog?.colors ?? [];
     const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
-    const sizeOptions = catalogSizes.map((s) =>
-        s.name === s.code ? s.name : `${s.name} (${s.code})`
-    );
+    const sizeOptions = catalogSizes.map((s) => formatSizeOptionLabel(s.name, s.code));
+    const sizeLabelForVariant = (v: Variant) => {
+        const size = catalogSizes.find(
+            (s) => (s.id != null && s.id === v.sizeId) || s.name === v.size || s.code === v.size
+        );
+        if (!size) return v.size || "";
+        return formatSizeOptionLabel(size.name, size.code);
+    };
     const sweetsProduct = isSweetsCategory(
         basicData?.category,
         basicData?.categorySubName,
@@ -2711,8 +2765,9 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
         catalogSizes.find(
             (s) =>
                 s.name === val ||
-                `${s.name} (${s.code})` === val ||
-                s.code === val
+                s.code === val ||
+                formatSizeOptionLabel(s.name, s.code) === val ||
+                `${s.name} (${s.code})` === val
         );
 
     const resolveSizeCode = (variant: Variant) =>
@@ -2814,14 +2869,32 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                         ) : null}
                         <View style={{ flex: 1 }} ref={setVariantFieldRef(idx, "size")}>
                             <Lbl text={dimLabels.sizeLabel} required />
-                            <Drop dropKey={`variant-${v.id}-size`} placeholder={dimLabels.sizePlaceholder} value={v.size} onPress={() => openSizePicker(v.id)} hasError={hasErr(v.id, "size") || hasErr(v.id, "weight")} options={sizeOptions} onSelect={(val: string) => {
-                                const size = resolveSizeFromLabel(val);
-                                patchVariant(v.id, {
-                                    size: size?.name ?? val,
-                                    color: sweetsProduct ? SWEETS_DEFAULT_COLOR : v.color,
-                                    ...(size?.id != null ? { sizeId: size.id } : {}),
-                                });
-                            }} />
+                            <Drop
+                                dropKey={Platform.OS === "web" ? `variant-${v.id}-size` : undefined}
+                                placeholder={dimLabels.sizePlaceholder}
+                                value={sizeLabelForVariant(v)}
+                                hasError={hasErr(v.id, "size") || hasErr(v.id, "weight")}
+                                onPress={() => openSizePicker(v.id)}
+                                {...(Platform.OS === "web"
+                                    ? {
+                                        renderMenu: (close: () => void) => (
+                                            <SizeCatalogInlineMenu
+                                                sizes={catalogSizes}
+                                                selected={sizeLabelForVariant(v)}
+                                                onSelect={(val: string) => {
+                                                    const size = resolveSizeFromLabel(val);
+                                                    patchVariant(v.id, {
+                                                        size: size?.name ?? val,
+                                                        color: sweetsProduct ? SWEETS_DEFAULT_COLOR : v.color,
+                                                        ...(size?.id != null ? { sizeId: size.id } : {}),
+                                                    });
+                                                    close();
+                                                }}
+                                            />
+                                        ),
+                                    }
+                                    : {})}
+                            />
                         </View>
                     </View>
                     <View style={at.row2}>
@@ -2946,11 +3019,15 @@ const StepVariants = ({ variants, setVariants, rmVariant, errors, catalog, produ
                 }}
                 onClose={() => setClrPick(null)}
             />
-            <PM
+            <SizeCatalogPickerModal
                 visible={!!szPick}
                 title={dimLabels.sizeSelectTitle}
+                sizes={catalogSizes}
                 options={sizeOptions}
-                selected={variants.find((v: Variant) => v.id === szPick)?.size || ""}
+                selected={(() => {
+                    const picked = variants.find((v: Variant) => v.id === szPick);
+                    return picked ? sizeLabelForVariant(picked) : "";
+                })()}
                 onSelect={(val: string) => {
                     if (!szPick) return;
                     const size = resolveSizeFromLabel(val);
@@ -3189,6 +3266,8 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     const [newChartSizeCode, setNewChartSizeCode] = useState("");
     const [savingChartSize, setSavingChartSize] = useState(false);
     const [savingChart, setSavingChart] = useState(false);
+    const [chartSizePickRowId, setChartSizePickRowId] = useState<string | null>(null);
+    const [dbSizes, setDbSizes] = useState<{ id?: number; name: string; code: string }[]>([]);
     const [customPolicyDraft, setCustomPolicyDraft] = useState(data.returnPolicyText || "");
     const features = data.features?.length ? data.features : [""];
     const specs = data.specifications?.length ? data.specifications : [{ name: "", value: "" }];
@@ -3207,6 +3286,16 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
             })
             .catch(() => {});
     }, []);
+
+    useEffect(() => {
+        fetchSizes()
+            .then((rows) => {
+                setDbSizes(
+                    rows.map((s) => ({ id: Number(s.id), name: s.name, code: s.code })),
+                );
+            })
+            .catch(() => setDbSizes([]));
+    }, [createSizeOpen, catalog?.sizes?.length]);
 
     useEffect(() => {
         if (!createSizeOpen || chartErrors.length === 0) return;
@@ -3238,6 +3327,13 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         onChange("sizeChartMeta", sellerSizeChartMeta[name]);
     };
 
+    const clearSizeChartSelection = () => {
+        onChange("sizeChart", "");
+        onChange("sizeChartId", undefined);
+        onChange("sizeChartRows", []);
+        onChange("sizeChartMeta", undefined);
+    };
+
     const categoryPathOptions = buildCategoryPathOptions(catalog, CATEGORY_TREE_FALLBACK);
     const chartCategoryDisplay = formatCategoryPath(chartCategory, chartCategorySubName);
     const chartLeafSubcategoryOptions = buildLeafSubcategoryOptions(
@@ -3248,7 +3344,25 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
     );
     const chartSubcategoryEnabled = Boolean(chartCategory && chartCategorySubName);
 
-    const catalogSizes: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
+    const catalogSizes: { id?: number; name: string; code: string }[] = (() => {
+        const fromCatalog: { id?: number; name: string; code: string }[] = catalog?.sizes ?? [];
+        const byKey = new Map<string, { id?: number; name: string; code: string }>();
+        for (const s of [...fromCatalog, ...dbSizes]) {
+            const key = `${s.name}`.trim().toLowerCase();
+            if (!key) continue;
+            if (!byKey.has(key)) byKey.set(key, s);
+        }
+        return Array.from(byKey.values());
+    })();
+
+    const resolveChartSizeFromLabel = (val: string) =>
+        catalogSizes.find(
+            (s) =>
+                s.name === val ||
+                s.code === val ||
+                formatSizeOptionLabel(s.name, s.code) === val ||
+                `${s.name} (${s.code})` === val,
+        );
 
     const selectChartCategoryPath = (label: string) => {
         const resolved = resolveCategoryPathSelection(label, catalog);
@@ -3401,6 +3515,11 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
         try {
             const created = await createSize({ name, code, status: "Active" });
             await reloadCatalog?.();
+            setDbSizes((prev) => {
+                const next = { id: Number(created.id), name: created.name, code: created.code };
+                if (prev.some((s) => s.name.toLowerCase() === created.name.toLowerCase())) return prev;
+                return [next, ...prev];
+            });
             const emptyRow = chartRows.find((r) => !r.size.trim());
             if (emptyRow) {
                 updateChartRow(emptyRow.id, "size", created.name);
@@ -3441,12 +3560,14 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 <View style={[twoCol, Platform.OS === 'web' && { zIndex: 20 }, isDesktop && { alignItems: "flex-end" }]}>
                     <View style={fieldFlex}>
                         <Drop
+                            dropKey="select-size-chart"
                             placeholder="Select size chart"
                             value={data.sizeChart}
                             onPress={() => sizeChartOptions.length > 0 && setSizePick(true)}
                             options={sizeChartOptions}
                             disabled={sizeChartOptions.length === 0}
                             onSelect={applySizeChartSelection}
+                            onClear={clearSizeChartSelection}
                         />
                     </View>
                     <TouchableOpacity
@@ -3685,7 +3806,29 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                 options={sizeChartOptions}
                 selected={data.sizeChart}
                 onSelect={applySizeChartSelection}
+                onClear={clearSizeChartSelection}
                 onClose={() => setSizePick(false)}
+            />
+            <SizeCatalogPickerModal
+                visible={!!chartSizePickRowId}
+                title="Select Size"
+                sizes={catalogSizes}
+                selected={(() => {
+                    const row = chartRows.find((r) => r.id === chartSizePickRowId);
+                    if (!row?.size?.trim()) return "";
+                    const match = catalogSizes.find(
+                        (s) => s.name === row.size || s.code === row.size,
+                    );
+                    return match ? formatSizeOptionLabel(match.name, match.code) : row.size;
+                })()}
+                onSelect={(val: string) => {
+                    if (!chartSizePickRowId) return;
+                    const size = resolveChartSizeFromLabel(val);
+                    updateChartRow(chartSizePickRowId, "size", size?.name ?? val);
+                    setChartErrors((prev) => prev.filter((e) => !e.toLowerCase().includes("size")));
+                    setChartSizePickRowId(null);
+                }}
+                onClose={() => setChartSizePickRowId(null)}
             />
             <PM visible={retPick} title="Return Policy" options={RETURN_POLICY_OPTIONS} selected={data.returnPolicy} onSelect={(v: string) => applyReturnPolicySelection(v, onChange)} onClose={() => setRetPick(false)} />
             <PM visible={delPick} title="Delivery Option" options={DELIVERY_OPTIONS} selected={data.deliveryOption} onSelect={(v: string) => applyDeliverySelection(v, onChange)} onClose={() => setDelPick(false)} />
@@ -3797,20 +3940,35 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
                             {chartRows.map((row, idx) => (
                                 <View key={row.id} style={[dt.sizeTableRow, idx % 2 === 1 && dt.sizeTableRowAlt]}>
                                     <View style={[dt.sizeTableTd, { width: SIZE_TABLE_COLS[0].width, minWidth: SIZE_TABLE_COLS[0].width }]}>
-                                        <TextInput
-                                            style={[dt.sizeTableInput, chartHasErr("size") && !row.size.trim() && { borderColor: C.red }]}
-                                            placeholder="S"
-                                            placeholderTextColor={C.textPlaceholder}
-                                            value={row.size}
-                                            onChangeText={(v: string) => {
-                                                updateChartRow(row.id, "size", v);
-                                                if (v.trim()) {
-                                                    setChartErrors((prev) =>
-                                                        prev.filter((e) => !e.toLowerCase().includes("size")),
-                                                    );
-                                                }
-                                            }}
-                                        />
+                                        <TouchableOpacity
+                                            style={[
+                                                dt.sizeTableInput,
+                                                { justifyContent: "center" },
+                                                chartHasErr("size") && !row.size.trim() && { borderColor: C.red },
+                                            ]}
+                                            onPress={() => setChartSizePickRowId(row.id)}
+                                            activeOpacity={0.85}
+                                        >
+                                            <AppText
+                                                style={{
+                                                    fontFamily: fontFamilies.regular,
+                                                    fontSize: 12,
+                                                    color: row.size.trim() ? C.textDark : C.textPlaceholder,
+                                                }}
+                                                numberOfLines={1}
+                                            >
+                                                {row.size.trim()
+                                                    ? (() => {
+                                                        const match = catalogSizes.find(
+                                                            (s) => s.name === row.size || s.code === row.size,
+                                                        );
+                                                        return match
+                                                            ? formatSizeOptionLabel(match.name, match.code)
+                                                            : row.size;
+                                                    })()
+                                                    : "Select size"}
+                                            </AppText>
+                                        </TouchableOpacity>
                                     </View>
                                     {SIZE_TABLE_COLS.slice(1).map((col) => (
                                         <View key={col.key} style={[dt.sizeTableTd, { width: col.width, minWidth: col.width }]}>
@@ -4301,9 +4459,18 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     }, []);
 
     const reloadCatalog = useCallback(() => {
-        fetchProductFormCatalog()
-            .then((data) => {
-                setCatalog(data);
+        Promise.all([fetchProductFormCatalog(), fetchSizes().catch(() => [])])
+            .then(([data, sizeRows]) => {
+                const byKey = new Map<string, { id: number; name: string; code: string }>();
+                for (const s of data.sizes ?? []) {
+                    byKey.set(String(s.name).trim().toLowerCase(), s);
+                }
+                for (const s of sizeRows) {
+                    const key = String(s.name).trim().toLowerCase();
+                    if (!key || byKey.has(key)) continue;
+                    byKey.set(key, { id: Number(s.id), name: s.name, code: s.code });
+                }
+                setCatalog({ ...data, sizes: Array.from(byKey.values()) });
                 if (!PREFILL_WITH_DUMMY) return;
                 setBasicData((prev) => {
                     if (prev.categoryId) return prev;

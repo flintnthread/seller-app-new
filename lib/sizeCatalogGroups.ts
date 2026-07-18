@@ -212,3 +212,37 @@ export function countSizesByCatalogGroup<T extends { name: string; code: string 
   }
   return counts;
 }
+
+export function formatSizeOptionLabel(name: string, code: string): string {
+  const n = String(name ?? "").trim();
+  const c = String(code ?? "").trim();
+  if (!n) return c;
+  if (!c || n === c) return n;
+  return `${n} (${c})`;
+}
+
+/** Group catalog sizes for pickers (Apparel, Kids, Footwear, …). Empty groups omitted. */
+export function buildSizeOptionGroups(
+  sizes: { name: string; code: string }[]
+): { id: SizeCatalogGroupId; label: string; options: string[] }[] {
+  const buckets: Record<SizeCatalogGroupId, string[]> = {
+    apparel: [],
+    footwear: [],
+    waist: [],
+    kids: [],
+    free: [],
+    other: [],
+  };
+  const seen = new Set<string>();
+  for (const s of sizes) {
+    const label = formatSizeOptionLabel(s.name, s.code);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    buckets[classifySizeCatalog(s.name, s.code)].push(label);
+  }
+  return SIZE_CATALOG_GROUPS.map((g) => ({
+    id: g.id,
+    label: g.label,
+    options: buckets[g.id],
+  })).filter((g) => g.options.length > 0);
+}
