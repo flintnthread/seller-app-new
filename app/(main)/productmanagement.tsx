@@ -23,6 +23,7 @@ import {
     type ProductListItem,
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
+import { isUsableMediaUrl } from "@/lib/media/resolveMediaUrl";
 import { useProductFilterCatalog } from "@/hooks/useProductFilterCatalog";
 import { useResponsive } from "@/hooks/useResponsive";
 import {
@@ -81,6 +82,25 @@ const LOW_STOCK_THRESHOLD = 10;
 const COLOR_FILTER_PREVIEW = 8;
 const SIZE_FILTER_PREVIEW = 5;
 const FILTER_SLIDER_W = 200;
+
+function ProductThumb({
+    uri,
+    style,
+    resizeMode = "cover",
+}: {
+    uri?: string | null;
+    style: any;
+    resizeMode?: "cover" | "contain" | "stretch" | "center";
+}) {
+    if (!isUsableMediaUrl(uri)) {
+        return (
+            <View style={[style, { alignItems: "center", justifyContent: "center", backgroundColor: C.bg }]}>
+                <MaterialCommunityIcons name="image-off-outline" size={22} color={C.textLight} />
+            </View>
+        );
+    }
+    return <Image source={{ uri: uri! }} style={style} resizeMode={resizeMode} />;
+}
 
 const clampPrice = (value: number, min: number, max: number) =>
     Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
@@ -629,7 +649,7 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
                 <View style={as.sheet}>
                     <View style={as.drag} />
                     <View style={as.productRow}>
-                        <Image source={{ uri: product.image }} style={as.productThumb} />
+                        <ProductThumb uri={product.image} style={as.productThumb} />
                         <View style={{ flex: 1 }}>
                             <Text style={as.productName} numberOfLines={1}>{product.name}</Text>
                             <Text style={as.productSku}>SKU: {product.sku}</Text>
@@ -703,7 +723,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
                 <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
                 <View style={wp.popup}>
                     <View style={wp.popupHeader}>
-                        <Image source={{ uri: product.image }} style={wp.popupImg} />
+                        <ProductThumb uri={product.image} style={wp.popupImg} />
                         <View style={{ flex: 1 }}>
                             <Text style={wp.popupName} numberOfLines={2}>{product.name}</Text>
                             <Text style={wp.popupSku}>SKU: {product.sku}</Text>
@@ -1523,7 +1543,7 @@ const WebProductsScreen: React.FC = () => {
                                             <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
                                                 <View style={[wst.tableCell, { flex: 3.0, minWidth: 0 }]}>
-                                                    <Image source={{ uri: product.image }} style={wst.tableProductImg} />
+                                                    <ProductThumb uri={product.image} style={wst.tableProductImg} />
                                                     <View style={{ flex: 1, minWidth: 0 }}>
                                                         <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.tableProductSub}>{product.color}</Text>
@@ -1604,7 +1624,7 @@ const WebProductsScreen: React.FC = () => {
                                             return (
                                                 <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
-                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} resizeMode="contain" />
+                                                        <ProductThumb uri={product.image} style={wst.webGridImg} resizeMode="contain" />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
                                                             <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                             <Text style={[wst.webGridStatusTxt, { color: st.color }]}>{product.status}</Text>
@@ -2483,7 +2503,7 @@ const MobileProductsScreen: React.FC = () => {
                             const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                             return (
                                 <TouchableOpacity key={product.id} style={s.productRow} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.productImage} />
+                                    <ProductThumb uri={product.image} style={s.productImage} />
                                     <View style={s.productInfo}>
                                         <Text style={s.productName} numberOfLines={1}>{product.name}</Text>
                                         <Text style={s.productSku}>SKU: {product.sku}</Text>
@@ -2516,7 +2536,7 @@ const MobileProductsScreen: React.FC = () => {
                             const st = getStatusColor(product.status);
                             return (
                                 <TouchableOpacity key={product.id} style={[s.gridCard, { width: gridCardWidth }]} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.gridImage} resizeMode="contain" />
+                                    <ProductThumb uri={product.image} style={s.gridImage} resizeMode="contain" />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
                                     </View>

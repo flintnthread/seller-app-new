@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Pressable, Platform, Image, Alert }
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { resolveSellerAppBaseUrl } from "@/lib/shipping/orderLabelQrUrl";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
 import { useResponsive } from "@/hooks/useResponsive";
 import Svg, { Circle } from "react-native-svg";
@@ -59,7 +60,9 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   referralTotalReferred = 0,
 }) => {
   const router = useRouter();
-  const { isCompact, width } = useResponsive();
+  const { isTablet, isMobile, isCompact, width } = useResponsive();
+  /** Stack welcome + referral below desktop width so the 300px referral rail cannot overlap. */
+  const stackColumns = isMobile || isTablet;
   const stackLayout = width < 1024;
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
@@ -105,10 +108,19 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   };
 
   const handleShare = async () => {
+    const code =
+      displayReferralCode && displayReferralCode !== "—"
+        ? displayReferralCode
+        : "";
+    const signupUrl = code
+      ? `${resolveSellerAppBaseUrl()}/signup?referralCode=${encodeURIComponent(code)}`
+      : `${resolveSellerAppBaseUrl()}/signup`;
     const shareData = {
-      title: "Join F&T Marketplace!",
-      text: `Use my referral code ${displayReferralCode} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
-      url: "https://fandt.app/register",
+      title: "Join F&T as a Seller!",
+      text: code
+        ? `Use my referral code ${code} to register as a seller on Flint & Thread and we both earn +5% commission bonus! 🎁`
+        : "Register as a seller on Flint & Thread!",
+      url: signupUrl,
     };
     if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
       try {
@@ -128,20 +140,43 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const progressPct = referralGoal > 0 ? Math.min((referralTotalReferred / referralGoal) * 100, 100) : 0;
 
   return (
-    <View style={[
-      welcomeStyles.container,
-      stackLayout && welcomeStyles.containerStacked,
-      isCompact && welcomeStyles.containerCompact,
-    ]}>
+    <View
+      style={[
+        welcomeStyles.container,
+        stackColumns && welcomeStyles.containerStacked,
+        stackLayout && welcomeStyles.containerStacked,
+        isMobile && welcomeStyles.containerMobile,
+        isCompact && welcomeStyles.containerCompact,
+      ]}
+    >
       {/* ── LEFT: Greeting + Quick Actions ── */}
-      <View style={[
-        welcomeStyles.leftCol,
-        stackLayout && welcomeStyles.leftColStacked,
-      ]}>
+      <View
+        style={[
+          welcomeStyles.leftCol,
+          stackColumns && welcomeStyles.leftColStacked,
+          stackLayout && welcomeStyles.leftColStacked,
+        ]}
+      >
         <View style={welcomeStyles.heroText}>
-          <AppText style={[welcomeStyles.title, isCompact && welcomeStyles.titleCompact]}>
+          <AppText
+            style={[
+              welcomeStyles.title,
+              isMobile && welcomeStyles.titleMobile,
+              isCompact && welcomeStyles.titleCompact,
+            ]}
+          >
             {greeting},{" "}
-            <AppText style={[welcomeStyles.title, { color: C.purple }, isCompact && welcomeStyles.titleCompact]}>{name}</AppText> 👋
+            <AppText
+              style={[
+                welcomeStyles.title,
+                { color: C.purple },
+                isMobile && welcomeStyles.titleMobile,
+                isCompact && welcomeStyles.titleCompact,
+              ]}
+            >
+              {name}
+            </AppText>{" "}
+            👋
           </AppText>
           <AppText style={welcomeStyles.motivation}>
             ✨ {pendingOrders > 0 ? `${pendingOrders} orders need your attention.` : "All caught up — no pending orders."}
@@ -175,12 +210,14 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         </View>
 
         {/* ── Today's Live Overview Strip ── */}
-        <View style={[
-          welcomeStyles.statsStrip,
-          stackLayout && welcomeStyles.statsStripStacked,
-          isCompact && welcomeStyles.statsStripCompact,
-        ]}>
-          <View style={welcomeStyles.statItem}>
+        <View
+          style={[
+            welcomeStyles.statsStrip,
+            stackColumns && welcomeStyles.statsStripTablet,
+            stackLayout && welcomeStyles.statsStripStacked,
+            isCompact && welcomeStyles.statsStripCompact,
+          ]}
+        >          <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.orange }]} />
             <AppText style={welcomeStyles.statText}>
               Total Orders: <AppText style={welcomeStyles.statValue}>{totalOrders}</AppText>
@@ -218,19 +255,27 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       </View>
 
       {/* ── DIVIDER ── */}
-      <View style={[welcomeStyles.divider, stackLayout && welcomeStyles.dividerStacked]} />
+      <View
+        style={[
+          welcomeStyles.divider,
+          stackColumns && welcomeStyles.dividerStacked,
+          stackLayout && welcomeStyles.dividerStacked,
+        ]}
+      />
 
       {/* ── RIGHT: Referral Reward Program ── */}
-      <View style={[
-        welcomeStyles.referralCol,
-        stackLayout && welcomeStyles.referralColStacked,
-      ]}>
-        {/* Header */}
+      <View
+        style={[
+          welcomeStyles.referralCol,
+          stackColumns && welcomeStyles.referralColStacked,
+          stackLayout && welcomeStyles.referralColStacked,
+        ]}
+      >        {/* Header */}
         <View style={welcomeStyles.refHeader}>
           <View style={welcomeStyles.refIconBox}>
             <MaterialCommunityIcons name="gift-outline" size={16} color={C.orange} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={welcomeStyles.refHeaderText}>
             <AppText style={welcomeStyles.refTitle}>Referral Rewards</AppText>
             <AppText style={welcomeStyles.refSubtitle}>Invite sellers • Earn +5% commission</AppText>
           </View>
@@ -323,9 +368,19 @@ const welcomeStyles = StyleSheet.create({
   },
   containerStacked: {
     flexDirection: "column",
+    alignItems: "stretch",
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
+  },
+  containerMobile: {
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    marginBottom: 14,
   },
   containerCompact: {
     paddingHorizontal: 12,
@@ -344,11 +399,11 @@ const welcomeStyles = StyleSheet.create({
     paddingRight: 0,
   },
   leftColStacked: {
+    paddingRight: 0,
     width: "100%",
     flexGrow: 0,
     flexShrink: 1,
     flexBasis: "auto",
-    paddingRight: 0,
   },
   heroText: {
     marginBottom: 10,
@@ -361,6 +416,10 @@ const welcomeStyles = StyleSheet.create({
     flexShrink: 1,
   },
   titleCompact: {
+    fontSize: 20,
+    lineHeight: 28,
+  },
+  titleMobile: {
     fontSize: 20,
     lineHeight: 28,
   },
@@ -404,6 +463,7 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 148,
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         transitionDuration: "200ms",
@@ -530,7 +590,8 @@ const welcomeStyles = StyleSheet.create({
     width: "100%",
     height: 1,
     marginVertical: 14,
-    alignSelf: "auto",
+    marginHorizontal: 0,
+    alignSelf: "stretch",
   },
   // ── Right column — Referral ──
   referralCol: {
@@ -561,21 +622,41 @@ const welcomeStyles = StyleSheet.create({
   },
   referralColStacked: {
     width: "100%",
+    maxWidth: "100%",
     minWidth: 0,
-    flexGrow: 0,
     flexShrink: 1,
+    flexGrow: 0,
     flexBasis: "auto",
     marginLeft: 0,
     paddingLeft: 0,
     marginTop: 0,
+    alignSelf: "stretch",
+    ...Platform.select({
+      web: {
+        marginLeft: 0,
+        padding: 14,
+      },
+      default: {
+        backgroundColor: "#FFF8F2",
+        borderRadius: 12,
+        padding: 14,
+        borderWidth: 1.5,
+        borderColor: "#F97316",
+      },
+    }),
   },
   refHeader: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 6,
     flexWrap: "wrap",
     minWidth: 0,
+  },
+  refHeaderText: {
+    flex: 1,
+    minWidth: 120,
   },
   refIconBox: {
     width: 26,
@@ -619,9 +700,12 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
     marginBottom: 4,
   },
   refProgressLabel: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
     color: C.textMid,
@@ -630,6 +714,7 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_700Bold",
     color: C.orange,
+    flexShrink: 0,
   },
   refBarBg: {
     height: 6,
@@ -637,6 +722,7 @@ const welcomeStyles = StyleSheet.create({
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 4,
+    width: "100%",
   },
   refBarFill: {
     height: "100%",
@@ -648,6 +734,7 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_500Medium",
     color: C.textMid,
     lineHeight: 14,
+    flexWrap: "wrap",
   },
   refCodeWrap: {
     flexDirection: "column",
@@ -659,6 +746,8 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
+    width: "100%",
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
@@ -680,6 +769,7 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
     letterSpacing: 0.3,
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         whiteSpace: "nowrap",
@@ -690,8 +780,10 @@ const welcomeStyles = StyleSheet.create({
   refCodeActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 2,
+    width: "100%",
   },
   refCopyBtn: {
     flex: 1,
@@ -706,6 +798,7 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 32,
+    minWidth: 100,
   },
   refCopyText: {
     fontSize: 11,
@@ -723,6 +816,7 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 32,
+    minWidth: 100,
   },
   refShareText: {
     fontSize: 11,
