@@ -991,11 +991,13 @@ const Field = ({ placeholder, value, onChangeText, keyboardType = "default", mul
 const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKey, disabled }: any) => {
     const [localOpen, setLocalOpen] = useState(false);
     const dropRootRef = useRef<View>(null);
+    const { isDesktop } = useResponsive();
     const activeWebDropKey = useSyncExternalStore(subscribeWebDrop, getWebDropActiveKey, () => null);
-    const usesSharedWebDrop = Platform.OS === "web" && !!options && !!dropKey;
-    const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
     const hasOptions = Array.isArray(options) && options.length > 0;
-    const usesInlineMenu = Array.isArray(options);
+    /** Absolute inline menus overlap adjacent fields on mobile — use bottom sheet (onPress) there. */
+    const usesInlineMenu = hasOptions && isDesktop;
+    const usesSharedWebDrop = Platform.OS === "web" && usesInlineMenu && !!dropKey;
+    const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
 
     const closeDrop = () => {
         if (usesSharedWebDrop) setWebDropActiveKey(null);
@@ -4265,6 +4267,7 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     const [sweetAlertVisible, setSweetAlertVisible] = useState(false);
     const [sweetAlertStage, setSweetAlertStage] = useState<SweetAlertStage>("confirm");
     const [isSaving, setIsSaving] = useState(false);
+    const savingRef = useRef(false);
     const [savedProductId, setSavedProductId] = useState<string | null>(null);
     const [catalog, setCatalog] = useState<ProductFormCatalog | null>(null);
     const [isB2B, setIsB2B] = useState(false);
@@ -4637,7 +4640,8 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
     };
 
     const handleSweetConfirm = async () => {
-        if (isSaving) return;
+        if (isSaving || savingRef.current) return;
+        savingRef.current = true;
         setIsSaving(true);
         try {
             const enrichedVariants = enrichVariantsWithCatalogIds(variants, catalog);
@@ -4648,10 +4652,14 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
                 details: detailsData,
             });
             const result = await createProduct(payload);
-            setSavedProductId(result.productId);
+            const id = String(result?.productId ?? "").trim();
+            if (!/^\d+$/.test(id)) {
+                throw new Error("Save failed: server did not return a valid product ID.");
+            }
+            setSavedProductId(id);
             setSweetAlertStage("success");
             setSweetAlertVisible(true);
-            showToast(`Product saved (ID ${result.productId})`, "success");
+            showToast(`Product saved (ID ${id})`, "success");
         } catch (err: unknown) {
             const msg =
                 err instanceof ApiError
@@ -4662,6 +4670,7 @@ const ProductFormScreen: React.FC<{ editProductId?: string }> = ({ editProductId
             showToast(msg, "error");
             setSweetAlertVisible(false);
         } finally {
+            savingRef.current = false;
             setIsSaving(false);
         }
     };

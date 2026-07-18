@@ -843,7 +843,7 @@ const MobileLayout: React.FC<{
 }> = ({ order, trackingVisible, labelVisible, setTrackingVisible, setLabelVisible, onPrintLabel }) => {
   const [amountExpanded, setAmountExpanded] = useState(false);
   const { isMobile, isWeb } = useResponsive();
-  const isWebMobile = isWeb && isMobile;
+  const isWebMobile = isMobile; // native + web narrow: apply responsive layout
   const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment.status];
   const shippingAddress = order.customer.address;
   const billingAddress = order.billing?.address ?? shippingAddress;

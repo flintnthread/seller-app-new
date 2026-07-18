@@ -357,6 +357,15 @@ function resolveListItemSku(row: ApiProductListItem): string {
     return row.sku?.trim() ?? "";
 }
 
+function resolveListItemImage(row: ApiProductListItem): string {
+    const candidates = [row.image];
+    for (const candidate of candidates) {
+        const resolved = resolveMediaUrl(candidate ?? "");
+        if (resolved) return resolved;
+    }
+    return "";
+}
+
 function toListItem(row: ApiProductListItem): ProductListItem {
     const categorySub = row.categorySub?.trim() || undefined;
     const subcategory = row.subcategory ?? "";
@@ -375,7 +384,7 @@ function toListItem(row: ApiProductListItem): ProductListItem {
         sku: resolveListItemSku(row),
         price: resolveListItemPrice(row),
         mrpInclGst: row.mrpInclGst != null ? Number(row.mrpInclGst) : undefined,
-        image: resolveMediaUrl(row.image ?? "") ?? "",
+        image: resolveListItemImage(row),
         status: row.status ?? "Inactive",
         stock: Number(row.stock ?? 0),
         updated: row.updated ?? "",
@@ -749,8 +758,12 @@ export async function createProduct(payload: CreateProductPayload): Promise<Crea
         method: "POST",
         body: JSON.stringify(payload),
     });
+    const productId = String(row?.productId ?? "").trim();
+    if (!/^\d+$/.test(productId)) {
+        throw new Error("Save failed: server did not return a valid product ID.");
+    }
     return {
-        productId: String(row.productId),
+        productId,
         variants: (row.variants ?? []).map((v) => ({
             clientKey: v.clientKey ?? "",
             variantId: String(v.variantId ?? ""),
