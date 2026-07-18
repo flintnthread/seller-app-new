@@ -143,22 +143,12 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
         try {
             const parsed = new URL(trimmed);
             if (parsed.pathname.includes("/uploads/products/")) {
-                const host = parsed.hostname.toLowerCase();
-                // Keep working public hosts; only rewrite unknown/local hosts onto the product CDN.
-                if (
-                    host === "flintnthread.com" ||
-                    host === "www.flintnthread.com" ||
-                    host === "flintnthread.in" ||
-                    host === "www.flintnthread.in" ||
-                    host === "flintnthread.online" ||
-                    host === "www.flintnthread.online"
-                ) {
-                    return trimmed;
-                }
+                // Product images live on flintnthread.com — never keep .in/.online upload hosts.
                 return `${PRODUCT_MEDIA_CDN}${normalizeMediaPath(parsed.pathname)}`;
             }
-            if (isSellerUploadPath(parsed.pathname) || parsed.pathname.includes("/uploads/")) {
+            if (isSellerUploadPath(parsed.pathname) || parsed.pathname.includes("/uploads/seller_documents/") || parsed.pathname.includes("/uploads/")) {
                 // Profile / KYC docs ONLY on flintnthread.com
+                // e.g. https://flintnthread.com/uploads/seller_documents/1_aadhar_front_….jpg
                 return toSellerCdnUrl(parsed.pathname);
             }
         } catch {

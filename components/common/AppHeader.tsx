@@ -28,12 +28,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const approval = summary?.accountStatus?.approvalState;
   const showSellerTools = profileDone && approval === "approved";
 
-  // On Web/Desktop, the header is handled globally by DesktopHeader in WebLayout.
-  if (Platform.OS === "web") {
+  // On Web/Desktop, DesktopHeader covers primary screens — but secondary screens
+  // that request a back button still need this in-page header.
+  if (Platform.OS === "web" && !showBackButton) {
     return null;
   }
 
-  // Mobile: SellerTopNav already shows title + nav on main screens.
+  // SellerTopNav already shows title + nav on primary screens.
   if (shouldShowSellerTopNav(pathname)) {
     return null;
   }

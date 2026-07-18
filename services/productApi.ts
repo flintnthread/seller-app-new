@@ -890,7 +890,8 @@ export type BulkImportResult = {
 
 export async function bulkImportProducts(fileUri: string, fileName: string): Promise<BulkImportResult> {
     const sellerId = (await import("@/lib/api/sellerSession")).ensureSellerId();
-    if (!sellerId) throw new Error("Unable to complete this action right now. Please try again.");
+    const accessToken = (await import("@/lib/api/sellerSession")).ensureAccessToken();
+    if (!sellerId || !accessToken) throw new Error("Unable to complete this action right now. Please try again.");
 
     const { resolveApiBaseUrl } = await import("@/lib/api/config");
     const baseUrl = resolveApiBaseUrl();
@@ -907,9 +908,14 @@ export async function bulkImportProducts(fileUri: string, fileName: string): Pro
         } as unknown as Blob);
     }
 
+    // Do NOT set Content-Type on FormData — the runtime sets multipart boundary.
     const res = await fetch(`${baseUrl}/api/seller/products/bulk-import`, {
         method: "POST",
-        headers: { "X-Seller-Id": String(sellerId) },
+        headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "X-Seller-Id": String(sellerId),
+        },
         body: formData,
     });
 

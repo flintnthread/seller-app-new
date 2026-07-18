@@ -43,6 +43,7 @@ export async function fetchSizes(): Promise<SizeRecord[]> {
 export async function createSize(payload: SizePayload): Promise<SizeRecord> {
     const row = await apiRequest<ApiSize>("/api/seller/sizes", {
         method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(toBody(payload)),
     });
     return toRecord(row);
@@ -51,6 +52,7 @@ export async function createSize(payload: SizePayload): Promise<SizeRecord> {
 export async function updateSize(id: string, payload: SizePayload): Promise<SizeRecord> {
     const row = await apiRequest<ApiSize>(`/api/seller/sizes/${id}`, {
         method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(toBody(payload)),
     });
     return toRecord(row);

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, StyleSheet, Pressable, useWindowDimensions, Platform } from "react-native";
+import { useRouter } from "expo-router";
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { DashboardOrderSummary } from "@/services/dashboardApi";
@@ -143,6 +144,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   allStatsData,
   orderSummary,
 }) => {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const data = allStatsData[period];
 
@@ -189,6 +191,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: "#F0FDF4",
       description: `Returns: ${data.returns}`,
       points: [10, 25, 18, 35, 30, 45, 40],
+      href: "/(main)/earning" as const,
     },
     {
       title: "Orders Analytics",
@@ -200,6 +203,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: C.purplePale,
       description: `Pend: ${ordersPending} • Ship: ${ordersShipped} • Deliv: ${ordersDelivered}`,
       points: [5, 15, 8, 20, 12, 28, 22],
+      href: "/(main)/Ordersscreen" as const,
     },
     {
       title: "Conversion Analytics",
@@ -211,6 +215,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: "#FDF2F8",
       description: `Views: ${viewsVal} • Cart: ${cartRate} • Chk: ${checkoutRate}`,
       points: [40, 42, 38, 45, 43, 48, 44],
+      href: "/(main)/Topsellingproducts" as const,
     },
     {
       title: "Customer Insights",
@@ -222,6 +227,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: "#EFF6FF",
       description: `Repeat: ${custRepeat} • Top: ${custTop}`,
       points: [12, 18, 15, 22, 20, 32, 28],
+      href: "/(main)/reviewsScreen" as const,
     },
     {
       title: "Profit Analytics",
@@ -233,6 +239,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: "#F0FDFA",
       description: `Gross: ${grossText}`,
       points: [8, 20, 14, 28, 22, 38, 32],
+      href: "/(main)/earning" as const,
     },
     {
       title: "Traffic Analytics",
@@ -244,6 +251,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       bgColor: "#FFF7ED",
       description: `Clicks: ${clicksVal} • Bounce: ${bounceVal}`,
       points: [100, 120, 110, 140, 135, 160, 150],
+      href: "/(main)/Topsellingproducts" as const,
     },
   ];
 
@@ -252,6 +260,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       {kpis.map((kpi, index) => (
         <View key={index} style={[styles.col, width < 480 && styles.colCompact, { width: cardWidth as any }]}>
           <Pressable
+            onPress={() => router.push(kpi.href as any)}
             // @ts-ignore
             style={({ hovered }) => [
               styles.card,

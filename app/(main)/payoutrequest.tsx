@@ -40,7 +40,6 @@ import {
   type SellerBankDetails,
 } from "@/services/payoutApi";
 import { lookupIfscCode } from "@/services/sellerProfileApi";
-import { confirmAction } from "@/lib/confirmDialog";
 import { submitBankEditRequest } from "@/services/bankEditApi";
 
 interface BankAccount {
@@ -350,6 +349,7 @@ export default function EnhancedPayoutRequest() {
   const [isRequesting, setIsRequesting] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showConfirmPayoutModal, setShowConfirmPayoutModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
   const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
@@ -645,11 +645,11 @@ export default function EnhancedPayoutRequest() {
       Alert.alert("Bank account required", "Please add your bank account details before requesting a payout.");
       return;
     }
-    const confirmed = await confirmAction(
-      "Request Payout",
-      `Submit payout request for order ${orderId}?\n\nAmount: ₹${Number(amount).toLocaleString("en-IN")}\n\nThis will be sent to admin for review.`
-    );
-    if (!confirmed) return;
+    setShowConfirmPayoutModal(true);
+  };
+
+  const handleConfirmPayout = async () => {
+    setShowConfirmPayoutModal(false);
     await submitPayoutRequestFlow();
   };
 
@@ -703,6 +703,35 @@ export default function EnhancedPayoutRequest() {
   // ─── SHARED MODALS ──────────────────────────────────────────────────────────
   const sharedModals = (
     <>
+      <Modal visible={showConfirmPayoutModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.successContent}>
+            <View style={styles.successIconWrap}>
+              <MaterialCommunityIcons name="cash-fast" size={40} color="#f97316" />
+            </View>
+            <Text style={styles.modalTitle}>Request Payout</Text>
+            <Text style={styles.modalSub}>
+              {`Submit payout request for order ${orderId}?\n\nAmount: ₹${Number(amount || 0).toLocaleString("en-IN")}\n\nThis will be sent to admin for review.`}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, width: "100%", marginTop: 8 }}>
+              <TouchableOpacity
+                style={[styles.doneBtn, { flex: 1, backgroundColor: "#e2e8f0" }]}
+                onPress={() => setShowConfirmPayoutModal(false)}
+              >
+                <Text style={[styles.doneBtnText, { color: "#334155" }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.doneBtn, { flex: 1 }]}
+                onPress={handleConfirmPayout}
+                disabled={isRequesting}
+              >
+                <Text style={styles.doneBtnText}>{isRequesting ? "Submitting…" : "Confirm"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showSuccessModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.successContent}>

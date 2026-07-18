@@ -456,7 +456,7 @@ export async function resendRegistrationInvoiceEmail(): Promise<RegistrationPaym
     });
 }
 
-/** Resolve display URL for uploaded assets (CDN https://flintnthread.in or API domain). */
+/** Resolve display URL for uploaded assets (CDN https://flintnthread.com/uploads/seller_documents/...). */
 export function resolveDocumentDisplayUrl(value: string | null | undefined): string | null {
     if (!value) return null;
     if (

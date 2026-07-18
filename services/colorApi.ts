@@ -43,14 +43,16 @@ export async function fetchColors(): Promise<ColorRecord[]> {
 export async function createColor(payload: ColorPayload): Promise<ColorRecord> {
     const row = await apiRequest<ApiColor>("/api/seller/colors", {
         method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(toBody(payload)),
     });
-    return toRecord(row);
+    return { ...toRecord(row), owned: true };
 }
 
 export async function updateColor(id: string, payload: ColorPayload): Promise<ColorRecord> {
     const row = await apiRequest<ApiColor>(`/api/seller/colors/${id}`, {
         method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(toBody(payload)),
     });
     return toRecord(row);

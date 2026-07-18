@@ -82,6 +82,30 @@ function useProductDetailWebLayout(): boolean {
   return isWeb && width >= PRODUCT_DETAIL_DESKTOP_MIN;
 }
 
+function useHideProductDetailScrollbars() {
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const styleId = "__pd_scrollbar_hide__";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      .pd-hide-scrollbar,
+      .pd-hide-scrollbar * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      .pd-hide-scrollbar::-webkit-scrollbar,
+      .pd-hide-scrollbar *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+}
+
 // ─── Color Palette ────────────────────────────────────────────
 const C = {
   navy: "#1E2B6B", navyDeep: "#151D4F", navyMid: "#1A2B5E", navyLight: "#2D3E8A",
@@ -1095,13 +1119,17 @@ const VariantsTable: React.FC<{
   return (
   <View style={vr.tableWrap}>
     {useWebLayout ? (
-      <View style={vr.tableScrollWeb}>
+      <View
+        style={vr.tableScrollWeb}
+        // @ts-expect-error web-only class for hidden scrollbar
+        className="pd-hide-scrollbar"
+      >
         <VariantsTableBody variants={variants} onDelete={onDelete} onEdit={onEdit} sweetsProduct={sweetsProduct} />
       </View>
     ) : (
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator
+        showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
         style={[vr.tableScroll, { marginHorizontal: -14 }]}
@@ -1245,6 +1273,8 @@ const vr = StyleSheet.create({
     overflowX: "auto",
     overflowY: "hidden",
     WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "none",
+    msOverflowStyle: "none",
   } as any,
   tableHead:  { flexDirection: "row", backgroundColor: "#FFF7ED", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FED7AA" },
   headCell:   { paddingHorizontal: 8, justifyContent: "center", alignItems: "center", flexShrink: 0 },
@@ -1815,6 +1845,7 @@ const ProductDetailScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { isCompact, isNarrowWeb } = useResponsive();
   const useDesktopWebLayout = useProductDetailWebLayout();
+  useHideProductDetailScrollbars();
   const compact = isCompact || isNarrowWeb;
 
   const [p, setP] = useState<Product | null>(null);
@@ -2577,8 +2608,22 @@ const wt = StyleSheet.create({
 // ─── WEB: Main layout styles ──────────────────────────────────
 const sw = StyleSheet.create({
   root:        { flex: 1, backgroundColor: C.bg },
-  header:      { backgroundColor: C.navyDeep, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
-  headerInner: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 0, paddingVertical: 16, maxWidth: 1400, alignSelf: "center", width: "100%" } as any,
+  header:      {
+    backgroundColor: C.navyDeep,
+    borderRadius: 18,
+    marginHorizontal: 12,
+    marginTop: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+    position: "sticky" as any,
+    top: 0,
+    zIndex: 20,
+  },
+  headerInner: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 16, paddingVertical: 16, maxWidth: 1400, alignSelf: "center", width: "100%" } as any,
   backBtn:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   backBtnText: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
   headerContent:{ flex: 1 },
