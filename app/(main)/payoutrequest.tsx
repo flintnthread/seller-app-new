@@ -489,8 +489,7 @@ export default function EnhancedPayoutRequest() {
         setIsLookingUpIfsc(false);
       }
     } else {
-      setModalBankName("");
-      setModalBranchName("");
+      // Keep bank/branch while typing; clear only after a failed 11-char lookup.
     }
   };
 
@@ -498,6 +497,8 @@ export default function EnhancedPayoutRequest() {
     const errors = validateAddBankForm();
     if (Object.keys(errors).length > 0) {
       setModalErrors(errors);
+      const first = Object.values(errors)[0];
+      Alert.alert("Cannot submit", first);
       return;
     }
     setModalErrors({});
@@ -520,7 +521,7 @@ export default function EnhancedPayoutRequest() {
       setModalBankName("");
       setModalBranchName("");
       setModalReason("");
-      Alert.alert("Success", "Bank edit request submitted successfully. Admin will review your request.");
+      setShowSuccessModal(true);
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : "Failed to submit bank edit request.");
     } finally {

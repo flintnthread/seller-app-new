@@ -171,8 +171,7 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
     if (!path) return null;
 
     if (path.includes("/uploads/products/")) {
-        // Product files are served via nginx on flintnthread.in (same host as seller API).
-        return `${PRODUCTION_API_URL_IN}${path}`;
+        return `${PRODUCT_MEDIA_CDN}${path}`;
     }
 
     if (isSellerUploadPath(path)) {

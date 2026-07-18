@@ -138,13 +138,31 @@ export function AddCatalogModal({
         if (config.kind === "color") {
             const normalized = normalizeHex(hex);
             if (!isValidHex(normalized)) {
-                notifyValidation("Invalid color", "Enter a valid hex code (e.g., #141153ff).");
+                notifyValidation("Invalid color", "Enter a valid hex code (e.g., #FF5733).");
                 return;
             }
-            onSaveColor({ name: trimmedName, hex: normalized, status });
-            reset();
-            onClose();
-            notifySuccess("Your color has been added successfully.");
+            const payload = { name: trimmedName, hex: normalized, status };
+            setSaving(true);
+            try {
+                let ok = false;
+                if (isEditColor && editingColor && onUpdateColor) {
+                    ok = (await onUpdateColor(editingColor.id, payload)) !== false;
+                    if (ok) {
+                        reset();
+                        onClose();
+                        notifySuccess("Your color has been updated successfully.");
+                    }
+                } else {
+                    ok = (await onSaveColor(payload)) !== false;
+                    if (ok) {
+                        reset();
+                        onClose();
+                        notifySuccess("Your color has been added successfully.");
+                    }
+                }
+            } finally {
+                setSaving(false);
+            }
             return;
         }
 

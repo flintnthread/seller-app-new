@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
 import { ensureSellerId } from "@/lib/api/sellerSession";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 import { Platform } from "react-native";
 import type {
     CustomerInfo,
@@ -334,7 +335,7 @@ function toOrderItem(line: ApiOrderLine): OrderItem {
         price: line.price,
         ...(line.priceAmount != null ? { priceAmount: line.priceAmount } : {}),
         ...(line.subtotalAmount != null ? { subtotalAmount: line.subtotalAmount } : {}),
-        image: line.image,
+        image: resolveMediaUrl(line.image) ?? "",
         ...(line.hsnCode ? { hsnCode: line.hsnCode } : {}),
         ...(line.unitPrice != null ? { unitPrice: line.unitPrice } : {}),
         ...(line.tax != null ? { tax: line.tax } : {}),
@@ -591,7 +592,7 @@ function mapSummary(row: ApiOrderSummary): Order {
         price: row.price,
         status: toOrderStatus(row.status),
         customer: row.customer,
-        image: row.image,
+        image: resolveMediaUrl(row.image) ?? "",
         ...(row.extra ? { extra: row.extra } : {}),
     };
 }

@@ -183,6 +183,7 @@ type ApiProductListVariant = {
     color?: string;
     size?: string;
     stock?: number;
+    image?: string;
     minQuantity?: number;
     finalPrice?: number;
     sellingPrice?: number;
@@ -358,7 +359,10 @@ function resolveListItemSku(row: ApiProductListItem): string {
 }
 
 function resolveListItemImage(row: ApiProductListItem): string {
-    const candidates = [row.image];
+    const candidates = [
+        row.image,
+        ...(row.variants ?? []).map((v) => v.image),
+    ];
     for (const candidate of candidates) {
         const resolved = resolveMediaUrl(candidate ?? "");
         if (resolved) return resolved;

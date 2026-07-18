@@ -1645,11 +1645,11 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
     setDescriptionError(descEmpty && !hasImage);
 
     if (titleEmpty) {
-      Alert.alert("Required", "Please enter a subject for your ticket.");
+      showWarning("Please enter a subject for your ticket.", "Required");
       return;
     }
     if (descEmpty && !hasImage) {
-      Alert.alert("Required", "Please enter a description or attach an image.");
+      showWarning("Please enter a description or attach an image.", "Required");
       return;
     }
 
@@ -1693,7 +1693,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
       loadTickets().catch(() => {});
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to create ticket. Please try again.");
+      showError(err.message || "Failed to create ticket. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
