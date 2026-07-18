@@ -1637,35 +1637,49 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   // ── Ticket Submit ────────────────────────────────────────────────────────
   const handleTicketSubmit = async () => {
-    const titleEmpty = !issueTitle.trim();
-    const descEmpty = !description.trim();
+    const desc = description.trim();
     const hasImage = !!uploadedImage;
+    // If subject is blank, use description (common on web when subject is scrolled out of view)
+    const subject =
+      issueTitle.trim() ||
+      (desc ? desc.slice(0, 80) : "") ||
+      (hasImage ? "Support request with attachment" : "");
+
+    const titleEmpty = !subject;
+    const descEmpty = !desc;
 
     setIssueTitleError(titleEmpty);
     setDescriptionError(descEmpty && !hasImage);
 
     if (titleEmpty) {
-      Alert.alert("Required", "Please enter a subject for your ticket.");
+      showWarning("Subject required", "Please enter a subject for your ticket.");
       return;
     }
     if (descEmpty && !hasImage) {
-      Alert.alert("Required", "Please enter a description or attach an image.");
+      showWarning("Details required", "Please enter a description or attach an image.");
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
+      await hydrateSellerSession();
+
       const ticketPayload: CreateTicketPayload = {
-        subject: issueTitle.trim(),
-        category: selectedCategory,
-        priority: selectedPriority,
+        subject,
+        category: selectedCategory || "general",
+        priority: selectedPriority || "medium",
       };
-      const desc = description.trim();
       if (desc) {
         ticketPayload.description = desc;
       } else if (hasImage) {
         ticketPayload.description = "See attached image";
+      }
+
+      // Keep form subject in sync when we auto-filled from description
+      if (!issueTitle.trim() && subject) {
+        setIssueTitle(subject);
       }
 
       const apiTicket = uploadedImage
@@ -1686,14 +1700,20 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setIssueTitleError(false);
       setDescriptionError(false);
 
-      setSuccessModalVisible(true);
       setTicketModalVisible(false);
+      setSuccessModalVisible(true);
       setTicketSubmitted(true);
+      showSuccess("Ticket created", "Your ticket was submitted. Our team can see it in Admin → Seller Tickets.");
       setTimeout(() => setTicketSubmitted(false), 5000);
 
       loadTickets().catch(() => {});
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to create ticket. Please try again.");
+      const msg = String(err?.message || "Failed to create ticket. Please try again.");
+      if (msg === AUTH_ACTION_FAILED || /auth|login|session/i.test(msg)) {
+        showError("Please sign in again", "Your session expired. Log in and submit the ticket again.");
+      } else {
+        showError("Could not create ticket", msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
