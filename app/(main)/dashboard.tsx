@@ -20,6 +20,7 @@ import {
     TouchableWithoutFeedback,
     Platform,
     ActivityIndicator,
+    useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -658,7 +659,7 @@ const ms = StyleSheet.create({
     soldBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F0FDF4", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 50 },
     soldText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.green },
     productPrice: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark },
-    cardDivider: { height: 1, backgroundColor: C.border },
+    cardDivider: {height: 1 , backgroundColor: C.border },
     actionRow: { flexDirection: "row" },
     actionBtnEdit: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, backgroundColor: C.purplePale, borderRightWidth: 1, borderRightColor: C.border },
     actionBtnEditText: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purple },
@@ -1237,6 +1238,8 @@ const MobileDashboard: React.FC<{
     onProfileReload?: () => void | Promise<void>;
 }> = ({ profile, profileLoading, onProfileReload }) => {
     const router = useRouter();
+    const { width: screenWidth } = useWindowDimensions();
+    const isCompactMobile = screenWidth < 400;
     const {
         data,
         loading: dashboardLoading,
@@ -1411,7 +1414,7 @@ const MobileDashboard: React.FC<{
                             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                             style={s.profileGrad}
                         >
-                            <View style={s.profileTop}>
+                            <View style={[s.profileTop, isCompactMobile && s.profileTopCompact]}>
                                 <View style={s.avatarWrap}>
                                     <View style={s.avatarCircle}>
                                         {profile?.profilePicUrl ? (
@@ -1458,10 +1461,10 @@ const MobileDashboard: React.FC<{
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="email-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>{emailDisplay}</AppText>
+                                        <AppText style={[s.profileDetailText, { flexShrink: 1 }]} numberOfLines={1}>{emailDisplay}</AppText>
                                     </View>
                                 </View>
-                                <View style={s.ratingBox}>
+                                <View style={[s.ratingBox, isCompactMobile && s.ratingBoxCompact]}>
                                     <AppText style={s.ratingLabel}>Rating</AppText>
                                     <View style={s.ratingRow}>
                                         <AppText style={s.ratingVal}>{profileRating}</AppText>
@@ -1889,18 +1892,20 @@ const s = StyleSheet.create({
     profileCard: { borderRadius: 16, overflow: "hidden" },
     profileGrad: { padding: 16 },
     profileTop: { flexDirection: "row", alignItems: "flex-start", marginBottom: 14 },
+    profileTopCompact: { flexWrap: "wrap", gap: 12 },
     avatarWrap: { position: "relative", marginRight: 12 },
     avatarCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", overflow: "hidden" },
     avatarImage: { width: 70, height: 70, borderRadius: 35 },
     avatarBadge: { position: "absolute", bottom: 0, right: 0, backgroundColor: C.purple, width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.navyDeep },
-    profileInfo: { flex: 1 },
+    profileInfo: { flex: 1, minWidth: 0 },
     profileNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 6 },
-    profileName: { fontFamily: fontFamilies.bold, fontSize: 17, color: "#fff" },
+    profileName: { fontFamily: fontFamilies.bold, fontSize: 17, color: "#fff", flexShrink: 1 },
     platinumBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.purple, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 50 },
     platinumText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: "#fff" },
     profileDetailRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
-    profileDetailText: { fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.75)" },
+    profileDetailText: { fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.75)", flexShrink: 1 },
     ratingBox: { alignItems: "flex-end", minWidth: 72 },
+    ratingBoxCompact: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
     ratingLabel: { fontFamily: fontFamilies.regular, fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 2 },
     ratingRow: { flexDirection: "row", alignItems: "center" },
     ratingVal: { fontFamily: fontFamilies.bold, fontSize: 26, color: "#fff" },

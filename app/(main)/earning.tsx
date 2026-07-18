@@ -55,8 +55,12 @@ export default function EarningsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("This Month");
   const [showBalance, setShowBalance] = useState(true);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return d;
+  });
+  const [endDate, setEndDate] = useState(() => new Date());
   const [showPicker, setShowPicker] = useState<"start" | "end" | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -72,18 +76,42 @@ export default function EarningsScreen() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawSuccessMessage, setWithdrawSuccessMessage] = useState("");
   const [filterRevenue, setFilterRevenue] = useState("₹0");
+  const [filterLoading, setFilterLoading] = useState(false);
   const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
   const [avgOrderValue, setAvgOrderValue] = useState<number | null>(null);
   const { showSuccess, showError, showWarning, SweetAlertHost } = useSweetAlert();
 
   const availableBalance = payoutSummary?.pendingAmount ?? earningsData?.availableBalance ?? 0;
-  const totalRevenueAmount =
-    (payoutSummary?.lifetimeEarnings ?? 0) > 0
-      ? payoutSummary!.lifetimeEarnings
-      : (payoutSummary?.thisMonthEarnings ?? payoutSummary?.pendingAmount ?? 0);
-  const currentMonthAmount = payoutSummary?.thisMonthEarnings ?? 0;
   const formatInr = (value: number) =>
     `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const toIso = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const parseIsoDate = (value: string) => {
+    const next = new Date(`${value}T00:00:00`);
+    return Number.isNaN(next.getTime()) ? null : next;
+  };
+  const applyStartDate = (next: Date) => {
+    setStartDate(next);
+    setEndDate((prev) => (prev < next ? next : prev));
+  };
+  const applyEndDate = (next: Date) => {
+    setEndDate(next);
+    setStartDate((prev) => (prev > next ? next : prev));
+  };
+  const periodSubtitle =
+    selectedFilter === "Today"
+      ? "Today"
+      : selectedFilter === "7 Days"
+        ? "Last 7 days"
+        : selectedFilter === "Last Month"
+          ? "Last month"
+          : selectedFilter === "Custom Range"
+            ? `${startDate.toLocaleDateString("en-IN")} – ${endDate.toLocaleDateString("en-IN")}`
+            : "Current month";
   const bankAccount = earningsData?.bankAccount;
   const bankName = bankAccount?.bankName?.trim() || "Linked bank account";
   const bankMasked = bankAccount?.accountNumberMasked?.trim() || "—";
@@ -152,17 +180,37 @@ export default function EarningsScreen() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const periodMap: Record<string, string> = {
-      "Today": "day",
+      Today: "day",
       "7 Days": "week",
       "This Month": "month",
-      "Last Month": "month",
-      "Custom Range": "month",
+      "Last Month": "last_month",
+      "Custom Range": "custom",
     };
-    fetchAnalyticsSales(periodMap[selectedFilter] ?? "month")
-      .then((row) => setFilterRevenue(row.salesFormatted || "₹0"))
-      .catch(() => setFilterRevenue("₹0"));
-  }, [selectedFilter]);
+    const period = periodMap[selectedFilter] ?? "month";
+    const from =
+      selectedFilter === "Custom Range" ? toIso(startDate) : undefined;
+    const to =
+      selectedFilter === "Custom Range" ? toIso(endDate) : undefined;
+
+    setFilterLoading(true);
+    fetchAnalyticsSales(period === "custom" ? "custom" : period, from, to)
+      .then((row) => {
+        if (!cancelled) {
+          setFilterRevenue(row.salesFormatted || formatInr(Number(row.totalSales ?? 0)));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFilterRevenue("₹0.00");
+      })
+      .finally(() => {
+        if (!cancelled) setFilterLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFilter, startDate, endDate]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -227,7 +275,7 @@ export default function EarningsScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 20 }}
+          style={{ marginBottom: 16 }}
         >
           {filters.map((filter) => (
             <TouchableOpacity
@@ -236,7 +284,16 @@ export default function EarningsScreen() {
                 styles.filterButton,
                 selectedFilter === filter && styles.activeFilter,
               ]}
-              onPress={() => setSelectedFilter(filter)}
+              onPress={() => {
+                setSelectedFilter(filter);
+                if (filter === "Custom Range") {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 29);
+                  setStartDate(start);
+                  setEndDate(end);
+                }
+              }}
             >
               <Text
                 style={[
@@ -247,45 +304,75 @@ export default function EarningsScreen() {
                 {filter}
               </Text>
             </TouchableOpacity>
-            
           ))}
         </ScrollView>
         {selectedFilter === "Custom Range" && (
-          <View style={styles.customDateContainer}>
-            <View style={styles.dateRow}>
-              <TouchableOpacity 
-                style={styles.datePart} 
-                onPress={() => setShowPicker("start")}
-              >
+          <View style={[styles.customDateContainer, isWebMobile && styles.customDateContainerWebMobile]}>
+            <View style={[styles.dateRow, isWebMobile && styles.dateRowWebMobile]}>
+              <View style={[styles.datePart, isWebMobile && styles.datePartWebMobile]}>
                 <Text style={styles.dateLabel}>Start Date</Text>
-                <Text style={styles.dateValue}>{startDate.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.dateDivider} />
-              
-              <TouchableOpacity 
-                style={styles.datePart} 
-                onPress={() => setShowPicker("end")}
-              >
-                <Text style={styles.dateLabel}>End Date</Text>
-                <Text style={styles.dateValue}>{endDate.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-            </View>
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    value={toIso(startDate)}
+                    max={toIso(endDate)}
+                    onChange={(e) => {
+                      const next = parseIsoDate(e.target.value);
+                      if (next) applyStartDate(next);
+                    }}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      outline: "none",
+                      width: "100%",
+                      fontFamily: "inherit",
+                    } as any}
+                  />
+                ) : (
+                  <TouchableOpacity onPress={() => setShowPicker("start")}>
+                    <Text style={styles.dateValue}>{startDate.toLocaleDateString("en-IN")}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-            {showPicker && (
-              <DateTimePicker
-                value={showPicker === "start" ? startDate : endDate}
-                mode="date"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowPicker(null);
-                  if (selectedDate) {
-                    if (showPicker === "start") setStartDate(selectedDate);
-                    else setEndDate(selectedDate);
-                  }
-                }}
-              />
-            )}
+              <View style={styles.dateDivider} />
+
+              <View style={[styles.datePart, isWebMobile && styles.datePartWebMobile]}>
+                <Text style={styles.dateLabel}>End Date</Text>
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    value={toIso(endDate)}
+                    min={toIso(startDate)}
+                    max={toIso(new Date())}
+                    onChange={(e) => {
+                      const next = parseIsoDate(e.target.value);
+                      if (next) applyEndDate(next);
+                    }}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      outline: "none",
+                      width: "100%",
+                      fontFamily: "inherit",
+                    } as any}
+                  />
+                ) : (
+                  <TouchableOpacity onPress={() => setShowPicker("end")}>
+                    <Text style={styles.dateValue}>{endDate.toLocaleDateString("en-IN")}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <Text style={styles.customRangeHint}>
+              Revenue updates for the selected start and end dates.
+            </Text>
           </View>
         )}
 
@@ -301,34 +388,34 @@ export default function EarningsScreen() {
                 adjustsFontSizeToFit
                 minimumFontScale={0.7}
               >
-                {showBalance ? formatInr(totalRevenueAmount) : "XXXXXX"}
+                {showBalance ? (filterLoading ? "…" : filterRevenue) : "XXXXXX"}
               </Text>
             </View>
 
-            <TouchableOpacity onPress={() => setShowBalance(!showBalance)}>
+            <TouchableOpacity onPress={() => setShowBalance(!showBalance)} style={{ flexShrink: 0, marginLeft: 8 }}>
               <Ionicons
                 name={showBalance ? "eye-outline" : "eye-off-outline"}
-                size={24}
+                size={22}
                 color="#f97316"
               />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.growthContainer}>
-            <View>
-              <Text style={styles.smallText}>Current Month</Text>
-              <Text style={styles.smallValue}>
-                {showBalance ? formatInr(currentMonthAmount) : "XXXXXX"}
+          <View style={[styles.growthContainer, isWebMobile && styles.growthContainerWebMobile]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.smallText}>{periodSubtitle}</Text>
+              <Text style={[styles.smallValue, isWebMobile && styles.smallValueWebMobile]} numberOfLines={1}>
+                {showBalance ? (filterLoading ? "…" : filterRevenue) : "XXXXXX"}
               </Text>
             </View>
 
-            <View style={styles.growthBadge}>
+            <View style={[styles.growthBadge, isWebMobile && styles.growthBadgeWebMobile]}>
               <MaterialIcons
-                name="trending-up"
+                name="bar-chart"
                 size={18}
                 color="#f97316"
               />
-              <Text style={styles.growthText}>—</Text>
+              <Text style={styles.growthText}>{selectedFilter === "This Month" ? "Month" : "Period"}</Text>
             </View>
           </View>
         </View>
@@ -341,7 +428,7 @@ export default function EarningsScreen() {
             </View>
 
             <Text style={styles.payoutTitle}>Pending Payin</Text>
-            <Text style={styles.payoutAmount}>
+            <Text style={[styles.payoutAmount, isWebMobile && styles.payoutAmountWebMobile]} numberOfLines={1}>
               {showBalance ? `₹${Math.round(payoutSummary?.pendingAmount ?? 0).toLocaleString("en-IN")}` : "XXXXXX"}
             </Text>
             <Text style={styles.payoutDate}>Awaiting settlement</Text>
@@ -357,7 +444,7 @@ export default function EarningsScreen() {
             </View>
 
             <Text style={styles.payoutTitle}>Completed</Text>
-            <Text style={styles.payoutAmount}>
+            <Text style={[styles.payoutAmount, isWebMobile && styles.payoutAmountWebMobile]} numberOfLines={1}>
               {showBalance ? `₹${Math.round(earningsData?.totalCredits ?? 0).toLocaleString("en-IN")}` : "XXXXXX"}
             </Text>
             <Text style={styles.payoutDate}>Successfully transferred</Text>
@@ -480,15 +567,46 @@ export default function EarningsScreen() {
 
             {downloadRange === "custom" && (
               <View style={styles.modalCustomDate}>
-                <TouchableOpacity style={styles.datePickerPart} onPress={() => setShowPicker("start")}>
+                <View style={styles.datePickerPart}>
                   <Text style={styles.datePickerLabel}>Start Date</Text>
-                  <Text style={styles.datePickerValue}>{startDate.toLocaleDateString()}</Text>
-                </TouchableOpacity>
+                  {Platform.OS === "web" ? (
+                    <input
+                      type="date"
+                      value={toIso(startDate)}
+                      max={toIso(endDate)}
+                      onChange={(e) => {
+                        const next = parseIsoDate(e.target.value);
+                        if (next) applyStartDate(next);
+                      }}
+                      style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 700, color: "#0f172a", outline: "none", width: "100%" } as any}
+                    />
+                  ) : (
+                    <TouchableOpacity onPress={() => setShowPicker("start")}>
+                      <Text style={styles.datePickerValue}>{startDate.toLocaleDateString("en-IN")}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <View style={styles.datePickerDivider} />
-                <TouchableOpacity style={styles.datePickerPart} onPress={() => setShowPicker("end")}>
+                <View style={styles.datePickerPart}>
                   <Text style={styles.datePickerLabel}>End Date</Text>
-                  <Text style={styles.datePickerValue}>{endDate.toLocaleDateString()}</Text>
-                </TouchableOpacity>
+                  {Platform.OS === "web" ? (
+                    <input
+                      type="date"
+                      value={toIso(endDate)}
+                      min={toIso(startDate)}
+                      max={toIso(new Date())}
+                      onChange={(e) => {
+                        const next = parseIsoDate(e.target.value);
+                        if (next) applyEndDate(next);
+                      }}
+                      style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 700, color: "#0f172a", outline: "none", width: "100%" } as any}
+                    />
+                  ) : (
+                    <TouchableOpacity onPress={() => setShowPicker("end")}>
+                      <Text style={styles.datePickerValue}>{endDate.toLocaleDateString("en-IN")}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )}
 
@@ -742,20 +860,21 @@ export default function EarningsScreen() {
         </View>
       </Modal>
 
-      {showPicker && (
+      {showPicker && Platform.OS !== "web" ? (
         <DateTimePicker
           value={showPicker === "start" ? startDate : endDate}
           mode="date"
           display="default"
-          onChange={(event, selectedDate) => {
+          maximumDate={showPicker === "start" ? endDate : new Date()}
+          minimumDate={showPicker === "end" ? startDate : undefined}
+          onChange={(_, selectedDate) => {
             setShowPicker(null);
-            if (selectedDate) {
-              if (showPicker === "start") setStartDate(selectedDate);
-              else setEndDate(selectedDate);
-            }
+            if (!selectedDate) return;
+            if (showPicker === "start") applyStartDate(selectedDate);
+            else applyEndDate(selectedDate);
           }}
         />
-      )}
+      ) : null}
       <SweetAlertHost />
     </ScreenRoot>
   );
@@ -787,10 +906,26 @@ const styles = StyleSheet.create({
   },
   cardWebMobile: {
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
+    marginBottom: 14,
   },
   revenueValueWebMobile: {
     fontSize: 24,
+    marginTop: 6,
+  },
+  growthContainerWebMobile: {
+    marginTop: 14,
+  },
+  smallValueWebMobile: {
+    fontSize: 15,
+  },
+  growthBadgeWebMobile: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  payoutAmountWebMobile: {
+    fontSize: 18,
+    marginBottom: 4,
   },
   header: {
     flexDirection: "row",
@@ -869,6 +1004,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
 
   revenueTop: {
@@ -895,6 +1033,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 10,
   },
 
   smallText: {
@@ -933,7 +1072,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   payoutContainerWebMobile: {
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: 10,
+    marginBottom: 16,
   },
   payoutCard: {
     width: "48%",
@@ -944,9 +1085,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   payoutCardWebMobile: {
-    width: "48%",
+    width: "100%",
     borderRadius: 14,
     padding: 14,
+    flexGrow: 0,
   },
 
   payoutIconPending: {
@@ -1133,14 +1275,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
+  customDateContainerWebMobile: {
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+  },
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+  dateRowWebMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+  },
   datePart: {
     flex: 1,
     alignItems: "center",
+    minWidth: 0,
+  },
+  datePartWebMobile: {
+    width: "100%",
+    alignItems: "flex-start",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  customRangeHint: {
+    marginTop: 10,
+    fontSize: 11,
+    color: "#64748b",
   },
   dateLabel: {
     fontSize: 12,
