@@ -874,7 +874,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e293b",
     borderColor: "#334155",
   },
-  input: { flex: 1, fontSize: 13, color: "#000000", paddingVertical: 10 },
+  input: {
+    flex: 1,
+    fontSize: 13,
+    color: "#000000",
+    paddingVertical: 10,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          boxShadow: "none",
+        } as object)
+      : {}),
+  },
   inputDark: { color: "#000000" },
   inputError: { color: "#000000" },
   inputFocused: { color: "#000000" },

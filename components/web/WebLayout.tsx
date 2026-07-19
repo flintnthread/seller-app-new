@@ -12,18 +12,20 @@ function WebMainContent({
   isSidebarOpen,
   onToggleSidebar,
   contentPadding,
+  headerPadding,
 }: {
   children: React.ReactNode;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   contentPadding: number;
+  headerPadding: number;
 }) {
   return (
     <View style={styles.mainArea}>
       <DesktopHeader
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={onToggleSidebar}
-        contentPadding={contentPadding}
+        contentPadding={headerPadding}
       />
       <ScrollView
         style={styles.contentScroll}
@@ -59,10 +61,18 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
   }, [isNarrowWeb]);
 
   const sidebarOverlay = isNarrowWeb;
-  // Single horizontal inset for DesktopHeader search + page body.
-  // Screens must not add another outer paddingHorizontal on web.
+  // Page body inset — mobile-first product screens manage their own horizontal padding.
   const contentPadding =
     onboarding || (isNarrowWeb && mobileFirstProduct)
+      ? 0
+      : width < 480
+        ? 12
+        : isNarrowWeb
+          ? 16
+          : 24;
+  // Header always keeps a left inset so the menu toggle isn't flush to the edge.
+  const headerPadding =
+    onboarding
       ? 0
       : width < 480
         ? 12
@@ -91,6 +101,7 @@ export function WebLayout({ children }: { children: React.ReactNode }) {
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(true)}
           contentPadding={contentPadding}
+          headerPadding={headerPadding}
         >
           {children}
         </WebMainContent>

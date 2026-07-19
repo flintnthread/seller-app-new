@@ -21,6 +21,7 @@ import {
     Platform,
     ActivityIndicator,
     useWindowDimensions,
+    Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -63,6 +64,7 @@ import {
 import { useActiveHeader } from "@/components/web/HeaderContext";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
+import { resolveSellerAppBaseUrl } from "@/lib/shipping/orderLabelQrUrl";
 import { useDashboardCharts } from "@/hooks/useDashboardCharts";
 import { useDashboardStatsByPeriod } from "@/hooks/useDashboardStatsByPeriod";
 import { useSellerProducts } from "@/hooks/useSellerProducts";
@@ -787,10 +789,11 @@ const ReferralSection: React.FC<{
     goal: number;
     totalReferred: number;
     qualified: number;
-}> = ({ referralCode, goal, totalReferred, qualified }) => {
+}> = ({ referralCode, goal, totalReferred }) => {
     const [copied, setCopied] = useState(false);
     const displayReferralCode = formatReferralCodeDisplay(referralCode);
     const progressPercent = goal > 0 ? Math.min((totalReferred / goal) * 100, 100) : 0;
+    const remaining = Math.max(0, goal - totalReferred);
 
     const handleCopy = () => {
         if (!displayReferralCode || displayReferralCode === "—") return;
@@ -799,140 +802,267 @@ const ReferralSection: React.FC<{
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleShare = async () => {
+        const code =
+            displayReferralCode && displayReferralCode !== "—"
+                ? displayReferralCode
+                : "";
+        const signupUrl = code
+            ? `${resolveSellerAppBaseUrl()}/signup?referralCode=${encodeURIComponent(code)}`
+            : `${resolveSellerAppBaseUrl()}/signup`;
+        const message = code
+            ? `Use my referral code ${code} to register as a seller on Flint & Thread and we both earn +5% commission bonus! 🎁\n${signupUrl}`
+            : `Register as a seller on Flint & Thread!\n${signupUrl}`;
+        try {
+            await Share.share({ message, title: "Join F&T as a Seller!" });
+        } catch {
+            /* user cancelled */
+        }
+    };
+
     return (
         <View style={rf.wrapper}>
-            <View style={rf.outer}>
-                <View style={rf.header}>
-                    <View style={rf.headerIcon}>
-                        <MaterialCommunityIcons name="gift-outline" size={18} color={C.orangeDeep} />
+            <View style={rf.card}>
+                {/* Orange accent header */}
+                <View style={rf.accentHeader}>
+                    <View style={rf.accentLeft}>
+                        <View style={rf.giftCircle}>
+                            <MaterialCommunityIcons name="gift" size={18} color="#fff" />
+                        </View>
+                        <View style={rf.accentText}>
+                            <AppText style={rf.title}>Referral Rewards</AppText>
+                            <AppText style={rf.subtitle}>Invite sellers • Earn +5% commission</AppText>
+                        </View>
                     </View>
-                    <AppText style={rf.headerTitle}>Share your F&T Seller Referral Code</AppText>
+                    <View style={rf.activeBadge}>
+                        <AppText style={rf.activeBadgeText}>ACTIVE</AppText>
+                    </View>
                 </View>
-                <AppText style={rf.desc}>
-                    Invite friends, family, or followers to become sellers on Flint & Thread. When they complete their profile, get approved, and list at least one product, they count as your referred seller.
-                </AppText>
-                <View style={rf.codeRow}>
-                    <AppText style={rf.codeLabel}>YOUR CODE</AppText>
-                    <View style={rf.codePill}>
-                        <MaterialCommunityIcons name="gift-outline" size={15} color={C.orangeDeep} />
-                        <AppText style={rf.codeText} numberOfLines={1} ellipsizeMode="middle">
-                            {displayReferralCode}
+
+                {/* Progress */}
+                <View style={rf.progressWrap}>
+                    <View style={rf.progressTop}>
+                        <AppText style={rf.progressLabel}>
+                            {totalReferred} / {goal} sellers invited
                         </AppText>
-                        <TouchableOpacity style={rf.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
+                        <AppText style={rf.progressPct}>{Math.round(progressPercent)}%</AppText>
+                    </View>
+                    <View style={rf.progBg}>
+                        <View
+                            style={[
+                                rf.progFill,
+                                { width: `${progressPercent > 0 ? progressPercent : 4}%` as any },
+                            ]}
+                        />
+                    </View>
+                    <AppText style={rf.goalNote}>
+                        🏆 Invite {remaining} more sellers to unlock ₹2,500 bonus!
+                    </AppText>
+                </View>
+
+                {/* Referral code */}
+                <View style={rf.codeCard}>
+                    <AppText style={rf.codeLabel}>YOUR REFERRAL CODE</AppText>
+                    <AppText style={rf.codeText} numberOfLines={1} ellipsizeMode="middle">
+                        {displayReferralCode}
+                    </AppText>
+                    <View style={rf.actionsRow}>
+                        <TouchableOpacity
+                            style={[rf.copyBtn, copied && { backgroundColor: "#F0FDF4", borderColor: C.green }]}
+                            onPress={handleCopy}
+                            activeOpacity={0.8}
+                        >
                             <MaterialCommunityIcons
                                 name={copied ? "check" : "content-copy"}
-                                size={13}
+                                size={14}
                                 color={copied ? C.green : C.textMid}
                             />
                             <AppText style={[rf.copyBtnText, copied && { color: C.green }]}>
                                 {copied ? "Copied!" : "Copy"}
                             </AppText>
                         </TouchableOpacity>
+                        <TouchableOpacity style={rf.shareBtn} onPress={handleShare} activeOpacity={0.8}>
+                            <Feather name="share-2" size={14} color="#fff" />
+                            <AppText style={rf.shareBtnText}>Share</AppText>
+                        </TouchableOpacity>
                     </View>
                 </View>
-                <View style={rf.statsGrid}>
-                    {[
-                        { icon: "account-multiple-outline", color: C.blue, value: String(totalReferred), label: "Total referred" },
-                        { icon: "check-circle-outline", color: C.green, value: String(qualified), label: "Qualified sellers" },
-                        { icon: "medal-outline", color: C.orangeDeep, value: "+5%", label: "Commission earn" },
-                    ].map((st, i) => (
-                        <View key={i} style={rf.statCard}>
-                            <MaterialCommunityIcons name={st.icon as any} size={20} color={st.color} style={{ marginBottom: 3 }} />
-                            <AppText style={rf.statNum}>{st.value}</AppText>
-                            <AppText style={rf.statLabel}>{st.label}</AppText>
-                        </View>
-                    ))}
-                </View>
-                <View style={rf.progressBox}>
-                    <View style={rf.progressTop}>
-                        <AppText style={rf.progressTitle}>Invite {goal} sellers to unlock reward</AppText>
-                        <AppText style={rf.progressCount}>{totalReferred} / {goal}</AppText>
-                    </View>
-                    <View style={rf.progBg}>
-                        <View style={[rf.progFill, { width: `${progressPercent}%` as any }]} />
-                    </View>
-                    <View style={rf.stepsRow}>
-                        {["Invite 6 sellers", "Get 10 orders"].map((step, i) => (
-                            <View key={i} style={rf.stepItem}>
-                                <View style={rf.stepNum}>
-                                    <AppText style={rf.stepNumText}>{i + 1}</AppText>
-                                </View>
-                                <AppText style={rf.stepText}>{step}</AppText>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-                <TouchableOpacity style={rf.earnBtn} activeOpacity={0.85}>
-                    <MaterialCommunityIcons name="gift-outline" size={17} color={C.orangeDeep} />
-                    <AppText style={rf.earnBtnText}>Earn +5% commission on every referral</AppText>
-                    <MaterialCommunityIcons name="arrow-right" size={16} color={C.orangeDeep} />
-                </TouchableOpacity>
             </View>
         </View>
     );
 };
 
 const rf = StyleSheet.create({
-    wrapper: { marginHorizontal: 16, marginBottom: 10, maxWidth: "100%" },
-    outer: {
-        backgroundColor: C.orangeDeep,
-        borderRadius: 16,
-        overflow: "hidden",
-        padding: 16,
-        paddingBottom: 0,
+    wrapper: { marginHorizontal: 16, marginBottom: 12, maxWidth: "100%" },
+    card: {
+        backgroundColor: "#FFF8F2",
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: C.orange,
         width: "100%",
         maxWidth: "100%",
+        overflow: "hidden",
     },
-    header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
-    headerIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-    headerTitle: { flex: 1, minWidth: 0, fontFamily: fontFamilies.bold, fontSize: 14, color: "#fff", lineHeight: 20 },
-    desc: { fontFamily: fontFamilies.regular, fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 18, marginBottom: 14 },
-    codeRow: { flexDirection: "column", alignItems: "stretch", gap: 8, marginBottom: 14, width: "100%" },
-    codeLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: "rgba(255,255,255,0.7)", letterSpacing: 0.8 },
-    codePill: {
-        width: "100%",
+    accentHeader: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        backgroundColor: "rgba(255,255,255,0.96)",
-        borderRadius: 50,
+        justifyContent: "space-between",
+        gap: 8,
+        backgroundColor: C.orange,
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 12,
+    },
+    accentLeft: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
         minWidth: 0,
     },
-    codeText: { flex: 1, minWidth: 0, fontFamily: fontFamilies.bold, fontSize: 12, color: C.textDark, letterSpacing: 0.3 },
-    copyBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.bg, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 50, flexShrink: 0 },
-    copyBtnText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.textMid },
-    statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 },
-    statCard: {
-        flexGrow: 1,
-        flexBasis: "30%",
-        minWidth: 96,
-        backgroundColor: "rgba(255,255,255,0.96)",
-        borderRadius: 10,
-        padding: 10,
+    giftCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: "rgba(255,255,255,0.22)",
         alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
     },
-    statNum: { fontFamily: fontFamilies.bold, fontSize: 20, color: C.textDark },
-    statLabel: { fontFamily: fontFamilies.regular, fontSize: 10, color: C.textLight, marginTop: 1, textAlign: "center" },
-    progressBox: { backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 10, padding: 12, marginBottom: 14, width: "100%" },
-    progressTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 7 },
-    progressTitle: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.textDark, flex: 1, minWidth: 0, marginRight: 8 },
-    progressCount: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.orangeDeep, flexShrink: 0 },
-    progBg: { height: 7, backgroundColor: C.border, borderRadius: 4, overflow: "hidden", marginBottom: 10, width: "100%" },
-    progFill: { height: 7, backgroundColor: C.orangeDeep, borderRadius: 4 },
-    stepsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    stepItem: { flexGrow: 1, flexBasis: "40%", minWidth: 120, flexDirection: "row", alignItems: "center", gap: 6 },
-    stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: C.orangeDeep, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-    stepNumText: { fontFamily: fontFamilies.bold, fontSize: 11, color: "#fff" },
-    stepText: { flex: 1, minWidth: 0, fontFamily: fontFamilies.medium, fontSize: 11, color: C.textMid },
-    earnBtn: {
-        flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 7,
-        backgroundColor: "rgba(255,255,255,0.96)",
-        marginHorizontal: -16, paddingVertical: 13, paddingHorizontal: 12,
-        borderTopWidth: 1.5, borderTopColor: "rgba(255,255,255,0.25)",
+    accentText: { flex: 1, minWidth: 0 },
+    title: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 14,
+        color: "#fff",
     },
-    earnBtnText: { fontFamily: fontFamilies.bold, fontSize: 13, color: C.orangeDeep, textAlign: "center", flexShrink: 1 },
+    subtitle: {
+        fontFamily: fontFamilies.regular,
+        fontSize: 10,
+        color: "rgba(255,255,255,0.9)",
+        marginTop: 1,
+    },
+    activeBadge: {
+        backgroundColor: "#FEF3C7",
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: "#FDE68A",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        flexShrink: 0,
+    },
+    activeBadgeText: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 10,
+        color: "#EA580C",
+        letterSpacing: 0.4,
+    },
+    progressWrap: {
+        paddingHorizontal: 12,
+        paddingTop: 12,
+        paddingBottom: 10,
+    },
+    progressTop: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 6,
+    },
+    progressLabel: {
+        flex: 1,
+        minWidth: 0,
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 12,
+        color: C.textMid,
+    },
+    progressPct: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 12,
+        color: C.orange,
+        flexShrink: 0,
+    },
+    progBg: {
+        height: 7,
+        backgroundColor: "#FDE68A",
+        borderRadius: 4,
+        overflow: "hidden",
+        marginBottom: 8,
+        width: "100%",
+    },
+    progFill: {
+        height: 7,
+        backgroundColor: C.orange,
+        borderRadius: 4,
+    },
+    goalNote: {
+        fontFamily: fontFamilies.medium,
+        fontSize: 11,
+        color: C.textMid,
+        lineHeight: 16,
+    },
+    codeCard: {
+        backgroundColor: C.white,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: "#F59E0B",
+        marginHorizontal: 12,
+        marginBottom: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        gap: 8,
+    },
+    codeLabel: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 10,
+        color: C.textLight,
+        letterSpacing: 0.7,
+    },
+    codeText: {
+        fontFamily: fontFamilies.bold,
+        fontSize: 15,
+        color: C.textDark,
+        letterSpacing: 0.4,
+    },
+    actionsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 2,
+        width: "100%",
+    },
+    copyBtn: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        backgroundColor: C.bg,
+        borderWidth: 1,
+        borderColor: C.border,
+        borderRadius: 8,
+        paddingVertical: 10,
+        minHeight: 40,
+    },
+    copyBtnText: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 13,
+        color: C.textMid,
+    },
+    shareBtn: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        backgroundColor: C.orange,
+        borderRadius: 8,
+        paddingVertical: 10,
+        minHeight: 40,
+    },
+    shareBtnText: {
+        fontFamily: fontFamilies.semiBold,
+        fontSize: 13,
+        color: "#fff",
+    },
 });
 
 // ─── Side Drawer Menu ─────────────────────────────────────────
