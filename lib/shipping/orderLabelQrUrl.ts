@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 /** Production seller web app (expo web export base path). */
-export const PRODUCTION_SELLER_APP_URL = "https://flintnthread.in/Seller";
+export const PRODUCTION_SELLER_APP_URL = "https://seller.flintnthread.in";
 
 export function resolveSellerAppBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_SELLER_WEB_URL?.trim();
