@@ -1064,13 +1064,19 @@ const MobileLayout: React.FC<{
                 <Ionicons name={amountExpanded?"chevron-up":"chevron-down"} size={18} color={C.navy} style={{marginLeft:4}}/>
               </TouchableOpacity>
               {amountExpanded&&(
-                <View style={styles.amountBreakdown}>
-                  <View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Subtotal</Text><Text style={styles.amountBreakdownValue}>{order.pricing.subtotal}</Text></View>
-                  <View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Shipping</Text><Text style={styles.amountBreakdownValue}>{order.pricing.shipping}</Text></View>
-                  {order.pricing.tax&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Tax</Text><Text style={styles.amountBreakdownValue}>{order.pricing.tax}</Text></View>}
-                  {order.pricing.discount&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Discount</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
-                  {order.pricing.referralDiscount&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Referral Discount</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
-                  {order.pricing.walletDeduction&&<View style={styles.amountBreakdownRow}><Text style={styles.amountBreakdownLabel}>Wallet</Text><Text style={[styles.amountBreakdownValue,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
+                <View style={[styles.amountBreakdown, isWebMobile && styles.amountBreakdownWebMobile]}>
+                  <View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}>
+                    <Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Subtotal</Text>
+                    <Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile]}>{order.pricing.subtotal}</Text>
+                  </View>
+                  <View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}>
+                    <Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Shipping</Text>
+                    <Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile]}>{order.pricing.shipping}</Text>
+                  </View>
+                  {order.pricing.tax&&<View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}><Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Tax</Text><Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile]}>{order.pricing.tax}</Text></View>}
+                  {order.pricing.discount&&<View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}><Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Discount</Text><Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile,{color:C.green}]}>-{order.pricing.discount}</Text></View>}
+                  {order.pricing.referralDiscount&&<View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}><Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Referral Discount</Text><Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile,{color:C.green}]}>-{order.pricing.referralDiscount}</Text></View>}
+                  {order.pricing.walletDeduction&&<View style={[styles.amountBreakdownRow, isWebMobile && styles.amountBreakdownRowWebMobile]}><Text style={[styles.amountBreakdownLabel, isWebMobile && styles.amountBreakdownLabelWebMobile]}>Wallet</Text><Text style={[styles.amountBreakdownValue, isWebMobile && styles.amountBreakdownValueWebMobile,{color:C.green}]}>-{order.pricing.walletDeduction}</Text></View>}
                 </View>
               )}
             </View>
@@ -1426,7 +1432,7 @@ const styles = StyleSheet.create({
   scrollContentWeb: { paddingHorizontal: 0, paddingTop: 36, paddingBottom: 24 },
   scrollContentWebMobile: { paddingTop: 32, gap: 10, paddingBottom: 32 },
   card: { backgroundColor:C.white, borderRadius:16, padding:16, shadowColor:"#000", shadowOpacity:0.05, shadowOffset:{width:0,height:2}, shadowRadius:8, elevation:2 },
-  cardWeb: { borderRadius: 12, padding: 12 },
+  cardWeb: { borderRadius: 12, padding: 12, paddingBottom: 14, overflow: "visible" },
   orderSummaryGrid: { flexDirection:"row", gap:12 },
   orderSummaryGridWeb: { flexDirection: "column", gap: 14 },
   orderSummaryLeft: { flex:1 },
@@ -1447,10 +1453,55 @@ const styles = StyleSheet.create({
   amountRow: { flexDirection:"row", alignItems:"center", minWidth: 0 },
   amountText: { fontSize:16, fontWeight:"800", color:C.navy, flexShrink: 1 },
   amountTextWeb: { fontSize: 15 },
-  amountBreakdown: { marginTop:6, gap:2 },
-  amountBreakdownRow: { flexDirection:"row", justifyContent:"space-between", gap:16 },
-  amountBreakdownLabel: { fontSize:11, color:C.textLight },
-  amountBreakdownValue: { fontSize:11, color:C.textMid, fontWeight:"600" },
+  amountBreakdown: { marginTop:8, gap:4, paddingBottom: 4 },
+  amountBreakdownWebMobile: {
+    marginTop: 8,
+    gap: 6,
+    paddingBottom: 4,
+    width: "100%",
+  },
+  amountBreakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 10,
+    paddingVertical: 1,
+  },
+  amountBreakdownRowWebMobile: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 8,
+    width: "100%",
+    paddingVertical: 2,
+  },
+  amountBreakdownLabel: {
+    fontSize: 12,
+    color: C.textMid,
+    fontWeight: "500",
+    width: 90,
+    flexShrink: 0,
+  },
+  amountBreakdownLabelWebMobile: {
+    fontSize: 12,
+    color: C.textMid,
+    fontWeight: "500",
+    width: 88,
+    flexShrink: 0,
+  },
+  amountBreakdownValue: {
+    fontSize: 12,
+    color: C.textDark,
+    fontWeight: "700",
+    flexShrink: 0,
+  },
+  amountBreakdownValueWebMobile: {
+    fontSize: 12,
+    color: C.textDark,
+    fontWeight: "700",
+    flexShrink: 0,
+    textAlign: "left",
+  },
   sectionHeader: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:14 },
   sectionHeaderLeft: { flexDirection:"row", alignItems:"center", gap:8 },
   sectionIconWrap: { width:32, height:32, borderRadius:8, backgroundColor:C.bluePale, alignItems:"center", justifyContent:"center" },

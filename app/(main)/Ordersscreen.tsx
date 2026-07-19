@@ -2108,7 +2108,7 @@ export default function OrdersScreen() {
                         { backgroundColor: iconCfg.bg },
                       ]}
                     >
-                      <StatIcon cfg={iconCfg} size={16} />
+                      <StatIcon cfg={iconCfg} size={22} />
                     </View>
                     <View style={styles.statTextWebMobile}>
                       <Text
@@ -2173,9 +2173,10 @@ export default function OrdersScreen() {
         }
       >
         {/* Tabs */}
+        <View style={[styles.tabsOuter, isWebCompact && styles.tabsOuterWebMobile]}>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={isWebCompact}
+          showsHorizontalScrollIndicator={false}
           style={[styles.tabsContainer, isWebCompact && styles.tabsContainerWebMobile]}
           contentContainerStyle={[styles.tabsContent, isWebCompact && styles.tabsContentWebMobile]}
         >
@@ -2203,6 +2204,7 @@ export default function OrdersScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        </View>
 
         {/* Search + Sort + Filter Row */}
         <View style={[styles.searchRow, isWebCompact && styles.searchRowWebMobile]}>
@@ -2882,12 +2884,21 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.bg, position: "relative" },
   safeAreaWeb: { width: "100%", minWidth: 0 },
-  blueSection: { backgroundColor: C.navy, paddingBottom: 55, borderRadius: 15 },
+  blueSection: {
+    backgroundColor: C.navy,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    borderBottomLeftRadius: 15,
+    borderBottomRightRadius: 15,
+    overflow: "hidden",
+  },
   blueSectionWebMobile: {
-    paddingBottom: 8,
-    borderRadius: 12,
-    marginBottom: 4,
+    paddingBottom: 12,
+    paddingHorizontal: 10,
     paddingTop: 2,
+    borderRadius: 12,
+    marginBottom: 8,
+    overflow: "hidden",
   },
   webMobileIntro: {
     paddingHorizontal: 4,
@@ -2910,22 +2921,27 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     marginHorizontal: 0,
-    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 0,
+    borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 8,
-    elevation: 2,
+    elevation: 0,
+    ...webBoxShadow("none"),
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   overviewTitleWebMobile: {
     fontSize: 12,
     marginBottom: 4,
   },
   statsGridWebMobile: {
-    gap: 6,
+    gap: 5,
     ...Platform.select({
       web: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
-        gap: 6,
+        gap: 5,
       },
     }),
   },
@@ -2942,14 +2958,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: C.bg,
     borderRadius: 8,
-    padding: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
     minWidth: 0,
-    gap: 6,
+    minHeight: 0,
+    gap: 5,
   },
   iconWrapperWebMobile: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     flexShrink: 0,
   },
   statTextWebMobile: {
@@ -2957,15 +2975,16 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   statCountWebMobile: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     color: C.textDark,
+    lineHeight: 16,
   },
   statLabelWebMobile: {
-    fontSize: 10,
+    fontSize: 9,
     color: C.textMid,
-    marginTop: 1,
-    lineHeight: 13,
+    marginTop: 0,
+    lineHeight: 11,
   },
   scrollViewWebMobile: {
     marginTop: 0,
@@ -2974,8 +2993,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   tabsContainerWebMobile: {
-    borderRadius: 10,
+    borderRadius: 0,
     marginBottom: 0,
+    borderBottomWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    ...webBoxShadow("none"),
+    backgroundColor: C.white,
   },
   tabsContentWebMobile: {
     paddingHorizontal: 0,
@@ -3057,7 +3083,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { flex: 1, color: C.white, fontSize: 23, fontWeight: "800" },
   headerActions: { flexDirection: "row", alignItems: "center" },
-  scrollView: { flex: 1, backgroundColor: C.bg, marginTop: 75 },
+  scrollView: { flex: 1, backgroundColor: C.bg, marginTop: 0 },
   notificationBtn: {
     width: 44,
     height: 44,
@@ -3087,14 +3113,18 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
   overviewCard: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: -65,
+    position: "relative",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    marginTop: 4,
     backgroundColor: C.white,
     borderRadius: 10,
     padding: 10,
-    elevation: 8,
+    elevation: 0,
+    ...nativeShadow("transparent", { width: 0, height: 0 }, 0, 0, 0),
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   overviewTitle: {
     fontSize: 13,
@@ -3103,9 +3133,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3113,11 +3143,11 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   statDivider: {
     width: 1,
-    height: 68,
+    height: 56,
     backgroundColor: C.border,
     alignSelf: "center",
   },
@@ -3135,8 +3165,29 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     backgroundColor: C.white,
+    borderBottomWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    ...webBoxShadow("none"),
+  },
+  tabsOuter: {
+    backgroundColor: C.white,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+    elevation: 0,
+    shadowOpacity: 0,
+    ...webBoxShadow("none"),
+    overflow: "hidden",
+  },
+  tabsOuterWebMobile: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    elevation: 0,
+    shadowOpacity: 0,
+    ...webBoxShadow("none"),
+    overflow: "hidden",
   },
   tabsContent: { paddingHorizontal: 12 },
   tab: {

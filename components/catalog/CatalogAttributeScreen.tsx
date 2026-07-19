@@ -76,6 +76,7 @@ export function CatalogAttributeScreen({
     const useCatalogCards = !isWeb || isMobile;
     const tableMinWidth = Math.max(640, Math.min(900, width - 24));
     const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Inactive">("All");
     const [sizeCatalogFilter, setSizeCatalogFilter] =
         useState<SizeCatalogFilterId>(SIZE_CATALOG_ALL);
     const [modalOpen, setModalOpen] = useState(false);
@@ -95,7 +96,7 @@ export function CatalogAttributeScreen({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, viewType, sizeCatalogFilter]);
+    }, [search, viewType, sizeCatalogFilter, statusFilter]);
 
     const loadCatalog = useCallback(async () => {
         await hydrateSellerSession();
@@ -146,21 +147,28 @@ export function CatalogAttributeScreen({
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
+        const byStatus = <T extends { status: string }>(list: T[]) => {
+            if (statusFilter === "All") return list;
+            return list.filter((item) => item.status === statusFilter);
+        };
+
         if (config.kind === "color") {
-            const list = items as ColorRecord[];
+            const list = byStatus(items as ColorRecord[]);
             if (!q) return list;
             return list.filter(
                 (c) => c.name.toLowerCase().includes(q) || c.hex.toLowerCase().includes(q)
             );
         }
         const byGroup = filterSizesByCatalogGroup(items as SizeRecord[], sizeCatalogFilter);
-        if (!q) return byGroup;
-        return byGroup.filter(
+        const list = byStatus(byGroup);
+        if (!q) return list;
+        return list.filter(
             (s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
         );
-    }, [items, search, config.kind, sizeCatalogFilter]);
+    }, [items, search, config.kind, sizeCatalogFilter, statusFilter]);
 
     const activeCount = items.filter((i) => i.status === "Active").length;
+    const inactiveCount = items.length - activeCount;
 
     const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
     const paginatedItems = filtered.slice(
@@ -393,33 +401,86 @@ export function CatalogAttributeScreen({
                 </View>
             </View>
 
-            <View style={[pg.searchRow, isWeb && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0 }]}>
-                <View style={[pg.searchInputWrap, { flex: 1 }]}>
+            <View
+                style={[
+                    pg.searchRow,
+                    isMobile && pg.searchRowMobile,
+                    isWeb && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0 },
+                ]}
+            >
+                <View style={[pg.searchInputWrap, isMobile && pg.searchInputWrapMobile]}>
                     <Ionicons name="search" size={18} color="#9CA3AF" />
                     <TextInput
-                        style={pg.searchInput}
+                        style={[pg.searchInput, isMobile && pg.searchInputMobile]}
                         placeholder={`Search ${config.pageTitle.toLowerCase()}…`}
                         placeholderTextColor="#9CA3AF"
                         value={search}
                         onChangeText={setSearch}
                     />
+                    {search.length > 0 ? (
+                        <TouchableOpacity onPress={() => setSearch("")} hitSlop={8}>
+                            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
-                {isWeb && (
-                    <View style={pg.viewToggle}>
-                        <TouchableOpacity
-                            style={[pg.viewToggleBtn, viewType === "list" && pg.viewToggleBtnActive]}
-                            onPress={() => setViewType("list")}
-                        >
-                            <Ionicons name="list" size={18} color={viewType === "list" ? "#151D4F" : "#9CA3AF"} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[pg.viewToggleBtn, viewType === "grid" && pg.viewToggleBtnActive]}
-                            onPress={() => setViewType("grid")}
-                        >
-                            <Ionicons name="grid" size={16} color={viewType === "grid" ? "#151D4F" : "#9CA3AF"} />
-                        </TouchableOpacity>
-                    </View>
-                )}
+
+                <View style={[pg.searchToolsRow, isMobile && pg.searchToolsRowMobile]}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={pg.statusChipsRow}
+                        style={pg.statusChipsScroll}
+                    >
+                        {(
+                            [
+                                { key: "All" as const, label: `All ${items.length}` },
+                                { key: "Active" as const, label: `Active ${activeCount}` },
+                                { key: "Inactive" as const, label: `Inactive ${inactiveCount}` },
+                            ] as const
+                        ).map((chip) => {
+                            const active = statusFilter === chip.key;
+                            return (
+                                <TouchableOpacity
+                                    key={chip.key}
+                                    style={[pg.statusChip, active && pg.statusChipActive]}
+                                    onPress={() => setStatusFilter(chip.key)}
+                                    activeOpacity={0.85}
+                                >
+                                    <Text style={[pg.statusChipTxt, active && pg.statusChipTxtActive]}>
+                                        {chip.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    {isWeb ? (
+                        <View style={pg.viewToggle}>
+                            <TouchableOpacity
+                                style={[pg.viewToggleBtn, viewType === "list" && pg.viewToggleBtnActive]}
+                                onPress={() => setViewType("list")}
+                                activeOpacity={0.75}
+                                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: viewType === "list" }}
+                                accessibilityLabel="List view"
+                            >
+                                <Ionicons name="list" size={18} color={viewType === "list" ? "#151D4F" : "#9CA3AF"} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[pg.viewToggleBtn, viewType === "grid" && pg.viewToggleBtnActive]}
+                                onPress={() => setViewType("grid")}
+                                activeOpacity={0.75}
+                                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: viewType === "grid" }}
+                                accessibilityLabel="Grid view"
+                            >
+                                <Ionicons name="grid" size={16} color={viewType === "grid" ? "#151D4F" : "#9CA3AF"} />
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                </View>
             </View>
 
             {config.kind === "size" && sizeCatalogCounts ? (
@@ -463,14 +524,20 @@ export function CatalogAttributeScreen({
             ) : null}
 
             {useCatalogCards && (
-                <View style={pg.mobileList}>
+                <View
+                    style={
+                        viewType === "grid"
+                            ? [pg.mobileList, pg.mobileGrid]
+                            : pg.mobileList
+                    }
+                >
                     {catalogLoading ? (
-                        <View style={pg.empty}>
+                        <View style={[pg.empty, viewType === "grid" && pg.mobileGridFull]}>
                             <ActivityIndicator size="large" color={ORANGE_BRAND} />
                             <Text style={pg.emptySub}>Loading {config.pageTitle.toLowerCase()}…</Text>
                         </View>
                     ) : catalogError ? (
-                        <View style={pg.empty}>
+                        <View style={[pg.empty, viewType === "grid" && pg.mobileGridFull]}>
                             <Text style={pg.emptyTitle}>Could not load {config.pageTitle.toLowerCase()}</Text>
                             <Text style={pg.emptySub}>{catalogError}</Text>
                             <TouchableOpacity style={pg.retryBtn} onPress={loadCatalog}>
@@ -478,7 +545,7 @@ export function CatalogAttributeScreen({
                             </TouchableOpacity>
                         </View>
                     ) : filtered.length === 0 ? (
-                        <View style={pg.empty}>
+                        <View style={[pg.empty, viewType === "grid" && pg.mobileGridFull]}>
                             <MaterialCommunityIcons
                                 name={config.kind === "color" ? "palette-outline" : "ruler-square"}
                                 size={40}
@@ -490,10 +557,18 @@ export function CatalogAttributeScreen({
                     ) : config.kind === "color" ? (
                         (filtered as ColorRecord[]).map((c) => {
                             const isActive = c.status === "Active";
+                            const isGrid = viewType === "grid";
                             return (
-                                <View key={c.id} style={[pg.sizeCard, !isWeb && pg.sizeCardNative]}>
-                                    <View style={pg.sizeCardTop}>
-                                        <View style={[pg.colorDot, { backgroundColor: c.hex }]} />
+                                <View
+                                    key={c.id}
+                                    style={[
+                                        pg.sizeCard,
+                                        !isWeb && pg.sizeCardNative,
+                                        isGrid && pg.sizeCardGrid,
+                                    ]}
+                                >
+                                    <View style={[pg.sizeCardTop, isGrid && pg.sizeCardTopGrid]}>
+                                        <View style={[pg.colorDot, isGrid && pg.colorDotGrid, { backgroundColor: c.hex }]} />
                                         <View style={{ flex: 1, minWidth: 0 }}>
                                             <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
                                                 {c.name}
@@ -502,7 +577,21 @@ export function CatalogAttributeScreen({
                                                 {c.hex}
                                             </Text>
                                         </View>
-                                        <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
+                                        {!isGrid ? (
+                                            <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
+                                                <Text
+                                                    style={[
+                                                        pg.badgeTxt,
+                                                        isActive ? pg.badgeTxtOn : pg.badgeTxtOff,
+                                                    ]}
+                                                >
+                                                    {c.status}
+                                                </Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                    {isGrid ? (
+                                        <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff, { alignSelf: "flex-start", marginTop: 8 }]}>
                                             <Text
                                                 style={[
                                                     pg.badgeTxt,
@@ -512,10 +601,10 @@ export function CatalogAttributeScreen({
                                                 {c.status}
                                             </Text>
                                         </View>
-                                    </View>
+                                    ) : null}
 
                                     {isOwnedCatalogItem(c) ? (
-                                        <View style={pg.sizeCardActions}>
+                                        <View style={[pg.sizeCardActions, isGrid && pg.sizeCardActionsGrid]}>
                                             <TouchableOpacity
                                                 style={pg.sizeEditBtn}
                                                 onPress={() => openEditColorModal(c)}
@@ -526,7 +615,7 @@ export function CatalogAttributeScreen({
                                                     size={18}
                                                     color="#FFFFFF"
                                                 />
-                                                <Text style={pg.sizeActionTxt}>Edit</Text>
+                                                {!isGrid ? <Text style={pg.sizeActionTxt}>Edit</Text> : null}
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={pg.sizeDeleteBtn}
@@ -538,7 +627,7 @@ export function CatalogAttributeScreen({
                                                     size={18}
                                                     color="#FFFFFF"
                                                 />
-                                                <Text style={pg.sizeActionTxt}>Delete</Text>
+                                                {!isGrid ? <Text style={pg.sizeActionTxt}>Delete</Text> : null}
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
@@ -550,8 +639,16 @@ export function CatalogAttributeScreen({
                     ) : (
                         (filtered as SizeRecord[]).map((s) => {
                             const isActive = s.status === "Active";
+                            const isGrid = viewType === "grid";
                             return (
-                                <View key={s.id} style={[pg.sizeCard, !isWeb && pg.sizeCardNative]}>
+                                <View
+                                    key={s.id}
+                                    style={[
+                                        pg.sizeCard,
+                                        !isWeb && pg.sizeCardNative,
+                                        isGrid && pg.sizeCardGrid,
+                                    ]}
+                                >
                                     <View style={pg.sizeCardTop}>
                                         <View style={{ flex: 1, minWidth: 0 }}>
                                             <Text style={[pg.sizeCardTitle, !isWeb && pg.sizeCardTitleNative]} numberOfLines={2}>
@@ -561,7 +658,24 @@ export function CatalogAttributeScreen({
                                                 {sizeCatalogGroupLabel(classifySizeCatalog(s.name, s.code))}
                                             </Text>
                                         </View>
-                                        <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
+                                        {!isGrid ? (
+                                            <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff]}>
+                                                <Text
+                                                    style={[
+                                                        pg.badgeTxt,
+                                                        isActive ? pg.badgeTxtOn : pg.badgeTxtOff,
+                                                    ]}
+                                                >
+                                                    {s.status}
+                                                </Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                    <Text style={[pg.sizeCardMeta, !isWeb && pg.sizeCardMetaNative]} numberOfLines={1}>
+                                        Code: {s.code}
+                                    </Text>
+                                    {isGrid ? (
+                                        <View style={[pg.badge, isActive ? pg.badgeOn : pg.badgeOff, { alignSelf: "flex-start", marginBottom: 4 }]}>
                                             <Text
                                                 style={[
                                                     pg.badgeTxt,
@@ -571,13 +685,10 @@ export function CatalogAttributeScreen({
                                                 {s.status}
                                             </Text>
                                         </View>
-                                    </View>
-                                    <Text style={[pg.sizeCardMeta, !isWeb && pg.sizeCardMetaNative]} numberOfLines={1}>
-                                        Code: {s.code}
-                                    </Text>
+                                    ) : null}
 
                                     {isOwnedCatalogItem(s) ? (
-                                        <View style={pg.sizeCardActions}>
+                                        <View style={[pg.sizeCardActions, isGrid && pg.sizeCardActionsGrid]}>
                                             <TouchableOpacity
                                                 style={pg.sizeEditBtn}
                                                 onPress={() => openEditSizeModal(s)}
@@ -588,7 +699,7 @@ export function CatalogAttributeScreen({
                                                     size={18}
                                                     color="#FFFFFF"
                                                 />
-                                                <Text style={pg.sizeActionTxt}>Edit</Text>
+                                                {!isGrid ? <Text style={pg.sizeActionTxt}>Edit</Text> : null}
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={pg.sizeDeleteBtn}
@@ -600,7 +711,7 @@ export function CatalogAttributeScreen({
                                                     size={18}
                                                     color="#FFFFFF"
                                                 />
-                                                <Text style={pg.sizeActionTxt}>Delete</Text>
+                                                {!isGrid ? <Text style={pg.sizeActionTxt}>Delete</Text> : null}
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
@@ -1219,6 +1330,58 @@ const pg = StyleSheet.create({
         alignItems: "center",
         gap: 10,
         marginBottom: 16,
+        width: "100%",
+        flexWrap: "nowrap",
+    },
+    searchRowMobile: {
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 10,
+        width: "100%",
+        marginBottom: 14,
+    },
+    searchToolsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        flexShrink: 0,
+    },
+    searchToolsRowMobile: {
+        width: "100%",
+        justifyContent: "space-between",
+        flexShrink: 1,
+        minWidth: 0,
+    },
+    statusChipsScroll: {
+        flexGrow: 1,
+        flexShrink: 1,
+        minWidth: 0,
+    },
+    statusChipsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingRight: 4,
+    },
+    statusChip: {
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    statusChipActive: {
+        borderColor: ORANGE_BRAND,
+        backgroundColor: "#FFF7ED",
+    },
+    statusChipTxt: {
+        fontFamily: "Outfit_600SemiBold",
+        fontSize: 12,
+        color: "#6B7280",
+    },
+    statusChipTxtActive: {
+        color: ORANGE_BRAND,
     },
     catalogTabsScroll: {
         marginBottom: 14,
@@ -1267,18 +1430,33 @@ const pg = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: 10,
+        flex: 1,
+        minWidth: 0,
         backgroundColor: "#FFFFFF",
         borderWidth: 1,
         borderColor: "#E5E7EB",
         borderRadius: 10,
         paddingHorizontal: 14,
     },
+    searchInputWrapMobile: {
+        width: "100%",
+        flexGrow: 1,
+        flexShrink: 0,
+        alignSelf: "stretch",
+        minWidth: "100%" as unknown as number,
+    },
     searchInput: {
         flex: 1,
+        minWidth: 0,
         fontFamily: "Outfit_400Regular",
         fontSize: 14,
         color: "#111827",
         paddingVertical: 12,
+        ...(Platform.OS === "web" ? ({ outlineWidth: 0, width: "100%" } as object) : null),
+    },
+    searchInputMobile: {
+        fontSize: 15,
+        paddingVertical: 13,
     },
     tableScroll: { marginBottom: 16 },
     tableScrollInner: { flexGrow: 1 },
@@ -1408,6 +1586,11 @@ const pg = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(0,0,0,0.1)",
     },
+    colorDotGrid: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+    },
     badge: {
         alignSelf: "flex-start",
         paddingHorizontal: 10,
@@ -1501,6 +1684,15 @@ const pg = StyleSheet.create({
         alignSelf: "flex-start",
     },
     mobileList: { gap: 12, marginBottom: 16 },
+    mobileGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 10,
+    },
+    mobileGridFull: {
+        width: "100%",
+        flexBasis: "100%",
+    },
     sizeCard: {
         backgroundColor: "#FFFFFF",
         borderRadius: 12,
@@ -1511,12 +1703,26 @@ const pg = StyleSheet.create({
     sizeCardNative: {
         padding: 12,
     },
+    sizeCardGrid: {
+        width: "48%",
+        flexBasis: "47%",
+        maxWidth: "48.5%",
+        padding: 12,
+    },
     sizeCardTop: {
         flexDirection: "row",
         alignItems: "flex-start",
         justifyContent: "space-between",
         gap: 10,
         marginBottom: 8,
+    },
+    sizeCardTopGrid: {
+        marginBottom: 4,
+        gap: 8,
+    },
+    sizeCardActionsGrid: {
+        marginTop: 10,
+        gap: 8,
     },
     sizeCardTitle: {
         flex: 1,
@@ -1586,7 +1792,9 @@ const pg = StyleSheet.create({
         borderRadius: 8,
     },
     viewToggleBtnActive: {
-        backgroundColor: "#F3F4F6",
+        backgroundColor: "#EEF2FF",
+        borderWidth: 1,
+        borderColor: "#C7D2FE",
     },
     // Grid View
     gridContainer: {
