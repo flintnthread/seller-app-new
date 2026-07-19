@@ -23,6 +23,7 @@ import {
     type ProductListItem,
 } from "@/services/productApi";
 import { ApiError } from "@/lib/api/client";
+import { isUsableMediaUrl } from "@/lib/media/resolveMediaUrl";
 import { useProductFilterCatalog } from "@/hooks/useProductFilterCatalog";
 import { useResponsive } from "@/hooks/useResponsive";
 import {
@@ -81,6 +82,25 @@ const LOW_STOCK_THRESHOLD = 10;
 const COLOR_FILTER_PREVIEW = 8;
 const SIZE_FILTER_PREVIEW = 5;
 const FILTER_SLIDER_W = 200;
+
+function ProductThumb({
+    uri,
+    style,
+    resizeMode = "cover",
+}: {
+    uri?: string | null;
+    style: any;
+    resizeMode?: "cover" | "contain" | "stretch" | "center";
+}) {
+    if (!isUsableMediaUrl(uri)) {
+        return (
+            <View style={[style, { alignItems: "center", justifyContent: "center", backgroundColor: C.bg }]}>
+                <MaterialCommunityIcons name="image-off-outline" size={22} color={C.textLight} />
+            </View>
+        );
+    }
+    return <Image source={{ uri: uri! }} style={style} resizeMode={resizeMode} />;
+}
 
 const clampPrice = (value: number, min: number, max: number) =>
     Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
@@ -629,7 +649,7 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
                 <View style={as.sheet}>
                     <View style={as.drag} />
                     <View style={as.productRow}>
-                        <Image source={{ uri: product.image }} style={as.productThumb} />
+                        <ProductThumb uri={product.image} style={as.productThumb} />
                         <View style={{ flex: 1 }}>
                             <Text style={as.productName} numberOfLines={1}>{product.name}</Text>
                             <Text style={as.productSku}>SKU: {product.sku}</Text>
@@ -703,7 +723,7 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
                 <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
                 <View style={wp.popup}>
                     <View style={wp.popupHeader}>
-                        <Image source={{ uri: product.image }} style={wp.popupImg} />
+                        <ProductThumb uri={product.image} style={wp.popupImg} />
                         <View style={{ flex: 1 }}>
                             <Text style={wp.popupName} numberOfLines={2}>{product.name}</Text>
                             <Text style={wp.popupSku}>SKU: {product.sku}</Text>
@@ -970,6 +990,9 @@ const WebProductsScreen: React.FC = () => {
         setFilterLowPrice(priceMin); setFilterHighPrice(priceMax);
         setExpandedCategory(null); setExpandedSubcat(null);
         setShowAllColors(false); setShowAllSizes(false);
+        setSelectedTab("All Products");
+        setSearchQuery("");
+        setSortBy("Latest");
         setApplied({
             category: "All", subcategory: "All",
             color: "All", size: "All", lowPrice: priceMin, highPrice: priceMax,
@@ -1358,7 +1381,12 @@ const WebProductsScreen: React.FC = () => {
                                                 borderWidth: filterColor === col ? 3 : 1.5,
                                                 borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.12)",
                                             }]}
-                                            onPress={() => setFilterColor(filterColor === col ? "All" : col)}
+                                            onPress={() => {
+                                                const next = filterColor === col ? "All" : col;
+                                                setFilterColor(next);
+                                                setApplied((prev) => ({ ...prev, color: next }));
+                                                setVisibleCount(20);
+                                            }}
                                         >
                                             {filterColor === col && (
                                                 <Ionicons name="checkmark" size={10} color={col === "White" || col === "Yellow" ? C.textDark : C.white} />
@@ -1406,7 +1434,12 @@ const WebProductsScreen: React.FC = () => {
                                             <TouchableOpacity
                                                 key={sz}
                                                 style={[wst.sizeChip, isActive && wst.sizeChipActive]}
-                                                onPress={() => setFilterSize(isActive ? "All" : sz)}
+                                                onPress={() => {
+                                                    const next = isActive ? "All" : sz;
+                                                    setFilterSize(next);
+                                                    setApplied((prev) => ({ ...prev, size: next }));
+                                                    setVisibleCount(20);
+                                                }}
                                                 activeOpacity={0.75}
                                             >
                                                 <Text style={[wst.sizeChipTxt, isActive && wst.sizeChipTxtActive]}>{sz}</Text>
@@ -1497,15 +1530,21 @@ const WebProductsScreen: React.FC = () => {
 
                         {/* LIST VIEW */}
                         {viewType === "list" && (
-                            <ScrollView style={wst.tableScroll} showsVerticalScrollIndicator={false}>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={viewportWidth < 1280}
+                                style={wst.tableScroll}
+                                contentContainerStyle={{ minWidth: Math.max(viewportWidth - 320, 980), flexGrow: 1 }}
+                            >
+                            <View style={{ flex: 1, minWidth: 980 }}>
                                 {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
                                 <View style={wst.tableHead}>
-                                    <Text style={[wst.tableHeadCell, { flex: 3.0 }]}>Product</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.7 }]}>Category</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.8 }]}>Size</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>Price</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.2 }]}>Status</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.7, textAlign: "right" }]}>Actions</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 3.0, minWidth: 220 }]}>Product</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.7, minWidth: 140 }]}>Category</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.9, minWidth: 72 }]}>Size</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Price</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Status</Text>
+                                    <Text style={[wst.tableHeadCell, { flex: 0.7, minWidth: 72, textAlign: "right" }]}>Actions</Text>
                                 </View>
                                 {visibleProducts.length === 0 ? (
                                     <View style={wst.emptyState}>
@@ -1522,8 +1561,8 @@ const WebProductsScreen: React.FC = () => {
                                         return (
                                             <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
                                                 {/* Product */}
-                                                <View style={[wst.tableCell, { flex: 3.0, minWidth: 0 }]}>
-                                                    <Image source={{ uri: product.image }} style={wst.tableProductImg} />
+                                                <View style={[wst.tableCell, { flex: 3.0, minWidth: 220 }]}>
+                                                    <ProductThumb uri={product.image} style={wst.tableProductImg} />
                                                     <View style={{ flex: 1, minWidth: 0 }}>
                                                         <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
                                                         <Text style={wst.tableProductSub}>{product.color}</Text>
@@ -1531,7 +1570,7 @@ const WebProductsScreen: React.FC = () => {
                                                     </View>
                                                 </View>
                                                 {/* Category hierarchy: main → category → subcategory */}
-                                                <View style={[wst.tableCell, { flex: 1.7, minWidth: 0, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.7, minWidth: 140, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                                                     <View style={wst.categoryTag}>
                                                         <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
                                                     </View>
@@ -1543,13 +1582,13 @@ const WebProductsScreen: React.FC = () => {
                                                     </Text>
                                                 </View>
                                                 {/* ── WEB CHANGE 8c: Size col — its own column ── */}
-                                                <View style={[wst.tableCell, { flex: 0.8, minWidth: 0, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.9, minWidth: 72, flexDirection: "column", alignItems: "flex-start" }]}>
                                                     <View style={wst.sizePill}>
                                                         <Text style={wst.sizePillTxt}>{product.size}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Price — stack sale + MRP so they never spill into Status */}
-                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 0, overflow: "hidden" }]}>
+                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, overflow: "hidden" }]}>
                                                     <ProductPriceTag
                                                         price={product.price}
                                                         mrpInclGst={product.mrpInclGst}
@@ -1558,14 +1597,14 @@ const WebProductsScreen: React.FC = () => {
                                                     />
                                                 </View>
                                                 {/* Status */}
-                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 0, flexShrink: 0 }]}>
+                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, flexShrink: 0 }]}>
                                                     <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
                                                         <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                         <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
                                                     </View>
                                                 </View>
                                                 {/* Actions */}
-                                                <View style={[wst.tableCell, { flex: 0.7, minWidth: 0, justifyContent: "flex-end" }]}>
+                                                <View style={[wst.tableCell, { flex: 0.7, minWidth: 72, justifyContent: "flex-end" }]}>
                                                     <TouchableOpacity style={wst.actionBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }} activeOpacity={0.75}>
                                                         <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
                                                     </TouchableOpacity>
@@ -1583,6 +1622,7 @@ const WebProductsScreen: React.FC = () => {
                                 {visibleProducts.length > 0 && (
                                     <Text style={wst.pageInfo}>Showing {visibleProducts.length} of {processedProducts.length}</Text>
                                 )}
+                            </View>
                             </ScrollView>
                         )}
 
@@ -1604,7 +1644,7 @@ const WebProductsScreen: React.FC = () => {
                                             return (
                                                 <TouchableOpacity key={product.id} style={wst.webGridCard} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.75}>
                                                     <View style={wst.webGridImgWrap}>
-                                                        <Image source={{ uri: product.image }} style={wst.webGridImg} resizeMode="contain" />
+                                                        <ProductThumb uri={product.image} style={wst.webGridImg} resizeMode="contain" />
                                                         <View style={[wst.webGridStatusBadge, { backgroundColor: st.bg }]}>
                                                             <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
                                                             <Text style={[wst.webGridStatusTxt, { color: st.color }]}>{product.status}</Text>
@@ -1904,9 +1944,9 @@ const wst = StyleSheet.create({
     viewBtn: { width: 28, height: 28, borderRadius: 5, alignItems: "center", justifyContent: "center" },
     viewBtnActive: { backgroundColor: C.navy },
     tableScroll: { flex: 1 },
-    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 11, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border, gap: 24 },
+    tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 11, backgroundColor: "#F8F9FC", borderBottomWidth: 1.5, borderBottomColor: C.border, gap: 12 },
     tableHeadCell: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.textLight, textTransform: "uppercase", letterSpacing: 0.5 },
-    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6", gap: 24 },
+    tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6", gap: 12 },
     tableRowAlt: { backgroundColor: "#FAFBFF" },
     tableCell: { flexDirection: "row", alignItems: "center", gap: 10 },
     tableProductImg: { width: 44, height: 44, borderRadius: 9, backgroundColor: C.bg },
@@ -2243,6 +2283,9 @@ const MobileProductsScreen: React.FC = () => {
         setFilterSize("All");
         setFilterLowPrice(priceMin);
         setFilterHighPrice(priceMax);
+        setSelectedTab("All Products");
+        setSearchQuery("");
+        setSortBy("Latest");
         setApplied({
             category: "All",
             subcategory: "All",
@@ -2252,6 +2295,7 @@ const MobileProductsScreen: React.FC = () => {
             highPrice: priceMax,
         });
         setVisibleCount(viewRange);
+        setShowFilter(false);
     };
 
     const handleTabChange       = (tab: TabType) => { setSelectedTab(tab); setVisibleCount(viewRange); };
@@ -2483,7 +2527,7 @@ const MobileProductsScreen: React.FC = () => {
                             const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                             return (
                                 <TouchableOpacity key={product.id} style={s.productRow} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.productImage} />
+                                    <ProductThumb uri={product.image} style={s.productImage} />
                                     <View style={s.productInfo}>
                                         <Text style={s.productName} numberOfLines={1}>{product.name}</Text>
                                         <Text style={s.productSku}>SKU: {product.sku}</Text>
@@ -2516,7 +2560,7 @@ const MobileProductsScreen: React.FC = () => {
                             const st = getStatusColor(product.status);
                             return (
                                 <TouchableOpacity key={product.id} style={[s.gridCard, { width: gridCardWidth }]} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
-                                    <Image source={{ uri: product.image }} style={s.gridImage} resizeMode="contain" />
+                                    <ProductThumb uri={product.image} style={s.gridImage} resizeMode="contain" />
                                     <View style={[s.statusBadgeSmall, { backgroundColor: st.bg }]}>
                                         <Text style={[s.statusTextSmall, { color: st.color }]}>{product.status}</Text>
                                     </View>
@@ -2673,7 +2717,7 @@ const MobileProductsScreen: React.FC = () => {
 const s = StyleSheet.create({
     root: { flex:1, backgroundColor:C.bg },
     rootWeb: { width: "100%", minWidth: 0 },
-    heroSection: { backgroundColor: C.navyDeep, paddingBottom: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, marginBottom: 4 },
+    heroSection: { backgroundColor: C.navyDeep, paddingBottom: 10, borderRadius: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, marginBottom: 4, marginHorizontal: 8, marginTop: 8, overflow: "hidden" },
     webMobileIntro: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
     webIntroRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
     webIntroTextCol: { flex: 1, minWidth: 0 },

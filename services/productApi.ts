@@ -183,6 +183,7 @@ type ApiProductListVariant = {
     color?: string;
     size?: string;
     stock?: number;
+    image?: string;
     minQuantity?: number;
     finalPrice?: number;
     sellingPrice?: number;
@@ -357,6 +358,18 @@ function resolveListItemSku(row: ApiProductListItem): string {
     return row.sku?.trim() ?? "";
 }
 
+function resolveListItemImage(row: ApiProductListItem): string {
+    const candidates = [
+        row.image,
+        ...(row.variants ?? []).map((v) => v.image),
+    ];
+    for (const candidate of candidates) {
+        const resolved = resolveMediaUrl(candidate ?? "");
+        if (resolved) return resolved;
+    }
+    return "";
+}
+
 function toListItem(row: ApiProductListItem): ProductListItem {
     const categorySub = row.categorySub?.trim() || undefined;
     const subcategory = row.subcategory ?? "";
@@ -375,7 +388,7 @@ function toListItem(row: ApiProductListItem): ProductListItem {
         sku: resolveListItemSku(row),
         price: resolveListItemPrice(row),
         mrpInclGst: row.mrpInclGst != null ? Number(row.mrpInclGst) : undefined,
-        image: resolveMediaUrl(row.image ?? "") ?? "",
+        image: resolveListItemImage(row),
         status: row.status ?? "Inactive",
         stock: Number(row.stock ?? 0),
         updated: row.updated ?? "",
@@ -749,8 +762,12 @@ export async function createProduct(payload: CreateProductPayload): Promise<Crea
         method: "POST",
         body: JSON.stringify(payload),
     });
+    const productId = String(row?.productId ?? "").trim();
+    if (!/^\d+$/.test(productId)) {
+        throw new Error("Save failed: server did not return a valid product ID.");
+    }
     return {
-        productId: String(row.productId),
+        productId,
         variants: (row.variants ?? []).map((v) => ({
             clientKey: v.clientKey ?? "",
             variantId: String(v.variantId ?? ""),
@@ -873,7 +890,8 @@ export type BulkImportResult = {
 
 export async function bulkImportProducts(fileUri: string, fileName: string): Promise<BulkImportResult> {
     const sellerId = (await import("@/lib/api/sellerSession")).ensureSellerId();
-    if (!sellerId) throw new Error("Unable to complete this action right now. Please try again.");
+    const accessToken = (await import("@/lib/api/sellerSession")).ensureAccessToken();
+    if (!sellerId || !accessToken) throw new Error("Unable to complete this action right now. Please try again.");
 
     const { resolveApiBaseUrl } = await import("@/lib/api/config");
     const baseUrl = resolveApiBaseUrl();
@@ -890,9 +908,14 @@ export async function bulkImportProducts(fileUri: string, fileName: string): Pro
         } as unknown as Blob);
     }
 
+    // Do NOT set Content-Type on FormData — the runtime sets multipart boundary.
     const res = await fetch(`${baseUrl}/api/seller/products/bulk-import`, {
         method: "POST",
-        headers: { "X-Seller-Id": String(sellerId) },
+        headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "X-Seller-Id": String(sellerId),
+        },
         body: formData,
     });
 

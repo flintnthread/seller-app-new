@@ -24,7 +24,7 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 
-const OTP_EXPIRY_MINUTES = 5;
+const OTP_EXPIRY_MINUTES = 10;
 const SUPPORT_EMAIL = "support@flintnthread.in";
 const SUPPORT_PHONE = "+91 9063499092";
 

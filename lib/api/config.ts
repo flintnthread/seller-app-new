@@ -3,9 +3,9 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 
 /** Production seller API — nginx on either domain routes seller paths → 8083 */
-export const PRODUCTION_API_URL = "https://flintnthread.online";
 export const PRODUCTION_API_URL_IN = "https://flintnthread.in";
-export const PRODUCTION_API_URLS = [PRODUCTION_API_URL, PRODUCTION_API_URL_IN] as const;
+export const PRODUCTION_API_URL = "https://flintnthread.online";
+export const PRODUCTION_API_URLS = [PRODUCTION_API_URL_IN, PRODUCTION_API_URL] as const;
 
 /** Seller API ports — local dev only */
 const API_PORTS = [8083, 8080];
@@ -17,8 +17,8 @@ type ExpoExtra = {
     androidEmulatorApi?: boolean;
 };
 
-/** CDN for /uploads/... (production: https://flintnthread.in) */
-export const PRODUCTION_MEDIA_URL = "https://flintnthread.in";
+/** CDN for /uploads/... (production: https://flintnthread.com) */
+export const PRODUCTION_MEDIA_URL = "https://flintnthread.com";
 
 let cachedWorkingBaseUrl: string | null = null;
 let cacheExpiresAt = 0;
@@ -154,9 +154,38 @@ export function getProductionApiUrlCandidates(): string[] {
 }
 
 export function resolvePublicMediaBaseUrl(): string {
-    const fromEnv = process.env.EXPO_PUBLIC_MEDIA_BASE_URL?.trim().replace(/\/$/, "");
-    const fromExtra = getExtra().mediaBaseUrl?.trim().replace(/\/$/, "");
-    return fromEnv || fromExtra || PRODUCTION_MEDIA_URL;
+    // Local seller-service only when explicitly using local API
+    if (useLocalApiFallbacks() || isLocalWebDev()) {
+        try {
+            const apiBase = resolveApiBaseUrl().replace(/\/$/, "");
+            const host = new URL(apiBase.includes("://") ? apiBase : `http://${apiBase}`).hostname.toLowerCase();
+            if (
+                host === "localhost" ||
+                host === "127.0.0.1" ||
+                host.startsWith("192.168.") ||
+                host.startsWith("10.")
+            ) {
+                return apiBase.startsWith("http") ? apiBase : resolveLocalSellerApiUrl();
+            }
+        } catch {
+            /* fall through */
+        }
+        if (useLocalApiFallbacks()) {
+            return resolveLocalSellerApiUrl();
+        }
+    }
+    // Production: always flintnthread.com (same as product images) — never .in / .online
+    const fromEnv = process.env.EXPO_PUBLIC_MEDIA_BASE_URL?.trim().replace(/\/$/, "") || "";
+    const fromExtra = getExtra().mediaBaseUrl?.trim().replace(/\/$/, "") || "";
+    const configured = fromEnv || fromExtra;
+    if (
+        configured &&
+        !/flintnthread\.(in|online)/i.test(configured) &&
+        !/localhost|127\.0\.0\.1/i.test(configured)
+    ) {
+        return configured;
+    }
+    return PRODUCTION_MEDIA_URL;
 }
 
 function useLocalApiFallbacks(): boolean {
@@ -214,7 +243,7 @@ export function resolveSellerMediaBaseUrl(): string {
         } catch {
             /* fall through to CDN */
         }
-        // Expo web on localhost but production API — legacy photos live on CDN (flintnthread.in).
+        // Expo web on localhost but production API — uploads on flintnthread.com CDN.
         return publicMedia;
     }
 

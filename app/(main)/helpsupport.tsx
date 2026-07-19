@@ -558,7 +558,7 @@ const SuccessModal: React.FC<{
             </Text>
           </View>
 
-          {/* ── Primary CTA ──
+          {/* ── Primary CTA ── */}
           <TouchableOpacity
             style={sm.primaryBtn}
             onPress={onViewStatus}
@@ -568,7 +568,7 @@ const SuccessModal: React.FC<{
             <Text style={[sm.primaryBtnTxt, { fontFamily: F.semiBold }]}>
               View Ticket Status
             </Text>
-          </TouchableOpacity> */}
+          </TouchableOpacity>
 
           {/* ── Ghost dismiss ── */}
           <TouchableOpacity style={sm.ghostBtn} onPress={onClose} activeOpacity={0.75}>
@@ -1637,35 +1637,49 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
 
   // ── Ticket Submit ────────────────────────────────────────────────────────
   const handleTicketSubmit = async () => {
-    const titleEmpty = !issueTitle.trim();
-    const descEmpty = !description.trim();
+    const desc = description.trim();
     const hasImage = !!uploadedImage;
+    // If subject is blank, use description (common on web when subject is scrolled out of view)
+    const subject =
+      issueTitle.trim() ||
+      (desc ? desc.slice(0, 80) : "") ||
+      (hasImage ? "Support request with attachment" : "");
+
+    const titleEmpty = !subject;
+    const descEmpty = !desc;
 
     setIssueTitleError(titleEmpty);
     setDescriptionError(descEmpty && !hasImage);
 
     if (titleEmpty) {
-      Alert.alert("Required", "Please enter a subject for your ticket.");
+      showWarning("Please enter a subject for your ticket.", "Subject required");
       return;
     }
     if (descEmpty && !hasImage) {
-      Alert.alert("Required", "Please enter a description or attach an image.");
+      showWarning("Please enter a description or attach an image.", "Details required");
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
+      await hydrateSellerSession();
+
       const ticketPayload: CreateTicketPayload = {
-        subject: issueTitle.trim(),
-        category: selectedCategory,
-        priority: selectedPriority,
+        subject,
+        category: selectedCategory || "general",
+        priority: selectedPriority || "medium",
       };
-      const desc = description.trim();
       if (desc) {
         ticketPayload.description = desc;
       } else if (hasImage) {
         ticketPayload.description = "See attached image";
+      }
+
+      // Keep form subject in sync when we auto-filled from description
+      if (!issueTitle.trim() && subject) {
+        setIssueTitle(subject);
       }
 
       const apiTicket = uploadedImage
@@ -1686,14 +1700,19 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setIssueTitleError(false);
       setDescriptionError(false);
 
-      setSuccessModalVisible(true);
       setTicketModalVisible(false);
+      setTimeout(() => setSuccessModalVisible(true), 0);
       setTicketSubmitted(true);
       setTimeout(() => setTicketSubmitted(false), 5000);
 
       loadTickets().catch(() => {});
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to create ticket. Please try again.");
+      const msg = String(err?.message || "Failed to create ticket. Please try again.");
+      if (msg === AUTH_ACTION_FAILED || /auth|login|session/i.test(msg)) {
+        showError("Your session expired. Log in and submit the ticket again.", "Please sign in again");
+      } else {
+        showError(msg, "Could not create ticket");
+      }
     } finally {
       setIsSubmitting(false);
     }

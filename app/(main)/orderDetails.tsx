@@ -364,18 +364,35 @@ const WebCustomerCard: React.FC<{ order: OrderDetail }> = ({ order }) => {
 const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
   <View style={wc.card}>
     <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`} />
-    {order.items.map((item, idx) => (
+    {order.items.map((item, idx) => {
+      const imageUri = item.image?.trim() || "";
+      const variantLabel = item.variant?.trim() && item.variant.trim() !== "—"
+        ? item.variant.trim()
+        : [item.color, item.size].filter((v) => v?.trim() && v.trim() !== "—").join(" • ");
+      return (
       <View key={idx} style={[{ flexDirection:"row", gap:12 }, idx>0 && { marginTop:14, paddingTop:14, borderTopWidth:1, borderTopColor:C.border }]}>
             <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
-            <Image source={{ uri:item.image }} style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border }} />
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border }} />
+            ) : (
+              <View style={{ width:80, height:80, borderRadius:10, backgroundColor:C.border, alignItems:"center", justifyContent:"center" }}>
+                <Ionicons name="image-outline" size={28} color={C.textLight} />
+              </View>
+            )}
         </TouchableOpacity>
         <View style={{ flex:1 }}>
           <View style={{ flexDirection:"row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
             <Text style={{ fontSize:14, fontWeight:"700", color:C.textDark, flex:1 }}>{item.name}</Text>
             <Text style={{ fontSize:14, fontWeight:"800", color:C.textDark, marginLeft:8 }}>{item.price}</Text>
           </View>
-          <Text style={{ fontSize:12, color:C.textLight, marginBottom:3 }}>{item.variant}</Text>
-          <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>SKU: {item.sku}</Text>
+          {!!variantLabel && <Text style={{ fontSize:12, color:C.textLight, marginBottom:3 }}>{variantLabel}</Text>}
+          {!!item.color?.trim() && item.color.trim() !== "—" && (
+            <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>Color: {item.color.trim()}</Text>
+          )}
+          {!!item.size?.trim() && item.size.trim() !== "—" && (
+            <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>Size: {item.size.trim()}</Text>
+          )}
+          <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>SKU: {item.sku?.trim() || "—"}</Text>
           {!!item.hsnCode && <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>HSN: {item.hsnCode}</Text>}
           {!!item.status && <Text style={{ fontSize:11, color:C.textLight, marginBottom:3 }}>Status: {item.status}</Text>}
           {item.customDetails?.map((detail) => (
@@ -388,7 +405,8 @@ const WebItemsCard: React.FC<{ order: OrderDetail }> = ({ order }) => (
           </View>
         </View>
       </View>
-    ))}
+      );
+    })}
     <View style={{ borderTopWidth:1, borderTopColor:C.border, marginTop:16, paddingTop:12, gap:6 }}>
       <View style={wc.prow}><Text style={wc.plabel}>Subtotal</Text><Text style={wc.pval}>{order.pricing.subtotal}</Text></View>
       <View style={wc.prow}><Text style={wc.plabel}>Shipping Charge</Text><Text style={wc.pval}>{order.pricing.shipping}</Text></View>
@@ -743,16 +761,20 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
   return (
     <View style={{ flex:1, backgroundColor:C.bg }}>
 
-      {/* ── Top Navigation Bar ─────────────────────────────── */}
-      <View style={wl.topNav}>
-        <View style={wl.topNavInner}>
-          <TouchableOpacity style={wl.backBtn} onPress={() => router.push("/(main)/Ordersscreen")} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={18} color={C.white} />
-            <Text style={wl.backBtnText}>Orders</Text>
+      {/* Back + order id — compact row (shell DesktopHeader already provides top chrome) */}
+      <View style={[wl.titleBar, { paddingTop: 8, paddingBottom: 8 }]}>
+        <View style={[wl.titleBarInner, isDesktop && { maxWidth:1280 }, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
+            onPress={() => router.push("/(main)/Ordersscreen")}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={18} color={C.navy} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: C.navy }}>Orders</Text>
           </TouchableOpacity>
-          <View style={{flex:1}} />
-          <Text style={wl.navOrderId}>{order.id}</Text>
-          <View style={[wc.pill, { backgroundColor:cfg.bg, marginLeft:10 }]}>
+          <View style={{ flex: 1, minWidth: 0 }} />
+          <Text style={{ fontSize: 12, fontWeight: "600", color: C.textMid }} numberOfLines={1}>{order.id}</Text>
+          <View style={[wc.pill, { backgroundColor:cfg.bg }]}>
             <Text style={[wc.pillText, { color:cfg.color }]}>{order.payment.status}</Text>
           </View>
         </View>
@@ -777,7 +799,7 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
               const labelColor = isActive ? C.orange : isDone ? C.textMid : C.textLight;
               return (
                 <React.Fragment key={step.key}>
-                  <View style={{ alignItems:"center", width:60 }}>
+                  <View style={{ alignItems:"center", flex:1, minWidth:0 }}>
                     <View style={[wl.stepCircle, { backgroundColor:iconBg, borderColor:iconBorder }]}>
                       {step.iconLib==="Ionicons"
                         ? <Ionicons name={step.iconName} size={13} color={iconColor} />
@@ -786,7 +808,7 @@ const WebLayout: React.FC<{ order: OrderDetail; onOpenLabel: () => void }> = ({ 
                     <Text style={{ fontSize:10, textAlign:"center", lineHeight:13, color:labelColor, fontWeight:isActive?"700":isDone?"600":"400", width:"100%" }} numberOfLines={2}>{step.label}</Text>
                   </View>
                   {!isLast && (
-                    <View style={{ flex:1, alignItems:"center", marginTop:14, paddingHorizontal:2, minWidth:20 }}>
+                    <View style={{ flex:1, alignItems:"center", marginTop:14, paddingHorizontal:2, minWidth:0 }}>
                       <View style={{ height:2, width:"100%", borderRadius:2, backgroundColor:isDone?C.navy:C.border }} />
                     </View>
                   )}
@@ -843,7 +865,7 @@ const MobileLayout: React.FC<{
 }> = ({ order, trackingVisible, labelVisible, setTrackingVisible, setLabelVisible, onPrintLabel }) => {
   const [amountExpanded, setAmountExpanded] = useState(false);
   const { isMobile, isWeb } = useResponsive();
-  const isWebMobile = isWeb && isMobile;
+  const isWebMobile = isMobile; // native + web narrow: apply responsive layout
   const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment.status];
   const shippingAddress = order.customer.address;
   const billingAddress = order.billing?.address ?? shippingAddress;
@@ -1114,19 +1136,36 @@ const MobileLayout: React.FC<{
         {/* Order Items */}
         <View style={[styles.card, isWebMobile && styles.cardWeb]}>
           <SectionHeader iconLib="Ionicons" iconName="bag-outline" title={`Order Items (${order.items.length})`}/>
-          {order.items.map((item,idx) => (
+          {order.items.map((item,idx) => {
+            const imageUri = item.image?.trim() || "";
+            const variantLabel = item.variant?.trim() && item.variant.trim() !== "—"
+              ? item.variant.trim()
+              : [item.color, item.size].filter((v) => v?.trim() && v.trim() !== "—").join(" · ");
+            return (
             <View key={idx}>
               <View style={[styles.itemRow, isWebMobile && styles.itemRowWeb, idx>0&&{marginTop:12,paddingTop:12,borderTopWidth:1,borderTopColor:C.border}]}>
                 <TouchableOpacity onPress={() => openProductDetail(item)} activeOpacity={0.85}>
-                  <Image source={{uri:item.image}} style={[styles.itemImage, isWebMobile && styles.itemImageWeb]}/>
+                  {imageUri ? (
+                    <Image source={{uri:imageUri}} style={[styles.itemImage, isWebMobile && styles.itemImageWeb]}/>
+                  ) : (
+                    <View style={[styles.itemImage, isWebMobile && styles.itemImageWeb, { alignItems:"center", justifyContent:"center", backgroundColor:C.border }]}>
+                      <Ionicons name="image-outline" size={24} color={C.textLight} />
+                    </View>
+                  )}
                 </TouchableOpacity>
                 <View style={styles.itemInfo}>
                   <View style={styles.itemTopRow}>
                     <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                     <Text style={[styles.itemPrice, isWebMobile && styles.itemPriceWeb]} numberOfLines={1}>{item.price}</Text>
                   </View>
-                  <Text style={styles.itemVariant}>{item.variant}</Text>
-                  <Text style={styles.itemSku}>SKU: {item.sku}</Text>
+                  {!!variantLabel && <Text style={styles.itemVariant}>{variantLabel}</Text>}
+                  {!!item.color?.trim() && item.color.trim() !== "—" && (
+                    <Text style={styles.itemSku}>Color: {item.color.trim()}</Text>
+                  )}
+                  {!!item.size?.trim() && item.size.trim() !== "—" && (
+                    <Text style={styles.itemSku}>Size: {item.size.trim()}</Text>
+                  )}
+                  <Text style={styles.itemSku}>SKU: {item.sku?.trim() || "—"}</Text>
                   {!!item.hsnCode && <Text style={styles.itemSku}>HSN: {item.hsnCode}</Text>}
                   {item.customDetails?.map((detail) => (
                     <Text key={detail.id} style={styles.itemSku}>{detail.fieldLabel}: {detail.valueText || detail.valueFile || "—"}</Text>
@@ -1135,7 +1174,8 @@ const MobileLayout: React.FC<{
                 </View>
               </View>
             </View>
-          ))}
+            );
+          })}
           <View style={styles.pricingBlock}>
             <View style={styles.pricingRow}><Text style={styles.pricingLabel}>Subtotal</Text><Text style={styles.pricingValue}>{order.pricing.subtotal}</Text></View>
             <View style={styles.pricingRow}><Text style={styles.pricingLabel}>Shipping Charge</Text><Text style={styles.pricingValue}>{order.pricing.shipping}</Text></View>

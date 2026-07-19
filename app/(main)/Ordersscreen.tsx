@@ -276,6 +276,8 @@ function resolveLineStatus(
   item: { uiStatus?: OrderStatus; status?: string },
   orderStatus: OrderStatus,
 ): OrderStatus {
+  // Order-level cancel wins — line items may still say processing after user cancel.
+  if (orderStatus === "Cancelled") return "Cancelled";
   if (item.uiStatus) return item.uiStatus;
   if (item.status) {
     const normalized = item.status.trim();
@@ -312,8 +314,10 @@ function formatLinePrice(item: OrderItem): string {
 
 function formatLineVariant(item: OrderItem): string {
   const variant = item.variant?.trim();
-  if (variant) return variant;
-  const parts = [item.color, item.size].filter((v) => v?.trim()).map((v) => v!.trim());
+  if (variant && variant !== "—") return variant;
+  const parts = [item.color, item.size]
+    .filter((v) => v?.trim() && v.trim() !== "—")
+    .map((v) => v!.trim());
   return parts.join(" · ");
 }
 
@@ -552,7 +556,7 @@ const OrderCard: React.FC<{ order: Order; isDesktop?: boolean; isWebCompact?: bo
               {order.price}
             </Text>
           </View>
-          {order.variant ? (
+          {order.variant && order.variant !== "—" ? (
             <Text style={styles.productVariant} numberOfLines={1}>
               {order.variant}
             </Text>

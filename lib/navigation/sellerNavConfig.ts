@@ -77,6 +77,23 @@ const SUB_SCREEN_PATTERNS = [
     "sellerticketrise",
 ];
 
+/** Secondary routes that should hide the seller top nav and show AppHeader back. */
+const SECONDARY_HIDE_TOP_NAV = [
+    "earning",
+    "payoutrequest",
+    "bulkupload",
+    "Topsellingproducts",
+    "orderDetails",
+    "Productdetail",
+    "Editproduct",
+    "Addnewproduct",
+    "notifications",
+    "settingsModule",
+    "totalsales",
+    "reviewsScreen",
+    "viewsellerprofile",
+];
+
 export function resolveActiveNavId(pathname: string): string {
     for (const item of SELLER_NAV_ITEMS) {
         if (item.matchPaths.some((p) => pathname.includes(p))) {
@@ -89,10 +106,19 @@ export function resolveActiveNavId(pathname: string): string {
     return "dashboard";
 }
 
-/** Hide top nav on onboarding / full-screen flows. */
+/**
+ * Top nav only on primary tab destinations (SELLER_NAV_ITEMS).
+ * Secondary screens (order details, product edit, earnings, etc.) use AppHeader back.
+ */
 export function shouldShowSellerTopNav(pathname: string): boolean {
     if (pathname.includes("/(auth)")) return false;
-    return !SUB_SCREEN_PATTERNS.some((p) => pathname.includes(p));
+    if (SUB_SCREEN_PATTERNS.some((p) => pathname.includes(p))) return false;
+    if (SECONDARY_HIDE_TOP_NAV.some((p) => pathname.includes(p))) return false;
+    // Primary route segment only (first matchPath) — not secondary product/order paths.
+    return SELLER_NAV_ITEMS.some((item) => {
+        const primary = item.matchPaths[0];
+        return primary != null && pathname.includes(primary);
+    });
 }
 
 /** Onboarding screens use their own full-bleed headers — skip desktop chrome. */

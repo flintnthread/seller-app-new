@@ -20,6 +20,7 @@ import {
     TouchableWithoutFeedback,
     Platform,
     ActivityIndicator,
+    useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -658,7 +659,7 @@ const ms = StyleSheet.create({
     soldBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F0FDF4", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 50 },
     soldText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.green },
     productPrice: { fontFamily: fontFamilies.bold, fontSize: 16, color: C.textDark },
-    cardDivider: { height: 1, backgroundColor: C.border },
+    cardDivider: {height: 1 , backgroundColor: C.border },
     actionRow: { flexDirection: "row" },
     actionBtnEdit: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, backgroundColor: C.purplePale, borderRightWidth: 1, borderRightColor: C.border },
     actionBtnEditText: { fontFamily: fontFamilies.semiBold, fontSize: 13, color: C.purple },
@@ -814,7 +815,9 @@ const ReferralSection: React.FC<{
                     <AppText style={rf.codeLabel}>YOUR CODE</AppText>
                     <View style={rf.codePill}>
                         <MaterialCommunityIcons name="gift-outline" size={15} color={C.orangeDeep} />
-                        <AppText style={rf.codeText}>{displayReferralCode}</AppText>
+                        <AppText style={rf.codeText} numberOfLines={1} ellipsizeMode="middle">
+                            {displayReferralCode}
+                        </AppText>
                         <TouchableOpacity style={rf.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
                             <MaterialCommunityIcons
                                 name={copied ? "check" : "content-copy"}
@@ -870,40 +873,66 @@ const ReferralSection: React.FC<{
 };
 
 const rf = StyleSheet.create({
-    wrapper: { marginHorizontal: 16, marginBottom: 10 },
-    outer: { backgroundColor: C.orangeDeep, borderRadius: 16, overflow: "hidden", padding: 16, paddingBottom: 0 },
+    wrapper: { marginHorizontal: 16, marginBottom: 10, maxWidth: "100%" },
+    outer: {
+        backgroundColor: C.orangeDeep,
+        borderRadius: 16,
+        overflow: "hidden",
+        padding: 16,
+        paddingBottom: 0,
+        width: "100%",
+        maxWidth: "100%",
+    },
     header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
-    headerIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" },
-    headerTitle: { flex: 1, fontFamily: fontFamilies.bold, fontSize: 14, color: "#fff", lineHeight: 20 },
+    headerIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    headerTitle: { flex: 1, minWidth: 0, fontFamily: fontFamilies.bold, fontSize: 14, color: "#fff", lineHeight: 20 },
     desc: { fontFamily: fontFamilies.regular, fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 18, marginBottom: 14 },
-    codeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
+    codeRow: { flexDirection: "column", alignItems: "stretch", gap: 8, marginBottom: 14, width: "100%" },
     codeLabel: { fontFamily: fontFamilies.bold, fontSize: 10, color: "rgba(255,255,255,0.7)", letterSpacing: 0.8 },
-    codePill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 50, paddingHorizontal: 12, paddingVertical: 8 },
-    codeText: { flex: 1, fontFamily: fontFamilies.bold, fontSize: 12, color: C.textDark, letterSpacing: 0.3 },
-    copyBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.bg, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 50 },
+    codePill: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: "rgba(255,255,255,0.96)",
+        borderRadius: 50,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        minWidth: 0,
+    },
+    codeText: { flex: 1, minWidth: 0, fontFamily: fontFamilies.bold, fontSize: 12, color: C.textDark, letterSpacing: 0.3 },
+    copyBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.bg, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 50, flexShrink: 0 },
     copyBtnText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: C.textMid },
-    statsGrid: { flexDirection: "row", gap: 10, marginBottom: 14 },
-    statCard: { flex: 1, backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 10, padding: 10, alignItems: "center" },
+    statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 },
+    statCard: {
+        flexGrow: 1,
+        flexBasis: "30%",
+        minWidth: 96,
+        backgroundColor: "rgba(255,255,255,0.96)",
+        borderRadius: 10,
+        padding: 10,
+        alignItems: "center",
+    },
     statNum: { fontFamily: fontFamilies.bold, fontSize: 20, color: C.textDark },
     statLabel: { fontFamily: fontFamilies.regular, fontSize: 10, color: C.textLight, marginTop: 1, textAlign: "center" },
-    progressBox: { backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 10, padding: 12, marginBottom: 14 },
-    progressTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 7 },
-    progressTitle: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.textDark, flex: 1, marginRight: 8 },
-    progressCount: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.orangeDeep },
-    progBg: { height: 7, backgroundColor: C.border, borderRadius: 4, overflow: "hidden", marginBottom: 10 },
+    progressBox: { backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 10, padding: 12, marginBottom: 14, width: "100%" },
+    progressTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 7 },
+    progressTitle: { fontFamily: fontFamilies.medium, fontSize: 12, color: C.textDark, flex: 1, minWidth: 0, marginRight: 8 },
+    progressCount: { fontFamily: fontFamilies.semiBold, fontSize: 12, color: C.orangeDeep, flexShrink: 0 },
+    progBg: { height: 7, backgroundColor: C.border, borderRadius: 4, overflow: "hidden", marginBottom: 10, width: "100%" },
     progFill: { height: 7, backgroundColor: C.orangeDeep, borderRadius: 4 },
-    stepsRow: { flexDirection: "row", gap: 8 },
-    stepItem: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-    stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: C.orangeDeep, alignItems: "center", justifyContent: "center" },
+    stepsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    stepItem: { flexGrow: 1, flexBasis: "40%", minWidth: 120, flexDirection: "row", alignItems: "center", gap: 6 },
+    stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: C.orangeDeep, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     stepNumText: { fontFamily: fontFamilies.bold, fontSize: 11, color: "#fff" },
-    stepText: { fontFamily: fontFamilies.medium, fontSize: 11, color: C.textMid },
+    stepText: { flex: 1, minWidth: 0, fontFamily: fontFamilies.medium, fontSize: 11, color: C.textMid },
     earnBtn: {
-        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+        flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 7,
         backgroundColor: "rgba(255,255,255,0.96)",
-        marginHorizontal: -16, paddingVertical: 13,
+        marginHorizontal: -16, paddingVertical: 13, paddingHorizontal: 12,
         borderTopWidth: 1.5, borderTopColor: "rgba(255,255,255,0.25)",
     },
-    earnBtnText: { fontFamily: fontFamilies.bold, fontSize: 13, color: C.orangeDeep },
+    earnBtnText: { fontFamily: fontFamilies.bold, fontSize: 13, color: C.orangeDeep, textAlign: "center", flexShrink: 1 },
 });
 
 // ─── Side Drawer Menu ─────────────────────────────────────────
@@ -1209,6 +1238,8 @@ const MobileDashboard: React.FC<{
     onProfileReload?: () => void | Promise<void>;
 }> = ({ profile, profileLoading, onProfileReload }) => {
     const router = useRouter();
+    const { width: screenWidth } = useWindowDimensions();
+    const isCompactMobile = screenWidth < 400;
     const {
         data,
         loading: dashboardLoading,
@@ -1383,7 +1414,7 @@ const MobileDashboard: React.FC<{
                             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                             style={s.profileGrad}
                         >
-                            <View style={s.profileTop}>
+                            <View style={[s.profileTop, isCompactMobile && s.profileTopCompact]}>
                                 <View style={s.avatarWrap}>
                                     <View style={s.avatarCircle}>
                                         {profile?.profilePicUrl ? (
@@ -1430,10 +1461,10 @@ const MobileDashboard: React.FC<{
                                     </View>
                                     <View style={s.profileDetailRow}>
                                         <MaterialCommunityIcons name="email-outline" size={14} color="rgba(255,255,255,0.6)" />
-                                        <AppText style={s.profileDetailText}>{emailDisplay}</AppText>
+                                        <AppText style={[s.profileDetailText, { flexShrink: 1 }]} numberOfLines={1}>{emailDisplay}</AppText>
                                     </View>
                                 </View>
-                                <View style={s.ratingBox}>
+                                <View style={[s.ratingBox, isCompactMobile && s.ratingBoxCompact]}>
                                     <AppText style={s.ratingLabel}>Rating</AppText>
                                     <View style={s.ratingRow}>
                                         <AppText style={s.ratingVal}>{profileRating}</AppText>
@@ -1861,18 +1892,20 @@ const s = StyleSheet.create({
     profileCard: { borderRadius: 16, overflow: "hidden" },
     profileGrad: { padding: 16 },
     profileTop: { flexDirection: "row", alignItems: "flex-start", marginBottom: 14 },
+    profileTopCompact: { flexWrap: "wrap", gap: 12 },
     avatarWrap: { position: "relative", marginRight: 12 },
     avatarCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", overflow: "hidden" },
     avatarImage: { width: 70, height: 70, borderRadius: 35 },
     avatarBadge: { position: "absolute", bottom: 0, right: 0, backgroundColor: C.purple, width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.navyDeep },
-    profileInfo: { flex: 1 },
+    profileInfo: { flex: 1, minWidth: 0 },
     profileNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 6 },
-    profileName: { fontFamily: fontFamilies.bold, fontSize: 17, color: "#fff" },
+    profileName: { fontFamily: fontFamilies.bold, fontSize: 17, color: "#fff", flexShrink: 1 },
     platinumBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.purple, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 50 },
     platinumText: { fontFamily: fontFamilies.semiBold, fontSize: 11, color: "#fff" },
     profileDetailRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
-    profileDetailText: { fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.75)" },
+    profileDetailText: { fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.75)", flexShrink: 1 },
     ratingBox: { alignItems: "flex-end", minWidth: 72 },
+    ratingBoxCompact: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
     ratingLabel: { fontFamily: fontFamilies.regular, fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 2 },
     ratingRow: { flexDirection: "row", alignItems: "center" },
     ratingVal: { fontFamily: fontFamilies.bold, fontSize: 26, color: "#fff" },

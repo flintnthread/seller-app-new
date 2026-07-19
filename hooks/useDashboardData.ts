@@ -8,6 +8,7 @@ import {
     type DashboardData,
     type DashboardPeriodStats,
 } from "@/services/dashboardApi";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 
 function overviewToPeriodStats(overview: DashboardData["overview"]): DashboardPeriodStats {
     return {
@@ -85,7 +86,7 @@ export function useDashboardData() {
         name: p.name,
         price: p.price,
         sold: p.sold,
-        image: p.image,
+        image: resolveMediaUrl(p.image) ?? p.image ?? "",
         category: p.category,
     }));
 

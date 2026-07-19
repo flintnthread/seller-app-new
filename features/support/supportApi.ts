@@ -127,6 +127,7 @@ async function fetchWithTimeout(
 
 ): Promise<Response> {
 
+  await ensureApiReachable();
   await hydrateSellerSession();
   const sellerId = ensureSellerId();
   const accessToken = ensureAccessToken();
@@ -315,46 +316,42 @@ export async function createTicketWithImage(
 
 ): Promise<TicketResponse> {
 
-  const formData = new FormData();
+  await hydrateSellerSession();
+  const sellerId = requireSellerId();
 
-  formData.append("sellerId", String(requireSellerId()));
+  try {
+    const formData = new FormData();
+    formData.append("sellerId", String(sellerId));
+    formData.append("subject", payload.subject);
+    formData.append("category", payload.category);
+    formData.append("priority", payload.priority);
+    if (payload.description?.trim()) {
+      formData.append("description", payload.description.trim());
+    }
+    await appendFileToFormData(formData, "file", imageUri);
 
-  formData.append("subject", payload.subject);
+    const res = await fetchWithTimeout(
+      `${getBaseUrl()}/tickets/with-file`,
+      { method: "POST", body: formData },
+      UPLOAD_TIMEOUT_MS
+    );
 
-  formData.append("category", payload.category);
+    if (!res.ok) {
+      throw new Error(await parseError(res, "Failed to create ticket"));
+    }
 
-  formData.append("priority", payload.priority);
-
-  if (payload.description?.trim()) {
-
-    formData.append("description", payload.description.trim());
-
+    return res.json();
+  } catch (multipartErr) {
+    // Fallback: upload file, then create ticket via JSON (more reliable on some web setups)
+    try {
+      const attachment = await uploadAttachment(imageUri);
+      return await createTicket({ ...payload, attachment });
+    } catch {
+      throw multipartErr instanceof Error
+        ? multipartErr
+        : new Error("Failed to create ticket with image");
+    }
   }
-
-  await appendFileToFormData(formData, "file", imageUri);
-
-  const res = await fetchWithTimeout(
-
-    `${getBaseUrl()}/tickets/with-file`,
-
-    { method: "POST", body: formData },
-
-    UPLOAD_TIMEOUT_MS
-
-  );
-
-
-
-  if (!res.ok) {
-
-    throw new Error(await parseError(res, "Failed to create ticket"));
-
-  }
-
-
-
-  return res.json();
-
 }
 
 
@@ -394,40 +391,34 @@ export async function uploadAttachment(localUri: string): Promise<string> {
 
 
 export async function createTicket(payload: CreateTicketPayload): Promise<TicketResponse> {
+  await hydrateSellerSession();
+  const sellerId = requireSellerId();
 
   const res = await fetchWithTimeout(`${getBaseUrl()}/tickets`, {
-
     method: "POST",
-
     headers: { "Content-Type": "application/json" },
-
     body: JSON.stringify({
-
-      sellerId: requireSellerId(),
-
-      ...payload,
-
+      sellerId,
+      subject: payload.subject,
+      category: payload.category,
+      priority: payload.priority,
+      description: payload.description,
+      attachment: payload.attachment,
     }),
-
   });
 
-
-
   if (!res.ok) {
-
     throw new Error(await parseError(res, "Failed to create ticket"));
-
   }
 
-
-
   return res.json();
-
 }
 
 
 
 export async function getTickets(status?: string): Promise<TicketResponse[]> {
+
+  await ensureApiReachable();
 
   const url = status
 

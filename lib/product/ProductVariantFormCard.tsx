@@ -14,11 +14,14 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { AppText } from "@/components/AppText";
 import { fontFamilies } from "@/constants/fonts";
+import {
+    SizeCatalogPickerModal,
+    formatSizeOptionLabel,
+} from "@/components/product/SizeCatalogPickerModal";
 import { useResponsive } from "@/hooks/useResponsive";
 import { calcDiscountPercent } from "@/lib/product/pricing";
 import { generateVariantSku } from "@/lib/product/generateVariantSku";
 import { VariantPriceBreakdown } from "@/lib/product/VariantPriceBreakdown";
-import { uniquePickerOptions } from "@/lib/product/uniquePickerOptions";
 import {
     calculateVariantPricingFromStrings,
     formatInr,
@@ -184,55 +187,6 @@ function ColorSelectField({
             )}
             <Ionicons name="chevron-down" size={15} color={C.textLight} />
         </TouchableOpacity>
-    );
-}
-
-function SizePickerModal({
-    visible,
-    options,
-    selected,
-    onSelect,
-    onClose,
-    title = "Select Size",
-}: {
-    visible: boolean;
-    options: string[];
-    selected: string;
-    onSelect: (val: string) => void;
-    onClose: () => void;
-    title?: string;
-}) {
-    const { isDesktop } = useResponsive();
-    const items = uniquePickerOptions(options);
-    return (
-        <Modal visible={visible} transparent animationType={isDesktop ? "fade" : "slide"} onRequestClose={onClose}>
-            <View style={[pm.overlay, isDesktop && pm.overlayCenter]}>
-                <TouchableOpacity style={pm.backdrop} activeOpacity={1} onPress={onClose} />
-                <View style={[pm.sheet, isDesktop && pm.popup]}>
-                    {!isDesktop && <View style={pm.drag} />}
-                    <View style={pm.hdr}>
-                        <AppText style={pm.title}>{title}</AppText>
-                        <TouchableOpacity onPress={onClose} style={pm.closeBtn}>
-                            <Ionicons name="close" size={18} color={C.textMid} />
-                        </TouchableOpacity>
-                    </View>
-                    <ScrollView showsVerticalScrollIndicator={isDesktop} bounces={false}>
-                        {items.map((opt, index) => (
-                            <TouchableOpacity
-                                key={`size-${index}-${opt}`}
-                                style={[pm.item, selected === opt && pm.itemOn]}
-                                onPress={() => { onSelect(opt); onClose(); }}
-                            >
-                                <AppText style={[pm.itemTxt, selected === opt && pm.itemTxtOn]}>{opt}</AppText>
-                                {selected === opt ? (
-                                    <View style={pm.chk}><Ionicons name="checkmark" size={13} color={C.white} /></View>
-                                ) : null}
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
     );
 }
 
@@ -443,9 +397,16 @@ export function ProductVariantFormCard({
     const catalogColors = catalog?.colors ?? [];
     const catalogSizes = catalog?.sizes ?? [];
     const sizeOptions = useMemo(
-        () => catalogSizes.map((sz) => (sz.name === sz.code ? sz.name : `${sz.name} (${sz.code})`)),
+        () => catalogSizes.map((sz) => formatSizeOptionLabel(sz.name, sz.code)),
         [catalogSizes],
     );
+    const sizeSelectedLabel = useMemo(() => {
+        const size = catalogSizes.find(
+            (s) => (s.id != null && s.id === state.sizeId) || s.name === state.size || s.code === state.size
+        );
+        if (!size) return state.size || "";
+        return formatSizeOptionLabel(size.name, size.code);
+    }, [catalogSizes, state.size, state.sizeId]);
     const sweetsProduct = isSweetsCategory(
         context.category,
         context.categorySubName,
@@ -486,7 +447,11 @@ export function ProductVariantFormCard({
 
     const resolveSizeFromLabel = (val: string) =>
         catalogSizes.find(
-            (sz) => sz.name === val || `${sz.name} (${sz.code})` === val || sz.code === val,
+            (sz) =>
+                sz.name === val ||
+                sz.code === val ||
+                formatSizeOptionLabel(sz.name, sz.code) === val ||
+                `${sz.name} (${sz.code})` === val,
         );
 
     const resolveSizeCode = () =>
@@ -619,7 +584,7 @@ export function ProductVariantFormCard({
                     <Lbl text={dimLabels.sizeLabel} required />
                     <TouchableOpacity style={s.drop} onPress={() => setShowSizePicker(true)} activeOpacity={0.85}>
                         <AppText style={[s.dropText, !state.size && s.dropPh]} numberOfLines={1}>
-                            {state.size || dimLabels.sizePlaceholder}
+                            {sizeSelectedLabel || dimLabels.sizePlaceholder}
                         </AppText>
                         <Ionicons name="chevron-down" size={15} color={C.textLight} />
                     </TouchableOpacity>
@@ -723,10 +688,11 @@ export function ProductVariantFormCard({
                     onClose={() => setShowColorPicker(false)}
                 />
             ) : null}
-            <SizePickerModal
+            <SizeCatalogPickerModal
                 visible={showSizePicker}
+                sizes={catalogSizes}
                 options={sizeOptions}
-                selected={state.size}
+                selected={sizeSelectedLabel}
                 title={dimLabels.sizeSelectTitle}
                 onSelect={(val) => {
                     const size = resolveSizeFromLabel(val);
@@ -861,23 +827,6 @@ const s = StyleSheet.create({
     colorDotBorder: { borderWidth: 1, borderColor: C.border },
     loadingWrap: { padding: 24, alignItems: "center" },
     loadingTxt: { fontFamily: fontFamilies.medium, fontSize: 13, color: C.textMid, textAlign: "center" },
-});
-
-const pm = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(30,40,90,0.22)" },
-    overlayCenter: { justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "rgba(10,20,60,0.35)" },
-    backdrop: { ...StyleSheet.absoluteFillObject },
-    sheet: { position: "absolute", bottom: 0, left: 0, right: 0, maxHeight: "70%", backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 24 },
-    popup: { position: "relative", bottom: undefined, left: undefined, right: undefined, width: "100%", maxWidth: 360, maxHeight: "80%", borderRadius: 20, paddingBottom: 12 },
-    drag: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginTop: 12, marginBottom: 6 },
-    hdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-    title: { fontFamily: fontFamilies.bold, fontSize: 15, color: C.textDark },
-    closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#F8F9FD", alignItems: "center", justifyContent: "center" },
-    item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-    itemOn: { backgroundColor: C.navyGhost },
-    itemTxt: { fontFamily: fontFamilies.medium, fontSize: 14, color: C.textMid },
-    itemTxtOn: { fontFamily: fontFamilies.semiBold, color: C.navy },
-    chk: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
 });
 
 const cpm = StyleSheet.create({

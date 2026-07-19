@@ -3,8 +3,10 @@ import { View, StyleSheet, TouchableOpacity, Pressable, Platform, Image, Alert }
 import { AppText } from "@/components/AppText";
 import { MaterialCommunityIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { resolveSellerAppBaseUrl } from "@/lib/shipping/orderLabelQrUrl";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
 import { useResponsive } from "@/hooks/useResponsive";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 import Svg, { Circle } from "react-native-svg";
 
 const C = {
@@ -59,7 +61,10 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   referralTotalReferred = 0,
 }) => {
   const router = useRouter();
-  const { isTablet } = useResponsive();
+  const { isTablet, isMobile, isCompact, width } = useResponsive();
+  /** Stack welcome + referral below desktop width so the 300px referral rail cannot overlap. */
+  const stackColumns = isMobile || isTablet;
+  const stackLayout = width < 1024;
   const [greeting, setGreeting] = useState("Good Morning");
   const [copied, setCopied] = useState(false);
   const displayReferralCode = formatReferralCodeDisplay(referralCode);
@@ -104,10 +109,19 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   };
 
   const handleShare = async () => {
+    const code =
+      displayReferralCode && displayReferralCode !== "—"
+        ? displayReferralCode
+        : "";
+    const signupUrl = code
+      ? `${resolveSellerAppBaseUrl()}/signup?referralCode=${encodeURIComponent(code)}`
+      : `${resolveSellerAppBaseUrl()}/signup`;
     const shareData = {
-      title: "Join F&T Marketplace!",
-      text: `Use my referral code ${displayReferralCode} to sign up on F&T and we both earn +5% commission bonus! 🎁`,
-      url: "https://fandt.app/register",
+      title: "Join F&T as a Seller!",
+      text: code
+        ? `Use my referral code ${code} to register as a seller on Flint & Thread and we both earn +5% commission bonus! 🎁`
+        : "Register as a seller on Flint & Thread!",
+      url: signupUrl,
     };
     if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
       try {
@@ -127,20 +141,50 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
   const progressPct = referralGoal > 0 ? Math.min((referralTotalReferred / referralGoal) * 100, 100) : 0;
 
   return (
-    <View style={[welcomeStyles.container, isTablet && welcomeStyles.containerTablet]}>
+    <View
+      style={[
+        welcomeStyles.container,
+        stackColumns && welcomeStyles.containerStacked,
+        stackLayout && welcomeStyles.containerStacked,
+        isMobile && welcomeStyles.containerMobile,
+        isCompact && welcomeStyles.containerCompact,
+      ]}
+    >
       {/* ── LEFT: Greeting + Quick Actions ── */}
-      <View style={[welcomeStyles.leftCol, isTablet && welcomeStyles.leftColTablet]}>
+      <View
+        style={[
+          welcomeStyles.leftCol,
+          stackColumns && welcomeStyles.leftColStacked,
+          stackLayout && welcomeStyles.leftColStacked,
+        ]}
+      >
         <View style={welcomeStyles.heroText}>
-          <AppText style={welcomeStyles.title}>
+          <AppText
+            style={[
+              welcomeStyles.title,
+              isMobile && welcomeStyles.titleMobile,
+              isCompact && welcomeStyles.titleCompact,
+            ]}
+          >
             {greeting},{" "}
-            <AppText style={[welcomeStyles.title, { color: C.purple }]}>{name}</AppText> 👋
+            <AppText
+              style={[
+                welcomeStyles.title,
+                { color: C.purple },
+                isMobile && welcomeStyles.titleMobile,
+                isCompact && welcomeStyles.titleCompact,
+              ]}
+            >
+              {name}
+            </AppText>{" "}
+            👋
           </AppText>
           <AppText style={welcomeStyles.motivation}>
             ✨ {pendingOrders > 0 ? `${pendingOrders} orders need your attention.` : "All caught up — no pending orders."}
           </AppText>
         </View>
 
-        <View style={welcomeStyles.actionsRow}>
+        <View style={[welcomeStyles.actionsRow, isCompact && welcomeStyles.actionsRowCompact]}>
           {actions.filter((act) => !act.hidden).map((act, i) => (
             <Pressable
               key={i}
@@ -148,6 +192,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
               // @ts-ignore
               style={({ hovered }) => [
                 welcomeStyles.actionCard,
+                isCompact && welcomeStyles.actionCardCompact,
                 { backgroundColor: act.bg, borderColor: act.color + "30" },
                 Platform.OS === "web" && { boxShadow: `0 4px 12px ${act.color}20` },
                 hovered && { 
@@ -166,21 +211,27 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
         </View>
 
         {/* ── Today's Live Overview Strip ── */}
-        <View style={[welcomeStyles.statsStrip, isTablet && welcomeStyles.statsStripTablet]}>
-          <View style={welcomeStyles.statItem}>
+        <View
+          style={[
+            welcomeStyles.statsStrip,
+            stackColumns && welcomeStyles.statsStripTablet,
+            stackLayout && welcomeStyles.statsStripStacked,
+            isCompact && welcomeStyles.statsStripCompact,
+          ]}
+        >          <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.orange }]} />
             <AppText style={welcomeStyles.statText}>
               Total Orders: <AppText style={welcomeStyles.statValue}>{totalOrders}</AppText>
             </AppText>
           </View>
-          <View style={welcomeStyles.statDivider} />
+          {!isCompact ? <View style={welcomeStyles.statDivider} /> : null}
           <View style={[welcomeStyles.statItem, welcomeStyles.statItemSales]}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.green }]} />
             <AppText style={welcomeStyles.statText}>
               Total Sales: <AppText style={welcomeStyles.statValue}>{salesFormatted}</AppText>
             </AppText>
           </View>
-          <View style={welcomeStyles.statDivider} />
+          {!isCompact ? <View style={welcomeStyles.statDivider} /> : null}
           <View style={[welcomeStyles.statItem, welcomeStyles.statItemPending]}>
             <View style={welcomeStyles.statMainRow}>
               <View style={[welcomeStyles.statDot, { backgroundColor: C.purple }]} />
@@ -194,7 +245,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
               </View>
             ) : null}
           </View>
-          <View style={welcomeStyles.statDivider} />
+          {!isCompact ? <View style={welcomeStyles.statDivider} /> : null}
           <View style={welcomeStyles.statItem}>
             <View style={[welcomeStyles.statDot, { backgroundColor: C.blue }]} />
             <AppText style={welcomeStyles.statText}>
@@ -205,16 +256,27 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
       </View>
 
       {/* ── DIVIDER ── */}
-      <View style={[welcomeStyles.divider, isTablet && welcomeStyles.dividerTablet]} />
+      <View
+        style={[
+          welcomeStyles.divider,
+          stackColumns && welcomeStyles.dividerStacked,
+          stackLayout && welcomeStyles.dividerStacked,
+        ]}
+      />
 
       {/* ── RIGHT: Referral Reward Program ── */}
-      <View style={[welcomeStyles.referralCol, isTablet && welcomeStyles.referralColTablet]}>
-        {/* Header */}
+      <View
+        style={[
+          welcomeStyles.referralCol,
+          stackColumns && welcomeStyles.referralColStacked,
+          stackLayout && welcomeStyles.referralColStacked,
+        ]}
+      >        {/* Header */}
         <View style={welcomeStyles.refHeader}>
           <View style={welcomeStyles.refIconBox}>
             <MaterialCommunityIcons name="gift-outline" size={16} color={C.orange} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={welcomeStyles.refHeaderText}>
             <AppText style={welcomeStyles.refTitle}>Referral Rewards</AppText>
             <AppText style={welcomeStyles.refSubtitle}>Invite sellers • Earn +5% commission</AppText>
           </View>
@@ -291,6 +353,10 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 0,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
     ...Platform.select({
       web: {
         backgroundColor: "#F8F7FF",
@@ -301,15 +367,44 @@ const welcomeStyles = StyleSheet.create({
   containerTablet: {
     flexDirection: "column",
   },
+  containerStacked: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  containerMobile: {
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    marginBottom: 14,
+  },
+  containerCompact: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    marginBottom: 14,
+  },
   // ── Left column ──
   leftCol: {
     flex: 1,
     paddingRight: 20,
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     minWidth: 0,
   },
   leftColTablet: {
     paddingRight: 0,
+  },
+  leftColStacked: {
+    paddingRight: 0,
+    width: "100%",
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "auto",
   },
   heroText: {
     marginBottom: 10,
@@ -319,6 +414,15 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
     letterSpacing: -0.4,
+    flexShrink: 1,
+  },
+  titleCompact: {
+    fontSize: 20,
+    lineHeight: 28,
+  },
+  titleMobile: {
+    fontSize: 20,
+    lineHeight: 28,
   },
   subtitle: {
     fontSize: 14,
@@ -348,6 +452,9 @@ const welcomeStyles = StyleSheet.create({
     gap: 8,
     marginTop: 2,
   },
+  actionsRowCompact: {
+    flexDirection: "column",
+  },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -357,12 +464,17 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 148,
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         transitionDuration: "200ms",
         transitionProperty: "all",
       },
     }),
+  },
+  actionCardCompact: {
+    width: "100%",
+    minWidth: 0,
   },
   iconBox: {
     width: 34,
@@ -395,6 +507,14 @@ const welcomeStyles = StyleSheet.create({
   statsStripTablet: {
     justifyContent: "flex-start",
   },
+  statsStripStacked: {
+    justifyContent: "flex-start",
+  },
+  statsStripCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+  },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -423,13 +543,10 @@ const welcomeStyles = StyleSheet.create({
     flexShrink: 0,
   },
   statText: {
-    flexShrink: 0,
+    flexShrink: 1,
     fontSize: 11,
     fontFamily: "Poppins_500Medium",
     color: C.textMid,
-    ...Platform.select({
-      web: { whiteSpace: "nowrap" },
-    }),
   },
   statValue: {
     fontFamily: "Poppins_700Bold",
@@ -470,13 +587,20 @@ const welcomeStyles = StyleSheet.create({
     marginVertical: 14,
     alignSelf: "auto",
   },
+  dividerStacked: {
+    width: "100%",
+    height: 1,
+    marginVertical: 14,
+    marginHorizontal: 0,
+    alignSelf: "stretch",
+  },
   // ── Right column — Referral ──
   referralCol: {
     width: 300,
     minWidth: 280,
     flexShrink: 0,
     paddingLeft: 16,
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     ...Platform.select({
       web: {
         backgroundColor: "#FFF8F2",
@@ -497,11 +621,43 @@ const welcomeStyles = StyleSheet.create({
     paddingLeft: 0,
     marginTop: 0,
   },
+  referralColStacked: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+    flexGrow: 0,
+    flexBasis: "auto",
+    marginLeft: 0,
+    paddingLeft: 0,
+    marginTop: 0,
+    alignSelf: "stretch",
+    ...Platform.select({
+      web: {
+        marginLeft: 0,
+        padding: 14,
+      },
+      default: {
+        backgroundColor: "#FFF8F2",
+        borderRadius: 12,
+        padding: 14,
+        borderWidth: 1.5,
+        borderColor: "#F97316",
+      },
+    }),
+  },
   refHeader: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 6,
+    flexWrap: "wrap",
+    minWidth: 0,
+  },
+  refHeaderText: {
+    flex: 1,
+    minWidth: 120,
   },
   refIconBox: {
     width: 26,
@@ -510,6 +666,7 @@ const welcomeStyles = StyleSheet.create({
     backgroundColor: C.orangePale,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   refTitle: {
     fontSize: 13,
@@ -521,6 +678,7 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
     color: C.textLight,
     marginTop: 1,
+    flexShrink: 1,
   },
   refBadge: {
     backgroundColor: "#FEF3C7",
@@ -529,6 +687,7 @@ const welcomeStyles = StyleSheet.create({
     paddingVertical: 3,
     borderWidth: 1,
     borderColor: "#FDE68A",
+    flexShrink: 0,
   },
   refBadgeText: {
     fontSize: 9,
@@ -542,9 +701,12 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
     marginBottom: 4,
   },
   refProgressLabel: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
     color: C.textMid,
@@ -553,6 +715,7 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_700Bold",
     color: C.orange,
+    flexShrink: 0,
   },
   refBarBg: {
     height: 6,
@@ -560,6 +723,7 @@ const welcomeStyles = StyleSheet.create({
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 4,
+    width: "100%",
   },
   refBarFill: {
     height: "100%",
@@ -571,6 +735,7 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_500Medium",
     color: C.textMid,
     lineHeight: 14,
+    flexWrap: "wrap",
   },
   refCodeWrap: {
     flexDirection: "column",
@@ -582,6 +747,8 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
+    width: "100%",
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
@@ -603,6 +770,7 @@ const welcomeStyles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
     letterSpacing: 0.3,
+    maxWidth: "100%",
     ...Platform.select({
       web: {
         whiteSpace: "nowrap",
@@ -613,8 +781,10 @@ const welcomeStyles = StyleSheet.create({
   refCodeActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 2,
+    width: "100%",
   },
   refCopyBtn: {
     flex: 1,
@@ -629,6 +799,7 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 32,
+    minWidth: 100,
   },
   refCopyText: {
     fontSize: 11,
@@ -646,6 +817,7 @@ const welcomeStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     minHeight: 32,
+    minWidth: 100,
   },
   refShareText: {
     fontSize: 11,
@@ -705,8 +877,13 @@ const panelStyles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 18,
+    padding: 14,
     marginBottom: 0,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    alignSelf: "stretch",
     ...Platform.select({
       web: {
         boxShadow: "0 1px 3px 0 rgba(0,0,0,0.05), 0 1px 2px -1px rgba(0,0,0,0.03)",
@@ -717,12 +894,15 @@ const panelStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 10,
+    gap: 8,
+    minWidth: 0,
   },
   title: {
     fontSize: 14,
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
+    flexShrink: 1,
   },
   liveBadge: {
     flexDirection: "row",
@@ -869,7 +1049,7 @@ export const SalesHeatmap: React.FC<{ points?: { label: string; value: number }[
   const barH = 72;
 
   return (
-    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+    <View style={[panelStyles.card, { justifyContent: "space-between" }]}>
       <View style={panelStyles.header}>
         <AppText style={panelStyles.title}>Weekly Sales Trend</AppText>
         <AppText style={panelStyles.liveText}>From dashboard API</AppText>
@@ -961,7 +1141,9 @@ export const SmartInventoryMonitoring: React.FC<{
               <View key={item.id} style={inventoryStyles.alertRow}>
                 <View style={inventoryStyles.alertLeft}>
                   <MaterialCommunityIcons name="alert-circle-outline" size={14} color={color} />
-                  <AppText style={inventoryStyles.itemName}>{item.name}</AppText>
+                  <AppText style={inventoryStyles.itemName} numberOfLines={1}>
+                    {item.name}
+                  </AppText>
                 </View>
                 <View style={[inventoryStyles.pill, { backgroundColor: color + "15" }]}>
                   <AppText style={[inventoryStyles.pillText, { color }]}>{item.stock} left</AppText>
@@ -1006,21 +1188,29 @@ const inventoryStyles = StyleSheet.create({
     backgroundColor: C.bg,
     padding: 8,
     borderRadius: 6,
+    gap: 8,
+    width: "100%",
+    minWidth: 0,
   },
   alertLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flex: 1,
+    minWidth: 0,
   },
   itemName: {
     fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
     color: C.textDark,
+    flex: 1,
+    minWidth: 0,
   },
   pill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    flexShrink: 0,
   },
   pillText: {
     fontSize: 9,
@@ -1042,7 +1232,7 @@ type TrackingOrder = {
 export const LiveOrderTrackingPanel: React.FC<{ order?: TrackingOrder | null }> = ({ order }) => {
   if (!order) {
     return (
-      <View style={[panelStyles.card, { flex: 1, justifyContent: "center", paddingVertical: 32 }]}>
+      <View style={[panelStyles.card, { justifyContent: "center", paddingVertical: 32 }]}>
         <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
         <AppText style={[panelStyles.itemTime, { marginTop: 8 }]}>No active orders to track.</AppText>
       </View>
@@ -1066,7 +1256,7 @@ export const LiveOrderTrackingPanel: React.FC<{ order?: TrackingOrder | null }> 
   });
 
   return (
-    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+    <View style={[panelStyles.card, { justifyContent: "space-between" }]}>
       <View>
         <View style={panelStyles.header}>
           <AppText style={panelStyles.title}>Active Order Delivery Pipeline</AppText>
@@ -1231,11 +1421,13 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
       {items.length === 0 ? (
         <AppText style={[tableStyles.cell, { padding: 12 }]}>No sales data yet.</AppText>
       ) : (
-        items.map((it) => (
+        items.map((it) => {
+          const imageUri = resolveMediaUrl(it.image) ?? it.image;
+          return (
           <View key={it.id} style={tableStyles.row}>
             <TouchableOpacity onPress={() => openProduct(it.id)} activeOpacity={0.7}>
-              {it.image ? (
-                <Image source={{ uri: it.image }} style={tableStyles.thumb} resizeMode="cover" />
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={tableStyles.thumb} resizeMode="cover" />
               ) : (
                 <View style={[tableStyles.thumb, tableStyles.thumbPlaceholder]}>
                   <MaterialCommunityIcons name="image-outline" size={18} color={C.textLight} />
@@ -1248,7 +1440,8 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
             <AppText style={[tableStyles.cell, tableStyles.soldCol]}>{it.sold}</AppText>
             <AppText style={[tableStyles.cell, tableStyles.priceCol]}>{it.price}</AppText>
           </View>
-        ))
+          );
+        })
       )}
     </View>
   );
@@ -1258,12 +1451,14 @@ const tableStyles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 8,
     backgroundColor: C.purplePale,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 8,
     marginBottom: 8,
+    width: "100%",
+    minWidth: 0,
   },
   headerText: {
     fontSize: 12,
@@ -1274,19 +1469,21 @@ const tableStyles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 8,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+    width: "100%",
+    minWidth: 0,
   },
   imageCol: {
-    width: 48,
+    width: 40,
     flexShrink: 0,
   },
   thumb: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     backgroundColor: C.purplePale,
     flexShrink: 0,
@@ -1491,8 +1688,10 @@ const custStyles = StyleSheet.create({
     gap: 10,
   },
   metricBox: {
-    flex: 1,
-    minWidth: "45%",
+    flexGrow: 1,
+    flexBasis: "45%",
+    minWidth: 0,
+    maxWidth: "100%",
     backgroundColor: C.bg,
     padding: 12,
     borderRadius: 10,
@@ -1527,7 +1726,7 @@ export const MarketingCenter: React.FC = () => {
   ];
 
   return (
-    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+    <View style={[panelStyles.card, { justifyContent: "space-between" }]}>
       <AppText style={[panelStyles.title, { marginBottom: 12 }]}>Seller Growth Marketing Hub</AppText>
       <View style={mktStyles.grid}>
         {tools.map((t, i) => (
@@ -1610,7 +1809,7 @@ export const FinancialCenter: React.FC<{
   };
 
   return (
-    <View style={[panelStyles.card, { flex: 1, justifyContent: "space-between" }]}>
+    <View style={[panelStyles.card, { justifyContent: "space-between" }]}>
       <View>
         <View style={panelStyles.header}>
           <AppText style={panelStyles.title}>Financial Reconciliation Center</AppText>
@@ -1764,7 +1963,9 @@ export const SmartNotificationCenter: React.FC<{ alerts?: AlertItem[] }> = ({ al
   return (
     <View style={panelStyles.card}>
       <View style={panelStyles.header}>
-        <AppText style={panelStyles.title}>Priority Store Notifications</AppText>
+        <AppText style={[panelStyles.title, { flex: 1, minWidth: 0, marginRight: 8 }]} numberOfLines={2}>
+          Priority Store Notifications
+        </AppText>
         {unread > 0 ? (
           <View style={notifStyles.badge}>
             <AppText style={notifStyles.badgeText}>{unread} New</AppText>
@@ -1779,7 +1980,7 @@ export const SmartNotificationCenter: React.FC<{ alerts?: AlertItem[] }> = ({ al
           alerts.map((al) => (
             <View key={al.id} style={notifStyles.item}>
               <View style={[notifStyles.indicator, { backgroundColor: al.read ? C.textLight : C.purple }]} />
-              <View>
+              <View style={notifStyles.itemBody}>
                 <AppText style={notifStyles.alertTitle}>{al.title}</AppText>
                 <AppText style={notifStyles.alertBody}>{al.message}</AppText>
                 {al.time ? <AppText style={panelStyles.itemTime}>{al.time}</AppText> : null}
@@ -1798,6 +1999,7 @@ const notifStyles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 9,
@@ -1809,16 +2011,25 @@ const notifStyles = StyleSheet.create({
   },
   item: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: C.bg,
     padding: 8,
     borderRadius: 6,
     gap: 8,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
   },
   indicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    marginTop: 5,
+    flexShrink: 0,
+  },
+  itemBody: {
+    flex: 1,
+    minWidth: 0,
   },
   alertTitle: {
     fontSize: 11,
@@ -1830,5 +2041,6 @@ const notifStyles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
     color: C.textMid,
     marginTop: 1,
+    flexShrink: 1,
   },
 });

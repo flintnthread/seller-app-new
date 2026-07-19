@@ -112,11 +112,31 @@ function isApparel(name: string, code: string): boolean {
 
 function isFootwear(name: string, code: string): boolean {
   const combined = `${normalizeToken(name)} ${normalizeToken(code)}`;
-  if (/\b(UK|EU|US)\b/.test(combined)) return true;
-  if (/^(UK|EU|US)[-\s]?\d+(\.\d+)?$/.test(normalizeToken(code))) return true;
-  if (/^(UK|EU|US)[-\s]?\d+(\.\d+)?$/.test(normalizeToken(name))) return true;
-  if (/^(UK|EU|US)\d+(\.\d+)?$/.test(compactToken(code))) return true;
-  if (/^(UK|EU|US)\d+(\.\d+)?$/.test(compactToken(name))) return true;
+
+  if (
+    /\b(SHOE|SHOES|FOOTWEAR|SANDAL|SANDALS|SLIPPER|SLIPPERS|SNEAKER|SNEAKERS|BOOTIE|BOOTIES|CHAPPAL|CHAPPALS|MOJARI|JUTTI|LOAFER|LOAFERS)\b/.test(
+      combined
+    )
+  ) {
+    return true;
+  }
+
+  if (/\b(UK|EU|US|IND|IN)\b/.test(combined)) return true;
+  if (/^(UK|EU|US|IND|IN)[-\s]?\d+(\.\d+)?$/.test(normalizeToken(code))) return true;
+  if (/^(UK|EU|US|IND|IN)[-\s]?\d+(\.\d+)?$/.test(normalizeToken(name))) return true;
+  if (/^(UK|EU|US|IND|IN)\d+(\.\d+)?$/.test(compactToken(code))) return true;
+  if (/^(UK|EU|US|IND|IN)\d+(\.\d+)?$/.test(compactToken(name))) return true;
+
+  if (/\b(?:SIZE|SZ|NO\.?)\s*-?\s*\d+(\.\d+)?\b/.test(combined)) return true;
+
+  const numericCandidates = [normalizeToken(name), normalizeToken(code), compactToken(name), compactToken(code)];
+  for (const t of numericCandidates) {
+    if (!t) continue;
+    if (!/^\d+(\.\d+)?$/.test(t)) continue;
+    const n = Number(t);
+    if (Number.isFinite(n) && n >= 1 && n <= 15) return true;
+  }
+
   return false;
 }
 
@@ -154,9 +174,10 @@ export function classifySizeCatalog(
   name: string,
   code: string
 ): SizeCatalogGroupId {
+  // Kids age labels (1Y, 10-11Y) before bare numeric footwear (1–15)
   if (isFreeSize(name, code)) return "free";
-  if (isFootwear(name, code)) return "footwear";
   if (isKids(name, code)) return "kids";
+  if (isFootwear(name, code)) return "footwear";
   if (isApparel(name, code)) return "apparel";
   if (isWaist(name, code)) return "waist";
   return "other";
@@ -190,4 +211,38 @@ export function countSizesByCatalogGroup<T extends { name: string; code: string 
     counts[classifySizeCatalog(s.name, s.code)] += 1;
   }
   return counts;
+}
+
+export function formatSizeOptionLabel(name: string, code: string): string {
+  const n = String(name ?? "").trim();
+  const c = String(code ?? "").trim();
+  if (!n) return c;
+  if (!c || n === c) return n;
+  return `${n} (${c})`;
+}
+
+/** Group catalog sizes for pickers (Apparel, Kids, Footwear, …). Empty groups omitted. */
+export function buildSizeOptionGroups(
+  sizes: { name: string; code: string }[]
+): { id: SizeCatalogGroupId; label: string; options: string[] }[] {
+  const buckets: Record<SizeCatalogGroupId, string[]> = {
+    apparel: [],
+    footwear: [],
+    waist: [],
+    kids: [],
+    free: [],
+    other: [],
+  };
+  const seen = new Set<string>();
+  for (const s of sizes) {
+    const label = formatSizeOptionLabel(s.name, s.code);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    buckets[classifySizeCatalog(s.name, s.code)].push(label);
+  }
+  return SIZE_CATALOG_GROUPS.map((g) => ({
+    id: g.id,
+    label: g.label,
+    options: buckets[g.id],
+  })).filter((g) => g.options.length > 0);
 }

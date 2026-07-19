@@ -198,17 +198,6 @@ export function CategoryRequestScreen() {
             return;
         }
 
-        const actionText = editingId ? "Save changes to" : "Submit request for";
-        const confirmTitle = editingId ? "Save changes?" : "Submit request?";
-        const confirmBtnText = editingId ? "Save" : "Submit";
-
-        const confirmed = await confirmAction(
-            confirmTitle,
-            `${actionText} "${name}"? Our team will review it within 2–3 business days.`,
-            confirmBtnText
-        );
-        if (!confirmed) return;
-
         setSubmitting(true);
         try {
             if (editingId) {

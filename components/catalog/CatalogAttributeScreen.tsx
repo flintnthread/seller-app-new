@@ -76,7 +76,7 @@ export function CatalogAttributeScreen({
     const useCatalogCards = !isWeb || isMobile;
     const tableMinWidth = Math.max(640, Math.min(900, width - 24));
     const [search, setSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Inactive">("All");
+    const [statusFilter, setStatusFilter] = useState<"All" | CatalogStatus>("All");
     const [sizeCatalogFilter, setSizeCatalogFilter] =
         useState<SizeCatalogFilterId>(SIZE_CATALOG_ALL);
     const [modalOpen, setModalOpen] = useState(false);
@@ -180,7 +180,15 @@ export function CatalogAttributeScreen({
         setCatalogSaving(true);
         try {
             const created = await createColor(payload);
-            setColors((prev) => [created, ...prev]);
+            setSearch("");
+            setStatusFilter("All");
+            setCurrentPage(1);
+            setColors((prev) => {
+                const withoutDup = prev.filter((c) => c.id !== created.id);
+                return [{ ...created, owned: true }, ...withoutDup];
+            });
+            // Ensure list reflects server-owned colors immediately after create.
+            void loadCatalog();
             return true;
         } catch (e) {
             showError(e instanceof Error ? e.message : "Could not save color.");
@@ -385,20 +393,32 @@ export function CatalogAttributeScreen({
             )}
 
             <View style={[pg.statsRow, isWeb && isMobile && pg.statsRowMobile, !isWeb && pg.statsRowNative]}>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "All" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("All")}
+                    activeOpacity={0.85}
+                >
                     <Text style={[pg.statVal, !isWeb && pg.statValNative]}>{items.length}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]} numberOfLines={2}>
                         Total {config.pageTitle}
                     </Text>
-                </View>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Active" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("Active")}
+                    activeOpacity={0.85}
+                >
                     <Text style={[pg.statVal, { color: "#16A34A" }, !isWeb && pg.statValNative]}>{activeCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Active</Text>
-                </View>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
-                    <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{items.length - activeCount}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Inactive" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("Inactive")}
+                    activeOpacity={0.85}
+                >
+                    <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{inactiveCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Inactive</Text>
-                </View>
+                </TouchableOpacity>
             </View>
 
             <View
@@ -1301,6 +1321,10 @@ const pg = StyleSheet.create({
         padding: 14,
         borderWidth: 1,
         borderColor: "#E5E7EB",
+    },
+    statCardActive: {
+        borderColor: "#F28520",
+        backgroundColor: "#FFF7ED",
     },
     statCardNative: {
         padding: 12,

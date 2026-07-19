@@ -7,6 +7,7 @@ import {
 
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { fetchTopSellingProducts, type TopSellingProduct } from '@/services/earningsApi';
+import { resolveMediaUrl } from '@/lib/media/resolveMediaUrl';
 import {
   ActivityIndicator,
   Alert,
@@ -62,7 +63,7 @@ function mapTopProduct(p: TopSellingProduct, idx: number): TopProductRow {
     rating: p.avgRating != null && p.avgRating > 0 ? p.avgRating : null,
     isWishlist: false,
     added: false,
-    image: p.image || "",
+    image: resolveMediaUrl(p.image) ?? p.image ?? "",
   };
 }
 
