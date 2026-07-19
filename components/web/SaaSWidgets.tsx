@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { resolveSellerAppBaseUrl } from "@/lib/shipping/orderLabelQrUrl";
 import { formatReferralCodeDisplay } from "@/lib/profile/sellerDisplayFormat";
 import { useResponsive } from "@/hooks/useResponsive";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 import Svg, { Circle } from "react-native-svg";
 
 const C = {
@@ -1420,11 +1421,13 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
       {items.length === 0 ? (
         <AppText style={[tableStyles.cell, { padding: 12 }]}>No sales data yet.</AppText>
       ) : (
-        items.map((it) => (
+        items.map((it) => {
+          const imageUri = resolveMediaUrl(it.image) ?? it.image;
+          return (
           <View key={it.id} style={tableStyles.row}>
             <TouchableOpacity onPress={() => openProduct(it.id)} activeOpacity={0.7}>
-              {it.image ? (
-                <Image source={{ uri: it.image }} style={tableStyles.thumb} resizeMode="cover" />
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={tableStyles.thumb} resizeMode="cover" />
               ) : (
                 <View style={[tableStyles.thumb, tableStyles.thumbPlaceholder]}>
                   <MaterialCommunityIcons name="image-outline" size={18} color={C.textLight} />
@@ -1437,7 +1440,8 @@ export const TopProductsPerformance: React.FC<{ items?: TopProductRow[] }> = ({ 
             <AppText style={[tableStyles.cell, tableStyles.soldCol]}>{it.sold}</AppText>
             <AppText style={[tableStyles.cell, tableStyles.priceCol]}>{it.price}</AppText>
           </View>
-        ))
+          );
+        })
       )}
     </View>
   );

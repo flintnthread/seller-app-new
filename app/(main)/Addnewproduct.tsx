@@ -999,8 +999,12 @@ const Drop = ({ placeholder, value, onPress, hasError, options, onSelect, dropKe
     const { isDesktop } = useResponsive();
     const activeWebDropKey = useSyncExternalStore(subscribeWebDrop, getWebDropActiveKey, () => null);
     const hasOptions = Array.isArray(options) && options.length > 0;
-    /** Absolute inline menus overlap adjacent fields on mobile — use bottom sheet (onPress) there. */
-    const usesInlineMenu = (typeof renderMenu === "function" || hasOptions) && isDesktop;
+    /** Prefer bottom-sheet onPress when provided; otherwise open inline menu on all breakpoints.
+     *  Absolute inline menus overlap adjacent fields on mobile — use bottom sheet (onPress) there.
+     *  Also support custom renderMenu (size catalog) on desktop / when no onPress. */
+    const usesInlineMenu =
+        (typeof renderMenu === "function" || hasOptions) &&
+        (isDesktop || typeof onPress !== "function");
     const usesSharedWebDrop = Platform.OS === "web" && usesInlineMenu && !!dropKey;
     const open = usesSharedWebDrop ? activeWebDropKey === dropKey : localOpen;
     const menuMaxHeight = typeof renderMenu === "function" ? 360 : 280;
@@ -2268,6 +2272,14 @@ const StepBasicInfo = ({ data, onChange, errors, validationTrigger, catalog, isD
                                             onChange("custCustomFields", next);
                                         }}
                                     />
+                                    {(field.type === "File" || field.type === "Image") && (
+                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                                            <Ionicons name="cloud-upload-outline" size={16} color={C.navy} />
+                                            <AppText style={{ fontSize: 12, color: C.textMid, fontFamily: fontFamilies.medium }}>
+                                                Buyer uploads a {field.type === "Image" ? "image" : "file"} after ordering
+                                            </AppText>
+                                        </View>
+                                    )}
                                 </View>
                                 <View style={at.custFieldReqWrap}>
                                     <Checkbox
@@ -3418,6 +3430,7 @@ const StepDetails = ({ data, onChange, errors, validationTrigger = 0, isDesktop 
 
         if (validationErrors.length > 0) {
             setChartErrors(validationErrors);
+            Alert.alert("Cannot save chart", validationErrors[0]);
             return;
         }
 

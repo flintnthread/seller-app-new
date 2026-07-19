@@ -8,6 +8,7 @@ import { fetchProducts } from "@/services/productApi";
 import { fetchDashboardCharts } from "@/services/dashboardApi";
 import { loadOrdersFromApi, getLiveOrders } from "@/lib/orders/ordersStore";
 import type { OrderDetail } from "@/lib/orders/ordersData";
+import { resolveMediaUrl } from "@/lib/media/resolveMediaUrl";
 
 export type WidgetTopProduct = {
     id: string;
@@ -64,7 +65,7 @@ export function useDashboardWidgets() {
                     name: p.name,
                     sold: p.sold,
                     price: p.price,
-                    image: p.image || "",
+                    image: resolveMediaUrl(p.image) ?? p.image ?? "",
                 }))
             );
             setLowStock(

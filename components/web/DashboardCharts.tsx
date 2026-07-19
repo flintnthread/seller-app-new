@@ -83,8 +83,30 @@ function aggregateForBars(
   points: number[],
   labels: string[],
   maxBars = 10,
+  preferMonthly = false,
 ): { values: number[]; labels: string[] } {
   if (points.length === 0) return { values: [], labels: [] };
+
+  if (preferMonthly && points.length > 12) {
+    const monthMap = new Map<string, number>();
+    const order: string[] = [];
+    for (let i = 0; i < points.length; i++) {
+      const raw = String(labels[i] ?? "").trim();
+      // "d MMM" / "MMM yyyy" / ISO-ish — keep month token when present.
+      const monthKey = /[A-Za-z]{3}/.test(raw)
+        ? raw.replace(/^\d{1,2}\s+/, "").trim() || raw
+        : raw;
+      if (!monthMap.has(monthKey)) order.push(monthKey);
+      monthMap.set(monthKey, (monthMap.get(monthKey) ?? 0) + Number(points[i] ?? 0));
+    }
+    if (order.length >= 2 && order.length <= maxBars) {
+      return {
+        values: order.map((k) => monthMap.get(k) ?? 0),
+        labels: order,
+      };
+    }
+  }
+
   if (points.length <= maxBars) {
     return { values: points, labels: labels.map((l) => String(l || "").trim() || "—") };
   }
@@ -153,6 +175,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     currentSales?.points ?? [],
     currentSales?.labels ?? [],
     maxBars,
+    salesPeriod === "Custom",
   );
 
   const renderSVGChart = () => {

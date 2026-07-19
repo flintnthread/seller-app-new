@@ -76,6 +76,7 @@ export function CatalogAttributeScreen({
     const useCatalogCards = !isWeb || isMobile;
     const tableMinWidth = Math.max(640, Math.min(900, width - 24));
     const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"All" | CatalogStatus>("All");
     const [sizeCatalogFilter, setSizeCatalogFilter] =
         useState<SizeCatalogFilterId>(SIZE_CATALOG_ALL);
     const [modalOpen, setModalOpen] = useState(false);
@@ -95,7 +96,7 @@ export function CatalogAttributeScreen({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, viewType, sizeCatalogFilter]);
+    }, [search, viewType, sizeCatalogFilter, statusFilter]);
 
     const loadCatalog = useCallback(async () => {
         await hydrateSellerSession();
@@ -147,20 +148,27 @@ export function CatalogAttributeScreen({
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (config.kind === "color") {
-            const list = items as ColorRecord[];
+            let list = items as ColorRecord[];
+            if (statusFilter !== "All") {
+                list = list.filter((c) => c.status === statusFilter);
+            }
             if (!q) return list;
             return list.filter(
                 (c) => c.name.toLowerCase().includes(q) || c.hex.toLowerCase().includes(q)
             );
         }
-        const byGroup = filterSizesByCatalogGroup(items as SizeRecord[], sizeCatalogFilter);
+        let byGroup = filterSizesByCatalogGroup(items as SizeRecord[], sizeCatalogFilter);
+        if (statusFilter !== "All") {
+            byGroup = byGroup.filter((s) => s.status === statusFilter);
+        }
         if (!q) return byGroup;
         return byGroup.filter(
             (s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
         );
-    }, [items, search, config.kind, sizeCatalogFilter]);
+    }, [items, search, config.kind, sizeCatalogFilter, statusFilter]);
 
     const activeCount = items.filter((i) => i.status === "Active").length;
+    const inactiveCount = items.length - activeCount;
 
     const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
     const paginatedItems = filtered.slice(
@@ -172,7 +180,15 @@ export function CatalogAttributeScreen({
         setCatalogSaving(true);
         try {
             const created = await createColor(payload);
-            setColors((prev) => [created, ...prev]);
+            setSearch("");
+            setStatusFilter("All");
+            setCurrentPage(1);
+            setColors((prev) => {
+                const withoutDup = prev.filter((c) => c.id !== created.id);
+                return [{ ...created, owned: true }, ...withoutDup];
+            });
+            // Ensure list reflects server-owned colors immediately after create.
+            void loadCatalog();
             return true;
         } catch (e) {
             showError(e instanceof Error ? e.message : "Could not save color.");
@@ -377,20 +393,32 @@ export function CatalogAttributeScreen({
             )}
 
             <View style={[pg.statsRow, isWeb && isMobile && pg.statsRowMobile, !isWeb && pg.statsRowNative]}>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "All" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("All")}
+                    activeOpacity={0.85}
+                >
                     <Text style={[pg.statVal, !isWeb && pg.statValNative]}>{items.length}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]} numberOfLines={2}>
                         Total {config.pageTitle}
                     </Text>
-                </View>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Active" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("Active")}
+                    activeOpacity={0.85}
+                >
                     <Text style={[pg.statVal, { color: "#16A34A" }, !isWeb && pg.statValNative]}>{activeCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Active</Text>
-                </View>
-                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
-                    <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{items.length - activeCount}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Inactive" && pg.statCardActive]}
+                    onPress={() => setStatusFilter("Inactive")}
+                    activeOpacity={0.85}
+                >
+                    <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{inactiveCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Inactive</Text>
-                </View>
+                </TouchableOpacity>
             </View>
 
             <View style={[pg.searchRow, isWeb && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0 }]}>
@@ -403,6 +431,42 @@ export function CatalogAttributeScreen({
                         value={search}
                         onChangeText={setSearch}
                     />
+                </View>
+                <View style={pg.statusFilterPills}>
+                    {(["All", "Active", "Inactive"] as const).map((status) => {
+                        const isActive = statusFilter === status;
+                        const count =
+                            status === "All"
+                                ? items.length
+                                : status === "Active"
+                                  ? activeCount
+                                  : inactiveCount;
+                        return (
+                            <TouchableOpacity
+                                key={status}
+                                style={[pg.statusFilterPill, isActive && pg.statusFilterPillActive]}
+                                onPress={() => setStatusFilter(status)}
+                                activeOpacity={0.85}
+                            >
+                                <Text
+                                    style={[
+                                        pg.statusFilterPillTxt,
+                                        isActive && pg.statusFilterPillTxtActive,
+                                    ]}
+                                >
+                                    {status}
+                                </Text>
+                                <Text
+                                    style={[
+                                        pg.statusFilterPillCount,
+                                        isActive && pg.statusFilterPillCountActive,
+                                    ]}
+                                >
+                                    {count}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
                 {isWeb && (
                     <View style={pg.viewToggle}>
@@ -1191,6 +1255,10 @@ const pg = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#E5E7EB",
     },
+    statCardActive: {
+        borderColor: "#F28520",
+        backgroundColor: "#FFF7ED",
+    },
     statCardNative: {
         padding: 12,
         minWidth: 0,
@@ -1219,6 +1287,46 @@ const pg = StyleSheet.create({
         alignItems: "center",
         gap: 10,
         marginBottom: 16,
+        flexWrap: "wrap",
+    },
+    statusFilterPills: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F3F4F6",
+        borderRadius: 8,
+        padding: 4,
+        gap: 2,
+    },
+    statusFilterPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+    },
+    statusFilterPillActive: {
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#FED7AA",
+    },
+    statusFilterPillTxt: {
+        fontFamily: "Outfit_500Medium",
+        fontSize: 13,
+        color: "#4B5563",
+    },
+    statusFilterPillTxtActive: {
+        color: "#F28520",
+        fontFamily: "Outfit_600SemiBold",
+    },
+    statusFilterPillCount: {
+        fontSize: 11,
+        color: "#9CA3AF",
+        fontFamily: "Outfit_500Medium",
+    },
+    statusFilterPillCountActive: {
+        color: "#F28520",
+        fontFamily: "Outfit_600SemiBold",
     },
     catalogTabsScroll: {
         marginBottom: 14,
@@ -1263,6 +1371,14 @@ const pg = StyleSheet.create({
         color: ORANGE_BRAND,
     },
     colCatalog: { flex: 1.1, paddingRight: 8 },
+    searchInput: {
+        flex: 1,
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "#111827",
+        paddingVertical: 0,
+        paddingHorizontal: 0,
+    },
     searchInputWrap: {
         flexDirection: "row",
         alignItems: "center",
@@ -1272,12 +1388,6 @@ const pg = StyleSheet.create({
         borderColor: "#E5E7EB",
         borderRadius: 10,
         paddingHorizontal: 14,
-    },
-    searchInput: {
-        flex: 1,
-        fontFamily: "Outfit_400Regular",
-        fontSize: 14,
-        color: "#111827",
         paddingVertical: 12,
     },
     tableScroll: { marginBottom: 16 },

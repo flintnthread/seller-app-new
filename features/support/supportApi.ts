@@ -127,6 +127,7 @@ async function fetchWithTimeout(
 
 ): Promise<Response> {
 
+  await ensureApiReachable();
   await hydrateSellerSession();
   const sellerId = ensureSellerId();
   const accessToken = ensureAccessToken();
@@ -416,6 +417,8 @@ export async function createTicket(payload: CreateTicketPayload): Promise<Ticket
 
 
 export async function getTickets(status?: string): Promise<TicketResponse[]> {
+
+  await ensureApiReachable();
 
   const url = status
 

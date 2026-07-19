@@ -558,7 +558,7 @@ const SuccessModal: React.FC<{
             </Text>
           </View>
 
-          {/* ── Primary CTA ──
+          {/* ── Primary CTA ── */}
           <TouchableOpacity
             style={sm.primaryBtn}
             onPress={onViewStatus}
@@ -568,7 +568,7 @@ const SuccessModal: React.FC<{
             <Text style={[sm.primaryBtnTxt, { fontFamily: F.semiBold }]}>
               View Ticket Status
             </Text>
-          </TouchableOpacity> */}
+          </TouchableOpacity>
 
           {/* ── Ghost dismiss ── */}
           <TouchableOpacity style={sm.ghostBtn} onPress={onClose} activeOpacity={0.75}>
@@ -1652,11 +1652,11 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
     setDescriptionError(descEmpty && !hasImage);
 
     if (titleEmpty) {
-      showWarning("Subject required", "Please enter a subject for your ticket.");
+      showWarning("Please enter a subject for your ticket.", "Subject required");
       return;
     }
     if (descEmpty && !hasImage) {
-      showWarning("Details required", "Please enter a description or attach an image.");
+      showWarning("Please enter a description or attach an image.", "Details required");
       return;
     }
 
@@ -1701,18 +1701,17 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setDescriptionError(false);
 
       setTicketModalVisible(false);
-      setSuccessModalVisible(true);
+      setTimeout(() => setSuccessModalVisible(true), 0);
       setTicketSubmitted(true);
-      showSuccess("Ticket created", "Your ticket was submitted. Our team can see it in Admin → Seller Tickets.");
       setTimeout(() => setTicketSubmitted(false), 5000);
 
       loadTickets().catch(() => {});
     } catch (err: any) {
       const msg = String(err?.message || "Failed to create ticket. Please try again.");
       if (msg === AUTH_ACTION_FAILED || /auth|login|session/i.test(msg)) {
-        showError("Please sign in again", "Your session expired. Log in and submit the ticket again.");
+        showError("Your session expired. Log in and submit the ticket again.", "Please sign in again");
       } else {
-        showError("Could not create ticket", msg);
+        showError(msg, "Could not create ticket");
       }
     } finally {
       setIsSubmitting(false);

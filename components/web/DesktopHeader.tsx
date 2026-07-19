@@ -192,6 +192,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     outlineStyle: 'none' as any,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   rightSection: {
     flexDirection: 'row',

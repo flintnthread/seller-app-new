@@ -3,6 +3,7 @@ import {
     ActivityIndicator,
     Alert,
     Linking,
+    Modal,
     Platform,
     StyleSheet,
     Text,
@@ -24,7 +25,7 @@ import {
 } from "@/services/sellerProfileApi";
 import { resolveProfilePicUrl } from "@/lib/profile/resolveProfilePicUrl";
 import { formatSellerUniqueIdDisplay } from "@/lib/profile/sellerDisplayFormat";
-
+import { SELLER_MEDIA_CDN } from "@/lib/media/resolveMediaUrl";
 
 
 const C = {
@@ -218,24 +219,30 @@ function DocPreview({ label, url, compact }: { label: string; url: string | null
     const fileType = resolved ? inferDocumentFileType(resolved) : null;
     const mediaStyle = compact ? styles.docImageCompact : styles.docImage;
     const placeholderStyle = compact ? styles.docPlaceholderCompact : styles.docPlaceholder;
+    const [previewOpen, setPreviewOpen] = useState(false);
 
     const openDocument = () => {
         if (!resolved) return;
-        Linking.openURL(resolved).catch(() => undefined);
+        // Always preview in-app — never navigate to a relative path (SPA "Page not found").
+        if (fileType === "pdf") {
+            if (/^https?:\/\//i.test(resolved)) {
+                void Linking.openURL(resolved);
+            }
+            return;
+        }
+        setPreviewOpen(true);
     };
 
     return (
         <View style={[styles.docBlock, compact && styles.docBlockCompact]}>
             <Text style={styles.infoLabel}>{label}</Text>
             {resolved ? (
-                <TouchableOpacity activeOpacity={0.85} onPress={openDocument} disabled={Platform.OS !== "web"}>
+                <TouchableOpacity activeOpacity={0.85} onPress={openDocument}>
                     {fileType === "pdf" ? (
                         <View style={placeholderStyle}>
                             <Ionicons name="document-text-outline" size={30} color={C.tealHeader} />
                             <Text style={styles.docPdfText}>PDF uploaded</Text>
-                            {Platform.OS === "web" ? (
-                                <Text style={styles.docOpenHint}>Click to open</Text>
-                            ) : null}
+                            <Text style={styles.docOpenHint}>Click to open</Text>
                         </View>
                     ) : (
                         <Image
@@ -249,15 +256,35 @@ function DocPreview({ label, url, compact }: { label: string; url: string | null
                 </TouchableOpacity>
             ) : (
                 <View style={placeholderStyle}>
-                    <Ionicons name="image-outline" size={28} color={C.textSecondary} />
-                    <Text style={styles.docPlaceholderText}>Not uploaded</Text>
+                    <Ionicons name="image-outline" size={28} color="#94A3B8" />
+                    <Text style={styles.docMissingText}>Not uploaded</Text>
                 </View>
             )}
+
+            <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
+                <View style={styles.docPreviewOverlay}>
+                    <TouchableOpacity
+                        style={styles.docPreviewClose}
+                        onPress={() => setPreviewOpen(false)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Close preview"
+                    >
+                        <Ionicons name="close" size={22} color="#fff" />
+                    </TouchableOpacity>
+                    {resolved ? (
+                        <Image
+                            source={{ uri: resolved }}
+                            style={styles.docPreviewImage}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                        />
+                    ) : null}
+                    <Text style={styles.docPreviewHost}>{SELLER_MEDIA_CDN}</Text>
+                </View>
+            </Modal>
         </View>
     );
 }
-
-
 
 function EditField({ label, value, onChangeText, multiline }: { label: string; value: string; onChangeText: (v: string) => void; multiline?: boolean }) {
     return (
@@ -339,8 +366,11 @@ export function SellerProfileCardsContent({ profile, loading, isDesktop = false,
             warehousePincode: profile.address?.warehousePincode?.trim() || undefined,
         };
 
-        if (!payload.streetAddress || !payload.city || !payload.state || !payload.pincode || !payload.country) {
-            Alert.alert("Required fields", "Please fill address, city, state, pincode, and country.");
+        if (!payload.streetAddress || !payload.landmark || !payload.city || !payload.state || !payload.area || !payload.pincode || !payload.country) {
+            Alert.alert(
+                "Required fields",
+                "Please fill address, landmark, city, state, area, pincode, and country.",
+            );
             return;
         }
 
@@ -994,10 +1024,42 @@ const styles = StyleSheet.create({
     },
 
     docPlaceholderText: { fontSize: 12, color: C.textSecondary, fontWeight: "500" },
+    docMissingText: { fontSize: 12, color: "#94A3B8", fontWeight: "500" },
 
     docPdfText: { fontSize: 13, color: C.textPrimary, fontWeight: "600" },
 
     docOpenHint: { fontSize: 11, color: C.tealHeader, fontWeight: "500" },
+
+    docPreviewOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(15, 23, 42, 0.92)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+    },
+    docPreviewClose: {
+        position: "absolute",
+        top: Platform.OS === "web" ? 24 : 48,
+        right: 20,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.15)",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2,
+    },
+    docPreviewImage: {
+        width: "100%",
+        maxWidth: 720,
+        height: "70%",
+        maxHeight: 640,
+    },
+    docPreviewHost: {
+        marginTop: 12,
+        fontSize: 11,
+        color: "rgba(255,255,255,0.55)",
+    },
 
     docGridDesktop: {
         flexDirection: "row",

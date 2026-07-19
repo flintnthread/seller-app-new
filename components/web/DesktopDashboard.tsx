@@ -85,8 +85,8 @@ export function DesktopDashboard({
 }: DesktopDashboardProps) {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { isMobile } = useResponsive();
-  const isDesktop = width >= 1200;
+  const { isMobile, isTablet } = useResponsive();
+  const isDesktop = width >= 1024;
   const {
     data,
     reviewCount,
@@ -177,9 +177,9 @@ export function DesktopDashboard({
     (approvalState === "pending_review" || approvalState === "rejected");
 
     return (
-        <View style={[styles.container, isMobile && styles.containerMobile]}>
+        <View style={[styles.container, isMobile && styles.containerMobile, isTablet && styles.containerTablet]}>
             {loadError && !dashboardLoading ? (
-              <View style={[styles.errorBanner, isMobile && styles.errorBannerMobile]}>
+              <View style={[styles.errorBanner, (isMobile || isTablet) && styles.errorBannerMobile]}>
                 <AppText style={styles.errorBannerText}>{loadError}</AppText>
                 <TouchableOpacity onPress={() => void reloadDashboard()} style={styles.errorRetry}>
                   <AppText style={styles.errorRetryText}>Retry</AppText>
@@ -215,10 +215,10 @@ export function DesktopDashboard({
       {!profileIncomplete && !showAccountReviewDashboard ? (
       <>
       {/* ── 2. ENTERPRISE GRID SYSTEM ── */}
-      <View style={[styles.gridRow, !isDesktop && styles.gridStacked]}>
+      <View style={[styles.gridRow, !isDesktop && styles.gridStacked, isTablet && styles.gridTablet]}>
         
         {/* LEFT COLUMN: Main analytical operations (70% width on large screens) */}
-        <View style={[styles.leftCol, isDesktop ? { width: "70%" } : { width: "100%" }]}>
+        <View style={[styles.leftCol, isDesktop ? { width: "70%" } : { width: "100%" }, isTablet && styles.leftColTablet]}>
           
           {/* Advanced KPI Cards Row */}
           <DashboardAnalytics
@@ -273,7 +273,7 @@ export function DesktopDashboard({
         </View>
 
         {/* RIGHT COLUMN: Performance indicators, live alerts, logs (30% width) */}
-        <View style={[styles.rightCol, isDesktop ? { width: "30%" } : { width: "100%" }]}>
+        <View style={[styles.rightCol, isDesktop ? { width: "30%" } : { width: "100%" }, isTablet && styles.rightColTablet]}>
           
           {/* Seller Performance Score Dial */}
           <SellerPerformanceScore
@@ -360,6 +360,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     overflow: "hidden",
   },
+  containerTablet: {
+    paddingHorizontal: 4,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
   errorBannerMobile: {
     marginHorizontal: 0,
     marginTop: 8,
@@ -395,15 +400,25 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 24,
   },
+  gridTablet: {
+    gap: 14,
+    marginBottom: 20,
+  },
   leftCol: {
     gap: 20,
     minWidth: 0,
     maxWidth: "100%",
   },
+  leftColTablet: {
+    gap: 14,
+  },
   rightCol: {
     gap: 16,
     minWidth: 0,
     maxWidth: "100%",
+  },
+  rightColTablet: {
+    gap: 12,
   },
   flexRow: {
     flexDirection: "row",
