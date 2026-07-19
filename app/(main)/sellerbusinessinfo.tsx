@@ -717,7 +717,7 @@ export default function SellerBusinessInfo() {
         else if (b.address) setBusinessAddress(b.address);
         else if (profile.address?.streetAddress) setBusinessAddress(profile.address.streetAddress);
 
-        if (draft?.hasGST != null) setHasGST(draft.hasGST);
+        if (draft?.hasGST != null) setHasGST(draft.hasGST || draft.businessCategory === "B2B" || cat === "B2B");
         else setHasGST(b.hasGst || cat === "B2B");
 
         if (draft?.gstNumber) {
@@ -826,8 +826,8 @@ export default function SellerBusinessInfo() {
         clearFieldError("gstNumber");
         clearFieldError("gstVerification");
         showWarning(
-          "GSTIN already registered",
-          result.message || "This GST number is already registered with another seller account."
+          "This GSTIN is already registered with another seller. Please check your GSTIN and verify again.",
+          "GSTIN already registered"
         );
         return;
       }
@@ -903,7 +903,8 @@ export default function SellerBusinessInfo() {
   const handleBack = () => router.push("/(main)/sellerpersonalinfo");
 
   const handleNext = async () => {
-    const gstErr = businessCategory && hasGST ? validateGST(gstNumber) : "";
+    const requiresGst = businessCategory === "B2B" || hasGST;
+    const gstErr = requiresGst ? validateGST(gstNumber) : "";
     const panErr = validatePAN(panNumber);
     const aadhaarDigits = aadharNumber.replace(/\D/g, "");
     const aadErr =
@@ -925,12 +926,19 @@ export default function SellerBusinessInfo() {
     else if (businessAddress.trim().length < 10) {
       errors.push({ field: "businessAddress", message: "Enter a complete business address" });
     }
-    if (businessCategory && hasGST && gstErr) errors.push({ field: "gstNumber", message: gstErr });
-    if (businessCategory && hasGST && gstAlreadyExists) {
-      showWarning("Already existed GST number", "Cannot continue");
+    if (requiresGst && gstErr) errors.push({ field: "gstNumber", message: gstErr });
+    if (requiresGst && gstAlreadyExists) {
+      setGstVerified(false);
+      showWarning(
+        "This GSTIN is already registered with another seller. Please check your GSTIN and verify again.",
+        "Cannot continue"
+      );
+      scrollToField("gstNumber");
       return;
     }
-    if (businessCategory && hasGST && !gstVerified) errors.push({ field: "gstVerification", message: "Please verify your GST number" });
+    if (requiresGst && !gstVerified) {
+      errors.push({ field: "gstVerification", message: "Please verify your GST number" });
+    }
     if (panErr) errors.push({ field: "panNumber", message: panErr });
     if (aadErr) errors.push({ field: "aadharNumber", message: aadErr });
 
@@ -944,6 +952,36 @@ export default function SellerBusinessInfo() {
     setIsLoading(true);
     try {
       await hydrateSellerSession();
+
+      // Re-check duplicate right before save so Continue matches Verify.
+      if (requiresGst) {
+        const latest = await verifyGstNumber(gstNumber.trim().toUpperCase());
+        const exists = isGstAlreadyExists(latest);
+        setGstAlreadyExists(exists);
+        if (exists) {
+          setGstVerified(false);
+          setGstDetails(latest);
+          applyGstDetailsFromResponse(latest);
+          showWarning(
+            "This GSTIN is already registered with another seller. Please check your GSTIN and verify again.",
+            "Cannot continue"
+          );
+          scrollToField("gstNumber");
+          return;
+        }
+        if (!isGstVerifySuccessful(latest)) {
+          setGstVerified(false);
+          showWarning(
+            latest.message || "Please verify your GSTIN again before continuing.",
+            "Cannot continue"
+          );
+          scrollToField("gstNumber");
+          return;
+        }
+        setGstVerified(true);
+        setGstDetails(latest);
+      }
+
       const payload = {
         businessCategory,
         businessName: businessName.trim(),
@@ -954,7 +992,7 @@ export default function SellerBusinessInfo() {
           ? {
               gstType: GST_TYPE,
               gstNumber: gstNumber.trim().toUpperCase(),
-              gstVerified,
+              gstVerified: true,
             }
           : {}),
         panNumber: panNumber.trim().toUpperCase(),
@@ -972,7 +1010,18 @@ export default function SellerBusinessInfo() {
       showSuccess("Business information saved successfully.", "Saved");
       router.push({ pathname: "/(main)/selleraddressinfo", params: { businessCategory } });
     } catch (e) {
-      showError(getApiErrorMessage(e, "Could not save business information."));
+      const msg = getApiErrorMessage(e, "Could not save business information.");
+      if (/already registered|already exists/i.test(msg)) {
+        setGstVerified(false);
+        setGstAlreadyExists(true);
+        showWarning(
+          "This GSTIN is already registered with another seller. Please check your GSTIN and verify again.",
+          "Cannot continue"
+        );
+        scrollToField("gstNumber");
+      } else {
+        showError(msg);
+      }
     } finally {
       setIsLoading(false);
     }
