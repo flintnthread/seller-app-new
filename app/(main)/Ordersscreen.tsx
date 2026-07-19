@@ -276,6 +276,8 @@ function resolveLineStatus(
   item: { uiStatus?: OrderStatus; status?: string },
   orderStatus: OrderStatus,
 ): OrderStatus {
+  // Order-level cancel wins — line items may still say processing after user cancel.
+  if (orderStatus === "Cancelled") return "Cancelled";
   if (item.uiStatus) return item.uiStatus;
   if (item.status) {
     const normalized = item.status.trim();
