@@ -270,18 +270,24 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
           welcomeStyles.referralCol,
           stackColumns && welcomeStyles.referralColStacked,
           stackLayout && welcomeStyles.referralColStacked,
+          (isMobile || isCompact) && welcomeStyles.referralColMobile,
         ]}
-      >        {/* Header */}
-        <View style={welcomeStyles.refHeader}>
-          <View style={welcomeStyles.refIconBox}>
-            <MaterialCommunityIcons name="gift-outline" size={16} color={C.orange} />
+      >
+        {/* Orange accent header */}
+        <View style={welcomeStyles.refAccentHeader}>
+          <View style={welcomeStyles.refAccentLeft}>
+            <View style={welcomeStyles.refGiftCircle}>
+              <MaterialCommunityIcons name="gift" size={18} color="#fff" />
+            </View>
+            <View style={welcomeStyles.refAccentText}>
+              <AppText style={welcomeStyles.refTitleNew}>Referral Rewards</AppText>
+              <AppText style={welcomeStyles.refSubtitleNew}>
+                Invite sellers • Earn +5% commission
+              </AppText>
+            </View>
           </View>
-          <View style={welcomeStyles.refHeaderText}>
-            <AppText style={welcomeStyles.refTitle}>Referral Rewards</AppText>
-            <AppText style={welcomeStyles.refSubtitle}>Invite sellers • Earn +5% commission</AppText>
-          </View>
-          <View style={welcomeStyles.refBadge}>
-            <AppText style={welcomeStyles.refBadgeText}>🎁 ACTIVE</AppText>
+          <View style={welcomeStyles.refBadgeNew}>
+            <AppText style={welcomeStyles.refBadgeTextNew}>ACTIVE</AppText>
           </View>
         </View>
 
@@ -318,7 +324,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
             >
               <MaterialCommunityIcons
                 name={copied ? "check" : "content-copy"}
-                size={13}
+                size={14}
                 color={copied ? C.green : C.textMid}
               />
               <AppText style={[welcomeStyles.refCopyText, copied && { color: C.green }]}>
@@ -330,7 +336,7 @@ export const SmartWelcomeHeader: React.FC<WelcomeHeaderProps> = ({
               onPress={handleShare}
               activeOpacity={0.8}
             >
-              <Feather name="share-2" size={13} color={C.white} />
+              <Feather name="share-2" size={14} color={C.white} />
               <AppText style={welcomeStyles.refShareText}>Share</AppText>
             </TouchableOpacity>
           </View>
@@ -599,17 +605,18 @@ const welcomeStyles = StyleSheet.create({
     width: 300,
     minWidth: 280,
     flexShrink: 0,
-    paddingLeft: 16,
+    paddingLeft: 0,
     justifyContent: "flex-start",
+    overflow: "hidden",
     ...Platform.select({
       web: {
         backgroundColor: "#FFF8F2",
-        borderRadius: 12,
-        padding: 18,
+        borderRadius: 14,
+        padding: 0,
         marginLeft: 16,
         borderWidth: 1.5,
         borderColor: "#F97316",
-        boxShadow: "0 8px 24px rgba(249, 115, 22, 0.12)",
+        boxShadow: "0 8px 24px rgba(249, 115, 22, 0.14)",
       },
     }),
   },
@@ -635,24 +642,92 @@ const welcomeStyles = StyleSheet.create({
     ...Platform.select({
       web: {
         marginLeft: 0,
-        padding: 14,
+        padding: 0,
       },
       default: {
         backgroundColor: "#FFF8F2",
-        borderRadius: 12,
-        padding: 14,
+        borderRadius: 14,
+        padding: 0,
         borderWidth: 1.5,
         borderColor: "#F97316",
+        overflow: "hidden",
       },
     }),
   },
-  refHeader: {
+  referralColMobile: {
+    marginTop: 4,
+  },
+  refAccentHeader: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
+    justifyContent: "space-between",
     gap: 8,
-    marginBottom: 6,
-    flexWrap: "wrap",
+    backgroundColor: "#F97316",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    minWidth: 0,
+  },
+  refAccentLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  refGiftCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  refAccentText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  refTitleNew: {
+    fontSize: 14,
+    fontFamily: "Poppins_700Bold",
+    color: "#FFFFFF",
+  },
+  refSubtitleNew: {
+    fontSize: 10,
+    fontFamily: "Poppins_400Regular",
+    color: "rgba(255,255,255,0.9)",
+    marginTop: 1,
+  },
+  refBadgeNew: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    flexShrink: 0,
+  },
+  refBadgeTextNew: {
+    fontSize: 9,
+    fontFamily: "Poppins_700Bold",
+    color: "#EA580C",
+    letterSpacing: 0.4,
+  },
+  refHeader: {
+    marginBottom: 10,
+    minWidth: 0,
+  },
+  refHeaderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 4,
+  },
+  refSubtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     minWidth: 0,
   },
   refHeaderText: {
@@ -669,18 +744,23 @@ const welcomeStyles = StyleSheet.create({
     flexShrink: 0,
   },
   refTitle: {
-    fontSize: 13,
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
   },
   refSubtitle: {
-    fontSize: 10,
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
     fontFamily: "Poppins_400Regular",
     color: C.textLight,
-    marginTop: 1,
-    flexShrink: 1,
   },
   refBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     backgroundColor: "#FEF3C7",
     borderRadius: 6,
     paddingHorizontal: 7,
@@ -693,16 +773,20 @@ const welcomeStyles = StyleSheet.create({
     fontSize: 9,
     fontFamily: "Poppins_700Bold",
     color: C.orange,
+    letterSpacing: 0.3,
   },
   refProgressWrap: {
-    marginBottom: 6,
+    marginBottom: 0,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   refProgressRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   refProgressLabel: {
     flex: 1,
@@ -718,17 +802,17 @@ const welcomeStyles = StyleSheet.create({
     flexShrink: 0,
   },
   refBarBg: {
-    height: 6,
+    height: 7,
     backgroundColor: "#FDE68A",
-    borderRadius: 3,
+    borderRadius: 4,
     overflow: "hidden",
-    marginBottom: 4,
+    marginBottom: 6,
     width: "100%",
   },
   refBarFill: {
     height: "100%",
     backgroundColor: C.orange,
-    borderRadius: 3,
+    borderRadius: 4,
   },
   refGoalNote: {
     fontSize: 10,
@@ -741,14 +825,17 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "stretch",
     backgroundColor: C.white,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#F59E0B",
+    marginHorizontal: 12,
+    marginBottom: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 8,
-    width: "100%",
+    width: undefined,
     maxWidth: "100%",
+    alignSelf: "stretch",
     ...Platform.select({
       web: {
         boxShadow: "0 2px 8px rgba(245, 158, 11, 0.08)",
@@ -766,10 +853,10 @@ const welcomeStyles = StyleSheet.create({
     }),
   },
   refCode: {
-    fontSize: 13,
+    fontSize: 15,
     fontFamily: "Poppins_700Bold",
     color: C.textDark,
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
     maxWidth: "100%",
     ...Platform.select({
       web: {
@@ -781,7 +868,7 @@ const welcomeStyles = StyleSheet.create({
   refCodeActions: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     gap: 8,
     marginTop: 2,
     width: "100%",
@@ -791,18 +878,18 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: C.bg,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 6,
+    borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    minHeight: 32,
-    minWidth: 100,
+    paddingVertical: 10,
+    minHeight: 40,
+    minWidth: 0,
   },
   refCopyText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "Poppins_600SemiBold",
     color: C.textMid,
   },
@@ -811,16 +898,16 @@ const welcomeStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: C.orange,
-    borderRadius: 6,
+    borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    minHeight: 32,
-    minWidth: 100,
+    paddingVertical: 10,
+    minHeight: 40,
+    minWidth: 0,
   },
   refShareText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "Poppins_600SemiBold",
     color: C.white,
   },

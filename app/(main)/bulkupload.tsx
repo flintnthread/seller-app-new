@@ -11,14 +11,12 @@ import {
   Platform,
   Share,
   ActivityIndicator,
-  Dimensions,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useNavigation } from "@react-navigation/native";
 import { bulkImportProducts } from "@/services/productApi";
-
-const { width: screenWidth } = Dimensions.get("window");
+import { useResponsive } from "@/hooks/useResponsive";
 
 interface ToastState {
   visible: boolean;
@@ -106,7 +104,6 @@ function downloadFile(content: string, filename: string, mimeType: string): void
   }
 }
 
-// ─── Inline Code block component ─────────────────────────────────────────────
 function Code({ children }: { children: string }) {
   return <Text style={codeStyles.text}>{children}</Text>;
 }
@@ -124,24 +121,39 @@ const codeStyles = StyleSheet.create({
   },
 });
 
-// ─── Step Card component ──────────────────────────────────────────────────────
 interface StepCardProps {
   number: number;
   title: string;
   description: React.ReactNode;
   icon: React.ReactNode;
   action?: React.ReactNode;
+  stacked: boolean;
 }
 
-function StepCard({ number, title, description, icon, action }: StepCardProps) {
+function StepCard({ number, title, description, icon, action, stacked }: StepCardProps) {
+  if (stacked) {
+    return (
+      <View style={[stepCardStyles.card, stepCardStyles.cardStacked]}>
+        <View style={stepCardStyles.mobileHeader}>
+          <Text style={[stepCardStyles.title, stepCardStyles.titleMobile]} numberOfLines={2}>
+            {number}. {title}
+          </Text>
+          <View style={[stepCardStyles.iconContainer, stepCardStyles.iconMobile]}>{icon}</View>
+        </View>
+        <Text style={stepCardStyles.description}>{description}</Text>
+        {action ? <View style={stepCardStyles.action}>{action}</View> : null}
+      </View>
+    );
+  }
+
   return (
-    <View style={stepCardStyles.card}>
+    <View style={[stepCardStyles.card, stepCardStyles.cardRow]}>
       <View style={stepCardStyles.iconContainer}>{icon}</View>
-      <Text style={stepCardStyles.title}>
+      <Text style={stepCardStyles.title} numberOfLines={2}>
         {number}. {title}
       </Text>
       <Text style={stepCardStyles.description}>{description}</Text>
-      {action && <View style={stepCardStyles.action}>{action}</View>}
+      {action ? <View style={stepCardStyles.action}>{action}</View> : null}
     </View>
   );
 }
@@ -152,15 +164,28 @@ const stepCardStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: 12,
-    padding: 16,
-    flex: 1,
-    minWidth: screenWidth > 600 ? 200 : "100%",
-    marginBottom: screenWidth > 600 ? 0 : 16,
+    padding: 14,
     shadowColor: T.navy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    minWidth: 0,
+  },
+  cardStacked: {
+    width: "100%",
+    marginBottom: 0,
+  },
+  cardRow: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mobileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 8,
   },
   iconContainer: {
     width: 44,
@@ -173,11 +198,23 @@ const stepCardStyles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
+  iconMobile: {
+    marginBottom: 0,
+    flexShrink: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   title: {
     fontSize: 14,
     fontWeight: "700",
     color: T.textDark,
     marginBottom: 6,
+  },
+  titleMobile: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 0,
   },
   description: {
     fontSize: 12,
@@ -189,9 +226,9 @@ const stepCardStyles = StyleSheet.create({
   },
 });
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function BulkUpload() {
   const navigation = useNavigation();
+  const { isWeb, isDesktop, isTablet, isCompact, width } = useResponsive();
 
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
@@ -204,6 +241,11 @@ export default function BulkUpload() {
     message: "",
     type: "success",
   });
+
+  const stackSteps = !isWeb || width < 700;
+  // WebLayout sets padding to 0 for bulkupload on narrow web (<768) — pad here instead.
+  const contentPad = !isWeb ? 20 : width < 768 ? (isCompact ? 12 : 16) : 0;
+  const maxContentWidth = isDesktop ? 960 : isTablet ? 720 : undefined;
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -240,7 +282,7 @@ export default function BulkUpload() {
           uri: asset.uri,
         });
       }
-    } catch (err) {
+    } catch {
       showToast("Failed to select file", "error");
     }
   };
@@ -263,7 +305,7 @@ export default function BulkUpload() {
           title: "Bulk Import CSV Template",
         });
         showToast("Template details shared!", "success");
-      } catch (error) {
+      } catch {
         Alert.alert("Error", "Failed to share template files");
       }
     }
@@ -291,145 +333,186 @@ export default function BulkUpload() {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={T.navy} />
+    <SafeAreaView style={[styles.root, isWeb && styles.rootWeb]}>
+      {!isWeb ? <StatusBar barStyle="light-content" backgroundColor={T.navy} /> : null}
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={handleBack}
-            style={styles.backButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            activeOpacity={0.7}
-          >
-            <Feather name="arrow-left" size={20} color={T.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Bulk Import Products</Text>
+      {/* Native-only header — web uses DesktopHeader from WebLayout */}
+      {!isWeb ? (
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={handleBack}
+              style={styles.backButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Feather name="arrow-left" size={20} color={T.white} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Bulk Import Products</Text>
+          </View>
+          <Text style={styles.headerSub}>Upload products in bulk using ZIP templates</Text>
         </View>
-        <Text style={styles.headerSub}>Upload products in bulk using ZIP templates</Text>
-      </View>
+      ) : null}
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: contentPad, paddingBottom: isWeb ? 32 : 40 },
+          isWeb && styles.scrollContentWeb,
+        ]}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
       >
-        {/* Section Heading */}
-        <Text style={styles.sectionTitle}>How it works</Text>
-
-        {/* Steps */}
-        <View style={styles.stepsContainer}>
-          <StepCard
-            number={1}
-            title="Download template"
-            icon={<Feather name="download" size={20} color={T.orange} />}
-            description={
-              <Text style={styles.stepDescriptionText}>
-                Download the ZIP template which contains a formatted <Code>products.csv</Code> file
-                and an empty <Code>images/</Code> folder.
-              </Text>
-            }
-            action={
-              <TouchableOpacity
-                style={styles.downloadButton}
-                onPress={handleDownloadTemplate}
-                activeOpacity={0.8}
-              >
-                <Feather name="download" size={14} color={T.orange} style={{ marginRight: 6 }} />
-                <Text style={styles.downloadButtonText}>Download template</Text>
-              </TouchableOpacity>
-            }
-          />
-          <StepCard
-            number={2}
-            title="Fill data & images"
-            icon={<Feather name="edit-3" size={20} color={T.orange} />}
-            description={
-              <Text style={styles.stepDescriptionText}>
-                Fill out <Code>products.csv</Code>. Use the same <Code>Product Handle</Code> for
-                rows that are variants of the same product. Place all your images inside the{" "}
-                <Code>images/</Code> folder.
-              </Text>
-            }
-          />
-          <StepCard
-            number={3}
-            title="Zip & upload"
-            icon={<MaterialCommunityIcons name="folder-zip-outline" size={20} color={T.orange} />}
-            description={
-              <Text style={styles.stepDescriptionText}>
-                Compress the folder back into a <Code>.zip</Code> file and upload it below. Our
-                system will auto-calculate taxes, commissions, and delivery slabs.
-              </Text>
-            }
-          />
-        </View>
-
-        {/* Upload Card */}
-        <View style={styles.uploadCard}>
-          <Text style={styles.uploadCardTitle}>Upload ZIP file</Text>
-
-          {/* Select Area */}
-          <TouchableOpacity
-            style={styles.dropZone}
-            onPress={handleFileSelect}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cloudIconContainer}>
-              <Feather name="upload-cloud" size={40} color={T.orange} />
-            </View>
-            <Text style={styles.dropZoneTitle}>Select ZIP file</Text>
-            <Text style={styles.dropZoneSub}>Tap to browse from your device</Text>
-          </TouchableOpacity>
-
-          {/* File Preview */}
-          {selectedFile && (
-            <View style={styles.filePreview}>
-              <Feather name="file" size={20} color={T.orange} style={{ marginRight: 8 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {selectedFile.name}
+        <View
+          style={[
+            styles.inner,
+            maxContentWidth != null && { maxWidth: maxContentWidth, alignSelf: "center", width: "100%" },
+          ]}
+        >
+          {/* Web page intro */}
+          {isWeb ? (
+            <View style={[styles.webHero, isCompact && styles.webHeroCompact]}>
+              <View style={styles.webHeroText}>
+                <Text style={[styles.webTitle, isCompact && styles.webTitleCompact]}>
+                  Bulk Import Products
                 </Text>
-                {selectedFile.size !== undefined && (
-                  <Text style={styles.fileSize}>{formatBytes(selectedFile.size)}</Text>
-                )}
+                <Text style={styles.webSub}>
+                  Upload products in bulk using ZIP templates
+                </Text>
               </View>
               <TouchableOpacity
-                onPress={handleRemoveFile}
-                style={styles.removeButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={[styles.webDownloadBtn, isCompact && styles.webDownloadBtnFull]}
+                onPress={handleDownloadTemplate}
+                activeOpacity={0.85}
               >
-                <Feather name="x" size={18} color={T.textSoft} />
+                <Feather name="download" size={15} color={T.white} style={{ marginRight: 6 }} />
+                <Text style={styles.webDownloadBtnText}>Download template</Text>
               </TouchableOpacity>
             </View>
-          )}
+          ) : null}
 
-          {/* Submit Button */}
-          <TouchableOpacity
+          <Text style={[styles.sectionTitle, isWeb && styles.sectionTitleWeb]}>How it works</Text>
+
+          <View
             style={[
-              styles.submitButton,
-              (!selectedFile || isImporting) && styles.submitButtonDisabled,
+              styles.stepsContainer,
+              stackSteps ? styles.stepsStacked : styles.stepsRow,
             ]}
-            onPress={handleStartImport}
-            disabled={!selectedFile || isImporting}
-            activeOpacity={0.8}
           >
-            {isImporting ? (
-              <ActivityIndicator color={T.white} size="small" />
-            ) : (
-              <>
-                <Feather name="upload" size={16} color={T.white} style={{ marginRight: 8 }} />
-                <Text style={styles.submitButtonText}>Start import</Text>
-              </>
-            )}
-          </TouchableOpacity>
+            <StepCard
+              number={1}
+              title="Download template"
+              stacked={stackSteps}
+              icon={<Feather name="download" size={20} color={T.orange} />}
+              description={
+                <Text style={styles.stepDescriptionText}>
+                  Download the ZIP template which contains a formatted <Code>products.csv</Code> file
+                  and an empty <Code>images/</Code> folder.
+                </Text>
+              }
+              action={
+                !isWeb ? (
+                  <TouchableOpacity
+                    style={styles.downloadButton}
+                    onPress={handleDownloadTemplate}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="download" size={14} color={T.orange} style={{ marginRight: 6 }} />
+                    <Text style={styles.downloadButtonText}>Download template</Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+            />
+            <StepCard
+              number={2}
+              title="Fill data & images"
+              stacked={stackSteps}
+              icon={<Feather name="edit-3" size={20} color={T.orange} />}
+              description={
+                <Text style={styles.stepDescriptionText}>
+                  Fill out <Code>products.csv</Code>. Use the same <Code>Product Handle</Code> for
+                  rows that are variants of the same product. Place all your images inside the{" "}
+                  <Code>images/</Code> folder.
+                </Text>
+              }
+            />
+            <StepCard
+              number={3}
+              title="Zip & upload"
+              stacked={stackSteps}
+              icon={<MaterialCommunityIcons name="folder-zip-outline" size={20} color={T.orange} />}
+              description={
+                <Text style={styles.stepDescriptionText}>
+                  Compress the folder back into a <Code>.zip</Code> file and upload it below. Our
+                  system will auto-calculate taxes, commissions, and delivery slabs.
+                </Text>
+              }
+            />
+          </View>
+
+          <View style={[styles.uploadCard, isCompact && styles.uploadCardCompact]}>
+            <Text style={styles.uploadCardTitle}>Upload ZIP file</Text>
+
+            <TouchableOpacity
+              style={[styles.dropZone, isCompact && styles.dropZoneCompact]}
+              onPress={handleFileSelect}
+              activeOpacity={0.8}
+            >
+              <View style={styles.cloudIconContainer}>
+                <Feather name="upload-cloud" size={isCompact ? 36 : 44} color={T.orange} />
+              </View>
+              <Text style={styles.dropZoneTitle}>Select ZIP file</Text>
+              <Text style={styles.dropZoneSub}>
+                {isWeb ? "Click to browse from your device" : "Tap to browse from your device"}
+              </Text>
+            </TouchableOpacity>
+
+            {selectedFile ? (
+              <View style={styles.filePreview}>
+                <Feather name="file" size={20} color={T.orange} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.fileName} numberOfLines={1}>
+                    {selectedFile.name}
+                  </Text>
+                  {selectedFile.size !== undefined ? (
+                    <Text style={styles.fileSize}>{formatBytes(selectedFile.size)}</Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={handleRemoveFile}
+                  style={styles.removeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather name="x" size={18} color={T.textSoft} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                (!selectedFile || isImporting) && styles.submitButtonDisabled,
+              ]}
+              onPress={handleStartImport}
+              disabled={!selectedFile || isImporting}
+              activeOpacity={0.8}
+            >
+              {isImporting ? (
+                <ActivityIndicator color={T.white} size="small" />
+              ) : (
+                <>
+                  <Feather name="upload" size={16} color={T.white} style={{ marginRight: 8 }} />
+                  <Text style={styles.submitButtonText}>Start import</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
-      {/* Toast Alert */}
-      {toast.visible && (
-        <View style={styles.toastContainer}>
+      {toast.visible ? (
+        <View style={[styles.toastContainer, isWeb && styles.toastContainerWeb]}>
           <View style={styles.toast}>
             <Feather
               name={toast.type === "success" ? "check-circle" : "alert-circle"}
@@ -440,7 +523,7 @@ export default function BulkUpload() {
             <Text style={styles.toastText}>{toast.message}</Text>
           </View>
         </View>
-      )}
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -450,12 +533,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: T.bg,
   },
+  rootWeb: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+  },
   header: {
     backgroundColor: T.navy,
     paddingHorizontal: 20,
     paddingTop: Platform.OS === "android" ? 16 : 10,
     paddingBottom: 24,
-    marginTop: 30,
   },
   headerRow: {
     flexDirection: "row",
@@ -469,6 +557,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: T.white,
+    flex: 1,
+    minWidth: 0,
   },
   headerSub: {
     fontSize: 13,
@@ -477,11 +567,73 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+    width: "100%",
   },
   scrollContent: {
     paddingVertical: 20,
-    paddingHorizontal: Platform.OS === "web" ? 0 : 20,
-    paddingBottom: 40,
+    flexGrow: 1,
+  },
+  scrollContentWeb: {
+    paddingTop: 12,
+  },
+  inner: {
+    width: "100%",
+    minWidth: 0,
+  },
+  webHero: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    backgroundColor: T.navy,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 20,
+    flexWrap: "wrap",
+  },
+  webHeroCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  webHeroText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  webTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: T.white,
+  },
+  webTitleCompact: {
+    fontSize: 17,
+  },
+  webSub: {
+    fontSize: 12,
+    color: T.textLight,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  webDownloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.orange,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexShrink: 0,
+  },
+  webDownloadBtnFull: {
+    width: "100%",
+    marginTop: 4,
+  },
+  webDownloadBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: T.white,
   },
   sectionTitle: {
     fontSize: 16,
@@ -489,10 +641,21 @@ const styles = StyleSheet.create({
     color: T.textDark,
     marginBottom: 16,
   },
+  sectionTitleWeb: {
+    marginBottom: 12,
+  },
   stepsContainer: {
-    flexDirection: screenWidth > 600 ? "row" : "column",
-    gap: 16,
     marginBottom: 24,
+    width: "100%",
+  },
+  stepsStacked: {
+    flexDirection: "column",
+    gap: 12,
+  },
+  stepsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 14,
   },
   stepDescriptionText: {
     fontSize: 12,
@@ -526,6 +689,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 3,
+    width: "100%",
+    maxWidth: "100%",
+  },
+  uploadCardCompact: {
+    padding: 14,
+    borderRadius: 14,
   },
   uploadCardTitle: {
     fontSize: 15,
@@ -544,6 +713,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: T.bg,
+    width: "100%",
+  },
+  dropZoneCompact: {
+    paddingVertical: 28,
+    paddingHorizontal: 12,
   },
   cloudIconContainer: {
     marginBottom: 12,
@@ -553,10 +727,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: T.textDark,
     marginBottom: 4,
+    textAlign: "center",
   },
   dropZoneSub: {
     fontSize: 12,
     color: T.textSoft,
+    textAlign: "center",
   },
   filePreview: {
     flexDirection: "row",
@@ -568,6 +744,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderWidth: 1,
     borderColor: T.border,
+    width: "100%",
+    minWidth: 0,
   },
   fileName: {
     fontSize: 13,
@@ -581,6 +759,7 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: 4,
+    flexShrink: 0,
   },
   submitButton: {
     flexDirection: "row",
@@ -595,6 +774,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
+    width: "100%",
   },
   submitButtonDisabled: {
     backgroundColor: T.border,
@@ -613,6 +793,11 @@ const styles = StyleSheet.create({
     right: 20,
     alignItems: "center",
   },
+  toastContainerWeb: {
+    left: 12,
+    right: 12,
+    bottom: 16,
+  },
   toast: {
     flexDirection: "row",
     alignItems: "center",
@@ -620,6 +805,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
+    maxWidth: "100%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -630,5 +816,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: T.white,
     fontWeight: "500",
+    flexShrink: 1,
   },
 });
