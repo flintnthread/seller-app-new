@@ -235,9 +235,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
   };
 
   return (
-    <View style={[styles.container, !isDesktop && styles.containerStacked]}>
-      {/* ── LEFT: REVENUE CHART CARD ── */}
-      <View style={[styles.mainCard, isDesktop ? { width: "65%" } : { width: "100%" }, isCompact && styles.mainCardCompact]}>
+    <View style={styles.container}>
+      {/* ── TOP: REVENUE CHART CARD (full width) ── */}
+      <View style={[styles.mainCard, isCompact && styles.mainCardCompact]}>
         <View style={[styles.cardHeader, isCompact && styles.cardHeaderCompact]}>
           <View style={styles.cardHeaderText}>
             <AppText style={styles.cardTitle}>Store Intelligence Charts</AppText>
@@ -375,14 +375,14 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
         </View>
       </View>
 
-      {/* ── RIGHT: SALES ANALYTICS CARD ── */}
-      <View style={[styles.sideCard, isDesktop ? { width: "35%" } : { width: "100%" }, isCompact && styles.mainCardCompact]}>
+      {/* ── BOTTOM: CONVERSION FUNNEL CARD (full width) ── */}
+      <View style={[styles.sideCard, isCompact && styles.mainCardCompact]}>
         <View style={styles.sideCardHeader}>
           <AppText style={styles.sideCardTitle}>Conversion Funnel</AppText>
           <AppText style={styles.sideCardSubtitle}>Key conversion & satisfaction metrics</AppText>
         </View>
 
-        <View style={styles.analyticsList}>
+        <View style={styles.analyticsGrid}>
           {/* Rating */}
           <View style={styles.analyticsItem}>
             <View style={styles.analyticsIconBox}>
@@ -456,7 +456,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
+    flexDirection: "column",
     gap: 16,
     marginBottom: 16,
     width: "100%",
@@ -738,6 +738,12 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
+  analyticsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 16,
+  },
   analyticsItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -745,6 +751,8 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     borderRadius: 10,
     padding: 10,
+    flex: 1,
+    minWidth: 180,
   },
   analyticsIconBox: {
     width: 32,

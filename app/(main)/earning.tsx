@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gap: 10,
-      },
+      } as any,
     }),
   },
   insightCard: {
@@ -1240,7 +1240,7 @@ const styles = StyleSheet.create({
       web: {
         width: "auto",
         maxWidth: "none",
-      },
+      } as any,
     }),
   },
   insightValue: {

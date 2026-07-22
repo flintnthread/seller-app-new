@@ -25,6 +25,7 @@ import {
     Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import { useResponsive } from "@/hooks/useResponsive";
+import { Pagination } from "@/components/common/Pagination";
 import { ORANGE_BRAND } from "./catalogConfig";
 import {
     createCategoryRequest,
@@ -85,6 +86,8 @@ export function CategoryRequestScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<"All" | CategoryRequestStatus>("All");
     const [sortBy, setSortBy] = useState<"latest" | "oldest">("latest");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const [fontsLoaded] = useFonts({
         Outfit_400Regular,
@@ -250,6 +253,11 @@ export function CategoryRequestScreen() {
                 return sortBy === "latest" ? timeB - timeA : timeA - timeB;
             });
     }, [requests, searchQuery, statusFilter, sortBy]);
+
+    const paginatedRequests = React.useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredRequests.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredRequests, currentPage]);
 
     if (!fontsLoaded) return null;
 
@@ -587,7 +595,7 @@ export function CategoryRequestScreen() {
                                 <Text style={pg.emptySub}>Try adjusting your search query or filters.</Text>
                             </View>
                         ) : (
-                            filteredRequests.map((row, idx) => {
+                            paginatedRequests.map((row, idx) => {
                                 const st = statusStyle(row.status);
                                 return (
                                     <Pressable
@@ -647,8 +655,19 @@ export function CategoryRequestScreen() {
                     </>
                 ) : (
                     <View style={[pg.mobileList, isWeb && pg.mobileListWeb]}>
-                        {(isWeb && isMobile ? filteredRequests : requests).map(requestCard)}
+                        {(isWeb && isMobile ? paginatedRequests : requests).map(requestCard)}
                     </View>
+                )}
+
+                {filteredRequests.length > 0 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)}
+                        onPageChange={setCurrentPage}
+                        totalItems={filteredRequests.length}
+                        itemsPerPage={ITEMS_PER_PAGE}
+                        itemLabel="requests"
+                    />
                 )}
             </View>
         </View>
@@ -663,20 +682,16 @@ export function CategoryRequestScreen() {
         ]}>
             {isWeb ? (
                 <View style={[pg.pageHeaderWeb, isMobile && pg.pageHeaderWebMobile]}>
-                    <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile]}>
-                        <View style={pg.breadcrumbWeb}>
-                            <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
-                                <Text style={pg.breadcrumbDimWeb}>Dashboard</Text>
-                            </TouchableOpacity>
-                            <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
-                            <Text style={pg.breadcrumbActiveWeb}>Category Request</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1 }}>
+                        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                            <MaterialCommunityIcons name="folder-plus-outline" size={22} color="#FFFFFF" />
                         </View>
-                        <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>Category Request</Text>
-                        {isMobile && (
-                            <Text style={pg.pageSubWebMobile}>
-                                Request a new product category. Review time: 2–3 business days.
+                        <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile, { flex: 1 }]}>
+                            <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>Category Request</Text>
+                            <Text style={isMobile ? pg.pageSubWebMobile : pg.pageSubWeb}>
+                                Request a new product category.
                             </Text>
-                        )}
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={[pg.addBtnWeb, isMobile && pg.addBtnWebMobile]}
@@ -693,11 +708,18 @@ export function CategoryRequestScreen() {
                 </Text>
             ) : (
                 <View style={pg.pageHeader}>
-                    <Text style={pg.pageTitle}>Category Request</Text>
-                    <Text style={pg.pageSub}>
-                        Request a new product category for your catalog. Our team will review your
-                        submission within 2–3 business days.
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1 }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                            <MaterialCommunityIcons name="folder-plus-outline" size={20} color="#FFFFFF" />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={pg.pageTitle}>Category Request</Text>
+                            <Text style={pg.pageSub}>
+                                Request a new product category for your catalog. Our team will review your
+                                submission within 2–3 business days.
+                            </Text>
+                        </View>
+                    </View>
                 </View>
             )}
 
@@ -786,14 +808,14 @@ const pg = StyleSheet.create({
         justifyContent: "space-between",
         marginBottom: 0,
         backgroundColor: "#151D4F",
-        paddingHorizontal: 32,
-        paddingVertical: 28,
-        paddingBottom: 68,
-        borderRadius: 22,
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        borderBottomLeftRadius: 22,
-        borderBottomRightRadius: 22,
+        paddingHorizontal: 28,
+        paddingTop: 20,
+        paddingBottom: 24,
+        borderRadius: 12,
+        borderTopLeftRadius: 12,
+        borderTopRightRadius: 12,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
         marginHorizontal: 2,
         marginTop: 12,
         shadowColor: "#151D4F",
@@ -810,10 +832,16 @@ const pg = StyleSheet.create({
     breadcrumbDimWeb: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "rgba(255,255,255,0.75)" },
     breadcrumbActiveWeb: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: "#FFFFFF" },
     pageTitleWeb: {
-        fontFamily: "Outfit_800ExtraBold",
+        fontWeight: "700",
         fontSize: 26,
         color: "#FFFFFF",
         letterSpacing: -0.5,
+    },
+    pageSubWeb: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "rgba(255,255,255,0.7)",
+        marginTop: 4,
     },
     addBtnWeb: {
         flexDirection: "row",
@@ -864,7 +892,7 @@ const pg = StyleSheet.create({
         justifyContent: "center",
     },
     desktopHeader: {
-         flexDirection: "row",
+        flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
         marginBottom: 32,
@@ -889,32 +917,32 @@ const pg = StyleSheet.create({
         lineHeight: 20,
         maxWidth: 700,
     },
-     newRequestBtn: {
-flexDirection: "row",
-alignItems: "center",
-justifyContent: "center",
-backgroundColor: ORANGE_BRAND,
-paddingHorizontal: 22,
-paddingVertical: 12,
-borderRadius: 12,
-minWidth: 160,
-...Platform.select({
-web: {
-boxShadow:
-"0 6px 18px rgba(249, 115, 22, 0.25)" as unknown as undefined,
-},
-default: {},
-}),
-},
+    newRequestBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: ORANGE_BRAND,
+        paddingHorizontal: 22,
+        paddingVertical: 12,
+        borderRadius: 12,
+        minWidth: 160,
+        ...Platform.select({
+            web: {
+                boxShadow:
+                    "0 6px 18px rgba(249, 115, 22, 0.25)" as unknown as undefined,
+            },
+            default: {},
+        }),
+    },
     newRequestBtnTxt: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 14,
         color: "#FFFFFF",
     },
-    topRow: { gap: 16, marginBottom: 24, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
+    topRow: { gap: 16, marginBottom: 24, marginTop: -12, marginHorizontal: 6, zIndex: 10 },
     topRowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
     topRowMobile: {
-        marginTop: -24,
+        marginTop: -8,
         marginHorizontal: 0,
         gap: 12,
         marginBottom: 16,
@@ -946,35 +974,35 @@ default: {},
     cardNative: {
         padding: 14,
     },
-     cardDesktop: {
-borderRadius: 20,
-padding: 30,
-borderColor: "#F3F4F6",
-backgroundColor: "#FFFFFF",
-...Platform.select({
-web: {
-boxShadow:
-"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
-},
-default: {},
-}),
-},
+    cardDesktop: {
+        borderRadius: 20,
+        padding: 30,
+        borderColor: "#F3F4F6",
+        backgroundColor: "#FFFFFF",
+        ...Platform.select({
+            web: {
+                boxShadow:
+                    "0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+            },
+            default: {},
+        }),
+    },
     guidelinesCard: {},
-     guidelinesCardDesktop: {
-borderRadius: 20,
-padding: 28,
-borderColor: "#F3F4F6",
-backgroundColor: "#FFFFFF",
-...Platform.select({
-web: {
-boxShadow:
-"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
-position: "sticky" as any,
-top: 28,
-},
-default: {},
-}),
-},
+    guidelinesCardDesktop: {
+        borderRadius: 20,
+        padding: 28,
+        borderColor: "#F3F4F6",
+        backgroundColor: "#FFFFFF",
+        ...Platform.select({
+            web: {
+                boxShadow:
+                    "0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+                position: "sticky" as any,
+                top: 28,
+            },
+            default: {},
+        }),
+    },
     cardTitle: {
         fontFamily: "Outfit_700Bold",
         fontSize: 18,
@@ -1190,39 +1218,39 @@ default: {},
         fontSize: 14,
         color: ORANGE_BRAND,
     },
-   toolbar: {
-flexDirection: "row",
-alignItems: "center",
-justifyContent: "space-between",
-backgroundColor: "#FFFFFF",
-paddingHorizontal: 20,
-paddingVertical: 18,
-borderRadius: 18,
-borderWidth: 1,
-borderColor: "#EEF2F7",
-marginBottom: 18,
-gap: 18,
-flexWrap: "wrap",
-...Platform.select({
-web: {
-boxShadow:
-"0 4px 20px rgba(0,0,0,0.04)" as unknown as undefined,
-},
-default: {},
-}),
-},
+    toolbar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: "#EEF2F7",
+        marginBottom: 18,
+        gap: 18,
+        flexWrap: "wrap",
+        ...Platform.select({
+            web: {
+                boxShadow:
+                    "0 4px 20px rgba(0,0,0,0.04)" as unknown as undefined,
+            },
+            default: {},
+        }),
+    },
     searchContainer: {
-flexDirection: "row",
-alignItems: "center",
-borderWidth: 1,
-borderColor: "#E5E7EB",
-borderRadius: 12,
-paddingHorizontal: 14,
-height: 46,
-flex: 1,
-minWidth: 300,
-backgroundColor: "#FAFAFA",
-},
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        height: 46,
+        flex: 1,
+        minWidth: 300,
+        backgroundColor: "#FAFAFA",
+    },
     toolbarSearchInput: {
         flex: 1,
         fontFamily: "Outfit_400Regular",
@@ -1250,17 +1278,17 @@ backgroundColor: "#FAFAFA",
         paddingVertical: 6,
         borderRadius: 6,
     },
-   filterPillActive: {
-backgroundColor: "#FFFFFF",
-borderWidth: 1,
-borderColor: "#FED7AA",
-...Platform.select({
-web: {
-boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-},
-default: {},
-}),
-},
+    filterPillActive: {
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#FED7AA",
+        ...Platform.select({
+            web: {
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            },
+            default: {},
+        }),
+    },
     filterPillTxt: {
         fontFamily: "Outfit_500Medium",
         fontSize: 13,
@@ -1300,26 +1328,26 @@ default: {},
         borderColor: "#E5E7EB",
         overflow: "hidden",
     },
-     tableCardDesktop: {
-borderRadius: 20,
-borderColor: "#F3F4F6",
-backgroundColor: "#FFFFFF",
-...Platform.select({
-web: {
-boxShadow:
-"0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
-},
-default: {},
-}),
-},
+    tableCardDesktop: {
+        borderRadius: 20,
+        borderColor: "#F3F4F6",
+        backgroundColor: "#FFFFFF",
+        ...Platform.select({
+            web: {
+                boxShadow:
+                    "0 10px 30px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03)" as unknown as undefined,
+            },
+            default: {},
+        }),
+    },
     tableHead: {
-flexDirection: "row",
-backgroundColor: "#FAFAFB",
-paddingVertical: 16,
-paddingHorizontal: 20,
-borderBottomWidth: 1,
-borderBottomColor: "#F3F4F6",
-},
+        flexDirection: "row",
+        backgroundColor: "#FAFAFB",
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
     th: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 12,
@@ -1335,16 +1363,16 @@ borderBottomColor: "#F3F4F6",
         borderBottomWidth: 1,
         borderBottomColor: "#F3F4F6",
     },
-  trDesktop: {
-paddingVertical: 18,
-paddingHorizontal: 20,
-transitionDuration: "150ms" as any,
-},
+    trDesktop: {
+        paddingVertical: 18,
+        paddingHorizontal: 20,
+        transitionDuration: "150ms" as any,
+    },
     trAlt: { backgroundColor: "#FAFAFA" },
-   trHover: {
-backgroundColor: "#FFF7ED",
-cursor: "pointer" as any,
-},
+    trHover: {
+        backgroundColor: "#FFF7ED",
+        cursor: "pointer" as any,
+    },
     td: { fontFamily: "Outfit_500Medium", fontSize: 14, color: "#111827" },
     tdLight: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "#6B7280" },
     colName: {
@@ -1426,12 +1454,12 @@ cursor: "pointer" as any,
         color: "#6B7280",
     },
     empty: {
-alignItems: "center",
-justifyContent: "center",
-paddingVertical: 60,
-paddingHorizontal: 24,
-},
-     emptyTitle: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 60,
+        paddingHorizontal: 24,
+    },
+    emptyTitle: {
         fontFamily: "Outfit_600SemiBold",
         fontSize: 15,
         color: "#374151",

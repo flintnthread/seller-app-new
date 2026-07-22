@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   navName: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 17,
     color: "#ffffff",
   },
   navGreeting: {

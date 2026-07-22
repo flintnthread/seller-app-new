@@ -946,7 +946,7 @@ export const RealTimeActivityFeed: React.FC<{ activities?: ActivityItem[] }> = (
                   <MaterialCommunityIcons name={act.icon as any} size={16} color={style.color} />
                 </View>
                 <View style={panelStyles.content}>
-                  <AppText style={panelStyles.itemText}>{act.text}</AppText>
+                  <AppText style={panelStyles.itemText} numberOfLines={3}>{act.text}</AppText>
                   <AppText style={panelStyles.itemTime}>{act.time}</AppText>
                 </View>
               </View>
@@ -1032,12 +1032,14 @@ const panelStyles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    minWidth: 0,
   },
   itemText: {
     fontSize: 12,
     fontFamily: "Poppins_500Medium",
     color: C.textDark,
     lineHeight: 16,
+    flexShrink: 1,
   },
   itemTime: {
     fontSize: 10,
@@ -2068,8 +2070,8 @@ export const SmartNotificationCenter: React.FC<{ alerts?: AlertItem[] }> = ({ al
             <View key={al.id} style={notifStyles.item}>
               <View style={[notifStyles.indicator, { backgroundColor: al.read ? C.textLight : C.purple }]} />
               <View style={notifStyles.itemBody}>
-                <AppText style={notifStyles.alertTitle}>{al.title}</AppText>
-                <AppText style={notifStyles.alertBody}>{al.message}</AppText>
+                <AppText style={notifStyles.alertTitle} numberOfLines={2}>{al.title}</AppText>
+                <AppText style={notifStyles.alertBody} numberOfLines={4}>{al.message}</AppText>
                 {al.time ? <AppText style={panelStyles.itemTime}>{al.time}</AppText> : null}
               </View>
             </View>
@@ -2129,5 +2131,6 @@ const notifStyles = StyleSheet.create({
     color: C.textMid,
     marginTop: 1,
     flexShrink: 1,
+    overflow: "hidden",
   },
 });

@@ -44,6 +44,7 @@ import {
   refreshOrdersFromApi,
   subscribeToOrderChanges,
 } from "@/lib/orders/ordersStore";
+import { Pagination } from "@/components/common/Pagination";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens
@@ -94,12 +95,12 @@ const nativeShadow = (
   Platform.OS === "web"
     ? {}
     : {
-        shadowColor: color,
-        shadowOffset: offset,
-        shadowOpacity: opacity,
-        shadowRadius: radius,
-        elevation,
-      };
+      shadowColor: color,
+      shadowOffset: offset,
+      shadowOpacity: opacity,
+      shadowRadius: radius,
+      elevation,
+    };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -365,7 +366,7 @@ function deriveFlatOrders(): Order[] {
   return deriveLineItemRows();
 }
 
-function computeStats(): Array<{ label: TabKey; count: number }> {
+function computeStats(): { label: TabKey; count: number }[] {
   return TABS.map((tab) => {
     const fromApi = getOrderTabCount(tab.label);
     if (fromApi != null) {
@@ -615,72 +616,72 @@ const DesktopSortModal: React.FC<{
   onCancel,
   onApply,
 }) => (
-  <Modal
-    visible={visible}
-    transparent
-    animationType="fade"
-    onRequestClose={onCancel}
-  >
-    <TouchableOpacity
-      style={deskStyles.modalBackdrop}
-      activeOpacity={1}
-      onPress={onCancel}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
     >
       <TouchableOpacity
+        style={deskStyles.modalBackdrop}
         activeOpacity={1}
-        style={deskStyles.modalBox}
-        onPress={() => {}}
+        onPress={onCancel}
       >
-        <View style={deskStyles.modalHeader}>
-          <Text style={deskStyles.modalTitle}>Sort Orders</Text>
-          <TouchableOpacity onPress={onReset}>
-            <Text style={deskStyles.resetText}>Reset</Text>
-          </TouchableOpacity>
-        </View>
-        {SORT_OPTIONS.map((option, index) => {
-          const selected = tempSortOption === option.value;
-          return (
-            <React.Fragment key={option.value}>
-              <TouchableOpacity
-                style={styles.sheetOption}
-                activeOpacity={0.75}
-                onPress={() => onChangeTempSort(option.value)}
-              >
-                <Text
-                  style={[
-                    styles.sheetOptionText,
-                    selected && styles.sheetOptionTextActive,
-                  ]}
+        <TouchableOpacity
+          activeOpacity={1}
+          style={deskStyles.modalBox}
+          onPress={() => { }}
+        >
+          <View style={deskStyles.modalHeader}>
+            <Text style={deskStyles.modalTitle}>Sort Orders</Text>
+            <TouchableOpacity onPress={onReset}>
+              <Text style={deskStyles.resetText}>Reset</Text>
+            </TouchableOpacity>
+          </View>
+          {SORT_OPTIONS.map((option, index) => {
+            const selected = tempSortOption === option.value;
+            return (
+              <React.Fragment key={option.value}>
+                <TouchableOpacity
+                  style={styles.sheetOption}
+                  activeOpacity={0.75}
+                  onPress={() => onChangeTempSort(option.value)}
                 >
-                  {option.label}
-                </Text>
-                <View
-                  style={[
-                    styles.radioOuter,
-                    selected && styles.radioOuterActive,
-                  ]}
-                >
-                  {selected && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-              {index !== SORT_OPTIONS.length - 1 && (
-                <View style={styles.optionDivider} />
-              )}
-            </React.Fragment>
-          );
-        })}
-        <View style={styles.sheetFooter}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.applyBtn} onPress={onApply}>
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-        </View>
+                  <Text
+                    style={[
+                      styles.sheetOptionText,
+                      selected && styles.sheetOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.radioOuter,
+                      selected && styles.radioOuterActive,
+                    ]}
+                  >
+                    {selected && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+                {index !== SORT_OPTIONS.length - 1 && (
+                  <View style={styles.optionDivider} />
+                )}
+              </React.Fragment>
+            );
+          })}
+          <View style={styles.sheetFooter}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.applyBtn} onPress={onApply}>
+              <Text style={styles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  </Modal>
-);
+    </Modal>
+  );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Desktop Modal: Filter
@@ -702,247 +703,247 @@ const DesktopFilterModal: React.FC<{
   onCancel,
   onApply,
 }) => {
-  const [showFromPicker, setShowFromPicker] = useState(false);
-  const [showToPicker, setShowToPicker] = useState(false);
+    const [showFromPicker, setShowFromPicker] = useState(false);
+    const [showToPicker, setShowToPicker] = useState(false);
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
-      <TouchableOpacity
-        style={deskStyles.modalBackdrop}
-        activeOpacity={1}
-        onPress={onCancel}
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onCancel}
       >
         <TouchableOpacity
+          style={deskStyles.modalBackdrop}
           activeOpacity={1}
-          style={[deskStyles.modalBox, deskStyles.filterModalBox]}
-          onPress={() => {}}
+          onPress={onCancel}
         >
-          <View style={deskStyles.modalHeader}>
-            <Text style={deskStyles.modalTitle}>Filter Orders</Text>
-            <TouchableOpacity onPress={onReset}>
-              <Text style={deskStyles.resetText}>Reset All</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Payment Status */}
-            <Text style={styles.filterSectionLabel}>Payment Status</Text>
-            <View style={styles.chipRow}>
-              {(
-                ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt}
-                  style={[
-                    styles.chip,
-                    tempFilters.paymentStatus === opt && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({ ...tempFilters, paymentStatus: opt })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      tempFilters.paymentStatus === opt &&
-                        styles.chipTextActive,
-                    ]}
-                  >
-                    {opt}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[deskStyles.modalBox, deskStyles.filterModalBox]}
+            onPress={() => { }}
+          >
+            <View style={deskStyles.modalHeader}>
+              <Text style={deskStyles.modalTitle}>Filter Orders</Text>
+              <TouchableOpacity onPress={onReset}>
+                <Text style={deskStyles.resetText}>Reset All</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Order Value */}
-            <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
-              Order Value
-            </Text>
-            <View style={styles.chipRow}>
-              {(
-                [
-                  { label: "All", value: "All" },
-                  { label: "< ₹500", value: "below500" },
-                  { label: "₹500–1K", value: "500to1000" },
-                  { label: "₹1K–2K", value: "1000to2000" },
-                  { label: "> ₹2K", value: "above2000" },
-                ] as { label: string; value: OrderValueFilter }[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.chip,
-                    tempFilters.orderValue === opt.value && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({
-                      ...tempFilters,
-                      orderValue: opt.value,
-                    })
-                  }
-                >
-                  <Text
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Payment Status */}
+              <Text style={styles.filterSectionLabel}>Payment Status</Text>
+              <View style={styles.chipRow}>
+                {(
+                  ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
                     style={[
-                      styles.chipText,
-                      tempFilters.orderValue === opt.value &&
-                        styles.chipTextActive,
+                      styles.chip,
+                      tempFilters.paymentStatus === opt && styles.chipActive,
                     ]}
+                    onPress={() =>
+                      onChangeTempFilters({ ...tempFilters, paymentStatus: opt })
+                    }
                   >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Date Range */}
-            <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
-              Date Range
-            </Text>
-            <View style={styles.chipRow}>
-              {(
-                [
-                  { label: "All", value: "All" },
-                  { label: "Today", value: "today" },
-                  { label: "Last 7d", value: "last7" },
-                  { label: "Last 30d", value: "last30" },
-                  { label: "Custom", value: "custom" },
-                ] as { label: string; value: FilterState["dateRange"] }[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.chip,
-                    tempFilters.dateRange === opt.value && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({
-                      ...tempFilters,
-                      dateRange: opt.value,
-                    })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      tempFilters.dateRange === opt.value &&
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.paymentStatus === opt &&
                         styles.chipTextActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Custom date pickers */}
-            {tempFilters.dateRange === "custom" && (
-              <View style={styles.customDateRow}>
-                <TouchableOpacity
-                  style={styles.customDateBtn}
-                  onPress={() => setShowFromPicker(true)}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={14}
-                    color={C.navy}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.customDateText}>
-                    {tempFilters.customDateFrom
-                      ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "From Date"}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
-                <TouchableOpacity
-                  style={styles.customDateBtn}
-                  onPress={() => setShowToPicker(true)}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={14}
-                    color={C.navy}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.customDateText}>
-                    {tempFilters.customDateTo
-                      ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "To Date"}
-                  </Text>
-                </TouchableOpacity>
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
 
-            {showFromPicker && (
-              <DateTimePicker
-                value={tempFilters.customDateFrom ?? new Date()}
-                mode="date"
-                display="default"
-                {...(tempFilters.customDateTo
-                  ? { maximumDate: tempFilters.customDateTo }
-                  : {})}
-                onChange={(_, date) => {
-                  setShowFromPicker(false);
-                  if (date)
-                    onChangeTempFilters({
-                      ...tempFilters,
-                      customDateFrom: date,
-                    });
-                }}
-              />
-            )}
-
-            {showToPicker && (
-              <DateTimePicker
-                value={tempFilters.customDateTo ?? new Date()}
-                mode="date"
-                display="default"
-                {...(tempFilters.customDateFrom
-                  ? { minimumDate: tempFilters.customDateFrom }
-                  : {})}
-                maximumDate={new Date()}
-                onChange={(_, date) => {
-                  setShowToPicker(false);
-                  if (date)
-                    onChangeTempFilters({
-                      ...tempFilters,
-                      customDateTo: date,
-                    });
-                }}
-              />
-            )}
-
-            <View style={{ height: 16 }} />
-          </ScrollView>
-
-          <View style={styles.sheetFooter}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.applyBtn} onPress={onApply}>
-              <Text style={styles.applyBtnText}>
-                Apply{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+              {/* Order Value */}
+              <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
+                Order Value
               </Text>
-            </TouchableOpacity>
-          </View>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "< ₹500", value: "below500" },
+                    { label: "₹500–1K", value: "500to1000" },
+                    { label: "₹1K–2K", value: "1000to2000" },
+                    { label: "> ₹2K", value: "above2000" },
+                  ] as { label: string; value: OrderValueFilter }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      tempFilters.orderValue === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      onChangeTempFilters({
+                        ...tempFilters,
+                        orderValue: opt.value,
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.orderValue === opt.value &&
+                        styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Date Range */}
+              <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
+                Date Range
+              </Text>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "Today", value: "today" },
+                    { label: "Last 7d", value: "last7" },
+                    { label: "Last 30d", value: "last30" },
+                    { label: "Custom", value: "custom" },
+                  ] as { label: string; value: FilterState["dateRange"] }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      tempFilters.dateRange === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      onChangeTempFilters({
+                        ...tempFilters,
+                        dateRange: opt.value,
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.dateRange === opt.value &&
+                        styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Custom date pickers */}
+              {tempFilters.dateRange === "custom" && (
+                <View style={styles.customDateRow}>
+                  <TouchableOpacity
+                    style={styles.customDateBtn}
+                    onPress={() => setShowFromPicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color={C.navy}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.customDateText}>
+                      {tempFilters.customDateFrom
+                        ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "From Date"}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
+                  <TouchableOpacity
+                    style={styles.customDateBtn}
+                    onPress={() => setShowToPicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color={C.navy}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.customDateText}>
+                      {tempFilters.customDateTo
+                        ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "To Date"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {showFromPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateFrom ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateTo
+                    ? { maximumDate: tempFilters.customDateTo }
+                    : {})}
+                  onChange={(_, date) => {
+                    setShowFromPicker(false);
+                    if (date)
+                      onChangeTempFilters({
+                        ...tempFilters,
+                        customDateFrom: date,
+                      });
+                  }}
+                />
+              )}
+
+              {showToPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateTo ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateFrom
+                    ? { minimumDate: tempFilters.customDateFrom }
+                    : {})}
+                  maximumDate={new Date()}
+                  onChange={(_, date) => {
+                    setShowToPicker(false);
+                    if (date)
+                      onChangeTempFilters({
+                        ...tempFilters,
+                        customDateTo: date,
+                      });
+                  }}
+                />
+              )}
+
+              <View style={{ height: 16 }} />
+            </ScrollView>
+
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyBtn} onPress={onApply}>
+                <Text style={styles.applyBtnText}>
+                  Apply{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-};
+      </Modal>
+    );
+  };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web-mobile Modal: Sort (bottom sheet via Modal — fixes overlap on web)
@@ -962,63 +963,63 @@ const WebMobileSortModal: React.FC<{
   onCancel,
   onApply,
 }) => (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={styles.webMobileSheetBackdrop}>
         <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onCancel} />
-        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.webMobileSheetContainer}>
-        <View style={styles.handleArea}>
-          <View style={styles.dragHandle} />
-        </View>
-        <View style={styles.sheetHeader}>
-          <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Sort Orders</Text>
-          <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
-            <Text style={styles.resetText}>Reset</Text>
-          </TouchableOpacity>
-        </View>
-        {SORT_OPTIONS.map((option, index) => {
-          const selected = tempSortOption === option.value;
-          return (
-            <React.Fragment key={option.value}>
-              <TouchableOpacity
-                style={styles.sheetOption}
-                activeOpacity={0.75}
-                onPress={() => onChangeTempSort(option.value)}
-              >
-                <Text
-                  style={[
-                    styles.sheetOptionText,
-                    selected && styles.sheetOptionTextActive,
-                  ]}
+        <TouchableOpacity activeOpacity={1} onPress={() => { }} style={styles.webMobileSheetContainer}>
+          <View style={styles.handleArea}>
+            <View style={styles.dragHandle} />
+          </View>
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Sort Orders</Text>
+            <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
+              <Text style={styles.resetText}>Reset</Text>
+            </TouchableOpacity>
+          </View>
+          {SORT_OPTIONS.map((option, index) => {
+            const selected = tempSortOption === option.value;
+            return (
+              <React.Fragment key={option.value}>
+                <TouchableOpacity
+                  style={styles.sheetOption}
+                  activeOpacity={0.75}
+                  onPress={() => onChangeTempSort(option.value)}
                 >
-                  {option.label}
-                </Text>
-                <View
-                  style={[
-                    styles.radioOuter,
-                    selected && styles.radioOuterActive,
-                  ]}
-                >
-                  {selected && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-              {index !== SORT_OPTIONS.length - 1 && (
-                <View style={styles.optionDivider} />
-              )}
-            </React.Fragment>
-          );
-        })}
-        <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
-          <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-        </View>
+                  <Text
+                    style={[
+                      styles.sheetOptionText,
+                      selected && styles.sheetOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.radioOuter,
+                      selected && styles.radioOuterActive,
+                    ]}
+                  >
+                    {selected && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+                {index !== SORT_OPTIONS.length - 1 && (
+                  <View style={styles.optionDivider} />
+                )}
+              </React.Fragment>
+            );
+          })}
+          <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
+            <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
+              <Text style={styles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </View>
-  </Modal>
-);
+    </Modal>
+  );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web-mobile Modal: Filter (bottom sheet via Modal — fixes overlap on web)
@@ -1038,217 +1039,217 @@ const WebMobileFilterModal: React.FC<{
   onCancel,
   onApply,
 }) => {
-  const [showFromPicker, setShowFromPicker] = useState(false);
-  const [showToPicker, setShowToPicker] = useState(false);
-  const tempActiveCount = countActiveFilters(tempFilters);
+    const [showFromPicker, setShowFromPicker] = useState(false);
+    const [showToPicker, setShowToPicker] = useState(false);
+    const tempActiveCount = countActiveFilters(tempFilters);
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={styles.webMobileSheetBackdrop}>
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onCancel} />
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {}}
-          style={[styles.webMobileSheetContainer, styles.webMobileFilterSheet]}
-        >
-          <View style={styles.handleArea}>
-            <View style={styles.dragHandle} />
-          </View>
-
-          <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Filter Orders</Text>
-            <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
-              <Text style={styles.resetText}>Reset All</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.webMobileFilterScroll}>
-            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile]}>
-              Payment Status
-            </Text>
-            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
-              {(
-                ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt}
-                  style={[
-                    styles.chip,
-                    styles.chipWebMobile,
-                    tempFilters.paymentStatus === opt && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({ ...tempFilters, paymentStatus: opt })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      styles.chipTextWebMobile,
-                      tempFilters.paymentStatus === opt && styles.chipTextActive,
-                    ]}
-                  >
-                    {opt}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+        <View style={styles.webMobileSheetBackdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onCancel} />
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => { }}
+            style={[styles.webMobileSheetContainer, styles.webMobileFilterSheet]}
+          >
+            <View style={styles.handleArea}>
+              <View style={styles.dragHandle} />
             </View>
 
-            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
-              Order Value
-            </Text>
-            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
-              {(
-                [
-                  { label: "All", value: "All" },
-                  { label: "< ₹500", value: "below500" },
-                  { label: "₹500–1K", value: "500to1000" },
-                  { label: "₹1K–2K", value: "1000to2000" },
-                  { label: "> ₹2K", value: "above2000" },
-                ] as { label: string; value: OrderValueFilter }[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.chip,
-                    styles.chipWebMobile,
-                    tempFilters.orderValue === opt.value && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({ ...tempFilters, orderValue: opt.value })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      styles.chipTextWebMobile,
-                      tempFilters.orderValue === opt.value && styles.chipTextActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.sheetHeader}>
+              <Text style={[styles.sheetTitle, styles.sheetTitleWebMobile]}>Filter Orders</Text>
+              <TouchableOpacity onPress={onReset} activeOpacity={0.7}>
+                <Text style={styles.resetText}>Reset All</Text>
+              </TouchableOpacity>
             </View>
 
-            <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
-              Date Range
-            </Text>
-            <View style={[styles.chipRow, styles.chipRowWebMobile]}>
-              {(
-                [
-                  { label: "All", value: "All" },
-                  { label: "Today", value: "today" },
-                  { label: "Last 7d", value: "last7" },
-                  { label: "Last 30d", value: "last30" },
-                  { label: "Custom", value: "custom" },
-                ] as { label: string; value: FilterState["dateRange"] }[]
-              ).map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.chip,
-                    styles.chipWebMobile,
-                    tempFilters.dateRange === opt.value && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    onChangeTempFilters({ ...tempFilters, dateRange: opt.value })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      styles.chipTextWebMobile,
-                      tempFilters.dateRange === opt.value && styles.chipTextActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {tempFilters.dateRange === "custom" && (
-              <View style={[styles.customDateRow, styles.customDateRowWebMobile]}>
-                <TouchableOpacity
-                  style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
-                  onPress={() => setShowFromPicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
-                  <Text style={styles.customDateText} numberOfLines={1}>
-                    {tempFilters.customDateFrom
-                      ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "From Date"}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
-                <TouchableOpacity
-                  style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
-                  onPress={() => setShowToPicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
-                  <Text style={styles.customDateText} numberOfLines={1}>
-                    {tempFilters.customDateTo
-                      ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "To Date"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {showFromPicker && (
-              <DateTimePicker
-                value={tempFilters.customDateFrom ?? new Date()}
-                mode="date"
-                display="default"
-                {...(tempFilters.customDateTo ? { maximumDate: tempFilters.customDateTo } : {})}
-                onChange={(_, date) => {
-                  setShowFromPicker(false);
-                  if (date) onChangeTempFilters({ ...tempFilters, customDateFrom: date });
-                }}
-              />
-            )}
-
-            {showToPicker && (
-              <DateTimePicker
-                value={tempFilters.customDateTo ?? new Date()}
-                mode="date"
-                display="default"
-                {...(tempFilters.customDateFrom ? { minimumDate: tempFilters.customDateFrom } : {})}
-                maximumDate={new Date()}
-                onChange={(_, date) => {
-                  setShowToPicker(false);
-                  if (date) onChangeTempFilters({ ...tempFilters, customDateTo: date });
-                }}
-              />
-            )}
-
-            <View style={{ height: 12 }} />
-          </ScrollView>
-
-          <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
-            <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
-              <Text style={styles.applyBtnText}>
-                Apply{tempActiveCount > 0 ? ` (${tempActiveCount})` : ""}
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.webMobileFilterScroll}>
+              <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile]}>
+                Payment Status
               </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  );
-};
+              <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+                {(
+                  ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.chip,
+                      styles.chipWebMobile,
+                      tempFilters.paymentStatus === opt && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      onChangeTempFilters({ ...tempFilters, paymentStatus: opt })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        styles.chipTextWebMobile,
+                        tempFilters.paymentStatus === opt && styles.chipTextActive,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
+                Order Value
+              </Text>
+              <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "< ₹500", value: "below500" },
+                    { label: "₹500–1K", value: "500to1000" },
+                    { label: "₹1K–2K", value: "1000to2000" },
+                    { label: "> ₹2K", value: "above2000" },
+                  ] as { label: string; value: OrderValueFilter }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      styles.chipWebMobile,
+                      tempFilters.orderValue === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      onChangeTempFilters({ ...tempFilters, orderValue: opt.value })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        styles.chipTextWebMobile,
+                        tempFilters.orderValue === opt.value && styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.filterSectionLabel, styles.filterSectionLabelWebMobile, { marginTop: 16 }]}>
+                Date Range
+              </Text>
+              <View style={[styles.chipRow, styles.chipRowWebMobile]}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "Today", value: "today" },
+                    { label: "Last 7d", value: "last7" },
+                    { label: "Last 30d", value: "last30" },
+                    { label: "Custom", value: "custom" },
+                  ] as { label: string; value: FilterState["dateRange"] }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      styles.chipWebMobile,
+                      tempFilters.dateRange === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      onChangeTempFilters({ ...tempFilters, dateRange: opt.value })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        styles.chipTextWebMobile,
+                        tempFilters.dateRange === opt.value && styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {tempFilters.dateRange === "custom" && (
+                <View style={[styles.customDateRow, styles.customDateRowWebMobile]}>
+                  <TouchableOpacity
+                    style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
+                    onPress={() => setShowFromPicker(true)}
+                  >
+                    <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
+                    <Text style={styles.customDateText} numberOfLines={1}>
+                      {tempFilters.customDateFrom
+                        ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "From Date"}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
+                  <TouchableOpacity
+                    style={[styles.customDateBtn, styles.customDateBtnWebMobile]}
+                    onPress={() => setShowToPicker(true)}
+                  >
+                    <Ionicons name="calendar-outline" size={14} color={C.navy} style={{ marginRight: 6 }} />
+                    <Text style={styles.customDateText} numberOfLines={1}>
+                      {tempFilters.customDateTo
+                        ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "To Date"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {showFromPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateFrom ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateTo ? { maximumDate: tempFilters.customDateTo } : {})}
+                  onChange={(_, date) => {
+                    setShowFromPicker(false);
+                    if (date) onChangeTempFilters({ ...tempFilters, customDateFrom: date });
+                  }}
+                />
+              )}
+
+              {showToPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateTo ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateFrom ? { minimumDate: tempFilters.customDateFrom } : {})}
+                  maximumDate={new Date()}
+                  onChange={(_, date) => {
+                    setShowToPicker(false);
+                    if (date) onChangeTempFilters({ ...tempFilters, customDateTo: date });
+                  }}
+                />
+              )}
+
+              <View style={{ height: 12 }} />
+            </ScrollView>
+
+            <View style={[styles.sheetFooter, styles.sheetFooterWebMobile]}>
+              <TouchableOpacity style={[styles.cancelBtn, styles.cancelBtnWebMobile]} onPress={onCancel}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.applyBtn, styles.applyBtnWebMobile]} onPress={onApply}>
+                <Text style={styles.applyBtnText}>
+                  Apply{tempActiveCount > 0 ? ` (${tempActiveCount})` : ""}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
@@ -1278,6 +1279,8 @@ export default function OrdersScreen() {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ORDERS_PER_PAGE = 10;
 
   const syncOrdersFromStore = () => {
     setLiveOrders(deriveFlatOrders());
@@ -1594,6 +1597,12 @@ export default function OrdersScreen() {
     }
   });
 
+  const paginatedOrders = sortedOrders.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    currentPage * ORDERS_PER_PAGE,
+  );
+  const totalOrderPages = Math.ceil(sortedOrders.length / ORDERS_PER_PAGE);
+
   // ─────────────────────────────────────────────────────────────────────────
   // Shared toolbar content (tabs + search/sort/filter + pills + totals)
   // ─────────────────────────────────────────────────────────────────────────
@@ -1602,30 +1611,37 @@ export default function OrdersScreen() {
       {/* Tabs */}
       {isDesktop ? (
         <View style={deskStyles.desktopTabsContainer}>
-          {TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab.label}
-              style={[styles.tab, activeTab === tab.label && styles.tabActive, deskStyles.desktopTab]}
-              onPress={() => setActiveTab(tab.label)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab.label && styles.tabTextActive,
-                  deskStyles.desktopTabText,
-                ]}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 24, flexGrow: 1, gap: 4, alignItems: "center" }}
+          >
+            {TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab.label}
+                style={[styles.tab, activeTab === tab.label && styles.tabActive, deskStyles.desktopTab]}
+                onPress={() => setActiveTab(tab.label)}
               >
-                {tab.label}
-                {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.tabText,
+                    activeTab === tab.label && styles.tabTextActive,
+                    deskStyles.desktopTabText,
+                  ]}
+                >
+                  {tab.label}
+                  {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       ) : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.tabsContainer}
+          style={[styles.tabsContainer, isTablet && styles.tabsContainerTablet]}
           contentContainerStyle={styles.tabsContent}
         >
           {TABS.map((tab) => (
@@ -1637,7 +1653,9 @@ export default function OrdersScreen() {
               <Text
                 style={[
                   styles.tabText,
+                  isTablet && styles.tabTextTablet,
                   activeTab === tab.label && styles.tabTextActive,
+                  isTablet && activeTab === tab.label && styles.tabTextTabletActive,
                 ]}
               >
                 {tab.label}
@@ -1852,10 +1870,10 @@ export default function OrdersScreen() {
                 {filters.orderValue === "below500"
                   ? "< ₹500"
                   : filters.orderValue === "500to1000"
-                  ? "₹500–1K"
-                  : filters.orderValue === "1000to2000"
-                  ? "₹1K–2K"
-                  : "> ₹2K"}
+                    ? "₹500–1K"
+                    : filters.orderValue === "1000to2000"
+                      ? "₹1K–2K"
+                      : "> ₹2K"}
               </Text>
               <TouchableOpacity
                 onPress={() =>
@@ -1883,10 +1901,10 @@ export default function OrdersScreen() {
                 {filters.dateRange === "today"
                   ? "Today"
                   : filters.dateRange === "last7"
-                  ? "Last 7d"
-                  : filters.dateRange === "last30"
-                  ? "Last 30d"
-                  : "Custom"}
+                    ? "Last 7d"
+                    : filters.dateRange === "last30"
+                      ? "Last 30d"
+                      : "Custom"}
               </Text>
               <TouchableOpacity
                 onPress={() =>
@@ -1935,6 +1953,17 @@ export default function OrdersScreen() {
             />
           }
         >
+          <View style={deskStyles.pageHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <MaterialCommunityIcons name="clipboard-list-outline" size={24} color={C.white} />
+              </View>
+              <View style={deskStyles.pageTitleContainer}>
+                <Text style={deskStyles.pageTitle} numberOfLines={1}>Orders</Text>
+                <Text style={deskStyles.pageSubtitle}>Track and manage all your orders</Text>
+              </View>
+            </View>
+          </View>
           {renderToolbar()}
 
           {/* Orders Grid or List — desktop only */}
@@ -1954,7 +1983,7 @@ export default function OrdersScreen() {
           ) : sortedOrders.length > 0 ? (
             viewMode === "grid" ? (
               <View style={deskStyles.desktopGrid}>
-                {sortedOrders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <OrderCard key={order.listKey} order={order} isDesktop />
                 ))}
               </View>
@@ -1964,19 +1993,19 @@ export default function OrdersScreen() {
                 <View style={listRow.headerRow}>
                   <View style={listRow.colOrderId}><Text style={listRow.headerCell}>ORDER #</Text></View>
                   <View style={listRow.colCustomer}><Text style={listRow.headerCell}>CUSTOMER</Text></View>
-                  <View style={listRow.colItems}><Text style={[listRow.headerCell, { textAlign:"center" }]}>ITEMS</Text></View>
-                  <View style={listRow.colAmount}><Text style={[listRow.headerCell, { textAlign:"right" }]}>AMOUNT</Text></View>
-                  <View style={listRow.colPayment}><Text style={[listRow.headerCell, { textAlign:"center" }]}>PAYMENT</Text></View>
-                  <View style={listRow.colStatus}><Text style={[listRow.headerCell, { textAlign:"center" }]}>STATUS</Text></View>
+                  <View style={listRow.colItems}><Text style={[listRow.headerCell, { textAlign: "center" }]}>ITEMS</Text></View>
+                  <View style={listRow.colAmount}><Text style={[listRow.headerCell, { textAlign: "right" }]}>AMOUNT</Text></View>
+                  <View style={listRow.colPayment}><Text style={[listRow.headerCell, { textAlign: "center" }]}>PAYMENT</Text></View>
+                  <View style={listRow.colStatus}><Text style={[listRow.headerCell, { textAlign: "center" }]}>STATUS</Text></View>
                   <View style={listRow.colTracking}><Text style={listRow.headerCell}>TRACKING</Text></View>
-                  <View style={listRow.colActions}><Text style={[listRow.headerCell, { textAlign:"right" }]}>ACTION</Text></View>
+                  <View style={listRow.colActions}><Text style={[listRow.headerCell, { textAlign: "right" }]}>ACTION</Text></View>
                 </View>
                 {/* Table rows */}
-                {sortedOrders.map((order, idx) => (
+                {paginatedOrders.map((order, idx) => (
                   <DesktopListRow
                     key={order.listKey}
                     order={order}
-                    isLast={idx === sortedOrders.length - 1}
+                    isLast={idx === paginatedOrders.length - 1}
                   />
                 ))}
               </View>
@@ -1998,6 +2027,17 @@ export default function OrdersScreen() {
             </View>
           )}
         </ScrollView>
+
+        {!ordersLoading && sortedOrders.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalOrderPages}
+            onPageChange={setCurrentPage}
+            totalItems={sortedOrders.length}
+            itemsPerPage={ORDERS_PER_PAGE}
+            itemLabel="orders"
+          />
+        )}
 
         {/* Desktop Sort Modal */}
         <DesktopSortModal
@@ -2036,102 +2076,38 @@ export default function OrdersScreen() {
     <ScreenRoot style={[styles.safeArea, isWeb && styles.safeAreaWeb]}>
       {Platform.OS !== "web" && <StatusBar barStyle="light-content" backgroundColor={C.navy} />}
 
-      <View style={[styles.blueSection, isWebCompact && styles.blueSectionWebMobile]}>
-        {isWebCompact && (
+      <View style={[styles.blueSection, (isWebCompact || isTablet) && styles.blueSectionWebMobile]}>
+        {(isWebCompact || isTablet) && (
           <View style={styles.webMobileIntro}>
-            <Text style={styles.webMobileTitle}>Orders</Text>
-            <Text style={styles.webMobileSubtitle} numberOfLines={2}>
-              Track and manage all your orders
-            </Text>
-          </View>
-        )}
-        {!isWebCompact && (
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.back()}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="arrow-back" size={22} color={C.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Orders</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.notificationBtn}
-              onPress={() => router.push("/(main)/notifications")}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={C.white}
-              />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <MaterialCommunityIcons name="clipboard-list-outline" size={22} color={C.white} />
               </View>
-            </TouchableOpacity>
+              <View>
+                <Text style={styles.webMobileTitle}>Orders</Text>
+                <Text style={styles.webMobileSubtitle} numberOfLines={2}>
+                  Track and manage all your orders
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
         )}
+      </View>
 
-        <View style={[styles.overviewCard, isWebCompact && styles.overviewCardWebMobile]}>
+      {!isTablet ? (
+        <View style={[styles.overviewCard, (isWebCompact || isTablet) && styles.overviewCardWebMobile]}>
           <View
             style={[
               {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: isWebCompact ? 4 : 8,
+                marginBottom: isWebCompact ? 2 : 8,
               },
             ]}
           >
             <Text style={[styles.overviewTitle, isWebCompact && styles.overviewTitleWebMobile]}>Orders Overview</Text>
-            {/* <TouchableOpacity>
-              <Text
-                style={{
-                  color: C.navy,
-                  fontSize: 12,
-                  fontWeight: "700",
-                  marginBottom: 8,
-                }}
-              >
-                View Analytics
-              </Text>
-            </TouchableOpacity> */}
           </View>
-          {isWebCompact ? (
-            <View style={[styles.statsGridWebMobile, isTablet && styles.statsGridWebTablet]}>
-              {stats.map((stat) => {
-                const iconCfg = STAT_ICONS[stat.label];
-                if (!iconCfg) return null;
-                return (
-                  <View key={stat.label} style={styles.statItemWebMobile}>
-                    <View
-                      style={[
-                        styles.iconWrapper,
-                        styles.iconWrapperWebMobile,
-                        { backgroundColor: iconCfg.bg },
-                      ]}
-                    >
-                      <StatIcon cfg={iconCfg} size={16} />
-                    </View>
-                    <View style={styles.statTextWebMobile}>
-                      <Text
-                        style={styles.statCountWebMobile}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.7}
-                      >
-                        {stat.count}
-                      </Text>
-                      <Text style={styles.statLabelWebMobile} numberOfLines={2}>
-                        {stat.label}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -2142,27 +2118,54 @@ export default function OrdersScreen() {
               if (!iconCfg) return null;
               return (
                 <React.Fragment key={stat.label}>
-                  {index > 0 && <View style={styles.statDivider} />}
-                  <View style={styles.statItem}>
+                  {index > 0 && <View style={[styles.statDivider, isWebCompact && styles.statDividerWebMobile]} />}
+                  <View style={[styles.statItem, isWebCompact && styles.statItemWebMobile]}>
                     <View
                       style={[
                         styles.iconWrapper,
+                        isWebCompact && styles.iconWrapperWebMobile,
                         { backgroundColor: iconCfg.bg },
                       ]}
                     >
-                      <StatIcon cfg={iconCfg} />
+                      <StatIcon cfg={iconCfg} size={isWebCompact ? 14 : 22} />
                     </View>
-                    <Text style={styles.statCount}>{stat.count}</Text>
-                    <Text style={styles.statLabel}>{stat.label}</Text>
+                    <Text style={[styles.statCount, isWebCompact && styles.statCountWebMobile]}>{stat.count}</Text>
+                    <Text style={[styles.statLabel, isWebCompact && styles.statLabelWebMobile]}>{stat.label}</Text>
                   </View>
                 </React.Fragment>
               );
             })}
           </ScrollView>
-          )}
         </View>
-      </View>
-
+      ) : (
+        <View style={styles.tabletOverlappingTabsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, flexGrow: 1, gap: 2, alignItems: "center" }}
+          >
+            {TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab.label}
+                style={[styles.tab, activeTab === tab.label && styles.tabActive, styles.tabletTab]}
+                onPress={() => setActiveTab(tab.label)}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.tabText,
+                    activeTab === tab.label && styles.tabTextActive,
+                    styles.tabletTabText,
+                  ]}
+                >
+                  {tab.label}
+                  {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       <ScrollView
         style={[styles.scrollView, isWebCompact && styles.scrollViewWebMobile]}
         showsVerticalScrollIndicator={isWebCompact}
@@ -2177,36 +2180,40 @@ export default function OrdersScreen() {
         }
       >
         {/* Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={isWebCompact}
-          style={[styles.tabsContainer, isWebCompact && styles.tabsContainerWebMobile]}
-          contentContainerStyle={[styles.tabsContent, isWebCompact && styles.tabsContentWebMobile]}
-        >
-          {TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab.label}
-              style={[
-                styles.tab,
-                isWebCompact && styles.tabWebMobile,
-                activeTab === tab.label && styles.tabActive,
-              ]}
-              onPress={() => setActiveTab(tab.label)}
-            >
-              <Text
+        {!isTablet && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.tabsContainer, isWebCompact && styles.tabsContainerWebMobile, isTablet && styles.tabsContainerTablet]}
+            contentContainerStyle={[styles.tabsContent, isWebCompact && styles.tabsContentWebMobile]}
+          >
+            {TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab.label}
                 style={[
-                  styles.tabText,
-                  isWebCompact && styles.tabTextWebMobile,
-                  activeTab === tab.label && styles.tabTextActive,
+                  styles.tab,
+                  isWebCompact && styles.tabWebMobile,
+                  activeTab === tab.label && styles.tabActive,
                 ]}
-                numberOfLines={1}
+                onPress={() => setActiveTab(tab.label)}
               >
-                {tab.label}
-                {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    styles.tabText,
+                    isTablet && styles.tabTextTablet,
+                    isWebCompact && styles.tabTextWebMobile,
+                    activeTab === tab.label && styles.tabTextActive,
+                    isTablet && activeTab === tab.label && styles.tabTextTabletActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {tab.label}
+                  {statCountByTab[tab.label] != null ? ` (${statCountByTab[tab.label]})` : ""}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Search + Sort + Filter Row */}
         <View style={[styles.searchRow, isWebCompact && styles.searchRowWebMobile]}>
@@ -2225,84 +2232,29 @@ export default function OrdersScreen() {
               onChangeText={setSearch}
             />
           </View>
-          {isWebCompact ? (
-            <View style={styles.sortFilterRowWebMobile}>
-              <TouchableOpacity style={[styles.sortBtn, styles.sortBtnWebMobile]} onPress={openSortSheet}>
-                <Ionicons
-                  name="swap-vertical-outline"
-                  size={16}
-                  color={C.textMid}
-                />
-                <Text style={styles.sortText}> Sort</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.filterBtn,
-                  styles.filterBtnWebMobile,
-                  activeFilterCount > 0 && styles.filterBtnActive,
-                ]}
-                onPress={openFilterSheet}
-              >
-                <Ionicons
-                  name="options-outline"
-                  size={16}
-                  color={activeFilterCount > 0 ? C.white : C.textMid}
-                />
-                <Text
-                  style={[
-                    styles.filterBtnText,
-                    activeFilterCount > 0 && { color: C.white },
-                  ]}
-                >
-                  {" "}
-                  Filter
-                </Text>
-                {activeFilterCount > 0 && (
-                  <View style={styles.filterBadge}>
-                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity style={styles.sortBtn} onPress={openSortSheet}>
-                <Ionicons
-                  name="swap-vertical-outline"
-                  size={16}
-                  color={C.textMid}
-                />
-                <Text style={styles.sortText}> Sort</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.filterBtn,
-                  activeFilterCount > 0 && styles.filterBtnActive,
-                ]}
-                onPress={openFilterSheet}
-              >
-                <Ionicons
-                  name="options-outline"
-                  size={16}
-                  color={activeFilterCount > 0 ? C.white : C.textMid}
-                />
-                <Text
-                  style={[
-                    styles.filterBtnText,
-                    activeFilterCount > 0 && { color: C.white },
-                  ]}
-                >
-                  {" "}
-                  Filter
-                </Text>
-                {activeFilterCount > 0 && (
-                  <View style={styles.filterBadge}>
-                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
+          {/* Sort icon-only button */}
+          <TouchableOpacity style={styles.iconOnlyBtn} onPress={openSortSheet}>
+            <Ionicons name="swap-vertical-outline" size={20} color={C.textMid} />
+          </TouchableOpacity>
+          {/* Filter icon-only button */}
+          <TouchableOpacity
+            style={[
+              styles.iconOnlyBtn,
+              activeFilterCount > 0 && styles.iconOnlyBtnActive,
+            ]}
+            onPress={openFilterSheet}
+          >
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={activeFilterCount > 0 ? C.white : C.textMid}
+            />
+            {activeFilterCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Totals Row */}
@@ -2313,7 +2265,7 @@ export default function OrdersScreen() {
             >
               <MaterialCommunityIcons
                 name="clipboard-list-outline"
-                size={isWebCompact ? 18 : 22}
+                size={isWebCompact ? 16 : 18}
                 color={C.navy}
               />
             </View>
@@ -2338,7 +2290,7 @@ export default function OrdersScreen() {
             >
               <MaterialCommunityIcons
                 name="wallet-outline"
-                size={isWebCompact ? 18 : 22}
+                size={isWebCompact ? 16 : 18}
                 color={C.navy}
               />
             </View>
@@ -2398,10 +2350,10 @@ export default function OrdersScreen() {
                   {filters.orderValue === "below500"
                     ? "< ₹500"
                     : filters.orderValue === "500to1000"
-                    ? "₹500–1K"
-                    : filters.orderValue === "1000to2000"
-                    ? "₹1K–2K"
-                    : "> ₹2K"}
+                      ? "₹500–1K"
+                      : filters.orderValue === "1000to2000"
+                        ? "₹1K–2K"
+                        : "> ₹2K"}
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
@@ -2429,10 +2381,10 @@ export default function OrdersScreen() {
                   {filters.dateRange === "today"
                     ? "Today"
                     : filters.dateRange === "last7"
-                    ? "Last 7d"
-                    : filters.dateRange === "last30"
-                    ? "Last 30d"
-                    : "Custom"}
+                      ? "Last 7d"
+                      : filters.dateRange === "last30"
+                        ? "Last 30d"
+                        : "Custom"}
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
@@ -2475,7 +2427,7 @@ export default function OrdersScreen() {
               </TouchableOpacity>
             </View>
           ) : sortedOrders.length > 0 ? (
-            sortedOrders.map((order) => (
+            paginatedOrders.map((order) => (
               <OrderCard key={order.listKey} order={order} isWebCompact={isWebCompact} />
             ))
           ) : (
@@ -2493,6 +2445,17 @@ export default function OrdersScreen() {
             </View>
           )}
         </View>
+
+        {!ordersLoading && sortedOrders.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalOrderPages}
+            onPageChange={setCurrentPage}
+            totalItems={sortedOrders.length}
+            itemsPerPage={ORDERS_PER_PAGE}
+            itemLabel="orders"
+          />
+        )}
       </ScrollView>
 
       {/* ── BOTTOM TAB BAR ── */}
@@ -2504,19 +2467,19 @@ export default function OrdersScreen() {
             { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: true, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: orderStats.totalLineItems > 0 ? orderStats.totalLineItems : undefined },
             { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
           ].map((tab, i) => (
-            <TouchableOpacity 
-              key={i} 
-              style={styles.tabItem} 
-              activeOpacity={0.7} 
+            <TouchableOpacity
+              key={i}
+              style={styles.tabItem}
+              activeOpacity={0.7}
               onPress={() => {
                 if (!tab.active) router.push(tab.route as any);
               }}
             >
               <View style={{ position: "relative" }}>
-                <MaterialCommunityIcons 
-                  name={(tab.active ? tab.iconActive : tab.icon) as any} 
-                  size={24} 
-                  color={tab.active ? tab.color : tab.colorMuted} 
+                <MaterialCommunityIcons
+                  name={(tab.active ? tab.iconActive : tab.icon) as any}
+                  size={24}
+                  color={tab.active ? tab.color : tab.colorMuted}
                 />
                 {tab.badge && (
                   <View style={styles.tabBadge}>
@@ -2534,319 +2497,319 @@ export default function OrdersScreen() {
 
       {/* ── Sort / Filter: native app uses animated bottom sheets ── */}
       {!isWebCompact && (
-      <>
-      {/* ── Sort Overlay ── */}
-      <Animated.View
-        style={[styles.overlay, { opacity: overlayOpacity, pointerEvents: sheetVisible ? "auto" : "none" }]}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => closeSortSheet(true)}
-        />
-      </Animated.View>
-
-      {/* ── Sort Bottom Sheet ── */}
-      <Animated.View
-        style={[styles.sortBottomSheet, { transform: [{ translateY }], pointerEvents: sheetVisible ? "auto" : "none" }]}
-      >
-        <View style={styles.handleArea} {...sortPanResponder.panHandlers}>
-          <View style={styles.dragHandle} />
-        </View>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Sort Orders</Text>
-          <TouchableOpacity
-            onPress={() => setTempSortOption("newest")}
-            activeOpacity={0.7}
+        <>
+          {/* ── Sort Overlay ── */}
+          <Animated.View
+            style={[styles.overlay, { opacity: overlayOpacity, pointerEvents: sheetVisible ? "auto" : "none" }]}
           >
-            <Text style={styles.resetText}>Reset</Text>
-          </TouchableOpacity>
-        </View>
-        {SORT_OPTIONS.map((option, index) => {
-          const selected = tempSortOption === option.value;
-          return (
-            <React.Fragment key={option.value}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              activeOpacity={1}
+              onPress={() => closeSortSheet(true)}
+            />
+          </Animated.View>
+
+          {/* ── Sort Bottom Sheet ── */}
+          <Animated.View
+            style={[styles.sortBottomSheet, { transform: [{ translateY }], pointerEvents: sheetVisible ? "auto" : "none" }]}
+          >
+            <View style={styles.handleArea} {...sortPanResponder.panHandlers}>
+              <View style={styles.dragHandle} />
+            </View>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Sort Orders</Text>
               <TouchableOpacity
-                style={styles.sheetOption}
-                activeOpacity={0.75}
-                onPress={() => setTempSortOption(option.value)}
+                onPress={() => setTempSortOption("newest")}
+                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.sheetOptionText,
-                    selected && styles.sheetOptionTextActive,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-                <View
-                  style={[
-                    styles.radioOuter,
-                    selected && styles.radioOuterActive,
-                  ]}
-                >
-                  {selected && <View style={styles.radioInner} />}
+                <Text style={styles.resetText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+            {SORT_OPTIONS.map((option, index) => {
+              const selected = tempSortOption === option.value;
+              return (
+                <React.Fragment key={option.value}>
+                  <TouchableOpacity
+                    style={styles.sheetOption}
+                    activeOpacity={0.75}
+                    onPress={() => setTempSortOption(option.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetOptionText,
+                        selected && styles.sheetOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        selected && styles.radioOuterActive,
+                      ]}
+                    >
+                      {selected && <View style={styles.radioInner} />}
+                    </View>
+                  </TouchableOpacity>
+                  {index !== SORT_OPTIONS.length - 1 && (
+                    <View style={styles.optionDivider} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => closeSortSheet(true)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => {
+                  setSortOption(tempSortOption);
+                  closeSortSheet(false);
+                }}
+              >
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+
+          {/* ── Filter Overlay ── */}
+          <Animated.View
+            style={[styles.overlay, { opacity: filterOverlayOpacity, pointerEvents: filterVisible ? "auto" : "none" }]}
+          >
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              activeOpacity={1}
+              onPress={() => closeFilterSheet(true)}
+            />
+          </Animated.View>
+
+          {/* ── Filter Bottom Sheet ── */}
+          <Animated.View
+            style={[
+              styles.filterBottomSheet,
+              { transform: [{ translateY: filterTranslateY }], pointerEvents: filterVisible ? "auto" : "none" },
+            ]}
+          >
+            <View style={styles.handleArea} {...filterPanResponder.panHandlers}>
+              <View style={styles.dragHandle} />
+            </View>
+
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Filter Orders</Text>
+              <TouchableOpacity
+                onPress={() => setTempFilters(DEFAULT_FILTERS)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.resetText}>Reset All</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <Text style={styles.filterSectionLabel}>Payment Status</Text>
+              <View style={styles.chipRow}>
+                {(
+                  ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.chip,
+                      tempFilters.paymentStatus === opt && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      setTempFilters((p) => ({ ...p, paymentStatus: opt }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.paymentStatus === opt && styles.chipTextActive,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
+                Order Value
+              </Text>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "< ₹500", value: "below500" },
+                    { label: "₹500–1K", value: "500to1000" },
+                    { label: "₹1K–2K", value: "1000to2000" },
+                    { label: "> ₹2K", value: "above2000" },
+                  ] as { label: string; value: OrderValueFilter }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      tempFilters.orderValue === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      setTempFilters((p) => ({ ...p, orderValue: opt.value }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.orderValue === opt.value &&
+                        styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
+                Date Range
+              </Text>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    { label: "All", value: "All" },
+                    { label: "Today", value: "today" },
+                    { label: "Last 7d", value: "last7" },
+                    { label: "Last 30d", value: "last30" },
+                    { label: "Custom", value: "custom" },
+                  ] as { label: string; value: FilterState["dateRange"] }[]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      tempFilters.dateRange === opt.value && styles.chipActive,
+                    ]}
+                    onPress={() =>
+                      setTempFilters((p) => ({ ...p, dateRange: opt.value }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        tempFilters.dateRange === opt.value &&
+                        styles.chipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {tempFilters.dateRange === "custom" && (
+                <View style={styles.customDateRow}>
+                  <TouchableOpacity
+                    style={styles.customDateBtn}
+                    onPress={() => setShowFromPicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color={C.navy}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.customDateText}>
+                      {tempFilters.customDateFrom
+                        ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "From Date"}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
+                  <TouchableOpacity
+                    style={styles.customDateBtn}
+                    onPress={() => setShowToPicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={14}
+                      color={C.navy}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.customDateText}>
+                      {tempFilters.customDateTo
+                        ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "To Date"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-              {index !== SORT_OPTIONS.length - 1 && (
-                <View style={styles.optionDivider} />
               )}
-            </React.Fragment>
-          );
-        })}
-        <View style={styles.sheetFooter}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => closeSortSheet(true)}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.applyBtn}
-            onPress={() => {
-              setSortOption(tempSortOption);
-              closeSortSheet(false);
-            }}
-          >
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
 
-      {/* ── Filter Overlay ── */}
-      <Animated.View
-        style={[styles.overlay, { opacity: filterOverlayOpacity, pointerEvents: filterVisible ? "auto" : "none" }]}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => closeFilterSheet(true)}
-        />
-      </Animated.View>
-
-      {/* ── Filter Bottom Sheet ── */}
-      <Animated.View
-        style={[
-          styles.filterBottomSheet,
-          { transform: [{ translateY: filterTranslateY }], pointerEvents: filterVisible ? "auto" : "none" },
-        ]}
-      >
-        <View style={styles.handleArea} {...filterPanResponder.panHandlers}>
-          <View style={styles.dragHandle} />
-        </View>
-
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Filter Orders</Text>
-          <TouchableOpacity
-            onPress={() => setTempFilters(DEFAULT_FILTERS)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.resetText}>Reset All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-          <Text style={styles.filterSectionLabel}>Payment Status</Text>
-          <View style={styles.chipRow}>
-            {(
-              ["All", "Paid", "Pending", "COD", "Refunded"] as PaymentFilterStatus[]
-            ).map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[
-                  styles.chip,
-                  tempFilters.paymentStatus === opt && styles.chipActive,
-                ]}
-                onPress={() =>
-                  setTempFilters((p) => ({ ...p, paymentStatus: opt }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    tempFilters.paymentStatus === opt && styles.chipTextActive,
-                  ]}
-                >
-                  {opt}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
-            Order Value
-          </Text>
-          <View style={styles.chipRow}>
-            {(
-              [
-                { label: "All", value: "All" },
-                { label: "< ₹500", value: "below500" },
-                { label: "₹500–1K", value: "500to1000" },
-                { label: "₹1K–2K", value: "1000to2000" },
-                { label: "> ₹2K", value: "above2000" },
-              ] as { label: string; value: OrderValueFilter }[]
-            ).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.chip,
-                  tempFilters.orderValue === opt.value && styles.chipActive,
-                ]}
-                onPress={() =>
-                  setTempFilters((p) => ({ ...p, orderValue: opt.value }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    tempFilters.orderValue === opt.value &&
-                      styles.chipTextActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.filterSectionLabel, { marginTop: 20 }]}>
-            Date Range
-          </Text>
-          <View style={styles.chipRow}>
-            {(
-              [
-                { label: "All", value: "All" },
-                { label: "Today", value: "today" },
-                { label: "Last 7d", value: "last7" },
-                { label: "Last 30d", value: "last30" },
-                { label: "Custom", value: "custom" },
-              ] as { label: string; value: FilterState["dateRange"] }[]
-            ).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.chip,
-                  tempFilters.dateRange === opt.value && styles.chipActive,
-                ]}
-                onPress={() =>
-                  setTempFilters((p) => ({ ...p, dateRange: opt.value }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    tempFilters.dateRange === opt.value &&
-                      styles.chipTextActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {tempFilters.dateRange === "custom" && (
-            <View style={styles.customDateRow}>
-              <TouchableOpacity
-                style={styles.customDateBtn}
-                onPress={() => setShowFromPicker(true)}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={14}
-                  color={C.navy}
-                  style={{ marginRight: 6 }}
+              {showFromPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateFrom ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateTo
+                    ? { maximumDate: tempFilters.customDateTo }
+                    : {})}
+                  onChange={(_, date) => {
+                    setShowFromPicker(false);
+                    if (date)
+                      setTempFilters((p) => ({ ...p, customDateFrom: date }));
+                  }}
                 />
-                <Text style={styles.customDateText}>
-                  {tempFilters.customDateFrom
-                    ? tempFilters.customDateFrom.toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "From Date"}
-                </Text>
-              </TouchableOpacity>
-              <Text style={{ color: C.textLight, fontWeight: "600" }}>→</Text>
-              <TouchableOpacity
-                style={styles.customDateBtn}
-                onPress={() => setShowToPicker(true)}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={14}
-                  color={C.navy}
-                  style={{ marginRight: 6 }}
+              )}
+
+              {showToPicker && (
+                <DateTimePicker
+                  value={tempFilters.customDateTo ?? new Date()}
+                  mode="date"
+                  display="default"
+                  {...(tempFilters.customDateFrom
+                    ? { minimumDate: tempFilters.customDateFrom }
+                    : {})}
+                  maximumDate={new Date()}
+                  onChange={(_, date) => {
+                    setShowToPicker(false);
+                    if (date) setTempFilters((p) => ({ ...p, customDateTo: date }));
+                  }}
                 />
-                <Text style={styles.customDateText}>
-                  {tempFilters.customDateTo
-                    ? tempFilters.customDateTo.toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "To Date"}
+              )}
+
+              <View style={{ height: 16 }} />
+            </ScrollView>
+
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => closeFilterSheet(true)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => {
+                  setFilters(tempFilters);
+                  closeFilterSheet(false);
+                }}
+              >
+                <Text style={styles.applyBtnText}>
+                  Apply{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
-
-          {showFromPicker && (
-            <DateTimePicker
-              value={tempFilters.customDateFrom ?? new Date()}
-              mode="date"
-              display="default"
-              {...(tempFilters.customDateTo
-                ? { maximumDate: tempFilters.customDateTo }
-                : {})}
-              onChange={(_, date) => {
-                setShowFromPicker(false);
-                if (date)
-                  setTempFilters((p) => ({ ...p, customDateFrom: date }));
-              }}
-            />
-          )}
-
-          {showToPicker && (
-            <DateTimePicker
-              value={tempFilters.customDateTo ?? new Date()}
-              mode="date"
-              display="default"
-              {...(tempFilters.customDateFrom
-                ? { minimumDate: tempFilters.customDateFrom }
-                : {})}
-              maximumDate={new Date()}
-              onChange={(_, date) => {
-                setShowToPicker(false);
-                if (date) setTempFilters((p) => ({ ...p, customDateTo: date }));
-              }}
-            />
-          )}
-
-          <View style={{ height: 16 }} />
-        </ScrollView>
-
-        <View style={styles.sheetFooter}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => closeFilterSheet(true)}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.applyBtn}
-            onPress={() => {
-              setFilters(tempFilters);
-              closeFilterSheet(false);
-            }}
-          >
-            <Text style={styles.applyBtnText}>
-              Apply{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-      </>
+          </Animated.View>
+        </>
       )}
 
       {/* ── Web mobile: Modal-based sort & filter (no overlap) ── */}
@@ -2886,12 +2849,14 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.bg, position: "relative" },
   safeAreaWeb: { width: "100%", minWidth: 0 },
-  blueSection: { backgroundColor: C.navy, paddingBottom: 55, borderRadius: 15 },
+  blueSection: {},
   blueSectionWebMobile: {
-    paddingBottom: 8,
+    backgroundColor: C.navy,
+    paddingBottom: 32,
     borderRadius: 12,
-    marginBottom: 4,
-    paddingTop: 2,
+    marginBottom: 0,
+    paddingTop: 8,
+    paddingHorizontal: 12,
   },
   webMobileIntro: {
     paddingHorizontal: 4,
@@ -2909,15 +2874,66 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   overviewCardWebMobile: {
-    position: "relative",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    marginHorizontal: 0,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     elevation: 2,
+    marginTop: -24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  tabletOverlappingTabsContainer: {
+    backgroundColor: C.white,
+    paddingHorizontal: 2,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: -25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    height: 48,
+    overflow: "hidden",
+  },
+  tabletTab: {
+    alignItems: "center",
+    paddingHorizontal: 2,
+  },
+  tabletTabText: {
+    fontSize: 9.5,
+    fontWeight: "600",
+    ...Platform.select({ web: { whiteSpace: "nowrap" } as any, default: {} }),
+  },
+  statDividerWebMobile: {
+    height: 28,
+  },
+  statItemWebMobile: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+    minWidth: 52,
+    backgroundColor: "transparent",
+  },
+  iconWrapperWebMobile: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  statCountWebMobile: {
+    fontSize: 9,
+    marginTop: 1,
+  },
+  statLabelWebMobile: {
+    fontSize: 7,
+    marginTop: 0,
   },
   overviewTitleWebMobile: {
     fontSize: 12,
@@ -2930,7 +2946,7 @@ const styles = StyleSheet.create({
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gap: 6,
-      },
+      } as any,
     }),
   },
   statsGridWebTablet: {
@@ -2938,41 +2954,11 @@ const styles = StyleSheet.create({
       web: {
         gridTemplateColumns: "repeat(4, 1fr)",
         gap: 6,
-      },
+      } as any,
     }),
   },
-  statItemWebMobile: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: C.bg,
-    borderRadius: 8,
-    padding: 6,
-    minWidth: 0,
-    gap: 6,
-  },
-  iconWrapperWebMobile: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    flexShrink: 0,
-  },
-  statTextWebMobile: {
-    flex: 1,
-    minWidth: 0,
-  },
-  statCountWebMobile: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: C.textDark,
-  },
-  statLabelWebMobile: {
-    fontSize: 10,
-    color: C.textMid,
-    marginTop: 1,
-    lineHeight: 13,
-  },
   scrollViewWebMobile: {
-    marginTop: 0,
+    marginTop: 8,
   },
   scrollContentWebMobile: {
     paddingHorizontal: 0,
@@ -2992,14 +2978,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   searchRowWebMobile: {
-    flexWrap: "wrap",
     gap: 6,
     paddingHorizontal: 0,
     paddingVertical: 6,
   },
   searchBoxWebMobile: {
     flex: 1,
-    minWidth: "100%",
   },
   sortFilterRowWebMobile: {
     flexDirection: "row",
@@ -3061,7 +3045,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { flex: 1, color: C.white, fontSize: 23, fontWeight: "800" },
   headerActions: { flexDirection: "row", alignItems: "center" },
-  scrollView: { flex: 1, backgroundColor: C.bg, marginTop: 75 },
+  scrollView: { flex: 1, backgroundColor: C.bg, marginTop: 14 },
   notificationBtn: {
     width: 44,
     height: 44,
@@ -3091,14 +3075,12 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
   overviewCard: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: -65,
     backgroundColor: C.white,
     borderRadius: 10,
     padding: 10,
     elevation: 8,
+    marginHorizontal: 14,
+    marginTop: 14,
   },
   overviewTitle: {
     fontSize: 13,
@@ -3113,11 +3095,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statsScrollContent: { paddingBottom: 2, alignItems: "center" },
+  statsScrollContent: { paddingBottom: 2, alignItems: "center", flexGrow: 1 },
   statItem: {
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
+    minWidth: 75,
   },
   statDivider: {
     width: 1,
@@ -3141,6 +3124,19 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+  },
+  tabsContainerTablet: {
+    backgroundColor: C.navy,
+    borderBottomWidth: 0,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  tabTextTablet: {
+    color: C.white,
+  },
+  tabTextTabletActive: {
+    color: C.white,
+    fontWeight: "700",
   },
   tabsContent: { paddingHorizontal: 12 },
   tab: {
@@ -3208,6 +3204,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterBadgeText: { color: C.white, fontSize: 9, fontWeight: "800" },
+  iconOnlyBtn: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.white,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    position: "relative",
+  },
+  iconOnlyBtnActive: {
+    backgroundColor: C.navy,
+    borderColor: C.navy,
+  },
   activePillsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -3258,21 +3269,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   totalIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   totalVerticalDivider: {
     width: 1,
-    height: 44,
+    height: 36,
     backgroundColor: C.border,
     marginHorizontal: 12,
   },
   totalCardText: { gap: 3 },
-  totalCardLabel: { fontSize: 12, color: C.textMid, fontWeight: "500" },
-  totalCardValue: { fontSize: 22, fontWeight: "800", color: C.navy },
+  totalCardLabel: { fontSize: 10, color: C.textMid, fontWeight: "500" },
+  totalCardValue: { fontSize: 17, fontWeight: "800", color: C.navy },
   ordersListContainer: { paddingHorizontal: 14, gap: 12 },
   orderCard: {
     backgroundColor: C.white,
@@ -3696,6 +3707,29 @@ const styles = StyleSheet.create({
 // Desktop-only StyleSheet (additive — never touches mobile styles)
 // ─────────────────────────────────────────────────────────────────────────────
 const deskStyles = StyleSheet.create({
+  pageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: C.navyDeep,
+    paddingHorizontal: 32,
+    paddingTop: 20,
+    paddingBottom: 50,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    marginHorizontal: 2,
+    marginTop: 0,
+    shadowColor: C.navyDeep,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10
+  },
+  pageTitleContainer: { gap: 4 },
+  pageTitle: { fontSize: 24, fontWeight: "700", color: C.white },
+  pageSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.7)" },
   safeArea: { flex: 1, backgroundColor: C.bg },
 
   /* ── Top bar ── */
@@ -3802,16 +3836,21 @@ const deskStyles = StyleSheet.create({
 
   /* ── Toolbar overrides for desktop ── */
   desktopTabsContainer: {
-    flexDirection: "row",
-    backgroundColor: C.navy,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    gap: 4,
+    backgroundColor: C.white,
     borderRadius: 22,
-    marginHorizontal: 2,
-    marginTop: 0,
+    marginHorizontal: 32,
+    marginTop: -26,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 16,
+    height: 52,
+    overflow: "hidden",
   },
   desktopTab: {
     flex: 1,
@@ -3819,9 +3858,9 @@ const deskStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   desktopTabText: {
-    fontSize: 14,
-    color: C.white,
+    fontSize: 10,
     fontWeight: "600",
+    ...Platform.select({ web: { whiteSpace: "nowrap" } as any, default: {} }),
   },
   desktopToolRow: {
     flexDirection: "row",
@@ -4016,43 +4055,43 @@ const listRow = StyleSheet.create({
   },
 
   // ── Column widths — IDENTICAL in both header and row ──
-  colOrderId:  { width: 155 },
+  colOrderId: { width: 155 },
   colCustomer: { flex: 1.2, paddingRight: 8 },
-  colItems:    { width: 100, alignItems: "center" },
-  colAmount:   { width: 90,  alignItems: "flex-end" },
-  colPayment:  { width: 110, alignItems: "center" },
-  colStatus:   { width: 120, alignItems: "center" },
-  colTracking: { flex: 1,    paddingHorizontal: 12 },
-  colActions:  { width: 110, flexDirection: "row", gap: 6, justifyContent: "flex-end" },
+  colItems: { width: 100, alignItems: "center" },
+  colAmount: { width: 90, alignItems: "flex-end" },
+  colPayment: { width: 110, alignItems: "center" },
+  colStatus: { width: 120, alignItems: "center" },
+  colTracking: { flex: 1, paddingHorizontal: 12 },
+  colActions: { width: 110, flexDirection: "row", gap: 6, justifyContent: "flex-end" },
 
   // Order ID cell
-  orderIdText:   { fontSize: 13, fontWeight: "700", color: C.navy, textDecorationLine: "underline" },
+  orderIdText: { fontSize: 13, fontWeight: "700", color: C.navy, textDecorationLine: "underline" },
   orderDateText: { fontSize: 10, color: C.textLight, marginTop: 2 },
 
   // Customer cell
   customerName: { fontSize: 13, fontWeight: "700", color: C.textDark },
-  customerSub:  { fontSize: 11, color: C.textLight, marginTop: 2 },
+  customerSub: { fontSize: 11, color: C.textLight, marginTop: 2 },
 
   // Items pill
-  productName:   { fontSize: 12, fontWeight: "700", color: C.textDark, marginBottom: 4 },
-  itemsPill:     { flexDirection: "row", alignItems: "center", backgroundColor: C.bg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: C.border },
+  productName: { fontSize: 12, fontWeight: "700", color: C.textDark, marginBottom: 4 },
+  itemsPill: { flexDirection: "row", alignItems: "center", backgroundColor: C.bg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: C.border },
   itemsPillText: { fontSize: 11, color: C.textMid, fontWeight: "600" },
 
   // Amount
   amountText: { fontSize: 13, fontWeight: "800", color: C.textDark },
 
   // Payment pill
-  paymentPill:     { flexDirection: "row", alignItems: "center", backgroundColor: C.orangePale, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  paymentPill: { flexDirection: "row", alignItems: "center", backgroundColor: C.orangePale, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   paymentPillText: { fontSize: 11, color: C.orange, fontWeight: "700" },
 
   // Status badge
   statusBadge: { flexDirection: "row", alignItems: "center", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  statusText:  { fontSize: 11, fontWeight: "700" },
+  statusText: { fontSize: 11, fontWeight: "700" },
 
   // Tracking
-  awbText:    { fontSize: 12, fontWeight: "700", color: C.textDark },
-  courierText:{ fontSize: 10, color: C.textLight, marginTop: 2 },
-  awbMuted:   { fontSize: 12, color: C.textLight, fontStyle: "italic" },
+  awbText: { fontSize: 12, fontWeight: "700", color: C.textDark },
+  courierText: { fontSize: 10, color: C.textLight, marginTop: 2 },
+  awbMuted: { fontSize: 12, color: C.textLight, fontStyle: "italic" },
 
   // Action buttons
   actionBtn: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },

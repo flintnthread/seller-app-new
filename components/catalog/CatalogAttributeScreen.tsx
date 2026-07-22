@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSweetAlert } from "@/components/common/SweetAlert";
 import { AppHeader } from "@/components/common/AppHeader";
+import { Pagination } from "@/components/common/Pagination";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 import { shouldShowSellerTopNav } from "@/lib/navigation/sellerNavConfig";
@@ -349,18 +350,14 @@ export function CatalogAttributeScreen({
         <View style={[pg.wrap, isWeb && pg.wrapWeb, isWeb && isMobile && pg.wrapWebMobile, { zIndex: 1 }]}>
             {isWeb ? (
                 <View style={[pg.pageHeaderWeb, isMobile && pg.pageHeaderWebMobile]}>
-                    <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile]}>
-                        <View style={pg.breadcrumbWeb}>
-                            <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
-                                <Text style={pg.breadcrumbDimWeb}>Dashboard</Text>
-                            </TouchableOpacity>
-                            <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
-                            <Text style={pg.breadcrumbActiveWeb}>{config.pageTitle}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                        <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                            <MaterialCommunityIcons name={config.kind === "color" ? "palette-outline" : "ruler-square"} size={24} color="#FFFFFF" />
                         </View>
-                        <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>{config.pageTitle}</Text>
-                        {isMobile && (
-                            <Text style={pg.pageSubWebMobile}>{config.pageSubtitle}</Text>
-                        )}
+                        <View style={[pg.titleContainerWeb, isMobile && pg.titleContainerWebMobile]}>
+                            <Text style={[pg.pageTitleWeb, isMobile && pg.pageTitleWebMobile]}>{config.pageTitle}</Text>
+                            <Text style={isMobile ? pg.pageSubWebMobile : pg.pageSubWeb}>{config.pageSubtitle}</Text>
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={[pg.addBtnWeb, isMobile && pg.addBtnWebMobile]}
@@ -368,57 +365,52 @@ export function CatalogAttributeScreen({
                         activeOpacity={0.85}
                     >
                         <Ionicons name="add" size={18} color="#151D4F" />
-                        <Text style={pg.addBtnTxtWeb}>Add New {config.kind === "color" ? "Color" : "Size"}</Text>
+                        <Text style={pg.addBtnTxtWeb}>
+                            {isMobile ? "Add" : config.addModalTitle}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             ) : hidePageHeader ? (
-                <View style={pg.mobileTopBlock}>
-                    <Text style={pg.mobileIntro}>{config.pageSubtitle}</Text>
+                <View style={[pg.mobileTopBlock, { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }]}>
+                    <Text style={[pg.mobileIntro, { flex: 1 }]}>{config.pageSubtitle}</Text>
                     <TouchableOpacity style={[pg.addBtn, pg.addBtnNative]} onPress={openAddModal} activeOpacity={0.85}>
                         <Ionicons name="add" size={20} color="#FFFFFF" />
-                        <Text style={pg.addBtnTxt}>Add New {config.kind === "color" ? "Color" : "Size"}</Text>
+                        <Text style={pg.addBtnTxt}>Add</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
                 <View style={pg.pageHeader}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={pg.pageTitle}>{config.pageTitle}</Text>
-                        <Text style={pg.pageSub}>{config.pageSubtitle}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1 }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                            <MaterialCommunityIcons name={config.kind === "color" ? "palette-outline" : "ruler-square"} size={20} color="#FFFFFF" />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={pg.pageTitle}>{config.pageTitle}</Text>
+                            <Text style={pg.pageSub}>{config.pageSubtitle}</Text>
+                        </View>
                     </View>
                     <TouchableOpacity style={pg.addBtn} onPress={openAddModal} activeOpacity={0.85}>
                         <Ionicons name="add" size={20} color="#FFFFFF" />
-                        <Text style={pg.addBtnTxt}>Add New {config.kind === "color" ? "Color" : "Size"}</Text>
+                        <Text style={pg.addBtnTxt}>Add</Text>
                     </TouchableOpacity>
                 </View>
             )}
 
             <View style={[pg.statsRow, isWeb && isMobile && pg.statsRowMobile, !isWeb && pg.statsRowNative]}>
-                <TouchableOpacity
-                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "All" && pg.statCardActive]}
-                    onPress={() => setStatusFilter("All")}
-                    activeOpacity={0.85}
-                >
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
                     <Text style={[pg.statVal, !isWeb && pg.statValNative]}>{items.length}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]} numberOfLines={2}>
                         Total {config.pageTitle}
                     </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Active" && pg.statCardActive]}
-                    onPress={() => setStatusFilter("Active")}
-                    activeOpacity={0.85}
-                >
+                </View>
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
                     <Text style={[pg.statVal, { color: "#16A34A" }, !isWeb && pg.statValNative]}>{activeCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Active</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[pg.statCard, !isWeb && pg.statCardNative, statusFilter === "Inactive" && pg.statCardActive]}
-                    onPress={() => setStatusFilter("Inactive")}
-                    activeOpacity={0.85}
-                >
+                </View>
+                <View style={[pg.statCard, !isWeb && pg.statCardNative]}>
                     <Text style={[pg.statVal, { color: "#DC2626" }, !isWeb && pg.statValNative]}>{inactiveCount}</Text>
                     <Text style={[pg.statLbl, !isWeb && pg.statLblNative]}>Inactive</Text>
-                </TouchableOpacity>
+                </View>
             </View>
 
             <View style={[pg.searchRow, isWeb && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0 }]}>
@@ -432,42 +424,7 @@ export function CatalogAttributeScreen({
                         onChangeText={setSearch}
                     />
                 </View>
-                <View style={pg.statusFilterPills}>
-                    {(["All", "Active", "Inactive"] as const).map((status) => {
-                        const isActive = statusFilter === status;
-                        const count =
-                            status === "All"
-                                ? items.length
-                                : status === "Active"
-                                  ? activeCount
-                                  : inactiveCount;
-                        return (
-                            <TouchableOpacity
-                                key={status}
-                                style={[pg.statusFilterPill, isActive && pg.statusFilterPillActive]}
-                                onPress={() => setStatusFilter(status)}
-                                activeOpacity={0.85}
-                            >
-                                <Text
-                                    style={[
-                                        pg.statusFilterPillTxt,
-                                        isActive && pg.statusFilterPillTxtActive,
-                                    ]}
-                                >
-                                    {status}
-                                </Text>
-                                <Text
-                                    style={[
-                                        pg.statusFilterPillCount,
-                                        isActive && pg.statusFilterPillCountActive,
-                                    ]}
-                                >
-                                    {count}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+
                 {isWeb && (
                     <View style={pg.viewToggle}>
                         <TouchableOpacity
@@ -934,47 +891,15 @@ export function CatalogAttributeScreen({
                         </View>
                     )}
 
-                    {filtered.length > 0 && !catalogLoading && !catalogError && (
-                        <View style={pg.paginationWrap}>
-                            <Text style={pg.paginationInfo}>
-                                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length} {config.pageTitle.toLowerCase()}
-                            </Text>
-                            <View style={pg.paginationControls}>
-                                <TouchableOpacity
-                                    style={[pg.pageBtn, currentPage === 1 && pg.pageBtnDisabled]}
-                                    disabled={currentPage === 1}
-                                    onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                >
-                                    <Ionicons name="chevron-back" size={16} color={currentPage === 1 ? "#D1D5DB" : "#4B5563"} />
-                                </TouchableOpacity>
-
-                                {Array.from({ length: totalPages }).map((_, idx) => {
-                                    const page = idx + 1;
-                                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                                        return (
-                                            <TouchableOpacity
-                                                key={page}
-                                                style={[pg.pageBtn, currentPage === page && pg.pageBtnActive]}
-                                                onPress={() => setCurrentPage(page)}
-                                            >
-                                                <Text style={[pg.pageBtnTxt, currentPage === page && pg.pageBtnTxtActive]}>{page}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    } else if (page === currentPage - 2 || page === currentPage + 2) {
-                                        return <Text key={`dot-${page}`} style={{ marginHorizontal: 4, color: "#9CA3AF" }}>...</Text>;
-                                    }
-                                    return null;
-                                })}
-
-                                <TouchableOpacity
-                                    style={[pg.pageBtn, currentPage === totalPages && pg.pageBtnDisabled]}
-                                    disabled={currentPage === totalPages}
-                                    onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                >
-                                    <Ionicons name="chevron-forward" size={16} color={currentPage === totalPages ? "#D1D5DB" : "#4B5563"} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
+                    {!catalogLoading && !catalogError && (
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            totalItems={filtered.length}
+                            itemsPerPage={ITEMS_PER_PAGE}
+                            itemLabel={config.pageTitle.toLowerCase()}
+                        />
                     )}
                 </>
             )}
@@ -1130,14 +1055,14 @@ const pg = StyleSheet.create({
         justifyContent: "space-between",
         marginBottom: 0,
         backgroundColor: "#151D4F",
-        paddingHorizontal: 32,
-        paddingVertical: 28,
-        paddingBottom: 68,
-        borderRadius: 22,
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        borderBottomLeftRadius: 22,
-        borderBottomRightRadius: 22,
+        paddingHorizontal: 28,
+        paddingTop: 28,
+        paddingBottom: 24,
+        borderRadius: 12,
+        borderTopLeftRadius: 12,
+        borderTopRightRadius: 12,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
         marginHorizontal: 2,
         marginTop: 12,
         shadowColor: "#151D4F",
@@ -1154,10 +1079,16 @@ const pg = StyleSheet.create({
     breadcrumbDimWeb: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "rgba(255,255,255,0.75)" },
     breadcrumbActiveWeb: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: "#FFFFFF" },
     pageTitleWeb: {
-        fontFamily: "Outfit_800ExtraBold",
+        fontWeight: "700",
         fontSize: 26,
         color: "#FFFFFF",
         letterSpacing: -0.5,
+    },
+    pageSubWeb: {
+        fontFamily: "Outfit_400Regular",
+        fontSize: 14,
+        color: "rgba(255,255,255,0.7)",
+        marginTop: 4,
     },
     addBtnWeb: {
         flexDirection: "row",
@@ -1179,18 +1110,19 @@ const pg = StyleSheet.create({
         color: "#151D4F",
     },
     pageHeaderWebMobile: {
-        flexDirection: "column",
-        alignItems: "stretch",
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
         gap: 14,
         paddingHorizontal: 16,
         paddingTop: 16,
         paddingBottom: 36,
         marginTop: 0,
         marginHorizontal: 0,
-        borderRadius: 16,
+        borderRadius: 22,
     },
     titleContainerWebMobile: {
-        width: "100%",
+        flex: 1,
     },
     pageTitleWebMobile: {
         fontSize: 22,
@@ -1204,8 +1136,10 @@ const pg = StyleSheet.create({
         marginTop: 6,
     },
     addBtnWebMobile: {
-        alignSelf: "stretch",
-        justifyContent: "center",
+        alignSelf: "flex-start",
+        paddingLeft: 10,
+        paddingRight: 10,
+        paddingVertical: 8,
     },
     addBtn: {
         flexDirection: "row",
@@ -1230,13 +1164,13 @@ const pg = StyleSheet.create({
         flexDirection: "row",
         gap: 12,
         marginBottom: 16,
-        marginTop: -42,
+        marginTop: -16,
         marginHorizontal: 6,
         zIndex: 10,
         flexWrap: "wrap",
     },
     statsRowMobile: {
-        marginTop: -24,
+        marginTop: -20,
         marginHorizontal: 0,
         gap: 8,
     },
@@ -1256,8 +1190,6 @@ const pg = StyleSheet.create({
         borderColor: "#E5E7EB",
     },
     statCardActive: {
-        borderColor: "#F28520",
-        backgroundColor: "#FFF7ED",
     },
     statCardNative: {
         padding: 12,

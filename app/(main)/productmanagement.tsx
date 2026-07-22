@@ -33,6 +33,7 @@ import {
 } from "@/lib/catalog/catalogFilterOptions";
 import { ProductPriceTag } from "@/lib/product/ProductPriceTag";
 import { useSweetAlert } from "@/components/common/SweetAlert";
+import { Pagination } from "@/components/common/Pagination";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -57,25 +58,25 @@ type SortType = "Latest" | "Oldest" | "Price: Low-High" | "Price: High-Low" | "N
 
 const PRICE_MIN = 0;
 const PRICE_MAX_FALLBACK = 5000;
-const SLIDER_W  = SW - 80;
-const THUMB_S   = 24;
+const SLIDER_W = SW - 80;
+const THUMB_S = 24;
 
 const TABS: { label: TabType; icon: string; color: string; bg: string }[] = [
-    { label: "All Products", icon: "package-variant",      color: C.navy,   bg: "#EEF1FF"    },
-    { label: "Active",       icon: "check-circle-outline", color: C.green,  bg: C.greenPale  },
-    { label: "Inactive",     icon: "pause-circle-outline", color: C.yellow, bg: C.yellowPale },
-    { label: "Out of Stock", icon: "close-circle-outline", color: C.red,    bg: C.redPale    },
-    { label: "Low Stock",    icon: "alert-circle-outline", color: C.orange, bg: C.orangePale },
+    { label: "All Products", icon: "package-variant", color: C.navy, bg: "#EEF1FF" },
+    { label: "Active", icon: "check-circle-outline", color: C.green, bg: C.greenPale },
+    { label: "Inactive", icon: "pause-circle-outline", color: C.yellow, bg: C.yellowPale },
+    { label: "Out of Stock", icon: "close-circle-outline", color: C.red, bg: C.redPale },
+    { label: "Low Stock", icon: "alert-circle-outline", color: C.orange, bg: C.orangePale },
 ];
 
 type Product = ProductListItem;
 
 const SORT_OPTIONS: { value: SortType; icon: string; desc: string }[] = [
-    { value: "Latest",          icon: "clock-outline",               desc: "Newest first"       },
-    { value: "Oldest",          icon: "clock-time-eight-outline",    desc: "Oldest first"       },
-    { value: "Price: Low-High", icon: "trending-up",                 desc: "Cheapest first"     },
-    { value: "Price: High-Low", icon: "trending-down",               desc: "Priciest first"     },
-    { value: "Name A-Z",        icon: "sort-alphabetical-ascending", desc: "Alphabetical order" },
+    { value: "Latest", icon: "clock-outline", desc: "Newest first" },
+    { value: "Oldest", icon: "clock-time-eight-outline", desc: "Oldest first" },
+    { value: "Price: Low-High", icon: "trending-up", desc: "Cheapest first" },
+    { value: "Price: High-Low", icon: "trending-down", desc: "Priciest first" },
+    { value: "Name A-Z", icon: "sort-alphabetical-ascending", desc: "Alphabetical order" },
 ];
 const VIEW_RANGE_OPTIONS = [20, 30, 50] as const;
 const LOW_STOCK_THRESHOLD = 10;
@@ -112,10 +113,10 @@ const parsePriceInput = (text: string, fallback: number) => {
     return Number.isFinite(n) ? n : fallback;
 };
 
-const DOT_COLORS: Record<string,string> = {
-    Red:"#EF4444", Blue:"#3B82F6", Green:"#22C55E", Black:"#1F2937",
-    White:"#F9FAFB", Yellow:"#F59E0B", Pink:"#EC4899", Purple:"#8B5CF6",
-    Orange:"#F97316", Gray:"#6B7280", Brown:"#92400E", All:C.navy,
+const DOT_COLORS: Record<string, string> = {
+    Red: "#EF4444", Blue: "#3B82F6", Green: "#22C55E", Black: "#1F2937",
+    White: "#F9FAFB", Yellow: "#F59E0B", Pink: "#EC4899", Purple: "#8B5CF6",
+    Orange: "#F97316", Gray: "#6B7280", Brown: "#92400E", All: C.navy,
 };
 
 const COUNTRIES = ["India"];
@@ -135,9 +136,9 @@ const RangeSlider: React.FC<RangeSliderProps> = ({
     onLowChange, onHighChange, onChangeComplete,
 }) => {
     const sliderW = width ?? SLIDER_W;
-    const lowRef  = useRef(low);
+    const lowRef = useRef(low);
     const highRef = useRef(high);
-    lowRef.current  = low;
+    lowRef.current = low;
     highRef.current = high;
 
     const valToPos = useCallback((v: number) => ((v - min) / Math.max(max - min, 1)) * sliderW, [min, max, sliderW]);
@@ -146,7 +147,7 @@ const RangeSlider: React.FC<RangeSliderProps> = ({
         return Math.max(min, Math.min(max, Math.round(raw / step) * step));
     }, [min, max, step, sliderW]);
 
-    const lowStartX  = useRef(0);
+    const lowStartX = useRef(0);
     const highStartX = useRef(0);
     const thumbSize = width ? 20 : THUMB_S;
 
@@ -170,7 +171,7 @@ const RangeSlider: React.FC<RangeSliderProps> = ({
         onPanResponderRelease: () => onChangeComplete?.(lowRef.current, highRef.current),
     })).current;
 
-    const lowX  = valToPos(low);
+    const lowX = valToPos(low);
     const highX = valToPos(high);
 
     return (
@@ -248,20 +249,20 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({
     onNotifyError,
 }) => {
     if (!product) return null;
-    const [deliverAll, setDeliverAll]             = useState(true);
-    const [pincodeQuery, setPincodeQuery]         = useState("");
-    const [selectedCountry, setSelectedCountry]   = useState("India");
-    const [selectedState, setSelectedState]       = useState("All States");
-    const [selectedCity, setSelectedCity]         = useState("All Cities");
-    const [pincodeOptions, setPincodeOptions]     = useState<PincodeOption[]>([]);
+    const [deliverAll, setDeliverAll] = useState(true);
+    const [pincodeQuery, setPincodeQuery] = useState("");
+    const [selectedCountry, setSelectedCountry] = useState("India");
+    const [selectedState, setSelectedState] = useState("All States");
+    const [selectedCity, setSelectedCity] = useState("All Cities");
+    const [pincodeOptions, setPincodeOptions] = useState<PincodeOption[]>([]);
     const [selectedPincodeIds, setSelectedPincodeIds] = useState<number[]>([]);
-    const [selectAll, setSelectAll]               = useState(false);
-    const [loading, setLoading]                   = useState(true);
-    const [saving, setSaving]                     = useState(false);
+    const [selectAll, setSelectAll] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     type SelectorType = 'country' | 'state' | 'city' | null;
-    const [selectorVisible, setSelectorVisible]   = useState(false);
-    const [selectorType, setSelectorType]         = useState<SelectorType>(null);
-    const [selectorOptions, setSelectorOptions]   = useState<string[]>([]);
+    const [selectorVisible, setSelectorVisible] = useState(false);
+    const [selectorType, setSelectorType] = useState<SelectorType>(null);
+    const [selectorOptions, setSelectorOptions] = useState<string[]>([]);
 
     const loadSettings = useCallback(async (search?: string) => {
         setLoading(true);
@@ -323,7 +324,7 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({
     const filteredData = useMemo(() => {
         let data = pincodeOptions;
         if (selectedState !== "All States") data = data.filter(d => d.state === selectedState);
-        if (selectedCity  !== "All Cities") data = data.filter(d => d.city  === selectedCity);
+        if (selectedCity !== "All Cities") data = data.filter(d => d.city === selectedCity);
         const q = pincodeQuery.trim().toLowerCase();
         if (q) {
             data = data.filter(
@@ -354,8 +355,8 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({
             const successMsg = deliverAll
                 ? `Delivery settings saved for "${product.name}". Product will be delivered India-wide.`
                 : count > 0
-                  ? `Delivery settings saved for "${product.name}". ${count} location${count > 1 ? "s" : ""} selected.`
-                  : `Delivery settings saved for "${product.name}". No locations selected.`;
+                    ? `Delivery settings saved for "${product.name}". ${count} location${count > 1 ? "s" : ""} selected.`
+                    : `Delivery settings saved for "${product.name}". No locations selected.`;
 
             onClose();
             if (onNotifySuccess) {
@@ -377,10 +378,10 @@ const DeliveryLocationsModal: React.FC<DeliveryLocationsModalProps> = ({
     const ModalContent = () => (
         <View style={isWebPlatform ? dlp.popupCard : dlp.fullCard}>
             {selectorVisible && (
-                <TouchableOpacity 
-                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
-                    activeOpacity={1} 
-                    onPress={() => setSelectorVisible(false)} 
+                <TouchableOpacity
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}
+                    activeOpacity={1}
+                    onPress={() => setSelectorVisible(false)}
                 />
             )}
             <View style={dlp.header}>
@@ -620,11 +621,11 @@ interface ActionSheetProps {
 }
 
 const PRODUCT_ACTIONS = [
-    { icon: "eye-outline",        label: "View Product",    color: C.blue,   bg: C.bluePale   },
-    { icon: "pencil-outline",     label: "Edit Product",    color: C.purple, bg: C.purplePale },
-    { icon: "map-marker-outline", label: "Update Location", color: C.teal,   bg: "#F0FDFA"    },
-    { icon: "star-outline",       label: "Reviews",         color: C.yellow, bg: C.yellowPale },
-    { icon: "trash-can-outline",  label: "Delete Product",  color: C.red,    bg: C.redPale    },
+    { icon: "eye-outline", label: "View Product", color: C.blue, bg: C.bluePale },
+    { icon: "pencil-outline", label: "Edit Product", color: C.purple, bg: C.purplePale },
+    { icon: "map-marker-outline", label: "Update Location", color: C.teal, bg: "#F0FDFA" },
+    { icon: "star-outline", label: "Reviews", color: C.yellow, bg: C.yellowPale },
+    { icon: "trash-can-outline", label: "Delete Product", color: C.red, bg: C.redPale },
 ];
 
 const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDelete, onUpdateLocation }) => {
@@ -635,10 +636,14 @@ const ProductActionSheet: React.FC<ActionSheetProps> = ({ product, onClose, onDe
         if (label === "Delete Product") {
             onClose();
             void onDelete(product.id);
-        } else if (label === "View Product") { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any);
-        } else if (label === "Edit Product") { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any);
-        } else if (label === "Update Location") { onClose(); setTimeout(() => onUpdateLocation(product.id), 200);
-        } else if (label === "Reviews") { onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } } as any);
+        } else if (label === "View Product") {
+            onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any);
+        } else if (label === "Edit Product") {
+            onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any);
+        } else if (label === "Update Location") {
+            onClose(); setTimeout(() => onUpdateLocation(product.id), 200);
+        } else if (label === "Reviews") {
+            onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } } as any);
         } else { onClose(); }
     };
 
@@ -701,17 +706,17 @@ const WebProductActionPopup: React.FC<ActionSheetProps> = ({ product, onClose, o
         if (label === "Delete Product") {
             onClose();
             void onDelete(product.id);
-        } else if (label === "View Product")    { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any); }
-        else if (label === "Edit Product")      { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any); }
-        else if (label === "Update Location")   { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
-        else if (label === "Reviews")           { onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } } as any); }
-        else                                    { onClose(); }
+        } else if (label === "View Product") { onClose(); router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any); }
+        else if (label === "Edit Product") { onClose(); router.push({ pathname: "/(main)/Editproduct", params: { id: product.id } } as any); }
+        else if (label === "Update Location") { onClose(); setTimeout(() => onUpdateLocation(product.id), 200); }
+        else if (label === "Reviews") { onClose(); router.push({ pathname: "/(main)/reviews", params: { productId: product.id, productName: product.name, productImage: product.image } } as any); }
+        else { onClose(); }
     };
 
     const getStatusBadge = (status: string) => {
-        if (status === "Active")       return { bg: "#DCFCE7", color: "#16A34A" };
-        if (status === "Deactivated")  return { bg: "#F1F5F9", color: "#64748B" };
-        if (status === "Inactive")     return { bg: "#FEF9C3", color: "#B45309" };
+        if (status === "Active") return { bg: "#DCFCE7", color: "#16A34A" };
+        if (status === "Deactivated") return { bg: "#F1F5F9", color: "#64748B" };
+        if (status === "Inactive") return { bg: "#FEF9C3", color: "#B45309" };
         if (status === "Out of Stock") return { bg: "#FEE2E2", color: "#DC2626" };
         return { bg: C.orangePale, color: C.orange };
     };
@@ -830,20 +835,21 @@ const WebProductsScreen: React.FC = () => {
         reloadCatalog,
     } = useProductFilterCatalog();
 
-    const [viewType, setViewType]               = useState<ViewType>("list");
-    const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
-    const [sortBy, setSortBy]                   = useState<SortType>("Latest");
-    const [searchQuery, setSearchQuery]         = useState("");
-    const [visibleCount, setVisibleCount]       = useState(20);
+    const [viewType, setViewType] = useState<ViewType>("list");
+    const [selectedTab, setSelectedTab] = useState<TabType>("All Products");
+    const [sortBy, setSortBy] = useState<SortType>("Latest");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
     const [productActionId, setProductActionId] = useState<string | null>(null);
     const [locationProductId, setLocationProductId] = useState<string | null>(null);
 
-    const [filterCategory, setFilterCategory]             = useState("All");
-    const [filterSubcategory, setFilterSubcategory]       = useState("All");
-    const [filterColor, setFilterColor]                   = useState("All");
-    const [filterSize, setFilterSize]                     = useState("All");
-    const [filterLowPrice, setFilterLowPrice]             = useState<number>(PRICE_MIN);
-    const [filterHighPrice, setFilterHighPrice]           = useState<number>(PRICE_MAX_FALLBACK);
+    const [filterCategory, setFilterCategory] = useState("All");
+    const [filterSubcategory, setFilterSubcategory] = useState("All");
+    const [filterColor, setFilterColor] = useState("All");
+    const [filterSize, setFilterSize] = useState("All");
+    const [filterLowPrice, setFilterLowPrice] = useState<number>(PRICE_MIN);
+    const [filterHighPrice, setFilterHighPrice] = useState<number>(PRICE_MAX_FALLBACK);
 
     const [applied, setApplied] = useState({
         category: "All", subcategory: "All",
@@ -868,14 +874,14 @@ const WebProductsScreen: React.FC = () => {
         setFilterLowPrice(safeLow);
         setFilterHighPrice(safeHigh);
         setApplied((prev) => ({ ...prev, lowPrice: safeLow, highPrice: safeHigh }));
-        setVisibleCount(20);
+        setCurrentPage(1);
     }, [priceMin, priceMax]);
 
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-    const [expandedSubcat, setExpandedSubcat]     = useState<string | null>(null);
-    const [showAllColors, setShowAllColors]       = useState(false);
-    const [showAllSizes, setShowAllSizes]         = useState(false);
-    const [searchFocused, setSearchFocused]       = useState(false);
+    const [expandedSubcat, setExpandedSubcat] = useState<string | null>(null);
+    const [showAllColors, setShowAllColors] = useState(false);
+    const [showAllSizes, setShowAllSizes] = useState(false);
+    const [searchFocused, setSearchFocused] = useState(false);
 
     const colorOptionsList = useMemo(
         () => colorFilterOptions.filter(c => c !== "All"),
@@ -897,11 +903,11 @@ const WebProductsScreen: React.FC = () => {
         setFilterCategory(main);
         setFilterSubcategory(sub);
         setApplied(prev => ({ ...prev, category: main, subcategory: sub }));
-        setVisibleCount(20);
+        setCurrentPage(1);
     }, []);
 
     const activeActionProduct = products.find(p => p.id === productActionId);
-    const locationProduct     = products.find(p => p.id === locationProductId);
+    const locationProduct = products.find(p => p.id === locationProductId);
 
     const handleDelete = useCallback(async (id: string) => {
         const product = products.find((p) => p.id === id);
@@ -922,11 +928,11 @@ const WebProductsScreen: React.FC = () => {
     }, [products, reload, confirmDelete, showSuccess, showError]);
     const handleUpdateLocation = useCallback((id: string) => setLocationProductId(id), []);
 
-    const totalCount      = products.length;
-    const activeCount     = products.filter(p => p.status === "Active").length;
-    const inactiveCount   = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
+    const totalCount = products.length;
+    const activeCount = products.filter(p => p.status === "Active").length;
+    const inactiveCount = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
     const outOfStockCount = products.filter(p => p.status === "Out of Stock").length;
-    const lowStockCount   = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
+    const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
 
     // ── WEB CHANGE 3: processedProducts now filters by size ──
     const processedProducts = useMemo(() => {
@@ -945,27 +951,29 @@ const WebProductsScreen: React.FC = () => {
                 productMatchesCategoryFilter(p, applied.category, applied.subcategory, categoryTree),
             );
         }
-        if (applied.color !== "All")           list = list.filter(p => p.color           === applied.color);
+        if (applied.color !== "All") list = list.filter(p => p.color === applied.color);
         // ── Size filter applied ──
-        if (applied.size !== "All")            list = list.filter(p => p.size            === applied.size);
+        if (applied.size !== "All") list = list.filter(p => p.size === applied.size);
         list = list.filter(p => p.price >= applied.lowPrice && p.price <= applied.highPrice);
         switch (sortBy) {
             case "Price: Low-High": list.sort((a, b) => a.price - b.price); break;
             case "Price: High-Low": list.sort((a, b) => b.price - a.price); break;
-            case "Name A-Z":        list.sort((a, b) => a.name.localeCompare(b.name)); break;
-            case "Oldest":          list.sort((a, b) => parseInt(a.id) - parseInt(b.id)); break;
-            default:                list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
+            case "Name A-Z": list.sort((a, b) => a.name.localeCompare(b.name)); break;
+            case "Oldest": list.sort((a, b) => parseInt(a.id) - parseInt(b.id)); break;
+            default: list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
         }
         return list;
     }, [products, selectedTab, searchQuery, applied, sortBy, categoryTree]);
 
-    const visibleProducts = processedProducts.slice(0, visibleCount);
-    const hasMore         = visibleCount < processedProducts.length;
+    const visibleProducts = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return processedProducts.slice(start, start + ITEMS_PER_PAGE);
+    }, [processedProducts, currentPage]);
 
     const getStatusStyle = (status: string) => {
-        if (status === "Active")       return { bg: "#DCFCE7", color: "#16A34A", dot: "#16A34A" };
-        if (status === "Deactivated")  return { bg: "#F1F5F9", color: "#64748B", dot: "#64748B" };
-        if (status === "Inactive")     return { bg: "#FEF9C3", color: "#B45309", dot: "#F59E0B" };
+        if (status === "Active") return { bg: "#DCFCE7", color: "#16A34A", dot: "#16A34A" };
+        if (status === "Deactivated") return { bg: "#F1F5F9", color: "#64748B", dot: "#64748B" };
+        if (status === "Inactive") return { bg: "#FEF9C3", color: "#B45309", dot: "#F59E0B" };
         if (status === "Out of Stock") return { bg: "#FEE2E2", color: "#DC2626", dot: "#EF4444" };
         return { bg: "#FEF3C7", color: "#D97706", dot: "#F97316" };
     };
@@ -981,7 +989,7 @@ const WebProductsScreen: React.FC = () => {
         });
         setFilterLowPrice(safeLow);
         setFilterHighPrice(safeHigh);
-        setVisibleCount(20);
+        setCurrentPage(1);
     };
 
     const clearFilters = () => {
@@ -997,7 +1005,7 @@ const WebProductsScreen: React.FC = () => {
             category: "All", subcategory: "All",
             color: "All", size: "All", lowPrice: priceMin, highPrice: priceMax,
         });
-        setVisibleCount(20);
+        setCurrentPage(1);
     };
 
     const activeFilterCount = [
@@ -1048,19 +1056,20 @@ const WebProductsScreen: React.FC = () => {
                 ) : null}
                 {/* Page header */}
                 <View style={wst.pageHeader}>
-                    <View style={wst.titleContainer}>
-                        <View style={wst.breadcrumb}>
-                            <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
-                                <Text style={wst.breadcrumbDim}>Dashboard</Text>
-                            </TouchableOpacity>
-                            <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
-                            <Text style={wst.breadcrumbActive}>Product Management</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                        <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                            <MaterialCommunityIcons name="package-variant-closed" size={24} color={C.white} />
                         </View>
-                        <Text style={wst.pageTitle} numberOfLines={1}>
-                            Product Management
-                        </Text>
+                        <View style={wst.titleContainer}>
+                            <Text style={wst.pageTitle} numberOfLines={1}>
+                                Product Management
+                            </Text>
+                            <Text style={wst.pageSubtitle}>
+                                Manage and view your products
+                            </Text>
+                        </View>
                     </View>
-                    
+
                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
                         <TouchableOpacity style={wst.navAddBtn} onPress={() => router.push("/(main)/Addnewproduct")} activeOpacity={0.85}>
                             <MaterialCommunityIcons name="plus" size={18} color={C.navy} />
@@ -1076,11 +1085,11 @@ const WebProductsScreen: React.FC = () => {
                 {/* STATS ROW */}
                 <View style={[wst.statsRow, useCompactStats && wst.statsRowCompact, useCompactStats && isTablet && wst.statsRowTablet]}>
                     {[
-                        { label: "Total Products", value: totalCount,      icon: "package-variant-closed", color: C.navy,    bg: "#EEF1FF",    trend: "+3 this week"  },
-                        { label: "Active",          value: activeCount,     icon: "check-circle",           color: "#16A34A", bg: "#DCFCE7",    trend: "selling well"  },
-                        { label: "Inactive",        value: inactiveCount,   icon: "pause-circle",           color: "#B45309", bg: "#FEF9C3",    trend: "needs review"  },
-                        { label: "Out of Stock",    value: outOfStockCount, icon: "close-circle-outline",   color: "#DC2626", bg: "#FEE2E2",    trend: "restock soon"  },
-                        { label: "Low Stock",       value: lowStockCount,   icon: "alert-circle-outline",   color: C.orange,  bg: C.orangePale, trend: "≤10 units"     },
+                        { label: "Total Products", value: totalCount, icon: "package-variant-closed", color: C.navy, bg: "#EEF1FF", trend: "+3 this week" },
+                        { label: "Active", value: activeCount, icon: "check-circle", color: "#16A34A", bg: "#DCFCE7", trend: "selling well" },
+                        { label: "Inactive", value: inactiveCount, icon: "pause-circle", color: "#B45309", bg: "#FEF9C3", trend: "needs review" },
+                        { label: "Out of Stock", value: outOfStockCount, icon: "close-circle-outline", color: "#DC2626", bg: "#FEE2E2", trend: "restock soon" },
+                        { label: "Low Stock", value: lowStockCount, icon: "alert-circle-outline", color: C.orange, bg: C.orangePale, trend: "≤10 units" },
                     ].map((stat, i, arr) => (
                         <View
                             key={i}
@@ -1114,23 +1123,23 @@ const WebProductsScreen: React.FC = () => {
 
                     {/* ── LEFT FILTER PANEL (sticky while page scrolls) ── */}
                     <View style={wst.filterPanelOuter}>
-                    <View style={wst.filterPanel}>
-                        <View style={wst.filterPanelHeader}>
-                            <View style={wst.filterPanelHeaderLeft}>
-                                <Feather name="sliders" size={14} color={C.navy} />
-                                <Text style={wst.filterPanelTitle}>Filters</Text>
+                        <View style={wst.filterPanel}>
+                            <View style={wst.filterPanelHeader}>
+                                <View style={wst.filterPanelHeaderLeft}>
+                                    <Feather name="sliders" size={14} color={C.navy} />
+                                    <Text style={wst.filterPanelTitle}>Filters</Text>
+                                    {activeFilterCount > 0 && (
+                                        <View style={wst.filterCountBadge}>
+                                            <Text style={wst.filterCountBadgeTxt}>{activeFilterCount}</Text>
+                                        </View>
+                                    )}
+                                </View>
                                 {activeFilterCount > 0 && (
-                                    <View style={wst.filterCountBadge}>
-                                        <Text style={wst.filterCountBadgeTxt}>{activeFilterCount}</Text>
-                                    </View>
+                                    <TouchableOpacity onPress={clearFilters}>
+                                        <Text style={wst.filterClearAll}>Clear all</Text>
+                                    </TouchableOpacity>
                                 )}
                             </View>
-                            {activeFilterCount > 0 && (
-                                <TouchableOpacity onPress={clearFilters}>
-                                    <Text style={wst.filterClearAll}>Clear all</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
 
                             {/* ── STATUS ── */}
                             <View style={wst.filterSection}>
@@ -1138,7 +1147,7 @@ const WebProductsScreen: React.FC = () => {
                                 {TABS.map(tab => {
                                     const isActive = selectedTab === tab.label;
                                     return (
-                                        <TouchableOpacity key={tab.label} style={[wst.filterTabItem, isActive && { backgroundColor: tab.bg }]} onPress={() => { setSelectedTab(tab.label); setVisibleCount(20); }} activeOpacity={0.75}>
+                                        <TouchableOpacity key={tab.label} style={[wst.filterTabItem, isActive && { backgroundColor: tab.bg }]} onPress={() => { setSelectedTab(tab.label); setCurrentPage(1); }} activeOpacity={0.75}>
                                             <View style={[wst.filterTabDot, { backgroundColor: tab.color }]} />
                                             <Text style={[wst.filterTabLabel, isActive && { color: tab.color, fontFamily: "Outfit_600SemiBold" }]}>{tab.label}</Text>
                                             {tab.label === "Low Stock" && (
@@ -1162,7 +1171,7 @@ const WebProductsScreen: React.FC = () => {
                                         <TouchableOpacity
                                             key={opt.value}
                                             style={[wst.sortSidebarItem, isActive && wst.sortSidebarItemActive]}
-                                            onPress={() => { setSortBy(opt.value); setVisibleCount(20); }}
+                                            onPress={() => { setSortBy(opt.value); setCurrentPage(1); }}
                                             activeOpacity={0.75}
                                         >
                                             <View style={[wst.sortSidebarIconBox, { backgroundColor: isActive ? C.navy : C.bg }]}>
@@ -1371,46 +1380,46 @@ const WebProductsScreen: React.FC = () => {
                                         No colors in database
                                     </Text>
                                 ) : (
-                                <>
-                                <View style={wst.colorGrid}>
-                                    {visibleColorOptions.map(col => (
-                                        <TouchableOpacity
-                                            key={col}
-                                            style={[wst.colorDot, {
-                                                backgroundColor: dotColorMap[col] ?? "#ccc",
-                                                borderWidth: filterColor === col ? 3 : 1.5,
-                                                borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.12)",
-                                            }]}
-                                            onPress={() => {
-                                                const next = filterColor === col ? "All" : col;
-                                                setFilterColor(next);
-                                                setApplied((prev) => ({ ...prev, color: next }));
-                                                setVisibleCount(20);
-                                            }}
-                                        >
-                                            {filterColor === col && (
-                                                <Ionicons name="checkmark" size={10} color={col === "White" || col === "Yellow" ? C.textDark : C.white} />
-                                            )}
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                {hasMoreColors && (
-                                    <TouchableOpacity
-                                        style={wst.filterViewAllBtn}
-                                        onPress={() => setShowAllColors(v => !v)}
-                                        activeOpacity={0.75}
-                                    >
-                                        <Text style={wst.filterViewAllTxt}>
-                                            {showAllColors ? "Show less" : `View all (${colorOptionsList.length})`}
-                                        </Text>
-                                        <Ionicons
-                                            name={showAllColors ? "chevron-up" : "chevron-down"}
-                                            size={12}
-                                            color={C.navy}
-                                        />
-                                    </TouchableOpacity>
-                                )}
-                                </>
+                                    <>
+                                        <View style={wst.colorGrid}>
+                                            {visibleColorOptions.map(col => (
+                                                <TouchableOpacity
+                                                    key={col}
+                                                    style={[wst.colorDot, {
+                                                        backgroundColor: dotColorMap[col] ?? "#ccc",
+                                                        borderWidth: filterColor === col ? 3 : 1.5,
+                                                        borderColor: filterColor === col ? C.navy : "rgba(0,0,0,0.12)",
+                                                    }]}
+                                                    onPress={() => {
+                                                        const next = filterColor === col ? "All" : col;
+                                                        setFilterColor(next);
+                                                        setApplied((prev) => ({ ...prev, color: next }));
+                                                        setCurrentPage(1);
+                                                    }}
+                                                >
+                                                    {filterColor === col && (
+                                                        <Ionicons name="checkmark" size={10} color={col === "White" || col === "Yellow" ? C.textDark : C.white} />
+                                                    )}
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        {hasMoreColors && (
+                                            <TouchableOpacity
+                                                style={wst.filterViewAllBtn}
+                                                onPress={() => setShowAllColors(v => !v)}
+                                                activeOpacity={0.75}
+                                            >
+                                                <Text style={wst.filterViewAllTxt}>
+                                                    {showAllColors ? "Show less" : `View all (${colorOptionsList.length})`}
+                                                </Text>
+                                                <Ionicons
+                                                    name={showAllColors ? "chevron-up" : "chevron-down"}
+                                                    size={12}
+                                                    color={C.navy}
+                                                />
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
                                 )}
                             </View>
 
@@ -1426,44 +1435,44 @@ const WebProductsScreen: React.FC = () => {
                                         No sizes in database
                                     </Text>
                                 ) : (
-                                <>
-                                <View style={wst.sizeGrid}>
-                                    {visibleSizeOptions.map(sz => {
-                                        const isActive = filterSize === sz;
-                                        return (
+                                    <>
+                                        <View style={wst.sizeGrid}>
+                                            {visibleSizeOptions.map(sz => {
+                                                const isActive = filterSize === sz;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={sz}
+                                                        style={[wst.sizeChip, isActive && wst.sizeChipActive]}
+                                                        onPress={() => {
+                                                            const next = isActive ? "All" : sz;
+                                                            setFilterSize(next);
+                                                            setApplied((prev) => ({ ...prev, size: next }));
+                                                            setCurrentPage(1);
+                                                        }}
+                                                        activeOpacity={0.75}
+                                                    >
+                                                        <Text style={[wst.sizeChipTxt, isActive && wst.sizeChipTxtActive]}>{sz}</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                        {hasMoreSizes && (
                                             <TouchableOpacity
-                                                key={sz}
-                                                style={[wst.sizeChip, isActive && wst.sizeChipActive]}
-                                                onPress={() => {
-                                                    const next = isActive ? "All" : sz;
-                                                    setFilterSize(next);
-                                                    setApplied((prev) => ({ ...prev, size: next }));
-                                                    setVisibleCount(20);
-                                                }}
+                                                style={wst.filterViewAllBtn}
+                                                onPress={() => setShowAllSizes(v => !v)}
                                                 activeOpacity={0.75}
                                             >
-                                                <Text style={[wst.sizeChipTxt, isActive && wst.sizeChipTxtActive]}>{sz}</Text>
+                                                <Text style={wst.filterViewAllTxt}>
+                                                    {showAllSizes ? "Show less" : `View all (${sizeFilterOptions.length})`}
+                                                </Text>
+                                                <Ionicons
+                                                    name={showAllSizes ? "chevron-up" : "chevron-down"}
+                                                    size={12}
+                                                    color={C.navy}
+                                                />
                                             </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                                {hasMoreSizes && (
-                                    <TouchableOpacity
-                                        style={wst.filterViewAllBtn}
-                                        onPress={() => setShowAllSizes(v => !v)}
-                                        activeOpacity={0.75}
-                                    >
-                                        <Text style={wst.filterViewAllTxt}>
-                                            {showAllSizes ? "Show less" : `View all (${sizeFilterOptions.length})`}
-                                        </Text>
-                                        <Ionicons
-                                            name={showAllSizes ? "chevron-up" : "chevron-down"}
-                                            size={12}
-                                            color={C.navy}
-                                        />
-                                    </TouchableOpacity>
-                                )}
-                                </>
+                                        )}
+                                    </>
                                 )}
                             </View>
 
@@ -1473,7 +1482,7 @@ const WebProductsScreen: React.FC = () => {
                                     Apply Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                                 </Text>
                             </TouchableOpacity>
-                    </View>
+                        </View>
                     </View>
 
                     {/* RIGHT TABLE AREA */}
@@ -1488,7 +1497,7 @@ const WebProductsScreen: React.FC = () => {
                                 placeholder="Search by name, SKU or category..."
                                 placeholderTextColor={C.textLight}
                                 value={searchQuery}
-                                onChangeText={(v) => { setSearchQuery(v); setVisibleCount(20); }}
+                                onChangeText={(v) => { setSearchQuery(v); setCurrentPage(1); }}
                                 onFocus={() => setSearchFocused(true)}
                                 onBlur={() => setSearchFocused(false)}
                             />
@@ -1512,7 +1521,7 @@ const WebProductsScreen: React.FC = () => {
                                     </TouchableOpacity>
                                 )}
                                 <View style={wst.activeSortIndicator}>
-                                    <MaterialCommunityIcons name={SORT_OPTIONS.find(o=>o.value===sortBy)?.icon as any ?? "sort-variant"} size={12} color={C.purple} />
+                                    <MaterialCommunityIcons name={SORT_OPTIONS.find(o => o.value === sortBy)?.icon as any ?? "sort-variant"} size={12} color={C.purple} />
                                     <Text style={wst.activeSortTxt}>{sortBy}</Text>
                                 </View>
                             </View>
@@ -1536,93 +1545,87 @@ const WebProductsScreen: React.FC = () => {
                                 style={wst.tableScroll}
                                 contentContainerStyle={{ minWidth: Math.max(viewportWidth - 320, 980), flexGrow: 1 }}
                             >
-                            <View style={{ flex: 1, minWidth: 980 }}>
-                                {/* ── WEB CHANGE 8: Table header now has Size + Category split into two cols ── */}
-                                <View style={wst.tableHead}>
-                                    <Text style={[wst.tableHeadCell, { flex: 3.0, minWidth: 220 }]}>Product</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.7, minWidth: 140 }]}>Category</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.9, minWidth: 72 }]}>Size</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Price</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Status</Text>
-                                    <Text style={[wst.tableHeadCell, { flex: 0.7, minWidth: 72, textAlign: "right" }]}>Actions</Text>
-                                </View>
-                                {visibleProducts.length === 0 ? (
-                                    <View style={wst.emptyState}>
-                                        <MaterialCommunityIcons name="package-variant-closed" size={48} color={C.textLight} />
-                                        <Text style={wst.emptyTitle}>No products found</Text>
-                                        <Text style={wst.emptyDesc}>Try adjusting your search or filters</Text>
-                                        <TouchableOpacity style={wst.emptyBtn} onPress={() => { setSearchQuery(""); clearFilters(); }}>
-                                            <Text style={wst.emptyBtnTxt}>Clear Filters</Text>
-                                        </TouchableOpacity>
+                                <View style={{ flex: 1, minWidth: 980 }}>
+                                    <View style={wst.tableHead}>
+                                        <Text style={[wst.tableHeadCell, { flex: 3.0, minWidth: 220 }]}>Product</Text>
+                                        <Text style={[wst.tableHeadCell, { flex: 1.7, minWidth: 140 }]}>Category</Text>
+                                        <Text style={[wst.tableHeadCell, { flex: 0.9, minWidth: 72 }]}>Size</Text>
+                                        <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Price</Text>
+                                        <Text style={[wst.tableHeadCell, { flex: 1.2, minWidth: 100 }]}>Status</Text>
+                                        <Text style={[wst.tableHeadCell, { flex: 0.7, minWidth: 72, textAlign: "right" }]}>Actions</Text>
                                     </View>
-                                ) : (
-                                    visibleProducts.map((product, idx) => {
-                                        const st = getStatusStyle(product.status);
-                                        return (
-                                            <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
-                                                {/* Product */}
-                                                <View style={[wst.tableCell, { flex: 3.0, minWidth: 220 }]}>
-                                                    <ProductThumb uri={product.image} style={wst.tableProductImg} />
-                                                    <View style={{ flex: 1, minWidth: 0 }}>
-                                                        <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
-                                                        <Text style={wst.tableProductSub}>{product.color}</Text>
-                                                        <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
-                                                    </View>
-                                                </View>
-                                                {/* Category hierarchy: main → category → subcategory */}
-                                                <View style={[wst.tableCell, { flex: 1.7, minWidth: 140, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
-                                                    <View style={wst.categoryTag}>
-                                                        <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
-                                                    </View>
-                                                    {product.categorySub && product.categorySub !== product.subcategory ? (
-                                                        <Text style={wst.subcategoryTxt} numberOfLines={1}>{product.categorySub}</Text>
-                                                    ) : null}
-                                                    <Text style={[wst.subcategoryTxt, product.subSubcategory && { color: C.teal }]} numberOfLines={1}>
-                                                        {product.subSubcategory ?? product.subcategory}
-                                                    </Text>
-                                                </View>
-                                                {/* ── WEB CHANGE 8c: Size col — its own column ── */}
-                                                <View style={[wst.tableCell, { flex: 0.9, minWidth: 72, flexDirection: "column", alignItems: "flex-start" }]}>
-                                                    <View style={wst.sizePill}>
-                                                        <Text style={wst.sizePillTxt}>{product.size}</Text>
-                                                    </View>
-                                                </View>
-                                                {/* Price — stack sale + MRP so they never spill into Status */}
-                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, overflow: "hidden" }]}>
-                                                    <ProductPriceTag
-                                                        price={product.price}
-                                                        mrpInclGst={product.mrpInclGst}
-                                                        priceStyle={wst.tablePriceVal}
-                                                        containerStyle={wst.tablePriceStack}
-                                                    />
-                                                </View>
-                                                {/* Status */}
-                                                <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, flexShrink: 0 }]}>
-                                                    <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
-                                                        <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
-                                                        <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
-                                                    </View>
-                                                </View>
-                                                {/* Actions */}
-                                                <View style={[wst.tableCell, { flex: 0.7, minWidth: 72, justifyContent: "flex-end" }]}>
-                                                    <TouchableOpacity style={wst.actionBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }} activeOpacity={0.75}>
-                                                        <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
-                                                    </TouchableOpacity>
-                                                </View>
+                                    {visibleProducts.length === 0 ? (
+                                        <View style={wst.emptyState}>
+                                            <MaterialCommunityIcons name="package-variant-closed" size={48} color={C.textLight} />
+                                            <Text style={wst.emptyTitle}>No products found</Text>
+                                            <Text style={wst.emptyDesc}>Try adjusting your search or filters</Text>
+                                            <TouchableOpacity style={wst.emptyBtn} onPress={() => { setSearchQuery(""); clearFilters(); }}>
+                                                <Text style={wst.emptyBtnTxt}>Clear Filters</Text>
                                             </TouchableOpacity>
-                                        );
-                                    })
-                                )}
-                                {hasMore && (
-                                    <TouchableOpacity style={wst.loadMoreBtn} onPress={() => setVisibleCount(c => c + 20)} activeOpacity={0.8}>
-                                        <MaterialCommunityIcons name="chevron-down-circle-outline" size={15} color={C.navy} />
-                                        <Text style={wst.loadMoreTxt}>Load more ({processedProducts.length - visibleCount} remaining)</Text>
-                                    </TouchableOpacity>
-                                )}
-                                {visibleProducts.length > 0 && (
-                                    <Text style={wst.pageInfo}>Showing {visibleProducts.length} of {processedProducts.length}</Text>
-                                )}
-                            </View>
+                                        </View>
+                                    ) : (
+                                        visibleProducts.map((product, idx) => {
+                                            const st = getStatusStyle(product.status);
+                                            return (
+                                                <TouchableOpacity key={product.id} style={[wst.tableRow, idx % 2 === 1 && wst.tableRowAlt]} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)} activeOpacity={0.7}>
+                                                    <View style={[wst.tableCell, { flex: 3.0, minWidth: 220 }]}>
+                                                        <ProductThumb uri={product.image} style={wst.tableProductImg} />
+                                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                                            <Text style={wst.tableProductName} numberOfLines={1}>{truncateTitle(product.name)}</Text>
+                                                            <Text style={wst.tableProductSub}>{product.color}</Text>
+                                                            <Text style={wst.tableProductUpdated}>Updated {product.updated}</Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={[wst.tableCell, { flex: 1.7, minWidth: 140, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                                                        <View style={wst.categoryTag}>
+                                                            <Text style={wst.categoryTagTxt} numberOfLines={1}>{product.category}</Text>
+                                                        </View>
+                                                        {product.categorySub && product.categorySub !== product.subcategory ? (
+                                                            <Text style={wst.subcategoryTxt} numberOfLines={1}>{product.categorySub}</Text>
+                                                        ) : null}
+                                                        <Text style={[wst.subcategoryTxt, product.subSubcategory && { color: C.teal }]} numberOfLines={1}>
+                                                            {product.subSubcategory ?? product.subcategory}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={[wst.tableCell, { flex: 0.9, minWidth: 72, flexDirection: "column", alignItems: "flex-start" }]}>
+                                                        <View style={wst.sizePill}>
+                                                            <Text style={wst.sizePillTxt}>{product.size}</Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, overflow: "hidden" }]}>
+                                                        <ProductPriceTag
+                                                            price={product.price}
+                                                            mrpInclGst={product.mrpInclGst}
+                                                            priceStyle={wst.tablePriceVal}
+                                                            containerStyle={wst.tablePriceStack}
+                                                        />
+                                                    </View>
+                                                    <View style={[wst.tableCell, { flex: 1.2, minWidth: 100, flexShrink: 0 }]}>
+                                                        <View style={[wst.statusPill, { backgroundColor: st.bg }]}>
+                                                            <View style={[wst.statusDot, { backgroundColor: st.dot }]} />
+                                                            <Text style={[wst.statusPillTxt, { color: st.color }]} numberOfLines={1}>{product.status}</Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={[wst.tableCell, { flex: 0.7, minWidth: 72, justifyContent: "flex-end" }]}>
+                                                        <TouchableOpacity style={wst.actionBtn} onPress={(e) => { e.stopPropagation(); setProductActionId(product.id); }} activeOpacity={0.75}>
+                                                            <MaterialCommunityIcons name="dots-horizontal" size={16} color={C.textMid} />
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            );
+                                        })
+                                    )}
+                                    {processedProducts.length > 0 && (
+                                        <Pagination
+                                            currentPage={currentPage}
+                                            totalPages={Math.ceil(processedProducts.length / ITEMS_PER_PAGE)}
+                                            onPageChange={setCurrentPage}
+                                            totalItems={processedProducts.length}
+                                            itemsPerPage={ITEMS_PER_PAGE}
+                                            itemLabel="products"
+                                        />
+                                    )}
+                                </View>
                             </ScrollView>
                         )}
 
@@ -1689,10 +1692,15 @@ const WebProductsScreen: React.FC = () => {
                                         })}
                                     </View>
                                 )}
-                                {hasMore && (
-                                    <TouchableOpacity style={wst.loadMoreBtn} onPress={() => setVisibleCount(c => c + 20)} activeOpacity={0.8}>
-                                        <Text style={wst.loadMoreTxt}>Load more ({processedProducts.length - visibleCount} remaining)</Text>
-                                    </TouchableOpacity>
+                                {processedProducts.length > 0 && (
+                                    <Pagination
+                                        currentPage={currentPage}
+                                        totalPages={Math.ceil(processedProducts.length / ITEMS_PER_PAGE)}
+                                        onPageChange={setCurrentPage}
+                                        totalItems={processedProducts.length}
+                                        itemsPerPage={ITEMS_PER_PAGE}
+                                        itemLabel="products"
+                                    />
                                 )}
                             </ScrollView>
                         )}
@@ -1745,7 +1753,7 @@ const wst = StyleSheet.create({
     breadcrumb: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
     breadcrumbDim: { fontFamily: "Outfit_500Medium", fontSize: 13, color: "rgba(255,255,255,0.75)" },
     breadcrumbActive: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
-    pageTitle: { fontFamily: "Outfit_800ExtraBold", fontSize: 26, color: C.white, letterSpacing: -0.5 },
+    pageTitle: { fontFamily: "Outfit_600SemiBold", fontSize: 26, color: C.white, letterSpacing: -0.5 },
     pageSubtitle: { fontFamily: "Outfit_400Regular", fontSize: 13, color: "rgba(255,255,255,0.8)" },
     statsRow: { flexDirection: "row", gap: 12, marginBottom: 18, marginTop: -42, marginHorizontal: 6, zIndex: 10 },
     statsRowCompact: Platform.select({
@@ -2063,28 +2071,28 @@ const MobileProductsScreen: React.FC = () => {
         reloadCatalog,
     } = useProductFilterCatalog();
 
-    const [viewType, setViewType]               = useState<ViewType>("list");
-    const [selectedTab, setSelectedTab]         = useState<TabType>("All Products");
-    const [sortBy, setSortBy]                   = useState<SortType>("Latest");
-    const [showSortMenu, setShowSortMenu]       = useState(false);
-    const [showFilter, setShowFilter]           = useState(false);
-    const [showSearch, setShowSearch]           = useState(false);
-    const [searchQuery, setSearchQuery]         = useState("");
-    const [viewRange, setViewRange]             = useState<number>(20);
-    const [visibleCount, setVisibleCount]       = useState(20);
+    const [viewType, setViewType] = useState<ViewType>("list");
+    const [selectedTab, setSelectedTab] = useState<TabType>("All Products");
+    const [sortBy, setSortBy] = useState<SortType>("Latest");
+    const [showSortMenu, setShowSortMenu] = useState(false);
+    const [showFilter, setShowFilter] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
     const [productActionId, setProductActionId] = useState<string | null>(null);
     const [locationProductId, setLocationProductId] = useState<string | null>(null);
 
     const activeActionProduct = products.find(p => p.id === productActionId);
-    const locationProduct     = products.find(p => p.id === locationProductId);
+    const locationProduct = products.find(p => p.id === locationProductId);
 
-    const [filterCategory, setFilterCategory]       = useState("All");
-    const [filterMiddle, setFilterMiddle]             = useState("All");
-    const [filterLeaf, setFilterLeaf]               = useState("All");
-    const [filterColor, setFilterColor]             = useState("All");
-    const [filterSize, setFilterSize]               = useState("All");
-    const [filterLowPrice, setFilterLowPrice]       = useState<number>(PRICE_MIN);
-    const [filterHighPrice, setFilterHighPrice]     = useState<number>(PRICE_MAX_FALLBACK);
+    const [filterCategory, setFilterCategory] = useState("All");
+    const [filterMiddle, setFilterMiddle] = useState("All");
+    const [filterLeaf, setFilterLeaf] = useState("All");
+    const [filterColor, setFilterColor] = useState("All");
+    const [filterSize, setFilterSize] = useState("All");
+    const [filterLowPrice, setFilterLowPrice] = useState<number>(PRICE_MIN);
+    const [filterHighPrice, setFilterHighPrice] = useState<number>(PRICE_MAX_FALLBACK);
     const [applied, setApplied] = useState({
         category: "All", subcategory: "All", color: "All", size: "All",
         lowPrice: PRICE_MIN, highPrice: PRICE_MAX_FALLBACK,
@@ -2124,17 +2132,17 @@ const MobileProductsScreen: React.FC = () => {
         setLocationProductId(id);
     }, []);
 
-    const totalCount      = products.length;
-    const activeCount     = products.filter(p => p.status === "Active").length;
-    const inactiveCount   = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
+    const totalCount = products.length;
+    const activeCount = products.filter(p => p.status === "Active").length;
+    const inactiveCount = products.filter(p => p.status === "Inactive" || p.status === "Deactivated").length;
     const outOfStockCount = products.filter(p => p.status === "Out of Stock").length;
-    const lowStockCount   = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
+    const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
 
     const PRODUCT_STATS = [
-        { icon:"shopping-outline",     label:"Total",        value:String(totalCount),      color:C.navy,   bg:"rgba(30,43,107,0.10)" },
-        { icon:"check-circle",         label:"Active",       value:String(activeCount),     color:C.green,  bg:C.greenPale            },
-        { icon:"pause-circle",         label:"Inactive",     value:String(inactiveCount),   color:C.yellow, bg:C.yellowPale           },
-        { icon:"close-circle-outline", label:"Out of Stock", value:String(outOfStockCount), color:C.red,    bg:C.redPale              },
+        { icon: "shopping-outline", label: "Total", value: String(totalCount), color: C.navy, bg: "rgba(30,43,107,0.10)" },
+        { icon: "check-circle", label: "Active", value: String(activeCount), color: C.green, bg: C.greenPale },
+        { icon: "pause-circle", label: "Inactive", value: String(inactiveCount), color: C.yellow, bg: C.yellowPale },
+        { icon: "close-circle-outline", label: "Out of Stock", value: String(outOfStockCount), color: C.red, bg: C.redPale },
     ];
 
     const renderStatsGrid = () => (
@@ -2195,24 +2203,14 @@ const MobileProductsScreen: React.FC = () => {
 
     const activeFilterCount = [
         applied.category !== "All", applied.subcategory !== "All",
-        applied.color !== "All",    applied.size !== "All",
+        applied.color !== "All", applied.size !== "All",
         applied.lowPrice > priceMin, applied.highPrice < priceMax,
     ].filter(Boolean).length;
 
-    const headerTools = (
-        <View style={s.headerTools}>
-            <TouchableOpacity onPress={() => setShowSearch(true)} style={s.headerToolBtn} accessibilityLabel="Search products">
-                <Feather name="search" size={20} color={C.white} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowFilter(true)} style={s.headerToolBtn} accessibilityLabel="Filter products">
-                <View style={{ position: "relative" }}>
-                    <Feather name="filter" size={20} color={C.white} />
-                    {activeFilterCount > 0 && (
-                        <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
-                    )}
-                </View>
-            </TouchableOpacity>
-        </View>
+    const headerSearchBtn = (
+        <TouchableOpacity onPress={() => setShowSearch(true)} style={[s.headerToolBtn, { backgroundColor: "transparent", borderWidth: 0 }]} accessibilityLabel="Search products">
+            <Feather name="search" size={20} color={C.white} />
+        </TouchableOpacity>
     );
 
     const processedProducts = useMemo(() => {
@@ -2232,28 +2230,30 @@ const MobileProductsScreen: React.FC = () => {
                 productMatchesCategoryFilter(p, applied.category, applied.subcategory, categoryTree),
             );
         }
-        if (applied.color !== "All")       list = list.filter(p => p.color       === applied.color);
-        if (applied.size !== "All")        list = list.filter(p => p.size        === applied.size);
+        if (applied.color !== "All") list = list.filter(p => p.color === applied.color);
+        if (applied.size !== "All") list = list.filter(p => p.size === applied.size);
         list = list.filter(p => p.price >= applied.lowPrice && p.price <= applied.highPrice);
 
         switch (sortBy) {
             case "Price: Low-High": list.sort((a, b) => a.price - b.price); break;
             case "Price: High-Low": list.sort((a, b) => b.price - a.price); break;
-            case "Name A-Z":        list.sort((a, b) => a.name.localeCompare(b.name)); break;
-            case "Oldest":          list.sort((a, b) => parseInt(a.id) - parseInt(b.id)); break;
-            default:                list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
+            case "Name A-Z": list.sort((a, b) => a.name.localeCompare(b.name)); break;
+            case "Oldest": list.sort((a, b) => parseInt(a.id) - parseInt(b.id)); break;
+            default: list.sort((a, b) => parseInt(b.id) - parseInt(a.id)); break;
         }
         return list;
     }, [products, selectedTab, searchQuery, applied, sortBy, categoryTree]);
 
-    const visibleProducts = processedProducts.slice(0, visibleCount);
-    const hasMore         = visibleCount < processedProducts.length;
+    const visibleProducts = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return processedProducts.slice(start, start + ITEMS_PER_PAGE);
+    }, [processedProducts, currentPage]);
 
     const getStatusColor = (status: string) => {
-        if (status === "Active")       return { bg: C.greenPale,  color: C.green  };
-        if (status === "Deactivated")  return { bg: "#F1F5F9",    color: "#64748B" };
-        if (status === "Inactive")     return { bg: C.yellowPale, color: C.yellow };
-        return                                 { bg: C.redPale,    color: C.red    };
+        if (status === "Active") return { bg: C.greenPale, color: C.green };
+        if (status === "Deactivated") return { bg: "#F1F5F9", color: "#64748B" };
+        if (status === "Inactive") return { bg: C.yellowPale, color: C.yellow };
+        return { bg: C.redPale, color: C.red };
     };
 
     const applyFilters = () => {
@@ -2271,7 +2271,7 @@ const MobileProductsScreen: React.FC = () => {
             lowPrice: safeLow,
             highPrice: safeHigh,
         });
-        setVisibleCount(viewRange);
+        setCurrentPage(1);
         setShowFilter(false);
     };
 
@@ -2294,13 +2294,12 @@ const MobileProductsScreen: React.FC = () => {
             lowPrice: priceMin,
             highPrice: priceMax,
         });
-        setVisibleCount(viewRange);
+        setCurrentPage(1);
         setShowFilter(false);
     };
 
-    const handleTabChange       = (tab: TabType) => { setSelectedTab(tab); setVisibleCount(viewRange); };
-    const handleSortSelect      = (opt: SortType) => { setSortBy(opt); setShowSortMenu(false); setVisibleCount(viewRange); };
-    const handleViewRangeChange = (vr: number)   => { setViewRange(vr); setVisibleCount(vr); };
+    const handleTabChange = (tab: TabType) => { setSelectedTab(tab); setCurrentPage(1); };
+    const handleSortSelect = (opt: SortType) => { setSortBy(opt); setShowSortMenu(false); setCurrentPage(1); };
 
     const subcatOptions = filterCategory !== "All"
         ? ["All", ...middleCategoriesForMain(categoryTree, filterCategory)]
@@ -2348,12 +2347,12 @@ const MobileProductsScreen: React.FC = () => {
             {showSearch ? (
                 <View style={s.headerWrapper}>
                     <View style={s.searchBarRow}>
-                        <TouchableOpacity onPress={() => { setShowSearch(false); setSearchQuery(""); setVisibleCount(viewRange); }} style={s.backBtn}>
+                        <TouchableOpacity onPress={() => { setShowSearch(false); setSearchQuery(""); setCurrentPage(1); }} style={s.backBtn}>
                             <Ionicons name="arrow-back" size={22} color={C.white} />
                         </TouchableOpacity>
-                        <TextInput style={s.searchInput} placeholder="Search products, SKU, category..." placeholderTextColor="rgba(255,255,255,0.5)" value={searchQuery} onChangeText={t => { setSearchQuery(t); setVisibleCount(viewRange); }} autoFocus />
+                        <TextInput style={s.searchInput} placeholder="Search products, SKU, category..." placeholderTextColor="rgba(255,255,255,0.5)" value={searchQuery} onChangeText={t => { setSearchQuery(t); setCurrentPage(1); }} autoFocus />
                         {searchQuery.length > 0 && (
-                            <TouchableOpacity onPress={() => { setSearchQuery(""); setVisibleCount(viewRange); }}>
+                            <TouchableOpacity onPress={() => { setSearchQuery(""); setCurrentPage(1); }}>
                                 <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.7)" />
                             </TouchableOpacity>
                         )}
@@ -2363,11 +2362,16 @@ const MobileProductsScreen: React.FC = () => {
                 <View style={s.heroSection}>
                     <View style={s.webMobileIntro}>
                         <View style={s.webIntroRow}>
-                            <View style={s.webIntroTextCol}>
-                                <Text style={s.webMobileTitle}>Products</Text>
-                                <Text style={s.webMobileSubtitle} numberOfLines={2}>Manage and view your products</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                                <View style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                                    <MaterialCommunityIcons name="package-variant-closed" size={22} color={C.white} />
+                                </View>
+                                <View style={s.webIntroTextCol}>
+                                    <Text style={s.webMobileTitle}>Products</Text>
+                                    <Text style={s.webMobileSubtitle} numberOfLines={2}>Manage and view your products</Text>
+                                </View>
                             </View>
-                            {headerTools}
+                            {headerSearchBtn}
                         </View>
                     </View>
                     <View style={s.overviewCard}>
@@ -2380,7 +2384,7 @@ const MobileProductsScreen: React.FC = () => {
                     title="Products"
                     subtitle="Manage and view your products"
                     showBackButton
-                    rightActions={headerTools}
+                    rightActions={headerSearchBtn}
                 />
             )}
 
@@ -2429,6 +2433,14 @@ const MobileProductsScreen: React.FC = () => {
 
                 <View>
                     <View style={s.controlsRow}>
+                        <View style={s.viewToggle}>
+                            <TouchableOpacity style={[s.viewBtn, showFilter && s.viewBtnActive]} onPress={() => setShowFilter(true)}>
+                                <Feather name="filter" size={17} color={showFilter ? C.white : C.textMid} />
+                                {activeFilterCount > 0 && (
+                                    <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                         <TouchableOpacity style={s.sortBtn} onPress={() => setShowSortMenu(!showSortMenu)} activeOpacity={0.8}>
                             <View style={s.sortBtnLeft}>
                                 <View style={s.sortIconWrap}>
@@ -2440,9 +2452,6 @@ const MobileProductsScreen: React.FC = () => {
                                 </View>
                             </View>
                             <View style={s.sortBtnRight}>
-                                <View style={s.viewRangePill}>
-                                    <Text style={s.viewRangePillTxt}>{viewRange >= processedProducts.length ? "All" : viewRange}</Text>
-                                </View>
                                 <Ionicons name={showSortMenu ? "chevron-up" : "chevron-down"} size={14} color={C.navy} />
                             </View>
                         </TouchableOpacity>
@@ -2478,23 +2487,6 @@ const MobileProductsScreen: React.FC = () => {
                                         </TouchableOpacity>
                                     );
                                 })}
-                                <View style={s.sortMenuDivider} />
-                                <View style={s.viewRangeSection}>
-                                    <View style={s.viewRangeLabelRow}>
-                                        <View style={s.viewRangeIconWrap}><MaterialCommunityIcons name="eye-outline" size={14} color={C.navy} /></View>
-                                        <Text style={s.viewRangeLabel}>Show per page</Text>
-                                    </View>
-                                    <View style={s.viewRangeChips}>
-                                        {VIEW_RANGE_OPTIONS.map(vr => (
-                                            <TouchableOpacity key={vr} style={[s.viewRangeChip, viewRange === vr && s.viewRangeChipActive]} onPress={() => handleViewRangeChange(vr)} activeOpacity={0.75}>
-                                                <Text style={[s.viewRangeChipTxt, viewRange === vr && s.viewRangeChipTxtActive]}>{vr}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                        <TouchableOpacity style={[s.viewRangeChip, viewRange >= products.length && s.viewRangeChipActive]} onPress={() => handleViewRangeChange(products.length)} activeOpacity={0.75}>
-                                            <Text style={[s.viewRangeChipTxt, viewRange >= products.length && s.viewRangeChipTxtActive]}>All</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
                             </View>
                         </View>
                     )}
@@ -2523,7 +2515,7 @@ const MobileProductsScreen: React.FC = () => {
                 {viewType === "list" && visibleProducts.length > 0 && (
                     <View style={s.listContainer}>
                         {visibleProducts.map(product => {
-                            const st    = getStatusColor(product.status);
+                            const st = getStatusColor(product.status);
                             const isLow = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD;
                             return (
                                 <TouchableOpacity key={product.id} style={s.productRow} activeOpacity={0.7} onPress={() => router.push({ pathname: "/(main)/Productdetail", params: { id: product.id } } as any)}>
@@ -2576,14 +2568,15 @@ const MobileProductsScreen: React.FC = () => {
                     </View>
                 )}
 
-                {hasMore && processedProducts.length > 0 && (
-                    <TouchableOpacity style={s.viewMoreBtn} onPress={() => setVisibleCount(c => c + viewRange)} activeOpacity={0.75}>
-                        <MaterialCommunityIcons name="chevron-down-circle-outline" size={18} color={C.navy} />
-                        <Text style={s.viewMoreTxt}>View More ({processedProducts.length - visibleCount} remaining)</Text>
-                    </TouchableOpacity>
-                )}
                 {visibleProducts.length > 0 && (
-                    <Text style={s.pageInfo}>Showing {visibleProducts.length} of {processedProducts.length} products</Text>
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(processedProducts.length / ITEMS_PER_PAGE)}
+                        onPageChange={setCurrentPage}
+                        totalItems={processedProducts.length}
+                        itemsPerPage={ITEMS_PER_PAGE}
+                        itemLabel="products"
+                    />
                 )}
             </ScrollView>
 
@@ -2595,19 +2588,19 @@ const MobileProductsScreen: React.FC = () => {
                         { icon: "clipboard-list-outline", iconActive: "clipboard-list", label: "Orders", active: false, color: "#EA6000", colorMuted: "#FB923C", route: "/(main)/Ordersscreen", badge: 12 },
                         { icon: "account-outline", iconActive: "account", label: "Profile", active: false, color: "#10B981", colorMuted: "#34D399", route: "/(main)/Profile" },
                     ].map((tab, i) => (
-                        <TouchableOpacity 
-                            key={i} 
-                            style={s.tabItem} 
-                            activeOpacity={0.7} 
+                        <TouchableOpacity
+                            key={i}
+                            style={s.tabItem}
+                            activeOpacity={0.7}
                             onPress={() => {
                                 if (!tab.active) router.push(tab.route as any);
                             }}
                         >
                             <View style={{ position: "relative" }}>
-                                <MaterialCommunityIcons 
-                                    name={(tab.active ? tab.iconActive : tab.icon) as any} 
-                                    size={24} 
-                                    color={tab.active ? tab.color : tab.colorMuted} 
+                                <MaterialCommunityIcons
+                                    name={(tab.active ? tab.iconActive : tab.icon) as any}
+                                    size={24}
+                                    color={tab.active ? tab.color : tab.colorMuted}
                                 />
                                 {tab.badge && (
                                     <View style={s.tabBadge}>
@@ -2715,7 +2708,7 @@ const MobileProductsScreen: React.FC = () => {
 // MOBILE STYLES — COMPLETELY UNCHANGED
 // ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-    root: { flex:1, backgroundColor:C.bg },
+    root: { flex: 1, backgroundColor: C.bg },
     rootWeb: { width: "100%", minWidth: 0 },
     heroSection: { backgroundColor: C.navyDeep, paddingBottom: 10, borderRadius: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, marginBottom: 4, marginHorizontal: 8, marginTop: 8, overflow: "hidden" },
     webMobileIntro: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
@@ -2770,103 +2763,103 @@ const s = StyleSheet.create({
     statTextCol: { flex: 1, minWidth: 0 },
     statValueCompact: { fontFamily: "Outfit_800ExtraBold", fontSize: 18, lineHeight: 22 },
     statLabelCompact: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight, lineHeight: 14, marginTop: 1 },
-    headerWrapper:   { backgroundColor:C.navyDeep, paddingTop:Platform.OS==="android"?(StatusBar.currentHeight??0)+4:0, paddingBottom:4 },
-    headerRow:       { flexDirection:"row", alignItems:"center", paddingHorizontal:12, paddingVertical:10, gap:8 },
-    searchBarRow:    { flexDirection:"row", alignItems:"center", paddingHorizontal:12, paddingVertical:10, gap:10 },
-    backBtn:         { width:38, height:38, borderRadius:19, alignItems:"center", justifyContent:"center" },
-    headerContent:   { flex:1 },
-    headerTitle:     { fontFamily:"Outfit_700Bold",    fontSize:19, color:C.white, marginBottom:1 },
-    headerSub:       { fontFamily:"Outfit_400Regular", fontSize:12, color:"rgba(255,255,255,0.65)" },
-    headerIcon:      { width:38, height:38, borderRadius:19, alignItems:"center", justifyContent:"center" },
-    searchInput:     { flex:1, fontFamily:"Outfit_400Regular", fontSize:14, color:C.white, borderBottomWidth:1, borderBottomColor:"rgba(255,255,255,0.4)", paddingVertical:4 },
-    filterBadge:     { position:"absolute", top:-4, right:-4, backgroundColor:C.orange, width:16, height:16, borderRadius:8, alignItems:"center", justifyContent:"center" },
-    filterBadgeText: { fontFamily:"Outfit_700Bold", fontSize:9, color:C.white },
-    actionRow:    { flexDirection:"row", paddingHorizontal:16, paddingTop:14, paddingBottom:6, gap:10 },
+    headerWrapper: { backgroundColor: C.navyDeep, paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 4 : 0, paddingBottom: 4 },
+    headerRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+    searchBarRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+    headerContent: { flex: 1 },
+    headerTitle: { fontFamily: "Outfit_700Bold", fontSize: 19, color: C.white, marginBottom: 1 },
+    headerSub: { fontFamily: "Outfit_400Regular", fontSize: 12, color: "rgba(255,255,255,0.65)" },
+    headerIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+    searchInput: { flex: 1, fontFamily: "Outfit_400Regular", fontSize: 14, color: C.white, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.4)", paddingVertical: 4 },
+    filterBadge: { position: "absolute", top: -4, right: -4, backgroundColor: C.orange, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+    filterBadgeText: { fontFamily: "Outfit_700Bold", fontSize: 9, color: C.white },
+    actionRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, gap: 10 },
     actionRowStack: { flexDirection: "column" },
     actionRowWebCompact: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
-    actionCardEqual: { flex: 1, minWidth: 0, backgroundColor:C.card, borderRadius:14, padding:12, shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:8, elevation:3 },
+    actionCardEqual: { flex: 1, minWidth: 0, backgroundColor: C.card, borderRadius: 14, padding: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
     actionCardInner: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
     actionIconBoxCompact: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     actionTextCol: { flex: 1, minWidth: 0 },
-    actionTitleCompact: { fontFamily:"Outfit_700Bold", fontSize:13, color:C.navy, marginBottom: 2 },
-    actionDescCompact: { fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight, lineHeight:15 },
-    statIconBox: { width:40, height:40, borderRadius:11, alignItems:"center", justifyContent:"center", marginBottom:4 },
-    statValue:   { fontFamily:"Outfit_800ExtraBold", fontSize:18, color:C.textDark },
-    statLabel:   { fontFamily:"Outfit_500Medium", fontSize:10, color:C.textLight, textAlign:"center" },
-    tabScrollWrapper: { marginBottom:8 },
-    tabScrollContent: { paddingHorizontal:16, gap:8, paddingVertical:4 },
-    tabBtn:      { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:12, paddingVertical:9, borderRadius:22, borderWidth:1.5, backgroundColor:C.card, flexShrink:0 },
-    tabBtnText:  { fontFamily:"Outfit_600SemiBold", fontSize:12, color:C.textMid },
-    tabBadgePill:    { paddingHorizontal:6, paddingVertical:1, borderRadius:10 },
-    tabBadgePillTxt: { fontFamily:"Outfit_700Bold", fontSize:10 },
-    controlsRow:  { flexDirection:"row", alignItems:"center", paddingHorizontal:16, gap:8, marginBottom:0 },
-    sortBtn: { flex:1, flexDirection:"row", alignItems:"center", justifyContent:"space-between", backgroundColor:C.card, borderRadius:12, paddingLeft:6, paddingRight:12, paddingVertical:6, borderWidth:1, borderColor:C.border, shadowColor:"#000", shadowOffset:{width:0,height:1}, shadowOpacity:0.05, shadowRadius:4, elevation:2 },
-    sortBtnLeft: { flexDirection:"row", alignItems:"center", gap:10 },
-    sortIconWrap: { width:34, height:34, borderRadius:10, backgroundColor:C.navy, alignItems:"center", justifyContent:"center" },
-    sortBtnLabel: { fontFamily:"Outfit_400Regular", fontSize:10, color:C.textLight },
-    sortBtnValue: { fontFamily:"Outfit_700Bold", fontSize:12, color:C.navy, flexShrink: 1 },
-    sortBtnRight: { flexDirection:"row", alignItems:"center", gap:6 },
-    viewRangePill: { backgroundColor:C.navyDeep+"12", borderRadius:6, paddingHorizontal:8, paddingVertical:3 },
-    viewRangePillTxt: { fontFamily:"Outfit_700Bold", fontSize:11, color:C.navy },
-    viewToggle:   { flexDirection:"row", backgroundColor:C.card, borderRadius:10, padding:3, borderWidth:1, borderColor:C.border },
-    viewBtn:      { width:34, height:34, borderRadius:8, alignItems:"center", justifyContent:"center" },
-    viewBtnActive:{ backgroundColor:C.navy },
-    sortMenuWrapper: { paddingHorizontal:16, paddingTop:4, marginBottom:6, alignSelf: "stretch", width: "100%" },
-    sortMenu: { marginHorizontal:0, marginBottom:0, backgroundColor:C.card, borderRadius:16, borderWidth:1, borderColor:C.border, overflow:"hidden", elevation:8, shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.12, shadowRadius:14 },
-    sortMenuHeader: { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:16, paddingTop:14, paddingBottom:10 },
-    sortMenuTitle: { fontFamily:"Outfit_700Bold", fontSize:14, color:C.navy },
-    sortRow: { flexDirection:"row", alignItems:"center", gap:12, paddingHorizontal:16, paddingVertical:12 },
-    sortRowActive: { backgroundColor:"#F0F2FF" },
-    sortRowBorder: { borderBottomWidth:1, borderBottomColor:C.border },
-    sortRowIconWrap: { width:36, height:36, borderRadius:10, alignItems:"center", justifyContent:"center" },
-    sortRowLabel: { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.textDark, marginBottom:1 },
-    sortRowLabelActive: { color:C.navy, fontFamily:"Outfit_700Bold" },
-    sortRowDesc: { fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight },
-    sortRowDescActive: { color:C.navyLight },
-    sortMenuDivider: { height:1, backgroundColor:C.border, marginVertical:4, marginHorizontal:16 },
-    viewRangeSection: { paddingHorizontal:16, paddingBottom:14, paddingTop:6 },
-    viewRangeLabelRow:{ flexDirection:"row", alignItems:"center", gap:8, marginBottom:10 },
-    viewRangeIconWrap: { width:26, height:26, borderRadius:8, backgroundColor:"rgba(30,43,107,0.10)", alignItems:"center", justifyContent:"center" },
-    viewRangeLabel:   { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.textMid },
-    viewRangeChips:   { flexDirection:"row", gap:8, flexWrap:"wrap" },
-    viewRangeChip:    { paddingHorizontal:16, paddingVertical:8, borderRadius:9, backgroundColor:C.bg, borderWidth:1.5, borderColor:C.border, minWidth:48, alignItems:"center" },
-    viewRangeChipActive:    { backgroundColor:C.navy, borderColor:C.navy },
-    viewRangeChipTxt:       { fontFamily:"Outfit_600SemiBold", fontSize:12, color:C.textMid },
-    viewRangeChipTxtActive: { color:C.white },
-    resultCountRow: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", paddingHorizontal:16, marginTop:8, marginBottom:8 },
-    resultCountText:{ fontFamily:"Outfit_500Medium", fontSize:12, color:C.textLight },
-    clearAllText:   { fontFamily:"Outfit_600SemiBold", fontSize:12, color:C.navy },
-    emptyState:  { alignItems:"center", paddingVertical:48, paddingHorizontal:32 },
-    emptyTitle:  { fontFamily:"Outfit_700Bold",    fontSize:16, color:C.textMid,   marginTop:12 },
-    emptyDesc:   { fontFamily:"Outfit_400Regular", fontSize:13, color:C.textLight, marginTop:4, textAlign:"center" },
-    clearBtn:    { marginTop:16, backgroundColor:C.navy, borderRadius:10, paddingHorizontal:24, paddingVertical:10 },
-    clearBtnText:{ fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.white },
-    listContainer: { paddingHorizontal:16, gap:12, marginBottom:10 },
-    productRow:    { flexDirection:"row", alignItems:"center", backgroundColor:C.card, borderRadius:16, padding:14, gap:12, shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:6, elevation:2 },
-    productImage:  { width:90, height:90, borderRadius:12, backgroundColor:C.bg },
-    productInfo:   { flex:1 },
-    productName:   { fontFamily:"Outfit_700Bold",    fontSize:14, color:C.textDark, marginBottom:3 },
-    productSku:    { fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight, marginBottom:2 },
-    productCategory:{ fontFamily:"Outfit_500Medium", fontSize:11, color:C.purple,   marginBottom:2 },
-    productUpdated:{ fontFamily:"Outfit_400Regular", fontSize:11, color:C.textLight, marginBottom:6 },
-    productPrice:  { fontFamily:"Outfit_700Bold",    fontSize:15, color:C.navy },
-    productRight:  { alignItems:"flex-end", gap:6 },
-    statusBadge:   { paddingHorizontal:9, paddingVertical:4, borderRadius:7 },
-    statusText:    { fontFamily:"Outfit_600SemiBold", fontSize:10 },
-    stockText:     { fontFamily:"Outfit_600SemiBold", fontSize:11, color:C.textMid },
-    moreBtn:       { width:32, height:32, borderRadius:9, backgroundColor:C.bg, alignItems:"center", justifyContent:"center", borderWidth:1, borderColor:C.border },
-    gridContainer: { flexDirection:"row", flexWrap:"wrap", paddingHorizontal:12, gap:10, marginBottom:10 },
-    gridCard:      { backgroundColor:C.card, borderRadius:14, overflow:"hidden", shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.07, shadowRadius:6, elevation:2 },
-    gridImage:     { width:"100%", height:130, backgroundColor:C.bg },
-    statusBadgeSmall: { position:"absolute", top:8, right:8, paddingHorizontal:6, paddingVertical:3, borderRadius:5 },
-    statusTextSmall:  { fontFamily:"Outfit_600SemiBold", fontSize:10 },
-    gridName:  { fontFamily:"Outfit_700Bold",   fontSize:12, color:C.textDark, paddingHorizontal:10, paddingTop:10, paddingBottom:2 },
-    gridPrice: { fontFamily:"Outfit_700Bold",   fontSize:13, color:C.navy,     paddingHorizontal:10, marginBottom:2 },
-    gridStock: { fontFamily:"Outfit_500Medium", fontSize:11, color:C.textLight, paddingHorizontal:10, paddingBottom:10 },
-    gridMoreBtn: { position:"absolute", bottom:8, right:8, width:28, height:28, borderRadius:8, backgroundColor:C.bg, alignItems:"center", justifyContent:"center", borderWidth:1, borderColor:C.border },
-    viewMoreBtn: { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:8, marginHorizontal:16, marginTop:4, marginBottom:4, paddingVertical:13, borderRadius:12, borderWidth:1.5, borderColor:C.navy, backgroundColor:C.card },
-    viewMoreTxt: { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.navy },
-    pageInfo:    { fontFamily:"Outfit_400Regular", fontSize:12, color:C.textLight, textAlign:"center", paddingBottom:8, marginTop:4 },
+    actionTitleCompact: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.navy, marginBottom: 2 },
+    actionDescCompact: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, lineHeight: 15 },
+    statIconBox: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    statValue: { fontFamily: "Outfit_800ExtraBold", fontSize: 18, color: C.textDark },
+    statLabel: { fontFamily: "Outfit_500Medium", fontSize: 10, color: C.textLight, textAlign: "center" },
+    tabScrollWrapper: { marginBottom: 8 },
+    tabScrollContent: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
+    tabBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, backgroundColor: C.card, flexShrink: 0 },
+    tabBtnText: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid },
+    tabBadgePill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 },
+    tabBadgePillTxt: { fontFamily: "Outfit_700Bold", fontSize: 10 },
+    controlsRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 8, marginBottom: 0 },
+    sortBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.card, borderRadius: 12, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.border, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    sortBtnLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    sortIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
+    sortBtnLabel: { fontFamily: "Outfit_400Regular", fontSize: 10, color: C.textLight },
+    sortBtnValue: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.navy, flexShrink: 1 },
+    sortBtnRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+    viewRangePill: { backgroundColor: C.navyDeep + "12", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    viewRangePillTxt: { fontFamily: "Outfit_700Bold", fontSize: 11, color: C.navy },
+    viewToggle: { flexDirection: "row", backgroundColor: C.card, borderRadius: 10, padding: 3, borderWidth: 1, borderColor: C.border },
+    viewBtn: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+    viewBtnActive: { backgroundColor: C.navy },
+    sortMenuWrapper: { paddingHorizontal: 16, paddingTop: 4, marginBottom: 6, alignSelf: "stretch", width: "100%" },
+    sortMenu: { marginHorizontal: 0, marginBottom: 0, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden", elevation: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 14 },
+    sortMenuHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+    sortMenuTitle: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.navy },
+    sortRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+    sortRowActive: { backgroundColor: "#F0F2FF" },
+    sortRowBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
+    sortRowIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    sortRowLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textDark, marginBottom: 1 },
+    sortRowLabelActive: { color: C.navy, fontFamily: "Outfit_700Bold" },
+    sortRowDesc: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight },
+    sortRowDescActive: { color: C.navyLight },
+    sortMenuDivider: { height: 1, backgroundColor: C.border, marginVertical: 4, marginHorizontal: 16 },
+    viewRangeSection: { paddingHorizontal: 16, paddingBottom: 14, paddingTop: 6 },
+    viewRangeLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+    viewRangeIconWrap: { width: 26, height: 26, borderRadius: 8, backgroundColor: "rgba(30,43,107,0.10)", alignItems: "center", justifyContent: "center" },
+    viewRangeLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid },
+    viewRangeChips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+    viewRangeChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 9, backgroundColor: C.bg, borderWidth: 1.5, borderColor: C.border, minWidth: 48, alignItems: "center" },
+    viewRangeChipActive: { backgroundColor: C.navy, borderColor: C.navy },
+    viewRangeChipTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.textMid },
+    viewRangeChipTxtActive: { color: C.white },
+    resultCountRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
+    resultCountText: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textLight },
+    clearAllText: { fontFamily: "Outfit_600SemiBold", fontSize: 12, color: C.navy },
+    emptyState: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32 },
+    emptyTitle: { fontFamily: "Outfit_700Bold", fontSize: 16, color: C.textMid, marginTop: 12 },
+    emptyDesc: { fontFamily: "Outfit_400Regular", fontSize: 13, color: C.textLight, marginTop: 4, textAlign: "center" },
+    clearBtn: { marginTop: 16, backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
+    clearBtnText: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.white },
+    listContainer: { paddingHorizontal: 16, gap: 12, marginBottom: 10 },
+    productRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 2 },
+    productImage: { width: 90, height: 90, borderRadius: 12, backgroundColor: C.bg },
+    productInfo: { flex: 1 },
+    productName: { fontFamily: "Outfit_700Bold", fontSize: 14, color: C.textDark, marginBottom: 3 },
+    productSku: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 2 },
+    productCategory: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.purple, marginBottom: 2 },
+    productUpdated: { fontFamily: "Outfit_400Regular", fontSize: 11, color: C.textLight, marginBottom: 6 },
+    productPrice: { fontFamily: "Outfit_700Bold", fontSize: 15, color: C.navy },
+    productRight: { alignItems: "flex-end", gap: 6 },
+    statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7 },
+    statusText: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
+    stockText: { fontFamily: "Outfit_600SemiBold", fontSize: 11, color: C.textMid },
+    moreBtn: { width: 32, height: 32, borderRadius: 9, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 10, marginBottom: 10 },
+    gridCard: { backgroundColor: C.card, borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 2 },
+    gridImage: { width: "100%", height: 130, backgroundColor: C.bg },
+    statusBadgeSmall: { position: "absolute", top: 8, right: 8, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 5 },
+    statusTextSmall: { fontFamily: "Outfit_600SemiBold", fontSize: 10 },
+    gridName: { fontFamily: "Outfit_700Bold", fontSize: 12, color: C.textDark, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 2 },
+    gridPrice: { fontFamily: "Outfit_700Bold", fontSize: 13, color: C.navy, paddingHorizontal: 10, marginBottom: 2 },
+    gridStock: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight, paddingHorizontal: 10, paddingBottom: 10 },
+    gridMoreBtn: { position: "absolute", bottom: 8, right: 8, width: 28, height: 28, borderRadius: 8, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+    viewMoreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 16, marginTop: 4, marginBottom: 4, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.navy, backgroundColor: C.card },
+    viewMoreTxt: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.navy },
+    pageInfo: { fontFamily: "Outfit_400Regular", fontSize: 12, color: C.textLight, textAlign: "center", paddingBottom: 8, marginTop: 4 },
     bottomTabBar: {
         flexDirection: "row",
         backgroundColor: C.white,
@@ -2888,35 +2881,35 @@ const s = StyleSheet.create({
         shadowRadius: 8,
         elevation: 8,
     },
-    tabItem:      { flex:1, alignItems:"center", gap:3 },
-    tabLabel:     { fontFamily:"Outfit_500Medium", fontSize:11, color:C.textLight },
-    tabBadge:     { position:"absolute", top:-4, right:-9, backgroundColor:C.orange, minWidth:17, height:17, borderRadius:8.5, alignItems:"center", justifyContent:"center", paddingHorizontal:3 },
-    tabBadgeText: { fontFamily:"Outfit_700Bold", fontSize:9, color:"#fff" },
-    modalOverlay:   { flex:1, backgroundColor:"rgba(0,0,0,0.4)" },
-    filterSheet:    { backgroundColor:C.white, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingBottom:32, maxHeight:"85%", position:"absolute", bottom:0, left:0, right:0 },
-    filterHeader:   { flexDirection:"row", alignItems:"center", justifyContent:"space-between", paddingVertical:18 },
-    filterTitle:    { fontFamily:"Outfit_700Bold", fontSize:18, color:C.textDark },
-    sliderWrap:     { paddingHorizontal:4 },
-    filterActions:  { flexDirection:"row", gap:12, paddingTop:8 },
-    clearFilterBtn: { flex:1, paddingVertical:13, borderRadius:12, borderWidth:1.5, borderColor:C.navy, alignItems:"center" },
-    clearFilterText:{ fontFamily:"Outfit_600SemiBold", fontSize:14, color:C.navy },
-    applyFilterBtn: { flex:2, paddingVertical:13, borderRadius:12, backgroundColor:C.navy, alignItems:"center" },
-    applyFilterText:{ fontFamily:"Outfit_600SemiBold", fontSize:14, color:C.white },
+    tabItem: { flex: 1, alignItems: "center", gap: 3 },
+    tabLabel: { fontFamily: "Outfit_500Medium", fontSize: 11, color: C.textLight },
+    tabBadge: { position: "absolute", top: -4, right: -9, backgroundColor: C.orange, minWidth: 17, height: 17, borderRadius: 8.5, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+    tabBadgeText: { fontFamily: "Outfit_700Bold", fontSize: 9, color: "#fff" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+    filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 32, maxHeight: "85%", position: "absolute", bottom: 0, left: 0, right: 0 },
+    filterHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 18 },
+    filterTitle: { fontFamily: "Outfit_700Bold", fontSize: 18, color: C.textDark },
+    sliderWrap: { paddingHorizontal: 4 },
+    filterActions: { flexDirection: "row", gap: 12, paddingTop: 8 },
+    clearFilterBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.navy, alignItems: "center" },
+    clearFilterText: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.navy },
+    applyFilterBtn: { flex: 2, paddingVertical: 13, borderRadius: 12, backgroundColor: C.navy, alignItems: "center" },
+    applyFilterText: { fontFamily: "Outfit_600SemiBold", fontSize: 14, color: C.white },
 }) as any;
 
 const fs = StyleSheet.create({
-    sectionLabel:     { fontFamily:"Outfit_600SemiBold", fontSize:13, color:C.textMid, marginBottom:10, marginTop:14 },
-    chip:             { paddingHorizontal:14, paddingVertical:7, borderRadius:20, backgroundColor:C.bg, borderWidth:1, borderColor:C.border },
-    chipActive:       { backgroundColor:C.navy, borderColor:C.navy },
-    chipText:         { fontFamily:"Outfit_500Medium", fontSize:12, color:C.textMid },
-    chipTextActive:   { color:C.white },
-    colorChip:        { flexDirection:"row", alignItems:"center", gap:6, paddingHorizontal:12, paddingVertical:7, borderRadius:20, backgroundColor:C.bg, borderWidth:1, borderColor:C.border },
-    colorDot:         { width:14, height:14, borderRadius:7 },
-    sizeGrid:         { flexDirection:"row", flexWrap:"wrap", gap:8, marginBottom:4 },
-    sizeChip:         { paddingHorizontal:12, paddingVertical:7, borderRadius:8, backgroundColor:C.bg, borderWidth:1, borderColor:C.border, minWidth:48, alignItems:"center" },
-    sizeChipActive:   { backgroundColor:C.navy, borderColor:C.navy },
-    sizeChipTxt:      { fontFamily:"Outfit_500Medium", fontSize:12, color:C.textMid },
-    sizeChipTxtActive:{ color:C.white, fontFamily:"Outfit_600SemiBold" },
+    sectionLabel: { fontFamily: "Outfit_600SemiBold", fontSize: 13, color: C.textMid, marginBottom: 10, marginTop: 14 },
+    chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+    chipActive: { backgroundColor: C.navy, borderColor: C.navy },
+    chipText: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textMid },
+    chipTextActive: { color: C.white },
+    colorChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+    colorDot: { width: 14, height: 14, borderRadius: 7 },
+    sizeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
+    sizeChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, minWidth: 48, alignItems: "center" },
+    sizeChipActive: { backgroundColor: C.navy, borderColor: C.navy },
+    sizeChipTxt: { fontFamily: "Outfit_500Medium", fontSize: 12, color: C.textMid },
+    sizeChipTxtActive: { color: C.white, fontFamily: "Outfit_600SemiBold" },
 });
 
 // ─────────────────────────────────────────────────────────────
