@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, TextInput, Platform, ActivityIndicator } from "react-native";
+import { View, StyleSheet, TouchableOpacity, TextInput, Platform, ActivityIndicator, useWindowDimensions, Image, ScrollView } from "react-native";
 import { AppText } from "@/components/AppText";
+import { Pagination } from "@/components/common/Pagination";
 import { OrdersTable } from "./OrdersTable";
 import type { Column } from "./OrdersTable";
 import { Ionicons } from "@expo/vector-icons";
@@ -88,6 +89,9 @@ export const DashboardTables: React.FC = () => {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
   useEffect(() => {
     let mounted = true;
@@ -109,6 +113,13 @@ export const DashboardTables: React.FC = () => {
 
   const tabs = ["All", "Pending", "Processing", "Shipped", "Delivered", "Returned"];
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, activeTab]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesSearch =
@@ -120,14 +131,19 @@ export const DashboardTables: React.FC = () => {
     });
   }, [orders, searchText, activeTab]);
 
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
+
   const columns: Column<OrderRow>[] = [
     {
       key: "id",
       title: "Order ID",
-      width: 180,
+      width: "18%",
       nowrap: true,
       render: (item) => (
-        <AppText style={styles.orderIdText} numberOfLines={1}>
+        <AppText style={styles.orderIdText}>
           {item.id}
         </AppText>
       ),
@@ -135,7 +151,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "customer",
       title: "Customer",
-      width: "17%",
+      width: "16%",
       render: (item) => (
         <View style={styles.customerCol}>
           <View style={styles.avatarCircle}>
@@ -150,10 +166,10 @@ export const DashboardTables: React.FC = () => {
     {
       key: "productName",
       title: "Product",
-      width: "24%",
+      width: "28%",
       render: (item) => (
         <View style={styles.productCol}>
-          <AppText style={styles.productNameText} numberOfLines={1}>{item.productName}</AppText>
+          <AppText style={styles.productNameText} numberOfLines={2}>{item.productName}</AppText>
           <AppText style={styles.productVariantText} numberOfLines={1}>{item.variant}</AppText>
         </View>
       ),
@@ -161,8 +177,8 @@ export const DashboardTables: React.FC = () => {
     {
       key: "qty",
       title: "Qty",
-      width: "6%",
-      align: "left",
+      width: "5%",
+      align: "center",
       render: (item) => (
         <AppText style={styles.qtyText}>{item.qty}</AppText>
       ),
@@ -170,7 +186,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "price",
       title: "Amount",
-      width: "10%",
+      width: "11%",
       align: "right",
       render: (item) => (
         <AppText style={styles.priceText}>₹{item.price.toLocaleString("en-IN")}</AppText>
@@ -179,7 +195,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "status",
       title: "Status",
-      width: "14%",
+      width: "12%",
       render: (item) => {
         const sc = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.Pending;
         return (
@@ -193,7 +209,7 @@ export const DashboardTables: React.FC = () => {
     {
       key: "actions",
       title: "Actions",
-      width: "14%",
+      width: "10%",
       align: "center",
       render: (item) => (
         <TouchableOpacity
@@ -227,7 +243,7 @@ export const DashboardTables: React.FC = () => {
         </View>
       </View>
 
-      <View style={styles.tabsContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScrollWrap} contentContainerStyle={styles.tabsContainer}>
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab}
@@ -240,7 +256,7 @@ export const DashboardTables: React.FC = () => {
             </AppText>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {loadError ? (
         <View style={styles.errorBanner}>
@@ -268,10 +284,51 @@ export const DashboardTables: React.FC = () => {
             <ActivityIndicator size="small" color={C.purple} />
             <AppText style={styles.emptyStateText}>Loading orders…</AppText>
           </View>
+        ) : isMobile ? (
+          <View style={styles.mobileListWrap}>
+            {filteredOrders.length === 0 && !loadError ? (
+              <View style={styles.emptyState}>
+                <AppText style={styles.emptyStateText}>No orders match the filters</AppText>
+              </View>
+            ) : (
+              paginatedOrders.map((item) => {
+                const sc = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.Pending;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.mobileCard}
+                    onPress={() => router.push({ pathname: "/(main)/orderDetails", params: { orderId: item.id } })}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.mobileCardTop}>
+                      <View>
+                        <AppText style={styles.mobileOrderId} numberOfLines={1}>{item.id}</AppText>
+                        <AppText style={styles.mobileCustomerName} numberOfLines={1}>{item.customer}</AppText>
+                      </View>
+                      <View style={[styles.statusBadge, { backgroundColor: sc.bg, alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 8 }]}>
+                        <View style={[styles.statusDot, { backgroundColor: sc.color, width: 4, height: 4 }]} />
+                        <AppText style={[styles.statusText, { color: sc.color, fontSize: 10 }]}>{sc.text}</AppText>
+                      </View>
+                    </View>
+                    <View style={styles.mobileCardMid}>
+                      <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                        <AppText style={styles.mobileProductName} numberOfLines={1}>{item.productName}</AppText>
+                        <AppText style={styles.mobileProductVariant} numberOfLines={1}>{item.variant}  •  Qty: {item.qty}</AppText>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <AppText style={styles.mobilePriceText}>₹{item.price.toLocaleString("en-IN")}</AppText>
+                        <AppText style={styles.mobileDateText}>{item.date}</AppText>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
         ) : (
           <>
-        <OrdersTable data={filteredOrders} columns={columns} />
-        {filteredOrders.length === 0 && !loadError && (
+        <OrdersTable data={paginatedOrders} columns={columns} />
+        {paginatedOrders.length === 0 && !loadError && (
           <View style={styles.emptyState}>
             <AppText style={styles.emptyStateText}>No orders match the filters</AppText>
           </View>
@@ -279,6 +336,17 @@ export const DashboardTables: React.FC = () => {
           </>
         )}
       </View>
+
+      {!loading && filteredOrders.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(filteredOrders.length / ITEMS_PER_PAGE)}
+          onPageChange={setCurrentPage}
+          totalItems={filteredOrders.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          itemLabel="orders"
+        />
+      )}
     </View>
   );
 };
@@ -331,7 +399,9 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     paddingHorizontal: 12,
     height: 38,
-    width: 280,
+    width: "100%",
+    maxWidth: 280,
+    flexShrink: 1,
   },
   searchIcon: {
     marginRight: 8,
@@ -344,12 +414,14 @@ const styles = StyleSheet.create({
     outlineStyle: "none" as any,
     padding: 0,
   },
+  tabsScrollWrap: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
   tabsContainer: {
     flexDirection: "row",
     paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    marginBottom: 16,
     gap: 8,
   },
   tab: {
@@ -512,6 +584,69 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 14,
     fontFamily: "Poppins_500Medium",
+    color: C.textMid,
+  },
+  mobileListWrap: {
+    paddingVertical: 12,
+    gap: 12,
+  },
+  mobileCard: {
+    backgroundColor: C.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  mobileCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    paddingBottom: 10,
+  },
+  mobileOrderId: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textDark,
+  },
+  mobileCustomerName: {
+    fontSize: 12,
+    fontFamily: "Poppins_500Medium",
+    color: C.textMid,
+    marginTop: 2,
+  },
+  mobileCardMid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  mobileProductName: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: C.textDark,
+    marginBottom: 2,
+  },
+  mobileProductVariant: {
+    fontSize: 11,
+    fontFamily: "Poppins_400Regular",
+    color: C.textLight,
+  },
+  mobilePriceText: {
+    fontSize: 14,
+    fontFamily: "Poppins_700Bold",
+    color: C.textDark,
+    marginBottom: 2,
+  },
+  mobileDateText: {
+    fontSize: 10,
+    fontFamily: "Poppins_400Regular",
     color: C.textLight,
   },
 });

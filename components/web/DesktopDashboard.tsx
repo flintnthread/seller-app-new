@@ -30,7 +30,6 @@ import { useResponsive } from "@/hooks/useResponsive";
 import {
   SmartWelcomeHeader,
   RealTimeActivityFeed,
-  AIBusinessInsights,
   SalesHeatmap,
   SmartInventoryMonitoring,
   LiveOrderTrackingPanel,
@@ -159,7 +158,7 @@ export function DesktopDashboard({
       id: o.id,
       status: o.status,
       customerName: o.customer?.name,
-      productName: o.items[0]?.productName,
+      productName: o.items[0]?.name,
       awb: o.shiprocket?.awb,
       courier: o.shiprocket?.courier,
       steps: o.steps.map((s) => ({
@@ -218,7 +217,7 @@ export function DesktopDashboard({
       <View style={[styles.gridRow, !isDesktop && styles.gridStacked, isTablet && styles.gridTablet]}>
         
         {/* LEFT COLUMN: Main analytical operations (70% width on large screens) */}
-        <View style={[styles.leftCol, isDesktop ? { width: "70%" } : { width: "100%" }, isTablet && styles.leftColTablet]}>
+        <View style={[styles.leftCol, isDesktop ? { flex: 7 } : { width: "100%" }, isTablet && styles.leftColTablet]}>
           
           {/* Advanced KPI Cards Row */}
           <DashboardAnalytics
@@ -270,10 +269,11 @@ export function DesktopDashboard({
               />
             </View>
           </View>
+
         </View>
 
         {/* RIGHT COLUMN: Performance indicators, live alerts, logs (30% width) */}
-        <View style={[styles.rightCol, isDesktop ? { width: "30%" } : { width: "100%" }, isTablet && styles.rightColTablet]}>
+        <View style={[styles.rightCol, isDesktop ? { flex: 3 } : { width: "100%" }, isTablet && styles.rightColTablet]}>
           
           {/* Seller Performance Score Dial */}
           <SellerPerformanceScore
@@ -286,11 +286,6 @@ export function DesktopDashboard({
           <SmartNotificationCenter alerts={widgets.alertNotifications} />
 
           <RealTimeActivityFeed activities={widgets.activities} />
-
-          <AIBusinessInsights
-            lowStock={widgets.lowStock}
-            topProducts={widgets.topProducts}
-          />
 
           <SmartInventoryMonitoring
             lowStock={widgets.lowStock}
@@ -389,41 +384,42 @@ const styles = StyleSheet.create({
   },
   gridRow: {
     flexDirection: "row",
-    gap: 20,
-    marginBottom: 40,
+    gap: 16,
+    marginBottom: 16,
     width: "100%",
     maxWidth: "100%",
     minWidth: 0,
   },
   gridStacked: {
     flexDirection: "column",
-    gap: 16,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 16,
   },
   gridTablet: {
-    gap: 14,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 16,
   },
   leftCol: {
-    gap: 20,
+    gap: 16,
     minWidth: 0,
     maxWidth: "100%",
   },
   leftColTablet: {
-    gap: 14,
+    gap: 12,
   },
   rightCol: {
-    gap: 16,
+    gap: 12,
     minWidth: 0,
     maxWidth: "100%",
+    overflow: "hidden",
   },
   rightColTablet: {
-    gap: 12,
+    gap: 10,
   },
   flexRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: 12,
     width: "100%",
     minWidth: 0,
   },

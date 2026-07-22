@@ -26,6 +26,7 @@ import {
 } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
+import { Pagination } from "@/components/common/Pagination";
 import { lookupOrderPayoutAmount } from "@/services/earningsApi";
 import { fetchSellerOrderDetail, fetchSellerOrderDetails, isCustomerPaymentCollected } from "@/services/orderApi";
 import { ensureSellerId } from "@/lib/api/sellerSession";
@@ -263,25 +264,27 @@ const StatCard = ({
   value,
   icon,
   compact,
+  accent = "#f97316",
 }: {
   label: string;
   value: string;
   icon: string;
   compact?: boolean;
+  accent?: string;
 }) => (
-  <View style={[styles.statCard, compact && styles.statCardWebMobile]}>
-    <View style={[styles.statIconWrap, compact && styles.statIconWrapWebMobile]}>
-      <MaterialCommunityIcons name={icon as any} size={compact ? 18 : 20} color="#f97316" />
+  <View style={[styles.statCard, compact && styles.statCardCompact]}>
+    <View style={[styles.statIconBox, { backgroundColor: accent + "18" }, compact && styles.statIconBoxCompact]}>
+      <MaterialCommunityIcons name={icon as any} size={compact ? 16 : 24} color={accent} />
     </View>
-    <View style={compact ? styles.statTextWebMobile : undefined}>
-      <Text style={[styles.statLabel, compact && styles.statLabelWebMobile]} numberOfLines={1}>
+    <View style={{ marginTop: compact ? 6 : 14, alignItems: compact ? "center" : "flex-start", width: "100%" }}>
+      <Text style={[styles.statLabel, compact && styles.statLabelCompact]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {label}
       </Text>
       <Text
-        style={[styles.statValue, compact && styles.statValueWebMobile]}
+        style={[styles.statValue, compact && styles.statValueCompact]}
         numberOfLines={1}
         adjustsFontSizeToFit
-        minimumFontScale={0.7}
+        minimumFontScale={0.5}
       >
         {value}
       </Text>
@@ -320,13 +323,13 @@ const DesktopStatCard = ({
   icon: string;
   accent: string;
 }) => (
-  <View style={desktopStyles.statCard}>
-    <View style={[desktopStyles.statIconBox, { backgroundColor: accent + "18" }]}>
-      <MaterialCommunityIcons name={icon as any} size={24} color={accent} />
+  <View style={[desktopStyles.statCard, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
+    <View style={[desktopStyles.statIconBox, { backgroundColor: accent + "18", flexShrink: 0 }]}>
+      <MaterialCommunityIcons name={icon as any} size={20} color={accent} />
     </View>
-    <View style={{ marginTop: 14 }}>
-      <Text style={desktopStyles.statLabel}>{label}</Text>
-      <Text style={desktopStyles.statValue}>{value}</Text>
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text style={desktopStyles.statLabel} numberOfLines={1}>{label}</Text>
+      <Text style={desktopStyles.statValue} numberOfLines={1}>{value}</Text>
     </View>
   </View>
 );
@@ -346,6 +349,8 @@ export default function EnhancedPayoutRequest() {
   const [amount, setAmount] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [isRequesting, setIsRequesting] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -616,6 +621,11 @@ export default function EnhancedPayoutRequest() {
     });
   }, [searchQuery, statusFilter, apiTransactions]);
 
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTransactions.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTransactions, currentPage]);
+
   const submitPayoutRequestFlow = async () => {
     setIsRequesting(true);
     try {
@@ -657,45 +667,45 @@ export default function EnhancedPayoutRequest() {
     ({ item }: { item: Transaction }) => {
       const visuals = txnStatusVisuals(item.status);
       return (
-      <View style={[styles.txnItem, isWebMobile && styles.txnItemWebMobile]}>
-        <View style={styles.txnIconWrap}>
-          <MaterialCommunityIcons
-            name={visuals.icon}
-            size={24}
-            color={visuals.color}
-          />
-        </View>
-        <View style={styles.txnInfo}>
-          <Text style={styles.txnTitle} numberOfLines={2}>
-            {item.productName ?? item.orderId}
-          </Text>
-          <Text style={styles.txnDate}>
-            {item.orderId}
-            {item.date ? ` · ${new Date(item.date).toLocaleDateString()}` : ""}
-          </Text>
-        </View>
-        <View style={styles.txnRight}>
-          <Text style={styles.txnAmount}>₹{item.amount.toLocaleString()}</Text>
-          <Text
-            style={[
-              styles.txnStatus,
-              { color: visuals.color },
-            ]}
-          >
-            {formatTxnStatusLabel(item.status)}
-          </Text>
-          {item.status === "Pending" && (
-            <TouchableOpacity
-              style={styles.raiseTicketBtn}
-              onPress={() => router.push("/(main)/helpsupport")}
+        <View style={[styles.txnItem, isWebMobile && styles.txnItemWebMobile]}>
+          <View style={styles.txnIconWrap}>
+            <MaterialCommunityIcons
+              name={visuals.icon}
+              size={24}
+              color={visuals.color}
+            />
+          </View>
+          <View style={styles.txnInfo}>
+            <Text style={styles.txnTitle} numberOfLines={2}>
+              {item.productName ?? item.orderId}
+            </Text>
+            <Text style={styles.txnDate}>
+              {item.orderId}
+              {item.date ? ` · ${new Date(item.date).toLocaleDateString()}` : ""}
+            </Text>
+          </View>
+          <View style={styles.txnRight}>
+            <Text style={styles.txnAmount}>₹{item.amount.toLocaleString()}</Text>
+            <Text
+              style={[
+                styles.txnStatus,
+                { color: visuals.color },
+              ]}
             >
-              <MaterialCommunityIcons name="ticket-outline" size={12} color="#f97316" />
-              <Text style={styles.raiseTicketText}>Help</Text>
-            </TouchableOpacity>
-          )}
+              {formatTxnStatusLabel(item.status)}
+            </Text>
+            {item.status === "Pending" && (
+              <TouchableOpacity
+                style={styles.raiseTicketBtn}
+                onPress={() => router.push("/(main)/helpsupport")}
+              >
+                <MaterialCommunityIcons name="ticket-outline" size={12} color="#f97316" />
+                <Text style={styles.raiseTicketText}>Help</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    );
+      );
     },
     [isWebMobile, router]
   );
@@ -758,7 +768,7 @@ export default function EnhancedPayoutRequest() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ width: "100%", maxHeight: 400 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView style={{ width: "100%", maxHeight: width < 768 ? 280 : 400 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* Account Holder Name */}
                 <View style={{ marginBottom: 12 }}>
                   <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Account Holder Name</Text>
@@ -899,29 +909,34 @@ export default function EnhancedPayoutRequest() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={desktopStyles.scrollContent}
         >
-        {/* Hero Banner */}
-        <View style={desktopStyles.hero}>
-          <View style={desktopStyles.heroInner}>
-            <View>
-              <Text style={desktopStyles.heroTitle}>Manage Earnings & Withdrawals</Text>
-              <Text style={desktopStyles.heroSub}>
-                Request payouts, track transactions, and manage your bank accounts in one place.
-              </Text>
-            </View>
-            <View style={desktopStyles.heroBalance}>
-              <Text style={desktopStyles.heroBalanceLabel}>Available Balance</Text>
-              <Text style={desktopStyles.heroBalanceValue}>
-                ₹{availableBalance.toLocaleString()}
-              </Text>
+          {/* Hero Banner */}
+          <View style={desktopStyles.hero}>
+            <View style={desktopStyles.heroInner}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                  <MaterialCommunityIcons name="bank-transfer-out" size={24} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={desktopStyles.heroTitle}>Payout Request</Text>
+                  <Text style={desktopStyles.heroSub}>
+                    Manage your earnings & withdrawals
+                  </Text>
+                </View>
+              </View>
+              <View style={desktopStyles.heroBalance}>
+                <Text style={desktopStyles.heroBalanceLabel}>Available Balance</Text>
+                <Text style={desktopStyles.heroBalanceValue}>
+                  ₹{availableBalance.toLocaleString()}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {!!summaryError && (
-          <View style={{ marginHorizontal: 24, marginBottom: 8, padding: 12, borderRadius: 8, backgroundColor: "#fef2f2" }}>
-            <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
-          </View>
-        )}
+          {!!summaryError && (
+            <View style={{ marginHorizontal: 24, marginBottom: 8, padding: 12, borderRadius: 8, backgroundColor: "#fef2f2" }}>
+              <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
+            </View>
+          )}
 
           {/* Stats Row */}
           <View style={desktopStyles.statsRow}>
@@ -932,10 +947,10 @@ export default function EnhancedPayoutRequest() {
           </View>
 
           {/* Two-column body */}
-          <View style={desktopStyles.twoCol}>
+          <View style={[desktopStyles.twoCol, width < 1200 && { flexDirection: "column" }]}>
 
             {/* ── LEFT: Payout Form ── */}
-            <View style={desktopStyles.formPanel}>
+            <View style={[desktopStyles.formPanel, width < 1200 && { width: "100%" }]}>
               <View style={desktopStyles.panelHeader}>
                 <View style={desktopStyles.panelIconBox}>
                   <MaterialCommunityIcons name="bank-transfer-out" size={18} color="#f97316" />
@@ -946,13 +961,14 @@ export default function EnhancedPayoutRequest() {
               {/* Bank Selection */}
               <View style={desktopStyles.fieldBlock}>
                 <Text style={desktopStyles.fieldLabel}>Select Bank Account</Text>
-                <View style={desktopStyles.bankRow}>
+                <View style={[desktopStyles.bankRow, width >= 1024 && width < 1200 && { flexDirection: "row", flexWrap: "nowrap" }]}>
                   {banks.map((bank) => (
                     <TouchableOpacity
                       key={bank.id}
                       style={[
                         desktopStyles.bankCard,
                         selectedBank === bank.id && desktopStyles.bankCardActive,
+                        width >= 1024 && width < 1200 && { flex: 1 },
                       ]}
                       onPress={() => setSelectedBank(bank.id)}
                     >
@@ -1001,7 +1017,7 @@ export default function EnhancedPayoutRequest() {
 
                   {/* Edit Bank Account Card */}
                   <TouchableOpacity
-                    style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }]}
+                    style={[desktopStyles.bankCard, { borderStyle: "dashed", borderWidth: 1.5, borderColor: "#f97316", cursor: "pointer" as any }, width >= 1024 && width < 1200 && { flex: 1 }]}
                     onPress={openBankEditModal}
                   >
                     <View style={desktopStyles.bankCardLeft}>
@@ -1086,7 +1102,7 @@ export default function EnhancedPayoutRequest() {
             </View>
 
             {/* ── RIGHT: Transactions ── */}
-            <View style={desktopStyles.txnPanel}>
+            <View style={[desktopStyles.txnPanel, width < 1200 && { width: "100%" }]}>
               <View style={[desktopStyles.panelHeader, { justifyContent: "space-between", width: "100%" }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View style={desktopStyles.panelIconBox}>
@@ -1144,71 +1160,82 @@ export default function EnhancedPayoutRequest() {
                     <Text style={desktopStyles.emptyText}>No transactions found</Text>
                   </View>
                 ) : (
-                  filteredTransactions.map((item) => {
+                  paginatedTransactions.map((item) => {
                     const visuals = txnStatusVisuals(item.status);
                     return (
-                    <View key={item.id} style={desktopStyles.txnRow}>
-                      <View
-                        style={[
-                          desktopStyles.txnStatusDot,
-                          { backgroundColor: visuals.bg },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name={visuals.icon}
-                          size={20}
-                          color={visuals.color}
-                        />
-                      </View>
-                      <View style={desktopStyles.txnRowInfo}>
-                        <Text style={desktopStyles.txnOrderId} numberOfLines={2}>
-                          {item.productName ?? item.orderId}
-                        </Text>
-                        <Text style={desktopStyles.txnDate}>
-                          {item.orderId}
-                          {item.date
-                            ? ` · ${new Date(item.date).toLocaleDateString("en-IN", {
+                      <View key={item.id} style={desktopStyles.txnRow}>
+                        <View
+                          style={[
+                            desktopStyles.txnStatusDot,
+                            { backgroundColor: visuals.bg },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name={visuals.icon}
+                            size={20}
+                            color={visuals.color}
+                          />
+                        </View>
+                        <View style={desktopStyles.txnRowInfo}>
+                          <Text style={desktopStyles.txnOrderId} numberOfLines={2}>
+                            {item.productName ?? item.orderId}
+                          </Text>
+                          <Text style={desktopStyles.txnDate}>
+                            {item.orderId}
+                            {item.date
+                              ? ` · ${new Date(item.date).toLocaleDateString("en-IN", {
                                 day: "numeric",
                                 month: "short",
                                 year: "numeric",
                               })}`
-                            : ""}
-                        </Text>
-                      </View>
-                      <View style={desktopStyles.txnRowRight}>
-                        <Text style={desktopStyles.txnAmount}>
-                          ₹{item.amount.toLocaleString()}
-                        </Text>
-                        <View
-                          style={[
-                            desktopStyles.txnStatusBadge,
-                            { backgroundColor: visuals.bg },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              desktopStyles.txnStatusText,
-                              { color: visuals.color },
-                            ]}
-                          >
-                            {formatTxnStatusLabel(item.status)}
+                              : ""}
                           </Text>
                         </View>
-                        {item.status === "Pending" && (
-                          <TouchableOpacity
-                            style={desktopStyles.helpBtn}
-                            onPress={() => router.push("/(main)/helpsupport")}
+                        <View style={desktopStyles.txnRowRight}>
+                          <Text style={desktopStyles.txnAmount}>
+                            ₹{item.amount.toLocaleString()}
+                          </Text>
+                          <View
+                            style={[
+                              desktopStyles.txnStatusBadge,
+                              { backgroundColor: visuals.bg },
+                            ]}
                           >
-                            <MaterialCommunityIcons name="ticket-outline" size={12} color="#f97316" />
-                            <Text style={desktopStyles.helpBtnText}>Raise Ticket</Text>
-                          </TouchableOpacity>
-                        )}
+                            <Text
+                              style={[
+                                desktopStyles.txnStatusText,
+                                { color: visuals.color },
+                              ]}
+                            >
+                              {formatTxnStatusLabel(item.status)}
+                            </Text>
+                          </View>
+                          {item.status === "Pending" && (
+                            <TouchableOpacity
+                              style={desktopStyles.helpBtn}
+                              onPress={() => router.push("/(main)/helpsupport")}
+                            >
+                              <MaterialCommunityIcons name="ticket-outline" size={12} color="#f97316" />
+                              <Text style={desktopStyles.helpBtnText}>Raise Ticket</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  );
+                    );
                   })
                 )}
               </View>
+
+              {filteredTransactions.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE)}
+                  onPageChange={setCurrentPage}
+                  totalItems={filteredTransactions.length}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  itemLabel="transactions"
+                />
+              )}
             </View>
           </View>
 
@@ -1232,23 +1259,30 @@ export default function EnhancedPayoutRequest() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <FlatList
-          data={filteredTransactions}
+          data={paginatedTransactions}
           keyExtractor={(item) => item.id}
           renderItem={renderTransactionItem}
           showsVerticalScrollIndicator={isWebMobile}
           contentContainerStyle={[
             isWeb && styles.listContentWeb,
-            isWebMobile && styles.listContentWebMobile,
-            { paddingBottom: isWebMobile ? 100 : 120 },
+            isWeb && styles.listContentWebMobile,
+            { paddingBottom: isWeb ? 100 : 120 },
           ]}
           ListHeaderComponent={
-            <View style={[styles.listHeader, isWebMobile && styles.listHeaderWebMobile]}>
-              {isWebMobile && (
-                <View style={styles.webMobileIntro}>
-                  <Text style={styles.webMobileTitle}>Payout Request</Text>
-                  <Text style={styles.webMobileSubtitle} numberOfLines={2}>
-                    Manage your earnings & withdrawals
-                  </Text>
+            <View style={[styles.listHeader, isWeb && styles.listHeaderWebMobile]}>
+              {isWeb && (
+                <View style={styles.payoutHeroHeader}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: isWebMobile ? 40 : 48, height: isWebMobile ? 40 : 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                      <MaterialCommunityIcons name="bank-transfer-out" size={isWebMobile ? 20 : 24} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.payoutHeroTitle}>Payout Request</Text>
+                      <Text style={styles.payoutHeroSub}>
+                        {"Manage withdrawals"}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               )}
               {!!summaryError && (
@@ -1256,25 +1290,25 @@ export default function EnhancedPayoutRequest() {
                   <Text style={{ color: "#b91c1c", fontSize: 13 }}>{summaryError}</Text>
                 </View>
               )}
-              {isWebMobile ? (
-                <View style={styles.statsGridWebMobile}>
-                  <StatCard compact label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
-                  <StatCard compact label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
-                  <View style={styles.statCardSpanWebMobile}>
-                    <StatCard compact label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
+              <View style={styles.payoutStatsRow}>
+                {isWeb && !isWebMobile ? (
+                  // Tablet web: 4 cards in a horizontal row
+                  <View style={{ flexDirection: "row", gap: 12, flex: 1 }}>
+                    <StatCard compact label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" accent="#1a2b5e" />
+                    <StatCard compact label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" accent="#f97316" />
+                    <StatCard compact label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" accent="#22c55e" />
+                    <StatCard compact label="Pending" value={payoutSummary ? formatInr(payoutSummary.pendingAmount) : "—"} icon="clock-outline" accent="#f59e0b" />
                   </View>
-                </View>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 12 }}
-                >
-                  <StatCard label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" />
-                  <StatCard label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" />
-                  <StatCard label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" />
-                </ScrollView>
-              )}
+                ) : (
+                  // Mobile & Tablet (native + web mobile): 1x4 compact single row
+                  <View style={styles.statsRowMobile}>
+                    <StatCard compact label="Lifetime" value={payoutSummary ? formatInr(payoutSummary.lifetimeEarnings) : "—"} icon="history" accent="#1a2b5e" />
+                    <StatCard compact label="This Month" value={payoutSummary ? formatInr(payoutSummary.thisMonthEarnings) : "—"} icon="calendar-month" accent="#f97316" />
+                    <StatCard compact label="Highest" value={payoutSummary ? formatInr(payoutSummary.highestPayout) : "—"} icon="trending-up" accent="#22c55e" />
+                    <StatCard compact label="Pending" value={payoutSummary ? formatInr(payoutSummary.pendingAmount) : "—"} icon="clock-outline" accent="#f59e0b" />
+                  </View>
+                )}
+              </View>
 
               <View style={[styles.balanceCard, isWebMobile && styles.balanceCardWebMobile]}>
                 <Text style={styles.balanceLabel}>Available Balance</Text>
@@ -1483,11 +1517,25 @@ export default function EnhancedPayoutRequest() {
               )}
             </View>
           }
+          ListFooterComponent={
+            filteredTransactions.length > 0 ? (
+              <View style={{ marginTop: 4, marginBottom: 20 }}>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE)}
+                  onPageChange={setCurrentPage}
+                  totalItems={filteredTransactions.length}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  itemLabel="transactions"
+                />
+              </View>
+            ) : null
+          }
         />
 
         <View style={[styles.footer, isWebMobile && styles.footerWebMobile]}>
           <TouchableOpacity
-            style={[styles.mainButton, isWebMobile && styles.mainButtonWebMobile, !!errorMsg && styles.disabledButton]}
+            style={[styles.mainButton, isWebMobile && styles.mainButtonWebMobile, !!errorMsg ? styles.disabledButton : undefined]}
             onPress={handleInitialRequest}
             disabled={!!errorMsg}
           >
@@ -1495,7 +1543,7 @@ export default function EnhancedPayoutRequest() {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Text style={styles.mainButtonText}>Request Payout</Text>
+                <Text style={styles.mainButtonText as any}>Request Payout</Text>
                 <MaterialCommunityIcons name="chevron-right" size={24} color="#f97316" />
               </>
             )}
@@ -1579,9 +1627,9 @@ const desktopStyles = StyleSheet.create({
   hero: {
     backgroundColor: "#151D4F",
     paddingHorizontal: 32,
-    paddingVertical: 28,
-    paddingBottom: 68,
-    borderRadius: 22,
+    paddingVertical: 8,
+    paddingBottom: 28,
+    borderRadius: 14,
     marginHorizontal: 2,
     marginTop: 12,
   },
@@ -1592,22 +1640,22 @@ const desktopStyles = StyleSheet.create({
     alignItems: "center",
   },
   heroTitle: {
-    fontSize: 28,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "700",
     color: "#fff",
     marginBottom: 6,
   },
   heroSub: {
-    fontSize: 15,
+    fontSize: 14,
     color: "rgba(255,255,255,0.65)",
     maxWidth: 460,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   heroBalance: {
     backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 20,
-    paddingHorizontal: 28,
-    paddingVertical: 20,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     alignItems: "flex-end",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
@@ -1619,7 +1667,7 @@ const desktopStyles = StyleSheet.create({
     marginBottom: 4,
   },
   heroBalanceValue: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: "800",
     color: "#fff",
   },
@@ -1639,16 +1687,16 @@ const desktopStyles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     gap: 16,
-    marginBottom: 28,
-    marginTop: -42,
+    marginBottom: 20,
+    marginTop: -18,
     zIndex: 10,
     marginHorizontal: 6,
   },
   statCard: {
     flex: 1,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 14,
+    padding: 12,
     shadowColor: "#1a2b5e",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.07,
@@ -1656,12 +1704,12 @@ const desktopStyles = StyleSheet.create({
     elevation: 3,
   },
   statIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   statLabel: {
     fontSize: 12,
@@ -1670,7 +1718,7 @@ const desktopStyles = StyleSheet.create({
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800",
     color: "#0f172a",
   },
@@ -1986,7 +2034,7 @@ const desktopStyles = StyleSheet.create({
   },
   txnOrderId: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0f172a",
   },
   txnDate: {
@@ -2000,7 +2048,7 @@ const desktopStyles = StyleSheet.create({
   },
   txnAmount: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0f172a",
   },
   txnStatusBadge: {
@@ -2079,12 +2127,44 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   listHeaderWebMobile: {
-    padding: 0,
+    padding: 8,
     paddingBottom: 8,
   },
   webMobileIntro: {
     marginBottom: 12,
     paddingTop: 4,
+  },
+  payoutHeroHeader: {
+    backgroundColor: "#151D4F",
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 32,
+    borderRadius: 14,
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    shadowColor: "#151D4F",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  payoutStatsRow: {
+    marginTop: -16,
+    marginHorizontal: 4,
+    zIndex: 10,
+    marginBottom: 8,
+  },
+  payoutHeroTitle: {
+    fontWeight: "700" as const,
+    fontSize: 22,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+  },
+  payoutHeroSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 4,
   },
   webMobileTitle: {
     fontSize: 20,
@@ -2096,54 +2176,31 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 4,
   },
-  statsGridWebMobile: {
-    gap: 8,
+  statsRowMobile: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 6,
     marginBottom: 4,
-    ...Platform.select({
-      web: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 8,
-      },
-    }),
   },
-  statCardSpanWebMobile: {
-    width: "100%",
-    ...Platform.select({
-      web: {
-        gridColumn: "1 / -1",
-      },
-    }),
-  },
-  statCardWebMobile: {
-    width: "100%",
+  statCardCompact: {
     flex: 1,
     minWidth: 0,
-    padding: 10,
-    borderRadius: 12,
-    alignSelf: "stretch",
-    ...Platform.select({
-      web: {
-        width: "100%",
-        maxWidth: "none",
-      },
-    }),
+    padding: 8,
+    paddingVertical: 10,
+    alignItems: "center",
   },
-  statIconWrapWebMobile: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    marginRight: 8,
+  statIconBoxCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
-  statTextWebMobile: {
-    flex: 1,
-    minWidth: 0,
+  statLabelCompact: {
+    fontSize: 9,
+    textAlign: "center",
   },
-  statLabelWebMobile: {
-    fontSize: 11,
-  },
-  statValueWebMobile: {
-    fontSize: 13,
+  statValueCompact: {
+    fontSize: 12,
+    textAlign: "center",
   },
 
   header: {
@@ -2178,31 +2235,30 @@ const styles = StyleSheet.create({
 
   statCard: {
     backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#1a2b5e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    elevation: 3,
     width: 160,
   },
-
-  statIconWrap: {
+  statIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(26,43,94,0.08)",
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
   },
-
   statLabel: {
     fontSize: 12,
     color: "#64748b",
+    fontWeight: "600",
   },
-
   statValue: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#0f172a",
     marginTop: 2,
   },
@@ -2490,7 +2546,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   txnItemWebMobile: {
-    marginHorizontal: 0,
+    marginHorizontal: 8,
     padding: 12,
     borderRadius: 14,
   },
@@ -2511,7 +2567,7 @@ const styles = StyleSheet.create({
 
   txnTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0f172a",
   },
 
@@ -2527,7 +2583,7 @@ const styles = StyleSheet.create({
 
   txnAmount: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0f172a",
   },
 

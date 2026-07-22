@@ -120,7 +120,7 @@ type ChatMessage = {
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 
 const C = {
-  navy: "#1E3A6E",
+  navy: "#151D4F",
   navyDeep: "#152D5A",
   navyLight: "#2A4F8F",
   orange: "#F97316",
@@ -601,423 +601,423 @@ const TicketStatusPanel: React.FC<{
   onTicketUpdated,
   onRefresh,
 }) => {
-  const STEPS: TicketStatus[] = ["open", "waiting_admin", "waiting_seller", "closed"];
-  const [expandedLocal, setExpandedLocal] = useState<string | null>(null);
-  const expandedId = expandedProp !== undefined ? expandedProp : expandedLocal;
-  const setExpandedId = (id: string | null) => {
-    if (onExpandedChange) onExpandedChange(id);
-    else setExpandedLocal(id);
-  };
+    const STEPS: TicketStatus[] = ["open", "waiting_admin", "waiting_seller", "closed"];
+    const [expandedLocal, setExpandedLocal] = useState<string | null>(null);
+    const expandedId = expandedProp !== undefined ? expandedProp : expandedLocal;
+    const setExpandedId = (id: string | null) => {
+      if (onExpandedChange) onExpandedChange(id);
+      else setExpandedLocal(id);
+    };
 
-  const [messagesMap, setMessagesMap] = useState<Record<string, TicketMessage[]>>({});
-  const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const [replyImage, setReplyImage] = useState<Record<string, string | null>>({});
-  const [sendingId, setSendingId] = useState<string | null>(null);
+    const [messagesMap, setMessagesMap] = useState<Record<string, TicketMessage[]>>({});
+    const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState<Record<string, string>>({});
+    const [replyImage, setReplyImage] = useState<Record<string, string | null>>({});
+    const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const loadMessages = async (ticketId: string) => {
-    setLoadingMsgId(ticketId);
-    try {
-      const msgs = await apiGetMessages(Number(ticketId));
-      setMessagesMap((prev) => ({ ...prev, [ticketId]: mapApiMessages(msgs) }));
-    } catch {
-      Alert.alert("Error", "Could not load messages. Please try again.");
-    } finally {
-      setLoadingMsgId(null);
-    }
-  };
+    const loadMessages = async (ticketId: string) => {
+      setLoadingMsgId(ticketId);
+      try {
+        const msgs = await apiGetMessages(Number(ticketId));
+        setMessagesMap((prev) => ({ ...prev, [ticketId]: mapApiMessages(msgs) }));
+      } catch {
+        Alert.alert("Error", "Could not load messages. Please try again.");
+      } finally {
+        setLoadingMsgId(null);
+      }
+    };
 
-  const toggleExpand = async (ticket: Ticket) => {
-    if (expandedId === ticket.id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(ticket.id);
-    if (!messagesMap[ticket.id]?.length && !ticket.messages?.length) {
-      await loadMessages(ticket.id);
-    } else if (ticket.messages?.length && !messagesMap[ticket.id]) {
-      setMessagesMap((prev) => ({ ...prev, [ticket.id]: ticket.messages! }));
-    }
-  };
-
-  const handlePickReplyImage = async (ticketId: string) => {
-    if (Platform.OS !== "web") {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Please allow access to your photo library in Settings.");
+    const toggleExpand = async (ticket: Ticket) => {
+      if (expandedId === ticket.id) {
+        setExpandedId(null);
         return;
       }
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.8,
-    });
-    const asset = result.assets?.[0];
-    if (!result.canceled && asset) {
-      setReplyImage((prev) => ({ ...prev, [ticketId]: asset.uri }));
-    }
-  };
+      setExpandedId(ticket.id);
+      if (!messagesMap[ticket.id]?.length && !ticket.messages?.length) {
+        await loadMessages(ticket.id);
+      } else if (ticket.messages?.length && !messagesMap[ticket.id]) {
+        setMessagesMap((prev) => ({ ...prev, [ticket.id]: ticket.messages! }));
+      }
+    };
 
-  const handleSendReply = async (ticket: Ticket) => {
-    const text = (replyText[ticket.id] ?? "").trim();
-    const imageUri = replyImage[ticket.id] ?? null;
-    if (!text && !imageUri) return;
+    const handlePickReplyImage = async (ticketId: string) => {
+      if (Platform.OS !== "web") {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permissionResult.granted) {
+          Alert.alert("Permission Required", "Please allow access to your photo library in Settings.");
+          return;
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      const asset = result.assets?.[0];
+      if (!result.canceled && asset) {
+        setReplyImage((prev) => ({ ...prev, [ticketId]: asset.uri }));
+      }
+    };
 
-    setSendingId(ticket.id);
-    try {
-      const sent = imageUri
-        ? await apiSendMessageWithImage(Number(ticket.id), imageUri, text || undefined)
-        : await apiSendMessage(Number(ticket.id), text);
+    const handleSendReply = async (ticket: Ticket) => {
+      const text = (replyText[ticket.id] ?? "").trim();
+      const imageUri = replyImage[ticket.id] ?? null;
+      if (!text && !imageUri) return;
 
-      const newMsg: TicketMessage = {
-        id: String(sent.id),
-        senderType: "seller",
-        message: sent.message,
-        attachment: resolveMediaUrl(sent.attachment) ?? null,
-        createdAt: new Date(sent.createdAt),
-      };
-      setMessagesMap((prev) => ({
-        ...prev,
-        [ticket.id]: [...(prev[ticket.id] ?? []), newMsg],
-      }));
-      setReplyText((prev) => ({ ...prev, [ticket.id]: "" }));
-      setReplyImage((prev) => ({ ...prev, [ticket.id]: null }));
+      setSendingId(ticket.id);
+      try {
+        const sent = imageUri
+          ? await apiSendMessageWithImage(Number(ticket.id), imageUri, text || undefined)
+          : await apiSendMessage(Number(ticket.id), text);
 
-      const detail = await apiGetTicketById(Number(ticket.id));
-      const updated: Ticket = {
-        ...ticket,
-        status: normalizeStatus(detail.status),
-        lastResponseBy: detail.lastResponseBy,
-        updatedAt: new Date(detail.updatedAt),
-        adminNote: ADMIN_NOTES[normalizeStatus(detail.status)],
-        messages: mapApiMessages(detail.messages),
-      };
-      setMessagesMap((prev) => ({ ...prev, [ticket.id]: updated.messages ?? [] }));
-      onTicketUpdated?.(updated);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to send message.");
-    } finally {
-      setSendingId(null);
-    }
-  };
+        const newMsg: TicketMessage = {
+          id: String(sent.id),
+          senderType: "seller",
+          message: sent.message,
+          attachment: resolveMediaUrl(sent.attachment) ?? null,
+          createdAt: new Date(sent.createdAt),
+        };
+        setMessagesMap((prev) => ({
+          ...prev,
+          [ticket.id]: [...(prev[ticket.id] ?? []), newMsg],
+        }));
+        setReplyText((prev) => ({ ...prev, [ticket.id]: "" }));
+        setReplyImage((prev) => ({ ...prev, [ticket.id]: null }));
 
-  const handleCloseTicket = (ticket: Ticket) => {
-    Alert.alert("Close ticket?", "This ticket will be marked as resolved.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Close",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const closed = await apiCloseTicket(Number(ticket.id));
-            const updated: Ticket = {
-              ...ticket,
-              status: "closed",
-              adminNote: ADMIN_NOTES.closed,
-              updatedAt: new Date(closed.updatedAt),
-            };
-            onTicketUpdated?.(updated);
-            onRefresh?.();
-          } catch (err: any) {
-            Alert.alert("Error", err.message || "Could not close ticket.");
-          }
+        const detail = await apiGetTicketById(Number(ticket.id));
+        const updated: Ticket = {
+          ...ticket,
+          status: normalizeStatus(detail.status),
+          lastResponseBy: detail.lastResponseBy,
+          updatedAt: new Date(detail.updatedAt),
+          adminNote: ADMIN_NOTES[normalizeStatus(detail.status)],
+          messages: mapApiMessages(detail.messages),
+        };
+        setMessagesMap((prev) => ({ ...prev, [ticket.id]: updated.messages ?? [] }));
+        onTicketUpdated?.(updated);
+      } catch (err: any) {
+        Alert.alert("Error", err.message || "Failed to send message.");
+      } finally {
+        setSendingId(null);
+      }
+    };
+
+    const handleCloseTicket = (ticket: Ticket) => {
+      Alert.alert("Close ticket?", "This ticket will be marked as resolved.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Close",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const closed = await apiCloseTicket(Number(ticket.id));
+              const updated: Ticket = {
+                ...ticket,
+                status: "closed",
+                adminNote: ADMIN_NOTES.closed,
+                updatedAt: new Date(closed.updatedAt),
+              };
+              onTicketUpdated?.(updated);
+              onRefresh?.();
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Could not close ticket.");
+            }
+          },
         },
-      },
-    ]);
-  };
+      ]);
+    };
 
-  const getMessagesForTicket = (ticket: Ticket): TicketMessage[] =>
-    messagesMap[ticket.id] ?? ticket.messages ?? [];
+    const getMessagesForTicket = (ticket: Ticket): TicketMessage[] =>
+      messagesMap[ticket.id] ?? ticket.messages ?? [];
 
-  return (
-    <View style={s.topicPanel}>
-      <View style={s.topicPanelHeader}>
-        <View style={[s.topicPanelIconWrap, { backgroundColor: "#F0F4FF" }]}>
-          <Ionicons name="ticket-outline" size={18} color={C.navy} />
-        </View>
-        <Text style={[s.topicPanelTitle, { fontFamily: F.bold }]}>My Ticket Status</Text>
-        <TouchableOpacity onPress={onRefresh} style={s.refreshTicketsBtn} activeOpacity={0.7}>
-          <Ionicons name="refresh-outline" size={18} color={C.navy} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onClose} style={s.topicPanelClose} activeOpacity={0.7}>
-          <Ionicons name="close" size={16} color={C.textMid} />
-        </TouchableOpacity>
-      </View>
-
-      {isLoadingTickets ? (
-        <View style={s.card}>
-          <View style={s.emptyTickets}>
-            <ActivityIndicator size="large" color={C.navy} />
-            <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, marginTop: 8 }]}>Loading tickets...</Text>
+    return (
+      <View style={s.topicPanel}>
+        <View style={s.topicPanelHeader}>
+          <View style={[s.topicPanelIconWrap, { backgroundColor: "#F0F4FF" }]}>
+            <Ionicons name="ticket-outline" size={18} color={C.navy} />
           </View>
+          <Text style={[s.topicPanelTitle, { fontFamily: F.bold }]}>My Ticket Status</Text>
+          <TouchableOpacity onPress={onRefresh} style={s.refreshTicketsBtn} activeOpacity={0.7}>
+            <Ionicons name="refresh-outline" size={18} color={C.navy} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={s.topicPanelClose} activeOpacity={0.7}>
+            <Ionicons name="close" size={16} color={C.textMid} />
+          </TouchableOpacity>
         </View>
-      ) : tickets.length === 0 ? (
-        <View style={s.card}>
-          <View style={s.emptyTickets}>
-            <Ionicons name="ticket-outline" size={40} color="#D1D9E6" />
-            <Text style={[s.emptyTicketsTitle, { fontFamily: F.semiBold }]}>No tickets yet</Text>
-            <Text style={[s.emptyTicketsSub, { fontFamily: F.regular }]}>
-              Tickets you raise will appear here with their latest status and messages.
-            </Text>
-          </View>
-        </View>
-      ) : (
-        tickets.map((ticket) => {
-          const cfg = TICKET_STATUS_CONFIG[ticket.status] ?? TICKET_STATUS_CONFIG.open;
-          const currentStep = cfg.step;
-          const isExpanded = expandedId === ticket.id;
-          const msgs = getMessagesForTicket(ticket);
-          const isClosed = ticket.status === "closed";
-          const isLoadingMsgs = loadingMsgId === ticket.id;
 
-          return (
-            <View key={ticket.id} style={[s.card, { marginBottom: 10 }]}>
-              <View style={s.ticketCardInner}>
-                <TouchableOpacity activeOpacity={0.85} onPress={() => toggleExpand(ticket)}>
-                  <View style={s.ticketCardHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.ticketCardTitle, { fontFamily: F.semiBold }]} numberOfLines={1}>
-                        {ticket.title}
-                      </Text>
-                      <Text style={[s.ticketCardDate, { fontFamily: F.regular }]}>
-                        {ticket.ticketNumber} · {formatDate(ticket.createdAt)}
-                      </Text>
-                      <Text style={[s.ticketMetaLine, { fontFamily: F.regular }]}>
-                        {formatCategoryLabel(ticket.category)} · {ticket.priority.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={s.ticketHeaderRight}>
-                      <View style={[s.ticketStatusBadge, { backgroundColor: cfg.bgColor }]}>
-                        <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
-                        <Text style={[s.ticketStatusBadgeTxt, { fontFamily: F.semiBold, color: cfg.color }]}>
-                          {cfg.label}
+        {isLoadingTickets ? (
+          <View style={s.card}>
+            <View style={s.emptyTickets}>
+              <ActivityIndicator size="large" color={C.navy} />
+              <Text style={[s.emptyTicketsSub, { fontFamily: F.regular, marginTop: 8 }]}>Loading tickets...</Text>
+            </View>
+          </View>
+        ) : tickets.length === 0 ? (
+          <View style={s.card}>
+            <View style={s.emptyTickets}>
+              <Ionicons name="ticket-outline" size={40} color="#D1D9E6" />
+              <Text style={[s.emptyTicketsTitle, { fontFamily: F.semiBold }]}>No tickets yet</Text>
+              <Text style={[s.emptyTicketsSub, { fontFamily: F.regular }]}>
+                Tickets you raise will appear here with their latest status and messages.
+              </Text>
+            </View>
+          </View>
+        ) : (
+          tickets.map((ticket) => {
+            const cfg = TICKET_STATUS_CONFIG[ticket.status] ?? TICKET_STATUS_CONFIG.open;
+            const currentStep = cfg.step;
+            const isExpanded = expandedId === ticket.id;
+            const msgs = getMessagesForTicket(ticket);
+            const isClosed = ticket.status === "closed";
+            const isLoadingMsgs = loadingMsgId === ticket.id;
+
+            return (
+              <View key={ticket.id} style={[s.card, { marginBottom: 10 }]}>
+                <View style={s.ticketCardInner}>
+                  <TouchableOpacity activeOpacity={0.85} onPress={() => toggleExpand(ticket)}>
+                    <View style={s.ticketCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.ticketCardTitle, { fontFamily: F.semiBold }]} numberOfLines={1}>
+                          {ticket.title}
+                        </Text>
+                        <Text style={[s.ticketCardDate, { fontFamily: F.regular }]}>
+                          {ticket.ticketNumber} · {formatDate(ticket.createdAt)}
+                        </Text>
+                        <Text style={[s.ticketMetaLine, { fontFamily: F.regular }]}>
+                          {formatCategoryLabel(ticket.category)} · {ticket.priority.toUpperCase()}
                         </Text>
                       </View>
-                      <Ionicons
-                        name={isExpanded ? "chevron-up" : "chevron-down"}
-                        size={18}
-                        color={C.textLight}
-                      />
+                      <View style={s.ticketHeaderRight}>
+                        <View style={[s.ticketStatusBadge, { backgroundColor: cfg.bgColor }]}>
+                          <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                          <Text style={[s.ticketStatusBadgeTxt, { fontFamily: F.semiBold, color: cfg.color }]}>
+                            {cfg.label}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={18}
+                          color={C.textLight}
+                        />
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
 
-                <View style={s.ticketStepsRow}>
-                  {STEPS.map((step, idx) => {
-                    const stepCfg = TICKET_STATUS_CONFIG[step];
-                    const isCompleted = currentStep > stepCfg.step;
-                    const isActive = currentStep === stepCfg.step;
-                    const isLast = idx === STEPS.length - 1;
-                    return (
-                      <View key={step} style={s.ticketStepItem}>
-                        <View style={s.ticketStepDotRow}>
-                          <View
-                            style={[
-                              s.ticketStepDot,
-                              isCompleted && s.ticketStepDotDone,
-                              isActive && { backgroundColor: stepCfg.color, borderColor: stepCfg.color },
-                              !isCompleted && !isActive && s.ticketStepDotPending,
-                            ]}
-                          >
-                            {isCompleted ? (
-                              <Ionicons name="checkmark" size={10} color={C.white} />
-                            ) : isActive ? (
-                              <View style={s.ticketStepDotInner} />
-                            ) : null}
-                          </View>
-                          {!isLast && (
+                  <View style={s.ticketStepsRow}>
+                    {STEPS.map((step, idx) => {
+                      const stepCfg = TICKET_STATUS_CONFIG[step];
+                      const isCompleted = currentStep > stepCfg.step;
+                      const isActive = currentStep === stepCfg.step;
+                      const isLast = idx === STEPS.length - 1;
+                      return (
+                        <View key={step} style={s.ticketStepItem}>
+                          <View style={s.ticketStepDotRow}>
                             <View
                               style={[
-                                s.ticketStepLine,
-                                isCompleted ? s.ticketStepLineDone : s.ticketStepLinePending,
+                                s.ticketStepDot,
+                                isCompleted && s.ticketStepDotDone,
+                                isActive && { backgroundColor: stepCfg.color, borderColor: stepCfg.color },
+                                !isCompleted && !isActive && s.ticketStepDotPending,
                               ]}
-                            />
-                          )}
-                        </View>
-                        <Text
-                          style={[
-                            s.ticketStepLabel,
-                            { fontFamily: isActive ? F.semiBold : F.regular },
-                            isActive && { color: stepCfg.color },
-                            isCompleted && { color: "#16A34A" },
-                            !isCompleted && !isActive && { color: C.textLight },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {stepCfg.label}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {isExpanded && (
-                  <View style={s.ticketDetailSection}>
-                    <Text style={[s.ticketDetailSectionTitle, { fontFamily: F.semiBold }]}>
-                      Conversation
-                    </Text>
-
-                    {isLoadingMsgs ? (
-                      <ActivityIndicator size="small" color={C.navy} style={{ marginVertical: 16 }} />
-                    ) : msgs.length === 0 ? (
-                      <Text style={[s.noMsgsText, { fontFamily: F.regular }]}>
-                        No messages yet. Send a reply below.
-                      </Text>
-                    ) : (
-                      <View style={s.msgThread}>
-                        {msgs.map((msg) => {
-                          const isSeller = msg.senderType === "seller";
-                          return (
-                            <View
-                              key={msg.id}
-                              style={[s.ticketMsgRow, isSeller ? s.ticketMsgRowSeller : s.ticketMsgRowAdmin]}
                             >
+                              {isCompleted ? (
+                                <Ionicons name="checkmark" size={10} color={C.white} />
+                              ) : isActive ? (
+                                <View style={s.ticketStepDotInner} />
+                              ) : null}
+                            </View>
+                            {!isLast && (
                               <View
                                 style={[
-                                  s.ticketMsgBubble,
-                                  isSeller ? s.ticketMsgBubbleSeller : s.ticketMsgBubbleAdmin,
+                                  s.ticketStepLine,
+                                  isCompleted ? s.ticketStepLineDone : s.ticketStepLinePending,
                                 ]}
+                              />
+                            )}
+                          </View>
+                          <Text
+                            style={[
+                              s.ticketStepLabel,
+                              { fontFamily: isActive ? F.semiBold : F.regular },
+                              isActive && { color: stepCfg.color },
+                              isCompleted && { color: "#16A34A" },
+                              !isCompleted && !isActive && { color: C.textLight },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {stepCfg.label}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {isExpanded && (
+                    <View style={s.ticketDetailSection}>
+                      <Text style={[s.ticketDetailSectionTitle, { fontFamily: F.semiBold }]}>
+                        Conversation
+                      </Text>
+
+                      {isLoadingMsgs ? (
+                        <ActivityIndicator size="small" color={C.navy} style={{ marginVertical: 16 }} />
+                      ) : msgs.length === 0 ? (
+                        <Text style={[s.noMsgsText, { fontFamily: F.regular }]}>
+                          No messages yet. Send a reply below.
+                        </Text>
+                      ) : (
+                        <View style={s.msgThread}>
+                          {msgs.map((msg) => {
+                            const isSeller = msg.senderType === "seller";
+                            return (
+                              <View
+                                key={msg.id}
+                                style={[s.ticketMsgRow, isSeller ? s.ticketMsgRowSeller : s.ticketMsgRowAdmin]}
                               >
-                                <Text
+                                <View
                                   style={[
-                                    s.ticketMsgSender,
-                                    { fontFamily: F.semiBold },
-                                    isSeller && { color: C.navyLight },
+                                    s.ticketMsgBubble,
+                                    isSeller ? s.ticketMsgBubbleSeller : s.ticketMsgBubbleAdmin,
                                   ]}
                                 >
-                                  {isSeller ? "You" : "Support Team"}
-                                </Text>
-                                {!!msg.message && msg.message !== "Attachment" && (
                                   <Text
                                     style={[
-                                      s.ticketMsgText,
-                                      { fontFamily: F.regular },
-                                      isSeller && s.ticketMsgTextSeller,
+                                      s.ticketMsgSender,
+                                      { fontFamily: F.semiBold },
+                                      isSeller && { color: C.navyLight },
                                     ]}
                                   >
-                                    {msg.message}
+                                    {isSeller ? "You" : "Support Team"}
                                   </Text>
-                                )}
-                                {msg.attachment ? (
-                                  <Image
-                                    source={{ uri: msg.attachment }}
-                                    style={s.ticketMsgAttachment}
-                                    resizeMode="cover"
-                                  />
-                                ) : null}
-                                <Text
-                                  style={[
-                                    s.ticketMsgTime,
-                                    { fontFamily: F.regular },
-                                    isSeller && { color: "rgba(255,255,255,0.65)" },
-                                  ]}
-                                >
-                                  {formatTime(msg.createdAt)}
-                                </Text>
+                                  {!!msg.message && msg.message !== "Attachment" && (
+                                    <Text
+                                      style={[
+                                        s.ticketMsgText,
+                                        { fontFamily: F.regular },
+                                        isSeller && s.ticketMsgTextSeller,
+                                      ]}
+                                    >
+                                      {msg.message}
+                                    </Text>
+                                  )}
+                                  {msg.attachment ? (
+                                    <Image
+                                      source={{ uri: msg.attachment }}
+                                      style={s.ticketMsgAttachment}
+                                      resizeMode="cover"
+                                    />
+                                  ) : null}
+                                  <Text
+                                    style={[
+                                      s.ticketMsgTime,
+                                      { fontFamily: F.regular },
+                                      isSeller && { color: "rgba(255,255,255,0.65)" },
+                                    ]}
+                                  >
+                                    {formatTime(msg.createdAt)}
+                                  </Text>
+                                </View>
                               </View>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
+                            );
+                          })}
+                        </View>
+                      )}
 
-                    {!isClosed && (
-                      <View>
-                        {replyImage[ticket.id] ? (
-                          <View style={s.replyImagePreviewWrap}>
-                            <Image
-                              source={{ uri: replyImage[ticket.id]! }}
-                              style={s.replyImagePreview}
-                              resizeMode="cover"
+                      {!isClosed && (
+                        <View>
+                          {replyImage[ticket.id] ? (
+                            <View style={s.replyImagePreviewWrap}>
+                              <Image
+                                source={{ uri: replyImage[ticket.id]! }}
+                                style={s.replyImagePreview}
+                                resizeMode="cover"
+                              />
+                              <TouchableOpacity
+                                style={s.replyImageRemove}
+                                onPress={() =>
+                                  setReplyImage((prev) => ({ ...prev, [ticket.id]: null }))
+                                }
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons name="close-circle" size={22} color="#DC2626" />
+                              </TouchableOpacity>
+                            </View>
+                          ) : null}
+                          <View style={s.replyBox}>
+                            <TouchableOpacity
+                              style={s.replyAttachBtn}
+                              onPress={() => handlePickReplyImage(ticket.id)}
+                              disabled={sendingId === ticket.id}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="image-outline" size={20} color={C.navy} />
+                            </TouchableOpacity>
+                            <TextInput
+                              style={[s.replyInput, { fontFamily: F.regular }]}
+                              placeholder="Type your message..."
+                              placeholderTextColor={C.textLight}
+                              value={replyText[ticket.id] ?? ""}
+                              onChangeText={(t) =>
+                                setReplyText((prev) => ({ ...prev, [ticket.id]: t }))
+                              }
+                              multiline
+                              maxLength={2000}
                             />
                             <TouchableOpacity
-                              style={s.replyImageRemove}
-                              onPress={() =>
-                                setReplyImage((prev) => ({ ...prev, [ticket.id]: null }))
+                              style={[
+                                s.replySendBtn,
+                                (!(replyText[ticket.id] ?? "").trim() &&
+                                  !replyImage[ticket.id]) ||
+                                  sendingId === ticket.id
+                                  ? s.replySendBtnDisabled
+                                  : null,
+                              ]}
+                              onPress={() => handleSendReply(ticket)}
+                              disabled={
+                                (!(replyText[ticket.id] ?? "").trim() && !replyImage[ticket.id]) ||
+                                sendingId === ticket.id
                               }
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              activeOpacity={0.8}
                             >
-                              <Ionicons name="close-circle" size={22} color="#DC2626" />
+                              {sendingId === ticket.id ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Ionicons name="send" size={16} color="#fff" />
+                              )}
                             </TouchableOpacity>
                           </View>
-                        ) : null}
-                        <View style={s.replyBox}>
-                          <TouchableOpacity
-                            style={s.replyAttachBtn}
-                            onPress={() => handlePickReplyImage(ticket.id)}
-                            disabled={sendingId === ticket.id}
-                            activeOpacity={0.7}
-                          >
-                            <Ionicons name="image-outline" size={20} color={C.navy} />
-                          </TouchableOpacity>
-                          <TextInput
-                            style={[s.replyInput, { fontFamily: F.regular }]}
-                            placeholder="Type your message..."
-                            placeholderTextColor={C.textLight}
-                            value={replyText[ticket.id] ?? ""}
-                            onChangeText={(t) =>
-                              setReplyText((prev) => ({ ...prev, [ticket.id]: t }))
-                            }
-                            multiline
-                            maxLength={2000}
-                          />
-                          <TouchableOpacity
-                            style={[
-                              s.replySendBtn,
-                              (!(replyText[ticket.id] ?? "").trim() &&
-                                !replyImage[ticket.id]) ||
-                                sendingId === ticket.id
-                                ? s.replySendBtnDisabled
-                                : null,
-                            ]}
-                            onPress={() => handleSendReply(ticket)}
-                            disabled={
-                              (!(replyText[ticket.id] ?? "").trim() && !replyImage[ticket.id]) ||
-                              sendingId === ticket.id
-                            }
-                            activeOpacity={0.8}
-                          >
-                            {sendingId === ticket.id ? (
-                              <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                              <Ionicons name="send" size={16} color="#fff" />
-                            )}
-                          </TouchableOpacity>
                         </View>
-                      </View>
-                    )}
+                      )}
 
-                    {isClosed && (
-                      <View style={s.closedBanner}>
-                        <Ionicons name="lock-closed-outline" size={14} color={C.textMid} />
-                        <Text style={[s.closedBannerTxt, { fontFamily: F.medium }]}>
-                          This ticket is closed
-                        </Text>
-                      </View>
-                    )}
+                      {isClosed && (
+                        <View style={s.closedBanner}>
+                          <Ionicons name="lock-closed-outline" size={14} color={C.textMid} />
+                          <Text style={[s.closedBannerTxt, { fontFamily: F.medium }]}>
+                            This ticket is closed
+                          </Text>
+                        </View>
+                      )}
 
-                    {!isClosed && (
-                      <TouchableOpacity
-                        style={s.closeTicketLink}
-                        onPress={() => handleCloseTicket(ticket)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[s.closeTicketLinkTxt, { fontFamily: F.medium }]}>
-                          Mark as resolved
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
+                      {!isClosed && (
+                        <TouchableOpacity
+                          style={s.closeTicketLink}
+                          onPress={() => handleCloseTicket(ticket)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.closeTicketLinkTxt, { fontFamily: F.medium }]}>
+                            Mark as resolved
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          );
-        })
-      )}
-    </View>
-  );
-};
+            );
+          })
+        )}
+      </View>
+    );
+  };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPING INDICATOR
@@ -1705,7 +1705,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       setTicketSubmitted(true);
       setTimeout(() => setTicketSubmitted(false), 5000);
 
-      loadTickets().catch(() => {});
+      loadTickets().catch(() => { });
     } catch (err: any) {
       const msg = String(err?.message || "Failed to create ticket. Please try again.");
       if (msg === AUTH_ACTION_FAILED || /auth|login|session/i.test(msg)) {
@@ -2070,14 +2070,16 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       )}
 
       <View style={[s.navyBanner, isBannerStacked && s.navyBannerStacked, isWeb && s.navyBannerWeb]}>
-        <View style={s.bannerIconWrap}>
-          <Ionicons name="headset-outline" size={24} color={C.white} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
-          <Text style={[s.bannerSub, { fontFamily: F.regular }]} numberOfLines={2}>
-            Raise a ticket · we typically respond within 24 hours
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+          <View style={s.bannerIconWrap}>
+            <Ionicons name="headset-outline" size={24} color={C.white} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[s.bannerTitle, { fontFamily: F.semiBold }]}>Need help right away?</Text>
+            <Text style={[s.bannerSub, { fontFamily: F.regular }]} numberOfLines={2}>
+              Raise a ticket · we typically respond within 24 hours
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
           style={[s.bannerBtn, isBannerStacked && s.bannerBtnStacked]}
@@ -2244,7 +2246,7 @@ const HelpSupportScreen = ({ navigation }: { navigation?: any }) => {
       <SweetAlertHost />
 
       <AppHeader
-        title="Help & Support"
+        title="Need Help"
         showBackButton
         rightActions={
           <View style={s.headerIconWrap}>
@@ -2444,7 +2446,7 @@ const s = StyleSheet.create({
         display: "grid",
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         gap: 10,
-      },
+      } as any,
     }),
   },
   topicsGridWebMobile: {
@@ -2452,7 +2454,7 @@ const s = StyleSheet.create({
       web: {
         gridTemplateColumns: "1fr",
         gap: 8,
-      },
+      } as any,
     }),
   },
   topicsGridTablet: {
@@ -2460,7 +2462,7 @@ const s = StyleSheet.create({
       web: {
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         gap: 10,
-      },
+      } as any,
     }),
   },
   topicsGridDesktop: {
@@ -2468,10 +2470,10 @@ const s = StyleSheet.create({
       web: {
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         gap: 12,
-      },
+      } as any,
     }),
   },
-  topicsEmptyCard: { width: "100%", padding: 16, gridColumn: "1 / -1" as any },
+  topicsEmptyCard: { width: "100%", padding: 16, gridColumn: "1 / -1" } as any,
   topicPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -2491,24 +2493,24 @@ const s = StyleSheet.create({
   },
   topicPillWeb: {
     ...Platform.select({
-      web: { width: "auto", maxWidth: "none", flexBasis: "auto" },
+      web: { width: "auto", maxWidth: "none", flexBasis: "auto" } as any,
     }),
   },
   topicPillDesktop: {
     width: "auto",
     maxWidth: "none",
     flexBasis: "auto",
-  },
+  } as any,
   topicPillWebMobile: {
     width: "100%",
     ...Platform.select({
-      web: { width: "auto", maxWidth: "none" },
+      web: { width: "auto", maxWidth: "none" } as any,
     }),
   },
   topicPillFull: {
     width: "100%",
     ...Platform.select({
-      web: { gridColumn: "1 / -1" },
+      web: { gridColumn: "1 / -1" } as any,
     }),
   },
   topicPillActive: { backgroundColor: C.softBlue },

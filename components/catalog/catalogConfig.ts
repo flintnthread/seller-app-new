@@ -67,7 +67,7 @@ export type CatalogPageConfig = {
 export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
     kind: "color",
     pageTitle: "Colors",
-    pageSubtitle: "Manage colours you added. Shared catalog colours are view only.",
+    pageSubtitle: "Manage custom colors.",
     addModalTitle: "Add New Color",
     saveButtonLabel: "Save Color",
     entityLabel: "color",
@@ -81,8 +81,7 @@ export const COLOR_PAGE_CONFIG: CatalogPageConfig = {
 export const SIZE_PAGE_CONFIG: CatalogPageConfig = {
     kind: "size",
     pageTitle: "Sizes",
-    pageSubtitle:
-        "Sizes stay in one catalog database. Browse by Apparel, Footwear, Waist, Kids, Free Size, or Other.",
+    pageSubtitle: "Manage custom sizes.",
     addModalTitle: "Add New Size",
     saveButtonLabel: "Save Size",
     entityLabel: "size",

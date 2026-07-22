@@ -413,12 +413,12 @@ export default function SettingsScreen() {
               item.id === "5"
                 ? biometricLogin
                 : item.id === "8"
-                ? pushNotifications
-                : item.id === "9"
-                ? orderUpdates
-                : item.id === "10"
-                ? payoutAlerts
-                : vacationMode
+                  ? pushNotifications
+                  : item.id === "9"
+                    ? orderUpdates
+                    : item.id === "10"
+                      ? payoutAlerts
+                      : vacationMode
             }
             onValueChange={(value) => {
               if (item.id === "5") {
@@ -455,14 +455,15 @@ export default function SettingsScreen() {
         {Platform.OS === "web" ? (
           <View style={styles.pageHeaderWeb}>
             <View style={styles.titleContainerWeb}>
-              <View style={styles.breadcrumbWeb}>
-                <TouchableOpacity onPress={() => router.push("/(main)/dashboard")}>
-                  <AppText style={styles.breadcrumbDimWeb}>Dashboard</AppText>
-                </TouchableOpacity>
-                <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.6)" />
-                <AppText style={styles.breadcrumbActiveWeb}>Settings</AppText>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                </View>
+                <View>
+                  <AppText style={styles.pageTitleWeb}>Settings</AppText>
+                  <AppText style={{ fontFamily: fontFamilies.regular, fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>Manage your seller account</AppText>
+                </View>
               </View>
-              <AppText style={styles.pageTitleWeb}>Settings</AppText>
             </View>
           </View>
         ) : (
@@ -479,7 +480,7 @@ export default function SettingsScreen() {
           style={styles.profileCard}
         >
           <View style={styles.profileTop}>
-            <View style={styles.profileRow}>
+            <View style={[styles.profileRow, { flex: 1, minWidth: 0 }]}>
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
               ) : (
@@ -488,34 +489,31 @@ export default function SettingsScreen() {
                 </View>
               )}
 
-              <View>
-                <View style={styles.nameRow}>
-                  <AppText style={styles.profileName}>{sellerName}</AppText>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                {/* Name on its own line */}
+                <AppText style={styles.profileName} numberOfLines={2}>{sellerName}</AppText>
 
+                {/* Badge + Edit in a row below the name */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
                   <View style={styles.verifiedBadge}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={14}
-                      color="#22c55e"
-                    />
-
+                    <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
                     <AppText style={styles.verifiedText}>Active</AppText>
                   </View>
+                  <TouchableOpacity style={styles.editButton} onPress={() => router.push("/viewsellerprofile")}>
+                    <Feather name="edit-2" size={16} color="#fff" />
+                  </TouchableOpacity>
                 </View>
 
-                <AppText style={styles.profileEmail}>
+                <AppText style={styles.profileEmail} numberOfLines={1}>
                   {profile?.email || "—"}
                 </AppText>
 
-                <AppText style={styles.profileId}>
+                <AppText style={styles.profileId} numberOfLines={1}>
                   {formatSellerUniqueIdDisplay(profile?.sellerUniqueId, profile?.id)}
                 </AppText>
               </View>
             </View>
 
-            <TouchableOpacity style={styles.editButton} onPress={() => router.push("/viewsellerprofile")}>
-              <Feather name="edit-2" size={16} color="#fff" />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.analyticsRow}>
@@ -720,13 +718,9 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     backgroundColor: "#151D4F",
     paddingHorizontal: 32,
-    paddingVertical: 28,
-    paddingBottom: 68,
-    borderRadius: 22,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    paddingVertical: 12,
+    paddingBottom: 56,
+    borderRadius: 14,
     marginHorizontal: 2,
     marginTop: 12,
     shadowColor: "#151D4F",
@@ -812,9 +806,9 @@ const styles = StyleSheet.create({
 
   profileName: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 17,
     fontFamily: fontFamilies.bold,
-    marginRight: 10,
+    marginBottom: 0,
   },
 
   verifiedBadge: {
@@ -964,7 +958,7 @@ const styles = StyleSheet.create({
 
   invoiceDownloadText: {
     color: "#2563eb",
-    fontFamily: fontFamilies.semibold,
+    fontFamily: fontFamilies.semiBold,
     fontSize: 13,
   },
 
